@@ -70,6 +70,18 @@ First implementation of this change remains the domain model + engine + sandbox 
 
 FastAPI adapters map HTTP to the pure engine module (decision 1). Scoring is never implemented in React.
 
+### 10. Generation fills post-by-post; hours-to-contract first, then nearest level
+
+Rest pattern (who *may* work which day) stays a 14-day CP-SAT pass **with per-service coverage lower bounds**: for each open (team, service, day), enough eligible people must be reserved for that service, counting a body toward a service only if they are assigned to it. A person who already covers midi does not automatically cover evening. Reservation also respects daily/weekly hour caps from the shortest post of each covered service, so rest cannot treat a 4-hour contract as covering both midi and evening. Two consecutive rest days are **weekday pairs only** (Mon–Tue … Thu–Fri). Saturday+Sunday is not a valid consecutive pair; the solver used to pick it because Sunday is already closed — rejected, it emptied Saturday.
+
+Shift fill is sequential per post window (highest required level first, then earliest start). When assigning a later post, skip a candidate who is the only person left who can cover an earlier still-empty window of the same service, if someone else can take the later post (so a 10:00 opening is not sacrificed for a 12:00 level-2). Eligible staff: same team, level ≥ post, not unavailable, no overlap. Choice order: lowest hours-to-contract ratio, then already on that day, then nearest level. A shift that would exceed contractual hours is skipped when any teammate is still under hours. Unavailability remains a hard skip. Legal maxima (11h rest, 5h pause, daily/weekly caps) skip a candidate when another eligible person exists. Weekly coupure caps are scored as souhait, not used to refuse a second service.
+
+A single greedy pass can still paint itself into a hole (someone takes midi and then cannot take evening, while a midi-only colleague was left idle). Generation therefore runs several **deterministic** attempts (rest-solver seed, rotated staff order, rotated start day), repairs remaining holes by moving a same-day assignment onto the hole when another colleague can take the vacated post, and keeps the best result (fewest empty posts, then fewest interdits, then closest contract hours). The output of `generate_cycle` is stable across runs.
+
+Avoiding same-day midi+soir as a generation filter, and special-casing Saturday rest for midday-blocked staff, were tried and rejected: they overfit one restaurant file and either spread work too thin or dump all hours on the first days of the week.
+
+Greedy highest-rank zip, exact-level-before-hours, rest-without-coverage, and “assign whoever is left even over contract” were all tried on the example restaurant file and rejected.
+
 ## Risks / Trade-offs
 
 - [14-day solve too slow] → Mitigation: keep variables as wave templates; decompose rest-pattern then shifts; still one 14-day model, not two independent weeks.
@@ -84,6 +96,6 @@ Greenfield: no migration. Publish cycle from empty is “no instances yet”. Th
 
 ## Open Questions
 
-- Exact ranking weights among souhait criteria (can be tuned after first generations without changing specs).
+- Fine ranking among remaining souhait criteria (evenings cap, coupures) can be tuned after generations without changing the hours-then-level rule.
 - Whether linked employees can see only their own shifts or the whole team grid (does not change engine or sandbox; default until decided: own shifts).
 - Job-queue library (ARQ, Celery, or FastAPI background workers) — pick at apply time; does not change specs.

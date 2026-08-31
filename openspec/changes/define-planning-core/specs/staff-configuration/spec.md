@@ -26,7 +26,7 @@ The system SHALL store for each employee: name, role, skill level, team, and con
 - **THEN** the employee profile contains those values
 
 ### Requirement: Recurring and service unavailabilities
-The system SHALL record employee unavailabilities as restaurateur-stated constraints, including patterns such as every morning, every given weekday, or specific services.
+The system SHALL record employee unavailabilities as restaurateur-stated constraints, including patterns such as every morning, every given weekday, or specific services. Generation MUST NOT assign an unavailable employee to a blocked slot; an empty post is preferred. Manual override after generation MAY place them and MUST then score an interdit warning.
 
 #### Scenario: Every Tuesday off
 - **WHEN** the restaurateur marks an employee unavailable every Tuesday
@@ -37,11 +37,11 @@ The system SHALL record employee unavailabilities as restaurateur-stated constra
 - **THEN** that employee MUST NOT be assigned to a morning service unless overridden with a warning
 
 ### Requirement: Wellbeing preferences
-The system SHALL record, per employee, the following wellbeing preferences (others MAY be added in a later change): prefer two consecutive rest days; one weekend off every two weeks; at least one rest day each weekend; no evening service; no morning service; at most two coupures per week; at most three coupures per week.
+The system SHALL record, per employee, the following wellbeing preferences (others MAY be added in a later change): prefer two consecutive rest days **on weekdays** (Monday–Friday, e.g. Tuesday–Wednesday); one weekend off every two weeks; at least one rest day each weekend; no evening service; no morning service; at most two coupures per week; at most three coupures per week. Two consecutive rest days MUST NOT be satisfied by Saturday–Sunday or Sunday–Monday; those are the weekend preferences, a different rule.
 
 #### Scenario: Consecutive rest days preference
 - **WHEN** the restaurateur enables “two consecutive rest days” for an employee
-- **THEN** the constraint engine treats that preference as a souhait-level constraint for that employee
+- **THEN** the constraint engine treats that preference as a souhait-level constraint for two adjacent weekdays, not as a weekend off
 
 ### Requirement: Restaurant invite code
 The system SHALL let the restaurateur generate an invite code from the interface. When an employee creates an account with that code, the system MUST link the account to that restaurant.
