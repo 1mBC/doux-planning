@@ -1,0 +1,31 @@
+schema: spec-driven
+
+context: |
+  Domain: automated restaurant staff planning (doux-planning) for a single human-scale restaurant.
+  Product: 14-day cruise cycle, calendar instances with intents, sandbox (one target: cycle or week), exclusive posts with nearest-level descent, one constraint engine (generate / score / suggest / swap).
+  Tech stack: Python 3.12, FastAPI, OR-Tools (CP-SAT), PostgreSQL, React + TypeScript (Vite), Docker Compose.
+  API-first: web and a future cross-platform mobile app consume the same HTTP API. Do not put scoring rules in the UI.
+  Language: product and restaurateur UX in French; OpenSpec requirements may stay in English SHALL form.
+  Out of scope for v1: native stores, employee-authored constraints, notifications, extras filling, multi-restaurant groups, PHP shared hosting.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
