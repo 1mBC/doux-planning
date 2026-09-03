@@ -175,6 +175,43 @@ def test_employee_cannot_see_sandbox_draft():
     assert all(shift.employee_id == "chef-a" for shift in after)
 
 
+def test_saint_cloud_example_separates_france_legal():
+    from doux_planning.api.examples import example_payload
+
+    payload = example_payload("saint-cloud")
+    assert payload["example"] == "saint-cloud"
+    assert payload["legal"]["id"] == "france"
+    assert payload["legal"]["kind"] == "legal_context"
+    assert {rule["id"] for rule in payload["legal"]["rules"]} == {
+        "rest_between_days",
+        "weekly_rest_days",
+        "max_coupure",
+        "max_daily_cuisine",
+        "max_daily_salle",
+        "max_weekly_hours",
+    }
+    assert "legal_rules" not in payload["restaurant"]
+    assert payload["restaurant"]["id"] == "saint-cloud"
+    assert payload["planning"]["assignments"]
+    assert payload["planning"]["search_effort"] == "optimized"
+
+
+def test_saint_cloud_example_route():
+    from fastapi.testclient import TestClient
+
+    from doux_planning.api.app import app
+
+    client = TestClient(app)
+    missing = client.get("/v1/examples/inconnu")
+    assert missing.status_code == 404
+    response = client.get("/v1/examples/saint-cloud")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["legal"]["id"] == "france"
+    assert body["restaurant"]["name"] == "Saint-Cloud"
+    assert body["planning"]["stats"]["assignments"] == 70
+
+
 def test_brasserie_template_is_editable():
     template = brasserie_template(Team.CUISINE, ServiceName.MIDDAY.value, {"monday"})
     assert template.arrivals

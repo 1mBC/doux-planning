@@ -1,0 +1,37 @@
+{
+  "id": "france",
+  "label": "France",
+  "kind": "legal_context",
+  "rules": [
+    {
+      "id": "rest_between_days",
+      "label_fr": "11h de repos entre deux journées",
+      "severity": "interdit"
+    },
+    {
+      "id": "weekly_rest_days",
+      "label_fr": "2 jours de repos par semaine",
+      "severity": "interdit"
+    },
+    {
+      "id": "max_coupure",
+      "label_fr": "5h de pause maximum entre deux services",
+      "severity": "interdit"
+    },
+    {
+      "id": "max_daily_cuisine",
+      "label_fr": "11h de travail par jour max pour la cuisine",
+      "severity": "interdit"
+    },
+    {
+      "id": "max_daily_salle",
+      "label_fr": "11,5h de travail par jour max pour la salle",
+      "severity": "interdit"
+    },
+    {
+      "id": "max_weekly_hours",
+      "label_fr": "48h maximum de travail par semaine",
+      "severity": "interdit"
+    }
+  ]
+}

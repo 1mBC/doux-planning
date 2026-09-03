@@ -1,0 +1,2025 @@
+{
+  "id": "saint-cloud",
+  "legal_context": "france",
+  "restaurant": {
+    "id": "saint-cloud",
+    "name": "Saint-Cloud",
+    "team": "salle",
+    "source": "Exemple de restau.xlsx",
+    "hours": {
+      "mode": "services",
+      "services": [
+        "midday",
+        "evening"
+      ],
+      "closed_weekdays": [
+        "sunday"
+      ],
+      "closed_services": []
+    },
+    "structures": [
+      {
+        "id": "salle-midday-type1",
+        "team": "salle",
+        "service_id": "midday",
+        "weekdays": [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday"
+        ],
+        "arrivals": [
+          {
+            "time_minutes": 600,
+            "post_levels": [
+              1
+            ]
+          },
+          {
+            "time_minutes": 660,
+            "post_levels": [
+              1,
+              3
+            ]
+          },
+          {
+            "time_minutes": 720,
+            "post_levels": [
+              2
+            ]
+          }
+        ],
+        "departures": [
+          {
+            "time_minutes": 840,
+            "remaining_post_levels": [
+              3,
+              2,
+              1
+            ]
+          },
+          {
+            "time_minutes": 900,
+            "remaining_post_levels": [
+              3,
+              2
+            ]
+          },
+          {
+            "time_minutes": 960,
+            "remaining_post_levels": []
+          }
+        ]
+      },
+      {
+        "id": "salle-evening-type2",
+        "team": "salle",
+        "service_id": "evening",
+        "weekdays": [
+          "monday"
+        ],
+        "arrivals": [
+          {
+            "time_minutes": 1080,
+            "post_levels": [
+              3
+            ]
+          },
+          {
+            "time_minutes": 1140,
+            "post_levels": [
+              1
+            ]
+          },
+          {
+            "time_minutes": 1170,
+            "post_levels": [
+              2
+            ]
+          }
+        ],
+        "departures": [
+          {
+            "time_minutes": 1440,
+            "remaining_post_levels": []
+          }
+        ]
+      },
+      {
+        "id": "salle-evening-type1",
+        "team": "salle",
+        "service_id": "evening",
+        "weekdays": [
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday"
+        ],
+        "arrivals": [
+          {
+            "time_minutes": 1080,
+            "post_levels": [
+              3
+            ]
+          },
+          {
+            "time_minutes": 1140,
+            "post_levels": [
+              1
+            ]
+          },
+          {
+            "time_minutes": 1170,
+            "post_levels": [
+              2,
+              1
+            ]
+          }
+        ],
+        "departures": [
+          {
+            "time_minutes": 1350,
+            "remaining_post_levels": [
+              3,
+              2,
+              1
+            ]
+          },
+          {
+            "time_minutes": 1380,
+            "remaining_post_levels": [
+              3,
+              2
+            ]
+          },
+          {
+            "time_minutes": 1440,
+            "remaining_post_levels": []
+          }
+        ]
+      },
+      {
+        "id": "salle-midday-type2",
+        "team": "salle",
+        "service_id": "midday",
+        "weekdays": [
+          "saturday"
+        ],
+        "arrivals": [
+          {
+            "time_minutes": 600,
+            "post_levels": [
+              1
+            ]
+          },
+          {
+            "time_minutes": 660,
+            "post_levels": [
+              3
+            ]
+          },
+          {
+            "time_minutes": 750,
+            "post_levels": [
+              2
+            ]
+          }
+        ],
+        "departures": [
+          {
+            "time_minutes": 960,
+            "remaining_post_levels": []
+          }
+        ]
+      }
+    ],
+    "employees": [
+      {
+        "id": "diane",
+        "name": "DIANE",
+        "role": {
+          "name": "RESPONSABLE",
+          "level": 4,
+          "team": "salle"
+        },
+        "team": "salle",
+        "contractual_hours_per_week": 39.0,
+        "unavailabilities": [],
+        "wellbeing": [
+          "max_two_coupures_per_week"
+        ],
+        "forced_off_days": [
+          12,
+          13
+        ],
+        "max_evenings_per_week": 2,
+        "max_mornings_per_week": null,
+        "min_shift_hours": 4.0
+      },
+      {
+        "id": "theo",
+        "name": "THEO",
+        "role": {
+          "name": "RESPONSABLE",
+          "level": 3,
+          "team": "salle"
+        },
+        "team": "salle",
+        "contractual_hours_per_week": 39.0,
+        "unavailabilities": [],
+        "wellbeing": [
+          "max_three_coupures_per_week",
+          "two_consecutive_rest_days"
+        ],
+        "forced_off_days": [],
+        "max_evenings_per_week": null,
+        "max_mornings_per_week": null,
+        "min_shift_hours": 4.0
+      },
+      {
+        "id": "emma",
+        "name": "EMMA",
+        "role": {
+          "name": "RESPONSABLE",
+          "level": 3,
+          "team": "salle"
+        },
+        "team": "salle",
+        "contractual_hours_per_week": 39.0,
+        "unavailabilities": [
+          {
+            "weekday": "monday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": null
+          },
+          {
+            "weekday": "tuesday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": null
+          }
+        ],
+        "wellbeing": [
+          "max_two_coupures_per_week"
+        ],
+        "forced_off_days": [],
+        "max_evenings_per_week": null,
+        "max_mornings_per_week": null,
+        "min_shift_hours": 4.0
+      },
+      {
+        "id": "robin",
+        "name": "ROBIN",
+        "role": {
+          "name": "RESPONSABLE",
+          "level": 3,
+          "team": "salle"
+        },
+        "team": "salle",
+        "contractual_hours_per_week": 25.0,
+        "unavailabilities": [
+          {
+            "weekday": "monday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "tuesday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "wednesday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "thursday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "friday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          }
+        ],
+        "wellbeing": [
+          "at_least_one_weekend_rest_day",
+          "max_two_coupures_per_week"
+        ],
+        "forced_off_days": [],
+        "max_evenings_per_week": null,
+        "max_mornings_per_week": null,
+        "min_shift_hours": 4.0
+      },
+      {
+        "id": "aurore",
+        "name": "AURORE",
+        "role": {
+          "name": "CHEF DE RANG",
+          "level": 2,
+          "team": "salle"
+        },
+        "team": "salle",
+        "contractual_hours_per_week": 30.0,
+        "unavailabilities": [],
+        "wellbeing": [
+          "max_two_coupures_per_week"
+        ],
+        "forced_off_days": [
+          5,
+          6
+        ],
+        "max_evenings_per_week": null,
+        "max_mornings_per_week": null,
+        "min_shift_hours": 4.0
+      },
+      {
+        "id": "mimo",
+        "name": "MIMO",
+        "role": {
+          "name": "CHEF DE RANG",
+          "level": 2,
+          "team": "salle"
+        },
+        "team": "salle",
+        "contractual_hours_per_week": 25.0,
+        "unavailabilities": [
+          {
+            "weekday": "monday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "tuesday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "wednesday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "friday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          }
+        ],
+        "wellbeing": [
+          "max_two_coupures_per_week",
+          "two_consecutive_rest_days"
+        ],
+        "forced_off_days": [],
+        "max_evenings_per_week": null,
+        "max_mornings_per_week": null,
+        "min_shift_hours": 4.0
+      },
+      {
+        "id": "lucie",
+        "name": "LUCIE",
+        "role": {
+          "name": "COMMIS",
+          "level": 1,
+          "team": "salle"
+        },
+        "team": "salle",
+        "contractual_hours_per_week": 15.0,
+        "unavailabilities": [
+          {
+            "weekday": "monday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "tuesday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "wednesday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "thursday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          },
+          {
+            "weekday": "friday",
+            "every_morning": false,
+            "every_evening": false,
+            "service_id": "midday"
+          }
+        ],
+        "wellbeing": [
+          "at_least_one_weekend_rest_day",
+          "max_two_coupures_per_week"
+        ],
+        "forced_off_days": [],
+        "max_evenings_per_week": null,
+        "max_mornings_per_week": null,
+        "min_shift_hours": 4.0
+      },
+      {
+        "id": "vlad",
+        "name": "VLAD",
+        "role": {
+          "name": "CHEF DE RANG",
+          "level": 2,
+          "team": "salle"
+        },
+        "team": "salle",
+        "contractual_hours_per_week": 35.0,
+        "unavailabilities": [],
+        "wellbeing": [
+          "at_least_one_weekend_rest_day",
+          "max_three_coupures_per_week",
+          "two_consecutive_rest_days"
+        ],
+        "forced_off_days": [],
+        "max_evenings_per_week": null,
+        "max_mornings_per_week": null,
+        "min_shift_hours": 4.0
+      }
+    ]
+  },
+  "planning": {
+    "search_effort": "optimized",
+    "calendars": 320,
+    "seconds": 4.04,
+    "assignments": [
+      {
+        "employee_id": "theo",
+        "day_index": 0,
+        "weekday": "monday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 0,
+        "weekday": "monday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 720,
+        "end_minutes": 960,
+        "post_level": 2,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "aurore",
+        "day_index": 0,
+        "weekday": "monday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 900,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "robin",
+        "day_index": 0,
+        "weekday": "monday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "diane",
+        "day_index": 0,
+        "weekday": "monday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "lucie",
+        "day_index": 0,
+        "weekday": "monday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1440,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "diane",
+        "day_index": 1,
+        "weekday": "tuesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 1,
+        "weekday": "tuesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 720,
+        "end_minutes": 960,
+        "post_level": 2,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "aurore",
+        "day_index": 1,
+        "weekday": "tuesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 900,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "robin",
+        "day_index": 1,
+        "weekday": "tuesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 1,
+        "weekday": "tuesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "diane",
+        "day_index": 1,
+        "weekday": "tuesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1380,
+        "post_level": 1,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "emma",
+        "day_index": 2,
+        "weekday": "wednesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "aurore",
+        "day_index": 2,
+        "weekday": "wednesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 720,
+        "end_minutes": 960,
+        "post_level": 2,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "diane",
+        "day_index": 2,
+        "weekday": "wednesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 900,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "emma",
+        "day_index": 2,
+        "weekday": "wednesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "mimo",
+        "day_index": 2,
+        "weekday": "wednesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "aurore",
+        "day_index": 2,
+        "weekday": "wednesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1380,
+        "post_level": 1,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "theo",
+        "day_index": 3,
+        "weekday": "thursday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "mimo",
+        "day_index": 3,
+        "weekday": "thursday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 720,
+        "end_minutes": 960,
+        "post_level": 2,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "diane",
+        "day_index": 3,
+        "weekday": "thursday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 900,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "theo",
+        "day_index": 3,
+        "weekday": "thursday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "emma",
+        "day_index": 3,
+        "weekday": "thursday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "lucie",
+        "day_index": 3,
+        "weekday": "thursday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1380,
+        "post_level": 1,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "emma",
+        "day_index": 4,
+        "weekday": "friday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 4,
+        "weekday": "friday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 720,
+        "end_minutes": 960,
+        "post_level": 2,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "aurore",
+        "day_index": 4,
+        "weekday": "friday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 900,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "theo",
+        "day_index": 4,
+        "weekday": "friday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "mimo",
+        "day_index": 4,
+        "weekday": "friday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 4,
+        "weekday": "friday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1380,
+        "post_level": 1,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "emma",
+        "day_index": 5,
+        "weekday": "saturday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 5,
+        "weekday": "saturday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 960,
+        "post_level": 1,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "theo",
+        "day_index": 5,
+        "weekday": "saturday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "mimo",
+        "day_index": 5,
+        "weekday": "saturday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "lucie",
+        "day_index": 5,
+        "weekday": "saturday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1380,
+        "post_level": 1,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "theo",
+        "day_index": 7,
+        "weekday": "monday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 7,
+        "weekday": "monday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 720,
+        "end_minutes": 960,
+        "post_level": 2,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "diane",
+        "day_index": 7,
+        "weekday": "monday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 900,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "robin",
+        "day_index": 7,
+        "weekday": "monday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "mimo",
+        "day_index": 7,
+        "weekday": "monday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "lucie",
+        "day_index": 7,
+        "weekday": "monday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1440,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "theo",
+        "day_index": 8,
+        "weekday": "tuesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "aurore",
+        "day_index": 8,
+        "weekday": "tuesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 720,
+        "end_minutes": 960,
+        "post_level": 2,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 8,
+        "weekday": "tuesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 900,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "diane",
+        "day_index": 8,
+        "weekday": "tuesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "aurore",
+        "day_index": 8,
+        "weekday": "tuesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "robin",
+        "day_index": 8,
+        "weekday": "tuesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1380,
+        "post_level": 1,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "emma",
+        "day_index": 9,
+        "weekday": "wednesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "diane",
+        "day_index": 9,
+        "weekday": "wednesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 720,
+        "end_minutes": 960,
+        "post_level": 2,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "theo",
+        "day_index": 9,
+        "weekday": "wednesday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 900,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "emma",
+        "day_index": 9,
+        "weekday": "wednesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "aurore",
+        "day_index": 9,
+        "weekday": "wednesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "lucie",
+        "day_index": 9,
+        "weekday": "wednesday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1380,
+        "post_level": 1,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "emma",
+        "day_index": 10,
+        "weekday": "thursday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "mimo",
+        "day_index": 10,
+        "weekday": "thursday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 720,
+        "end_minutes": 960,
+        "post_level": 2,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "diane",
+        "day_index": 10,
+        "weekday": "thursday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 900,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "robin",
+        "day_index": 10,
+        "weekday": "thursday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "mimo",
+        "day_index": 10,
+        "weekday": "thursday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "emma",
+        "day_index": 10,
+        "weekday": "thursday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1380,
+        "post_level": 1,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "emma",
+        "day_index": 11,
+        "weekday": "friday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 11,
+        "weekday": "friday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 720,
+        "end_minutes": 960,
+        "post_level": 2,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "aurore",
+        "day_index": 11,
+        "weekday": "friday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 900,
+        "post_level": 1,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "diane",
+        "day_index": 11,
+        "weekday": "friday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 11,
+        "weekday": "friday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "mimo",
+        "day_index": 11,
+        "weekday": "friday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1380,
+        "post_level": 1,
+        "duration_hours": 4.0
+      },
+      {
+        "employee_id": "theo",
+        "day_index": 12,
+        "weekday": "saturday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 660,
+        "end_minutes": 960,
+        "post_level": 3,
+        "duration_hours": 5.0
+      },
+      {
+        "employee_id": "lucie",
+        "day_index": 12,
+        "weekday": "saturday",
+        "service_id": "midday",
+        "team": "salle",
+        "start_minutes": 600,
+        "end_minutes": 960,
+        "post_level": 1,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "theo",
+        "day_index": 12,
+        "weekday": "saturday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1080,
+        "end_minutes": 1440,
+        "post_level": 3,
+        "duration_hours": 6.0
+      },
+      {
+        "employee_id": "vlad",
+        "day_index": 12,
+        "weekday": "saturday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1170,
+        "end_minutes": 1440,
+        "post_level": 2,
+        "duration_hours": 4.5
+      },
+      {
+        "employee_id": "aurore",
+        "day_index": 12,
+        "weekday": "saturday",
+        "service_id": "evening",
+        "team": "salle",
+        "start_minutes": 1140,
+        "end_minutes": 1380,
+        "post_level": 1,
+        "duration_hours": 4.0
+      }
+    ],
+    "warnings": [
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 11:00-12:00",
+        "employee_id": null,
+        "day_index": 0
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 12:00-14:00",
+        "employee_id": null,
+        "day_index": 0
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 11:00-12:00",
+        "employee_id": null,
+        "day_index": 1
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 12:00-14:00",
+        "employee_id": null,
+        "day_index": 1
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 19:30-22:30",
+        "employee_id": null,
+        "day_index": 1
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 11:00-12:00",
+        "employee_id": null,
+        "day_index": 2
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 12:00-14:00",
+        "employee_id": null,
+        "day_index": 2
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 19:30-22:30",
+        "employee_id": null,
+        "day_index": 2
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 11:00-12:00",
+        "employee_id": null,
+        "day_index": 3
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 12:00-14:00",
+        "employee_id": null,
+        "day_index": 3
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 19:30-22:30",
+        "employee_id": null,
+        "day_index": 3
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 11:00-12:00",
+        "employee_id": null,
+        "day_index": 4
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 12:00-14:00",
+        "employee_id": null,
+        "day_index": 4
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 19:30-22:30",
+        "employee_id": null,
+        "day_index": 4
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-2 post 12:30-16:00",
+        "employee_id": null,
+        "day_index": 5
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 19:30-22:30",
+        "employee_id": null,
+        "day_index": 5
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 11:00-12:00",
+        "employee_id": null,
+        "day_index": 7
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 12:00-14:00",
+        "employee_id": null,
+        "day_index": 7
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 11:00-12:00",
+        "employee_id": null,
+        "day_index": 8
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 12:00-14:00",
+        "employee_id": null,
+        "day_index": 8
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 19:30-22:30",
+        "employee_id": null,
+        "day_index": 8
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 11:00-12:00",
+        "employee_id": null,
+        "day_index": 9
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 12:00-14:00",
+        "employee_id": null,
+        "day_index": 9
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 19:30-22:30",
+        "employee_id": null,
+        "day_index": 9
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 11:00-12:00",
+        "employee_id": null,
+        "day_index": 10
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 12:00-14:00",
+        "employee_id": null,
+        "day_index": 10
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 19:30-22:30",
+        "employee_id": null,
+        "day_index": 10
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 11:00-12:00",
+        "employee_id": null,
+        "day_index": 11
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 12:00-14:00",
+        "employee_id": null,
+        "day_index": 11
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 19:30-22:30",
+        "employee_id": null,
+        "day_index": 11
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-2 post 12:30-16:00",
+        "employee_id": null,
+        "day_index": 12
+      },
+      {
+        "severity": "couverture",
+        "code": "empty_post",
+        "message": "Unfilled level-1 post 19:30-22:30",
+        "employee_id": null,
+        "day_index": 12
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "DIANE has 23.5h vs 39.0h contract",
+        "employee_id": "diane",
+        "day_index": 0
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "DIANE has 26.0h vs 39.0h contract",
+        "employee_id": "diane",
+        "day_index": 7
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "THEO has 28.0h vs 39.0h contract",
+        "employee_id": "theo",
+        "day_index": 0
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "THEO has 26.0h vs 39.0h contract",
+        "employee_id": "theo",
+        "day_index": 7
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "EMMA has 25.5h vs 39.0h contract",
+        "employee_id": "emma",
+        "day_index": 0
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "EMMA has 25.0h vs 39.0h contract",
+        "employee_id": "emma",
+        "day_index": 7
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "ROBIN has 12.0h vs 25.0h contract",
+        "employee_id": "robin",
+        "day_index": 0
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "ROBIN has 16.0h vs 25.0h contract",
+        "employee_id": "robin",
+        "day_index": 7
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "AURORE has 23.0h vs 30.0h contract",
+        "employee_id": "aurore",
+        "day_index": 0
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "AURORE has 22.0h vs 30.0h contract",
+        "employee_id": "aurore",
+        "day_index": 7
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "MIMO has 17.5h vs 25.0h contract",
+        "employee_id": "mimo",
+        "day_index": 0
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "MIMO has 17.0h vs 25.0h contract",
+        "employee_id": "mimo",
+        "day_index": 7
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "LUCIE has 13.0h vs 15.0h contract",
+        "employee_id": "lucie",
+        "day_index": 0
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "VLAD has 26.5h vs 35.0h contract",
+        "employee_id": "vlad",
+        "day_index": 0
+      },
+      {
+        "severity": "souhait",
+        "code": "contract_hours",
+        "message": "VLAD has 22.0h vs 35.0h contract",
+        "employee_id": "vlad",
+        "day_index": 7
+      }
+    ],
+    "stats": {
+      "assignments": 70,
+      "empty": 32,
+      "interdit": 0,
+      "souhait": 15,
+      "below_role": 24
+    },
+    "legal_rows": [
+      {
+        "name": "DIANE",
+        "employee_id": "diane",
+        "cells": {
+          "rest_between_days": {
+            "ok": true,
+            "text": "OK · min 11h"
+          },
+          "weekly_rest_days": {
+            "ok": true,
+            "text": "OK · 3 / 2 j."
+          },
+          "max_coupure": {
+            "ok": true,
+            "text": "OK · max 3h"
+          },
+          "max_daily_salle": {
+            "ok": true,
+            "text": "OK · max 9h"
+          },
+          "max_weekly_hours": {
+            "ok": true,
+            "text": "OK · 23,5h / 26h"
+          }
+        }
+      },
+      {
+        "name": "THEO",
+        "employee_id": "theo",
+        "cells": {
+          "rest_between_days": {
+            "ok": true,
+            "text": "OK · min 11h"
+          },
+          "weekly_rest_days": {
+            "ok": true,
+            "text": "OK · 3 / 3 j."
+          },
+          "max_coupure": {
+            "ok": true,
+            "text": "OK · max 2h"
+          },
+          "max_daily_salle": {
+            "ok": true,
+            "text": "OK · max 11h"
+          },
+          "max_weekly_hours": {
+            "ok": true,
+            "text": "OK · 28h / 26h"
+          }
+        }
+      },
+      {
+        "name": "EMMA",
+        "employee_id": "emma",
+        "cells": {
+          "rest_between_days": {
+            "ok": true,
+            "text": "OK · min 11h"
+          },
+          "weekly_rest_days": {
+            "ok": true,
+            "text": "OK · 3 / 4 j."
+          },
+          "max_coupure": {
+            "ok": true,
+            "text": "OK · max 3h"
+          },
+          "max_daily_salle": {
+            "ok": true,
+            "text": "OK · max 11h"
+          },
+          "max_weekly_hours": {
+            "ok": true,
+            "text": "OK · 25,5h / 25h"
+          }
+        }
+      },
+      {
+        "name": "ROBIN",
+        "employee_id": "robin",
+        "cells": {
+          "rest_between_days": {
+            "ok": true,
+            "text": "OK · min 18h"
+          },
+          "weekly_rest_days": {
+            "ok": true,
+            "text": "OK · 5 / 4 j."
+          },
+          "max_coupure": {
+            "ok": true,
+            "text": "OK · pas de double service"
+          },
+          "max_daily_salle": {
+            "ok": true,
+            "text": "OK · max 6h"
+          },
+          "max_weekly_hours": {
+            "ok": true,
+            "text": "OK · 12h / 16h"
+          }
+        }
+      },
+      {
+        "name": "AURORE",
+        "employee_id": "aurore",
+        "cells": {
+          "rest_between_days": {
+            "ok": true,
+            "text": "OK · min 11h"
+          },
+          "weekly_rest_days": {
+            "ok": true,
+            "text": "OK · 3 / 3 j."
+          },
+          "max_coupure": {
+            "ok": true,
+            "text": "OK · max 3h30"
+          },
+          "max_daily_salle": {
+            "ok": true,
+            "text": "OK · max 8,5h"
+          },
+          "max_weekly_hours": {
+            "ok": true,
+            "text": "OK · 23h / 22h"
+          }
+        }
+      },
+      {
+        "name": "MIMO",
+        "employee_id": "mimo",
+        "cells": {
+          "rest_between_days": {
+            "ok": true,
+            "text": "OK · min 12h"
+          },
+          "weekly_rest_days": {
+            "ok": true,
+            "text": "OK · 3 / 4 j."
+          },
+          "max_coupure": {
+            "ok": true,
+            "text": "OK · max 3h30"
+          },
+          "max_daily_salle": {
+            "ok": true,
+            "text": "OK · max 8,5h"
+          },
+          "max_weekly_hours": {
+            "ok": true,
+            "text": "OK · 17,5h / 17h"
+          }
+        }
+      },
+      {
+        "name": "LUCIE",
+        "employee_id": "lucie",
+        "cells": {
+          "rest_between_days": {
+            "ok": true,
+            "text": "OK · min 27h"
+          },
+          "weekly_rest_days": {
+            "ok": true,
+            "text": "OK · 4 / 4 j."
+          },
+          "max_coupure": {
+            "ok": true,
+            "text": "OK · pas de double service"
+          },
+          "max_daily_salle": {
+            "ok": true,
+            "text": "OK · max 6h"
+          },
+          "max_weekly_hours": {
+            "ok": true,
+            "text": "OK · 13h / 15h"
+          }
+        }
+      },
+      {
+        "name": "VLAD",
+        "employee_id": "vlad",
+        "cells": {
+          "rest_between_days": {
+            "ok": true,
+            "text": "OK · min 11h"
+          },
+          "weekly_rest_days": {
+            "ok": true,
+            "text": "OK · 3 / 3 j."
+          },
+          "max_coupure": {
+            "ok": true,
+            "text": "OK · max 3h30"
+          },
+          "max_daily_salle": {
+            "ok": true,
+            "text": "OK · max 8,5h"
+          },
+          "max_weekly_hours": {
+            "ok": true,
+            "text": "OK · 26,5h / 22h"
+          }
+        }
+      }
+    ],
+    "wish_cols": [
+      {
+        "key": "contrat",
+        "label": "Contrat"
+      },
+      {
+        "key": "indispo",
+        "label": "Indispos"
+      },
+      {
+        "key": "coupures",
+        "label": "Coupures"
+      },
+      {
+        "key": "soirs",
+        "label": "Soirs / sem"
+      },
+      {
+        "key": "repos2",
+        "label": "2 repos lun–ven"
+      },
+      {
+        "key": "we1j",
+        "label": "≥ 1 j. WE"
+      },
+      {
+        "key": "weA",
+        "label": "WE A off"
+      },
+      {
+        "key": "weB",
+        "label": "WE B off"
+      }
+    ],
+    "wish_rows": [
+      {
+        "name": "DIANE",
+        "employee_id": "diane",
+        "cells": {
+          "contrat": {
+            "ok": false,
+            "text": "23,5h · 26h / 39h"
+          },
+          "indispo": null,
+          "coupures": {
+            "ok": true,
+            "text": "OK · 1 / 0"
+          },
+          "soirs": {
+            "ok": true,
+            "text": "OK · 2"
+          },
+          "repos2": null,
+          "we1j": null,
+          "weA": null,
+          "weB": {
+            "ok": true,
+            "text": "OK"
+          }
+        }
+      },
+      {
+        "name": "THEO",
+        "employee_id": "theo",
+        "cells": {
+          "contrat": {
+            "ok": false,
+            "text": "28h · 26h / 39h"
+          },
+          "indispo": null,
+          "coupures": {
+            "ok": true,
+            "text": "OK · 1"
+          },
+          "soirs": null,
+          "repos2": {
+            "ok": true,
+            "text": "A Mar–Mer · B Jeu–Ven"
+          },
+          "we1j": null,
+          "weA": null,
+          "weB": null
+        }
+      },
+      {
+        "name": "EMMA",
+        "employee_id": "emma",
+        "cells": {
+          "contrat": {
+            "ok": false,
+            "text": "25,5h · 25h / 39h"
+          },
+          "indispo": {
+            "ok": true,
+            "text": "OK · Lun–Mar"
+          },
+          "coupures": {
+            "ok": true,
+            "text": "OK · 1 / 2"
+          },
+          "soirs": null,
+          "repos2": null,
+          "we1j": null,
+          "weA": null,
+          "weB": null
+        }
+      },
+      {
+        "name": "ROBIN",
+        "employee_id": "robin",
+        "cells": {
+          "contrat": {
+            "ok": false,
+            "text": "12h · 16h / 25h"
+          },
+          "indispo": {
+            "ok": true,
+            "text": "OK · Matins sem."
+          },
+          "coupures": {
+            "ok": true,
+            "text": "OK · 0"
+          },
+          "soirs": null,
+          "repos2": null,
+          "we1j": {
+            "ok": true,
+            "text": "OK · Sam–Dim"
+          },
+          "weA": null,
+          "weB": null
+        }
+      },
+      {
+        "name": "AURORE",
+        "employee_id": "aurore",
+        "cells": {
+          "contrat": {
+            "ok": false,
+            "text": "23h · 22h / 30h"
+          },
+          "indispo": null,
+          "coupures": {
+            "ok": true,
+            "text": "OK · 1"
+          },
+          "soirs": null,
+          "repos2": null,
+          "we1j": null,
+          "weA": {
+            "ok": true,
+            "text": "OK"
+          },
+          "weB": null
+        }
+      },
+      {
+        "name": "MIMO",
+        "employee_id": "mimo",
+        "cells": {
+          "contrat": {
+            "ok": false,
+            "text": "17,5h · 17h / 25h"
+          },
+          "indispo": {
+            "ok": true,
+            "text": "OK · Matins sem. sauf jeu"
+          },
+          "coupures": {
+            "ok": true,
+            "text": "OK · 0 / 1"
+          },
+          "soirs": null,
+          "repos2": {
+            "ok": true,
+            "text": "A Lun–Mar · B Mar–Mer"
+          },
+          "we1j": null,
+          "weA": null,
+          "weB": null
+        }
+      },
+      {
+        "name": "LUCIE",
+        "employee_id": "lucie",
+        "cells": {
+          "contrat": {
+            "ok": false,
+            "text": "13h · 15h / 15h"
+          },
+          "indispo": {
+            "ok": true,
+            "text": "OK · Matins sem."
+          },
+          "coupures": {
+            "ok": true,
+            "text": "OK · 0"
+          },
+          "soirs": null,
+          "repos2": null,
+          "we1j": {
+            "ok": true,
+            "text": "OK · Dim"
+          },
+          "weA": null,
+          "weB": null
+        }
+      },
+      {
+        "name": "VLAD",
+        "employee_id": "vlad",
+        "cells": {
+          "contrat": {
+            "ok": false,
+            "text": "26,5h · 22h / 35h"
+          },
+          "indispo": null,
+          "coupures": {
+            "ok": true,
+            "text": "OK · 2 / 1"
+          },
+          "soirs": null,
+          "repos2": {
+            "ok": true,
+            "text": "OK · Mer–Jeu"
+          },
+          "we1j": {
+            "ok": true,
+            "text": "OK · Dim"
+          },
+          "weA": null,
+          "weB": null
+        }
+      }
+    ]
+  }
+}
