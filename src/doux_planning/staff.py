@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from doux_planning.types import (
+    DEFAULT_MIN_SHIFT_HOURS,
     MAX_COUPURE_HOURS,
     MAX_DAILY_HOURS_CUISINE,
     MAX_DAILY_HOURS_SALLE,
@@ -94,12 +95,15 @@ class Employee:
     forced_off_days: frozenset[int] = field(default_factory=frozenset)
     max_evenings_per_week: int | None = None
     max_mornings_per_week: int | None = None
+    min_shift_hours: float = DEFAULT_MIN_SHIFT_HOURS
 
     def __post_init__(self) -> None:
         if self.team != self.role.team:
             raise TeamMismatchError(
                 f"Employee {self.name} team {self.team.value} does not match role team {self.role.team.value}"
             )
+        if self.min_shift_hours <= 0:
+            raise ValueError("min_shift_hours must be > 0")
         object.__setattr__(self, "wellbeing", frozenset(self.wellbeing))
         object.__setattr__(self, "forced_off_days", frozenset(self.forced_off_days))
 

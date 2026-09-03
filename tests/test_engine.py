@@ -1,9 +1,12 @@
 from dataclasses import replace
 
 from doux_planning.engine import (
-    GENERATION_ATTEMPTS,
     GENERATION_HORIZON_DAYS,
+    MINIMAL_CALENDARS,
+    OPTIMIZED_CALENDAR_MULTIPLIER,
+    SEARCH_CALENDAR_LIMITS,
     SEQUENTIAL_WEEK_SOLVE,
+    EngineResult,
     PlanningDraft,
     Shift,
     evaluate,
@@ -11,12 +14,15 @@ from doux_planning.engine import (
     publish_allowed,
     rank_candidates,
     swap_shifts,
+    _attempt_key,
+    _coupure_count_in_week,
+    _enumerate_rest_days,
     _pick_for_post,
     _plan_rest_days,
 )
 from doux_planning.staff import Unavailability
 from doux_planning.structures import ArrivalWave, DepartureWave, RestaurantHours, ServiceStructure
-from doux_planning.types import ServiceName, Team, WarningSeverity, WellbeingPreference, WEEKDAYS
+from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WellbeingPreference, WEEKDAYS
 from tests.fixtures import employee, kitchen_midday_structure, kitchen_staff
 
 
@@ -348,7 +354,7 @@ def test_generate_does_not_overfill_part_timer_while_teammate_under():
         service_id=ServiceName.EVENING.value,
         weekdays=frozenset({"monday", "tuesday", "wednesday", "thursday", "friday", "saturday"}),
         arrivals=(ArrivalWave(19 * 60, (1,)),),
-        departures=(DepartureWave(22 * 60, ()),),
+        departures=(DepartureWave(23 * 60, ()),),
     )
     hours = RestaurantHours.multi_service(ServiceName.EVENING.value, closed_weekdays={"sunday"})
     result = generate_cycle(
@@ -360,6 +366,31 @@ def test_generate_does_not_overfill_part_timer_while_teammate_under():
         if shift.employee_id == "lucie" and shift.day_index < 7
     )
     assert lucie_week_a <= 15 + 1e-9
+
+
+def test_generate_caps_part_timer_shifts_to_hours_over_typical_post():
+    part = employee("Lucie", "plongeur", hours=15, employee_id="lucie")
+    full = employee("Vlad", "commis", hours=35, employee_id="vlad")
+    evening = ServiceStructure(
+        id="l1-eve-5h",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday", "tuesday", "wednesday", "thursday", "friday", "saturday"}),
+        arrivals=(ArrivalWave(19 * 60, (1,)),),
+        departures=(DepartureWave(24 * 60, ()),),
+    )
+    hours = RestaurantHours.multi_service(ServiceName.EVENING.value, closed_weekdays={"sunday"})
+    result = generate_cycle(
+        PlanningDraft(employees=(part, full), structures=(evening,), hours=hours)
+    )
+    lucie_a = [
+        shift for shift in result.assignments if shift.employee_id == "lucie" and shift.day_index < 7
+    ]
+    lucie_b = [
+        shift for shift in result.assignments if shift.employee_id == "lucie" and shift.day_index >= 7
+    ]
+    assert len(lucie_a) <= 3
+    assert len(lucie_b) <= 3
 
 
 def test_generate_does_not_rest_the_only_people_who_can_cover():
@@ -377,8 +408,7 @@ def test_generate_does_not_rest_the_only_people_who_can_cover():
         arrivals=(
             ArrivalWave(10 * 60, (4,)),
             ArrivalWave(11 * 60, (3,)),
-            ArrivalWave(12 * 60, (2,)),
-            ArrivalWave(13 * 60, (1,)),
+            ArrivalWave(12 * 60, (2, 1)),
         ),
         departures=(DepartureWave(16 * 60, ()),),
     )
@@ -495,6 +525,41 @@ def test_prefer_completing_a_started_day():
     assert chosen.id == "aurore"
 
 
+def test_generate_does_not_exceed_weekly_coupure_cap():
+    emma = employee("Emma", "sous-chef", hours=39, employee_id="emma").with_wellbeing(
+        WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK
+    )
+    vlad = employee("Vlad", "commis", hours=39, employee_id="vlad")
+    open_days = frozenset({"monday", "tuesday", "wednesday"})
+    midday = ServiceStructure(
+        id="mid-3d",
+        team=Team.CUISINE,
+        service_id=ServiceName.MIDDAY.value,
+        weekdays=open_days,
+        arrivals=(ArrivalWave(11 * 60, (1,)),),
+        departures=(DepartureWave(15 * 60, ()),),
+    )
+    evening = ServiceStructure(
+        id="eve-3d",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=open_days,
+        arrivals=(ArrivalWave(19 * 60, (1,)),),
+        departures=(DepartureWave(23 * 60, ()),),
+    )
+    hours = RestaurantHours.multi_service(
+        ServiceName.MIDDAY.value,
+        ServiceName.EVENING.value,
+        closed_weekdays=set(WEEKDAYS) - open_days,
+    )
+    result = generate_cycle(
+        PlanningDraft(employees=(emma, vlad), structures=(midday, evening), hours=hours)
+    )
+    assert _coupure_count_in_week(result.assignments, "emma", 0) <= 2
+    assert _coupure_count_in_week(result.assignments, "emma", 7) <= 2
+    assert "max_coupures" not in result.codes()
+
+
 def test_coupures_are_counted_per_week_not_per_cycle():
     person = employee("Emma", "sous-chef", hours=39, employee_id="emma").with_wellbeing(
         WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK
@@ -520,7 +585,58 @@ def test_generate_cycle_is_deterministic():
     first = generate_cycle(_draft())
     second = generate_cycle(_draft())
     assert first.assignments == second.assignments
-    assert GENERATION_ATTEMPTS > 1
+
+
+def test_enumerate_rest_days_returns_unique_covering_calendars():
+    patterns = _enumerate_rest_days(_draft())
+    assert patterns
+    fingerprints = {
+        tuple(sorted((employee_id, tuple(sorted(days))) for employee_id, days in pattern.items()))
+        for pattern in patterns
+    }
+    assert len(fingerprints) == len(patterns)
+
+
+def test_generate_skips_shift_shorter_than_employee_min():
+    person = employee("Lucie", "plongeur", hours=15, employee_id="lucie")
+    structure = ServiceStructure(
+        id="short-eve",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(19 * 60, (1,)),),
+        departures=(DepartureWave(22 * 60, ()),),
+    )
+    hours = RestaurantHours.multi_service(
+        ServiceName.EVENING.value, closed_weekdays=set(WEEKDAYS) - {"monday"}
+    )
+    result = generate_cycle(
+        PlanningDraft(employees=(person,), structures=(structure,), hours=hours)
+    )
+    assert all(shift.duration_hours >= 4 for shift in result.assignments)
+    assert not any(shift.day_index == 0 for shift in result.assignments)
+
+
+def test_generate_cycle_default_search_is_optimized():
+    draft = _draft()
+    assert draft.search_effort is SearchEffort.OPTIMIZED
+    first = generate_cycle(draft)
+    second = generate_cycle(draft, search=SearchEffort.OPTIMIZED)
+    assert first.assignments == second.assignments
+
+
+def test_search_effort_calendar_limits():
+    assert SEARCH_CALENDAR_LIMITS[SearchEffort.MINIMAL] == MINIMAL_CALENDARS == 16
+    assert SEARCH_CALENDAR_LIMITS[SearchEffort.OPTIMIZED] == 16 * OPTIMIZED_CALENDAR_MULTIPLIER
+    assert SEARCH_CALENDAR_LIMITS[SearchEffort.MAXIMAL] is None
+
+
+def test_attempt_prefers_fewer_shifts_below_role():
+    chef = employee("Chef", "chef", hours=4, employee_id="chef-a")
+    draft = _draft(employees=(chef,))
+    exact = EngineResult(assignments=(_shift("chef-a", 0, 10 * 60, 14 * 60, 4),), warnings=())
+    below = EngineResult(assignments=(_shift("chef-a", 0, 10 * 60, 14 * 60, 1),), warnings=())
+    assert _attempt_key(draft, below) > _attempt_key(draft, exact)
 
 
 def test_generate_reassigns_same_day_to_fill_a_hole():

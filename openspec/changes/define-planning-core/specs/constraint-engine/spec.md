@@ -84,11 +84,15 @@ Generation MUST NOT assign a shift that would put an employee above their contra
 - **THEN** generation does not assign that post to the 15-hour employee
 
 ### Requirement: Rest days leave enough people for coverage
-When planning rest days, the engine SHALL keep enough eligible staff **reserved for each open service** (team, service, day) to cover that service’s posts. A person reserved for one service MUST NOT count toward another service’s coverage that day unless they are also reserved for it, and reservation MUST respect that employee’s daily and weekly hour caps (using the shortest post of each reserved service). It MUST NOT rest an employee on a day where they are among the only people who can fill remaining posts, if another rest day in the week is possible. Closed days already count as rest.
+When planning rest days, the engine SHALL keep enough eligible staff **reserved for each open service** (team, service, day) to cover that service’s posts. A person reserved for one service MUST NOT count toward another service’s coverage that day unless they are also reserved for it, and reservation MUST respect that employee’s daily and weekly hour caps (using the shortest post of each reserved service). The number of services an employee may be reserved for in a week MUST NOT exceed `floor(contractual hours / typical post duration)`, where typical duration is the median length of posts they are eligible for that week; if that floor is zero but the shortest eligible post still fits the contract, they MAY be reserved for one service. They MUST NOT be reserved on more open days than that shift budget. Days they cannot work at all (closed, forced off, or no eligible post) already count as rest. It MUST NOT rest an employee on a day where they are among the only people who can fill remaining posts, if another rest day in the week is possible. Closed days already count as rest.
 
 #### Scenario: Opening post not left empty by rest pile-up
 - **WHEN** a weekday midday needs four posts and exactly four employees are eligible for that midday (others unavailable)
 - **THEN** generation does not rest any of those four that day, and the four posts are filled if hours and overlap allow
+
+#### Scenario: Part-timer reserved for as many services as hours allow
+- **WHEN** an employee has a 15-hour contract and the typical eligible post that week lasts five hours
+- **THEN** generation reserves them for at most three services that week (and therefore at most three open days)
 
 ### Requirement: Consecutive rest is two weekdays, not the weekend
 Two consecutive rest days SHALL be two adjacent weekdays (Monday–Tuesday, Tuesday–Wednesday, Wednesday–Thursday, or Thursday–Friday). Generation MUST NOT use Saturday–Sunday, Friday–Saturday, or Sunday–Monday to satisfy this preference. Weekend rest is a separate preference. A closed Sunday does not turn Saturday into the consecutive partner.
@@ -98,25 +102,29 @@ Two consecutive rest days SHALL be two adjacent weekdays (Monday–Tuesday, Tues
 - **THEN** generation places those two days on weekdays and still staffs Saturday posts from that pool
 
 ### Requirement: Finish a day already started before opening another person
-When several people are legally eligible for a post and their hours-to-contract ratios are equal, generation SHALL prefer an employee who already has a shift that day (and would stay within contract and legal maxima) over someone who is still off that day. Max coupures per week remain a souhait warning after the fact, not a generation skip. Refusing a second service to avoid a coupure spreads work, leaves people under hours, then later slots have no capacity; that skip is forbidden.
+When several people are legally eligible for a post and their hours-to-contract ratios are equal, generation SHALL prefer an employee who already has a shift that day (and would stay within contract, legal maxima, and their weekly coupure cap) over someone who is still off that day. A second service that would exceed that employee’s weekly coupure cap MUST be skipped, the same way unavailability is skipped.
 
 #### Scenario: Evening continues the midday person at equal load
-- **WHEN** Aurore already has a midday shift, Lucie is free that day, both can legally take the evening post, and both have the same hours-to-contract ratio
+- **WHEN** Aurore already has a midday shift, Lucie is free that day, both can legally take the evening post, both have the same hours-to-contract ratio, and the evening would not exceed Aurore’s coupure cap
 - **THEN** generation assigns Aurore
 
 ### Requirement: Generation searches other arrangements when a greedy pass leaves a hole
-Generation MUST try several deterministic starts (different rest-pattern seeds, different staff order, different first day) and MAY reassign a same-day shift onto an empty post when another eligible colleague can take the vacated post. It SHALL keep the attempt with the fewest empty posts, then fewest interdit warnings, then closest contract hours. The same inputs MUST produce the same generated planning. Random non-reproducible generation MUST NOT be used.
+Generation SHALL try several deterministic rest calendars that still cover each open service (no immediate coverage hole: enough people reserved per service, legal rest days, hour caps), fill each calendar, MAY reassign a same-day shift onto an empty post when another eligible colleague can take the vacated post, and SHALL keep the attempt with the fewest empty posts, then fewest interdit warnings, then closest contract hours, then fewest souhait, then fewest shifts below the person's role level. Search breadth is an input `search_effort`: **minimal** (16 covering calendars), **optimized** (default: 20× that bound, still seconds), **maximal** (every covering calendar, minutes acceptable). The same inputs and the same effort MUST produce the same generated planning. Random non-reproducible generation MUST NOT be used.
 
 #### Scenario: Midday person is moved so evening can fill
 - **WHEN** Monday has one midday post and one evening post, Alex can do either but only has hours for one, Blair can only do midday, and Casey can only do evening but is off Monday
 - **THEN** generation assigns Blair to midday and Alex to evening, with no empty Monday post
 
 ### Requirement: Coupure count is per week
-Wellbeing limits of at most two or three coupures SHALL be counted per calendar week of the cycle (week A and week B separately), not as a total over 14 days. A coupure is a same-day gap between two shifts. Exceeding the weekly cap is a souhait warning, not a generation skip. A legal pause longer than 5 hours remains an interdit.
+Wellbeing limits of at most two or three coupures SHALL be counted per calendar week of the cycle (week A and week B separately), not as a total over 14 days. A coupure is a same-day gap between two shifts. Generation MUST NOT assign a shift that would exceed that cap; an empty post or another eligible colleague is preferred. A hand-built or overridden draft that already exceeds the cap MUST still score a souhait warning. A legal pause longer than 5 hours remains an interdit.
 
 #### Scenario: Three split days in week A only
-- **WHEN** an employee prefers at most two coupures per week and has three midi+soir days in week A and two in week B
+- **WHEN** an employee prefers at most two coupures per week and a draft already has three midi+soir days in week A and two in week B
 - **THEN** the engine reports a souhait max_coupures warning on week A and not on week B
+
+#### Scenario: Generation stops at the weekly coupure cap
+- **WHEN** an employee has a cap of two coupures per week, already has two midi+soir days this week, and an evening post would be a third coupure
+- **THEN** generation does not assign that evening to them
 
 ### Requirement: Generation ranks by hours-to-contract, then nearest level
 When generating, for each post the engine SHALL choose among eligible staff (right team, level ≥ post, not unavailable, not overlapping, not over legal maxima when another eligible person exists) in this order:
@@ -138,6 +146,13 @@ A higher level SHALL take a lower-level post as soon as closer-level eligible co
 #### Scenario: Level-3 absorbs an overloaded level-2
 - **WHEN** a level-2 post is open, the eligible level-2 employee is already at or above contractual hours (or would be after this shift), and a level-3 colleague is still under hours
 - **THEN** generation assigns the level-3 employee
+
+### Requirement: Minimum shift length
+Generation MUST NOT assign an employee to a post shorter than that employee’s `min_shift_hours` (default 4). An empty post is preferred over bringing someone in for a shorter shift. A restaurateur MAY later lower that minimum on the employee profile.
+
+#### Scenario: Three-hour evening is skipped
+- **WHEN** an employee has the default 4-hour minimum and Monday evening is a 3-hour post
+- **THEN** generation leaves that post unassigned for that employee
 
 ### Requirement: Generate a full 14-day cycle
 The engine MUST generate week A and week B as one problem, including wrap-around rest and every-other-weekend preferences. Sequential independent week solves MUST NOT be the generation method.

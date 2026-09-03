@@ -8,7 +8,7 @@ Un restaurateur à taille humaine n’a pas d’outil pour poser un planning de 
 - Introduire le planning de croisière : cycle répétable de 14 jours, instances calendaires, exceptions stockées comme intents (pas seulement une grille).
 - Introduire un bac à sable à une cible (cycle **ou** une semaine), pour enchaîner des modifications (y compris config structurelle) avant publication.
 - Introduire un moteur unique : générer, scorer / warner, classer des candidats (ajout, échange), affectation par postes avec descente au plus proche.
-- La génération ne dépasse pas le contrat d’un employé tant que des collègues ont encore des heures à faire. Les jours de repos ne doivent pas s’empiler au point de laisser des postes vides alors que du monde est sous-heures. Un passage glouton qui laisse un trou est relancé (plusieurs départs déterministes) jusqu’à un meilleur arrangement.
+- La génération ne dépasse pas le contrat d’un employé tant que des collègues ont encore des heures à faire. On ne fait pas venir quelqu’un pour un shift plus court que son minimum (4 h par défaut, éditable). Les jours de repos ne doivent pas s’empiler au point de laisser des postes vides alors que du monde est sous-heures. Un passage glouton qui laisse un trou est relancé sur plusieurs départs déterministes (`minimal` / `optimisé` / `maximal`) jusqu’à un meilleur arrangement.
 - Application web desktop responsive. Pas d’app stores. Un restaurant, un restaurateur pour ce premier jet.
 - Stack : Python 3.12 + FastAPI + OR-Tools, PostgreSQL, React + TypeScript, Docker Compose. L’API est le contrat pour le web et une app mobile plus tard. Notifications, contraintes saisies par l’employé, remplissage des extras : hors scope.
 

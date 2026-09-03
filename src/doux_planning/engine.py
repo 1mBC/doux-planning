@@ -15,6 +15,7 @@ from doux_planning.types import (
     MAX_WEEKLY_HOURS,
     MIN_REST_BETWEEN_DAYS_HOURS,
     REST_DAYS_PER_WEEK,
+    SearchEffort,
     ServiceName,
     Team,
     WarningSeverity,
@@ -25,7 +26,19 @@ from doux_planning.warnings import Warning
 
 GENERATION_HORIZON_DAYS = CYCLE_DAYS
 SEQUENTIAL_WEEK_SOLVE = False
-GENERATION_ATTEMPTS = 8
+REST_ENUMERATION_SECONDS = 600.0
+MINIMAL_CALENDARS = 16
+OPTIMIZED_CALENDAR_MULTIPLIER = 20
+SEARCH_CALENDAR_LIMITS = {
+    SearchEffort.MINIMAL: MINIMAL_CALENDARS,
+    SearchEffort.OPTIMIZED: MINIMAL_CALENDARS * OPTIMIZED_CALENDAR_MULTIPLIER,
+    SearchEffort.MAXIMAL: None,
+}
+SEARCH_SECONDS = {
+    SearchEffort.MINIMAL: 3.0,
+    SearchEffort.OPTIMIZED: 30.0,
+    SearchEffort.MAXIMAL: REST_ENUMERATION_SECONDS,
+}
 
 
 @dataclass(frozen=True)
@@ -58,6 +71,7 @@ class PlanningDraft:
     legal_rules: tuple[LegalRule, ...] = field(default_factory=default_legal_rules)
     acknowledged: frozenset[tuple] = field(default_factory=frozenset)
     horizon_days: int = CYCLE_DAYS
+    search_effort: SearchEffort = SearchEffort.OPTIMIZED
 
     def employee(self, employee_id: str) -> Employee:
         for item in self.employees:
@@ -360,8 +374,6 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
     grouped = _shifts_by_employee(draft)
     for employee in draft.employees:
         prefs = employee.wellbeing
-        if not prefs:
-            continue
         shifts = grouped.get(employee.id, [])
         by_day: dict[int, list[Shift]] = {}
         for shift in shifts:
@@ -678,6 +690,20 @@ def _would_exceed_contract(assignments: list[Shift], employee: Employee, trial: 
     )
 
 
+def _would_exceed_coupures(assignments: list[Shift], employee: Employee, trial: Shift) -> bool:
+    cap = _max_coupures_per_week(employee)
+    if cap is None:
+        return False
+    week_start = (trial.day_index // 7) * 7
+    with_trial = [*assignments, trial]
+    return _coupure_count_in_week(with_trial, employee.id, week_start) > cap
+
+
+def _window_meets_min_shift(employee: Employee, window: PostWindow) -> bool:
+    duration = window.end_minutes - window.start_minutes
+    return duration >= int(employee.min_shift_hours * 60)
+
+
 def _eligible_for_service(
     employee: Employee, draft: PlanningDraft, weekday: str, service_id: str, team: Team
 ) -> bool:
@@ -691,6 +717,7 @@ def _eligible_for_service(
         return False
     return any(
         employee.level >= window.level
+        and _window_meets_min_shift(employee, window)
         and not _unavailable(employee, weekday, service_id, window.start_minutes)
         for window in windows
     )
@@ -713,14 +740,28 @@ def _staffing_needs(
                 windows = derive_post_windows(structure)
                 if not windows:
                     continue
+                assignable = [
+                    window
+                    for window in windows
+                    if any(
+                        employee.team == team
+                        and employee.level >= window.level
+                        and day_index not in employee.forced_off_days
+                        and _window_meets_min_shift(employee, window)
+                        and not _unavailable(employee, weekday, service_id, window.start_minutes)
+                        for employee in draft.employees
+                    )
+                ]
+                if not assignable:
+                    continue
                 eligible = tuple(
                     employee.id
                     for employee in draft.employees
                     if _eligible_for_service(employee, draft, weekday, service_id, team)
                     and day_index not in employee.forced_off_days
                 )
-                shortest = min(window.end_minutes - window.start_minutes for window in windows)
-                needs.append((day_index, team, service_id, len(windows), eligible, shortest))
+                shortest = min(window.end_minutes - window.start_minutes for window in assignable)
+                needs.append((day_index, team, service_id, len(assignable), eligible, shortest))
     return needs
 
 
@@ -783,6 +824,8 @@ def _can_fill_window(
 ) -> bool:
     if employee.team != team or employee.level < window.level:
         return False
+    if not _window_meets_min_shift(employee, window):
+        return False
     if day_index in off_days.get(employee.id, set()):
         return False
     if _unavailable(employee, weekday, service_id, window.start_minutes):
@@ -798,6 +841,8 @@ def _can_fill_window(
         post_level=window.level,
     )
     if _has_overlap(assignments, trial):
+        return False
+    if _would_exceed_coupures(assignments, employee, trial):
         return False
     if _would_exceed_contract(assignments, employee, trial) and _teammate_under_hours(
         assignments, employee_pool, employee, day_index
@@ -871,6 +916,9 @@ def _pick_for_post(
     for employee in employee_pool:
         if employee.team != team or employee.level < window_level:
             continue
+        trial_window = PostWindow(level=window_level, start_minutes=start_minutes, end_minutes=end_minutes)
+        if not _window_meets_min_shift(employee, trial_window):
+            continue
         if day_index in off_days.get(employee.id, set()):
             continue
         if employee.id in occupied:
@@ -888,6 +936,8 @@ def _pick_for_post(
             post_level=window_level,
         )
         if _has_overlap(assignments, trial):
+            continue
+        if _would_exceed_coupures(assignments, employee, trial):
             continue
         if _would_exceed_contract(assignments, employee, trial) and _teammate_under_hours(
             assignments, employee_pool, employee, day_index
@@ -935,20 +985,96 @@ def _pick_for_post(
     return legal[0]
 
 
-def _stable_mix(seed: int, text: str, day: int) -> int:
-    acc = (seed + 1) * 1_000_003
-    for char in text:
-        acc = (acc * 1664525 + ord(char)) & 0xFFFFFFFF
-    return (acc * 1664525 + day) & 0xFFFFFFFF
-
-
 def _daily_cap_minutes(employee: Employee) -> int:
     legal = MAX_DAILY_HOURS_CUISINE if employee.team == Team.CUISINE else MAX_DAILY_HOURS_SALLE
     return int(min(legal, employee.contractual_hours_per_week) * 60)
 
 
-def _plan_rest_days(draft: PlanningDraft, seed: int = 0) -> dict[str, set[int]]:
-    """Single 14-day rest solve (not week A then week B). Coverage is per service, not per day."""
+def _median_int(values: list[int]) -> int:
+    ordered = sorted(values)
+    n = len(ordered)
+    if n == 0:
+        return 60
+    mid = n // 2
+    if n % 2:
+        return ordered[mid]
+    return (ordered[mid - 1] + ordered[mid]) // 2
+
+
+def _eligible_post_durations(draft: PlanningDraft, employee: Employee, week_start: int) -> list[int]:
+    durations: list[int] = []
+    for day in range(week_start, week_start + 7):
+        if day in employee.forced_off_days:
+            continue
+        weekday = WEEKDAYS[day % 7]
+        for service_id in draft.hours.services:
+            if draft.hours.is_closed(weekday, service_id):
+                continue
+            structure = draft.structure_for(employee.team, service_id, weekday)
+            if structure is None:
+                continue
+            if not _eligible_for_service(employee, draft, weekday, service_id, employee.team):
+                continue
+            for window in derive_post_windows(structure):
+                if employee.level < window.level:
+                    continue
+                duration = window.end_minutes - window.start_minutes
+                if duration > 0 and duration >= int(employee.min_shift_hours * 60):
+                    durations.append(duration)
+    return durations
+
+
+def _max_shifts_for_hours(contract_hours: float, typical_minutes: int, shortest_minutes: int) -> int:
+    """How many services a contract can cover: floor(hours / typical post), at least one if the shortest still fits."""
+    contract_minutes = int(contract_hours * 60)
+    typical = typical_minutes if typical_minutes > 0 else (shortest_minutes or 60)
+    shortest = shortest_minutes if shortest_minutes > 0 else typical
+    max_shifts = contract_minutes // typical
+    if max_shifts == 0 and contract_minutes >= shortest:
+        return 1
+    return max_shifts
+
+
+class _RestCollector(cp_model.CpSolverSolutionCallback):
+    """Collect unique rest calendars (who is off which day)."""
+
+    def __init__(
+        self,
+        work: dict[tuple[str, int], cp_model.IntVar],
+        employees: tuple[Employee, ...],
+        limit: int | None = None,
+    ):
+        super().__init__()
+        self._work = work
+        self._employees = employees
+        self._limit = limit
+        self.patterns: list[dict[str, set[int]]] = []
+        self._seen: set[tuple] = set()
+
+    def on_solution_callback(self) -> None:
+        fingerprint = []
+        off: dict[str, set[int]] = {}
+        for employee in self._employees:
+            days = [
+                day
+                for day in range(CYCLE_DAYS)
+                if self.Value(self._work[employee.id, day]) == 0
+            ]
+            fingerprint.append((employee.id, tuple(days)))
+            off[employee.id] = set(days)
+        key = tuple(fingerprint)
+        if key in self._seen:
+            return
+        self._seen.add(key)
+        self.patterns.append(off)
+        if self._limit is not None and len(self.patterns) >= self._limit:
+            self.StopSearch()
+
+
+def _build_rest_model(
+    draft: PlanningDraft, *, hard_coverage: bool
+) -> tuple[cp_model.CpModel, dict[tuple[str, int], cp_model.IntVar], list]:
+    """14-day rest model. Coverage is per service. No sequential week A then B."""
     if SEQUENTIAL_WEEK_SOLVE:
         raise RuntimeError("Sequential week solves are forbidden")
     model = cp_model.CpModel()
@@ -962,9 +1088,9 @@ def _plan_rest_days(draft: PlanningDraft, seed: int = 0) -> dict[str, set[int]]:
             if day in employee.forced_off_days:
                 model.Add(work[employee.id, day] == 0)
 
-    objective_terms: list[cp_model.LinearExpr] = []
     covers_by_emp_day: dict[tuple[str, int], list] = {}
     minutes_by_emp_day: dict[tuple[str, int], list[tuple[int, cp_model.IntVar]]] = {}
+    unders: list = []
     for day_index, team, service_id, posts, eligible_ids, shortest in _staffing_needs(draft):
         if not eligible_ids:
             continue
@@ -976,9 +1102,12 @@ def _plan_rest_days(draft: PlanningDraft, seed: int = 0) -> dict[str, set[int]]:
             minutes_by_emp_day.setdefault((employee_id, day_index), []).append((shortest, var))
             service_covers.append(var)
         need = min(posts, len(eligible_ids))
-        under = model.NewIntVar(0, need, f"under_{day_index}_{team.value}_{service_id}")
-        model.Add(sum(service_covers) + under >= need)
-        objective_terms.append(-100 * under)
+        if hard_coverage:
+            model.Add(sum(service_covers) >= need)
+        else:
+            under = model.NewIntVar(0, need, f"under_{day_index}_{team.value}_{service_id}")
+            model.Add(sum(service_covers) + under >= need)
+            unders.append(under)
 
     for employee in draft.employees:
         for day in range(CYCLE_DAYS):
@@ -1003,19 +1132,41 @@ def _plan_rest_days(draft: PlanningDraft, seed: int = 0) -> dict[str, set[int]]:
 
     for employee in draft.employees:
         for week_start in (0, 7):
-            offs = [1 - work[employee.id, day] for day in range(week_start, week_start + 7)]
-            model.Add(sum(offs) >= REST_DAYS_PER_WEEK)
-        if WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS in employee.wellbeing:
-            off_a = model.NewBoolVar(f"offa_{employee.id}")
-            off_b = model.NewBoolVar(f"offb_{employee.id}")
-            model.Add(work[employee.id, 5] + work[employee.id, 6] == 0).OnlyEnforceIf(off_a)
-            model.Add(work[employee.id, 5] + work[employee.id, 6] >= 1).OnlyEnforceIf(off_a.Not())
-            model.Add(work[employee.id, 12] + work[employee.id, 13] == 0).OnlyEnforceIf(off_b)
-            model.Add(work[employee.id, 12] + work[employee.id, 13] >= 1).OnlyEnforceIf(off_b.Not())
-            exactly_one = model.NewBoolVar(f"one_weekend_{employee.id}")
-            model.Add(off_a + off_b == 1).OnlyEnforceIf(exactly_one)
-            model.Add(off_a + off_b != 1).OnlyEnforceIf(exactly_one.Not())
-            objective_terms.append(exactly_one * 50)
+            already_days = set()
+            for day in range(week_start, week_start + 7):
+                weekday = WEEKDAYS[day % 7]
+                closed = all(
+                    draft.hours.is_closed(weekday, service_id) for service_id in draft.hours.services
+                )
+                unworkable = not covers_by_emp_day.get((employee.id, day), [])
+                if closed or day in employee.forced_off_days or unworkable:
+                    already_days.add(day)
+            open_days = [day for day in range(week_start, week_start + 7) if day not in already_days]
+            model.Add(sum(1 - work[employee.id, day] for day in range(week_start, week_start + 7)) >= REST_DAYS_PER_WEEK)
+            durations = _eligible_post_durations(draft, employee, week_start)
+            typical = _median_int(durations)
+            shortest = min(durations) if durations else 60
+            max_shifts = _max_shifts_for_hours(employee.contractual_hours_per_week, typical, shortest)
+            cover_vars = [
+                var
+                for day in range(week_start, week_start + 7)
+                for var in covers_by_emp_day.get((employee.id, day), [])
+            ]
+            if cover_vars:
+                model.Add(sum(cover_vars) <= max_shifts)
+            if not open_days:
+                continue
+            hours_open_rest = max(0, len(open_days) - max_shifts)
+            legal_open_rest = max(0, REST_DAYS_PER_WEEK - len(already_days))
+            wants_pair = WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS in employee.wellbeing
+            has_pair = any(
+                (week_start + offset) in already_days and (week_start + offset + 1) in already_days
+                for offset in WEEKDAY_CONSECUTIVE_OFFSETS
+            )
+            if wants_pair and not has_pair:
+                legal_open_rest = max(legal_open_rest, 2)
+            open_rest_target = min(len(open_days), max(legal_open_rest, hours_open_rest))
+            model.Add(sum(1 - work[employee.id, day] for day in open_days) == open_rest_target)
         if WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS in employee.wellbeing:
             for week_start in (0, 7):
                 pair_hits = []
@@ -1025,29 +1176,77 @@ def _plan_rest_days(draft: PlanningDraft, seed: int = 0) -> dict[str, set[int]]:
                     model.Add(work[employee.id, week_start + offset + 1] == 0).OnlyEnforceIf(pair)
                     pair_hits.append(pair)
                 model.Add(sum(pair_hits) >= 1)
-        for day in range(CYCLE_DAYS):
-            pert = _stable_mix(seed, employee.id, day) % 3
-            objective_terms.append(work[employee.id, day] * (1 + pert))
+    return model, work, unders
 
-    if objective_terms:
-        model.Maximize(sum(objective_terms))
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 1.5
-    solver.parameters.random_seed = seed
-    solver.parameters.num_search_workers = 1
-    status = solver.Solve(model)
+
+def _fallback_rest_days(draft: PlanningDraft) -> dict[str, set[int]]:
     off: dict[str, set[int]] = {employee.id: set() for employee in draft.employees}
-    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        for employee in draft.employees:
-            for day in range(CYCLE_DAYS):
-                if solver.Value(work[employee.id, day]) == 0:
-                    off[employee.id].add(day)
-        return off
     for employee in draft.employees:
         off[employee.id].update({0, 1, 7, 8})
         if WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS in employee.wellbeing:
             off[employee.id].update({5, 6})
     return off
+
+
+def _off_from_solver(
+    solver: cp_model.CpSolver, work: dict[tuple[str, int], cp_model.IntVar], draft: PlanningDraft
+) -> dict[str, set[int]]:
+    off: dict[str, set[int]] = {employee.id: set() for employee in draft.employees}
+    for employee in draft.employees:
+        for day in range(CYCLE_DAYS):
+            if solver.Value(work[employee.id, day]) == 0:
+                off[employee.id].add(day)
+    return off
+
+
+def _collect_rest_solutions(
+    model: cp_model.CpModel,
+    work: dict[tuple[str, int], cp_model.IntVar],
+    draft: PlanningDraft,
+    *,
+    limit: int | None,
+    seconds: float,
+) -> list[dict[str, set[int]]]:
+    solver = cp_model.CpSolver()
+    solver.parameters.num_search_workers = 1
+    solver.parameters.max_time_in_seconds = seconds
+    if limit == 1:
+        status = solver.Solve(model)
+        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            return [_off_from_solver(solver, work, draft)]
+        return []
+    collector = _RestCollector(work, draft.employees, limit=limit)
+    solver.parameters.enumerate_all_solutions = True
+    solver.Solve(model, collector)
+    return collector.patterns
+
+
+def _enumerate_rest_days(
+    draft: PlanningDraft, search: SearchEffort = SearchEffort.OPTIMIZED
+) -> list[dict[str, set[int]]]:
+    """Covering rest calendars, bounded by search effort."""
+    limit = SEARCH_CALENDAR_LIMITS[search]
+    seconds = SEARCH_SECONDS[search]
+    hard, work, _unders = _build_rest_model(draft, hard_coverage=True)
+    covering = _collect_rest_solutions(hard, work, draft, limit=limit, seconds=seconds)
+    if covering:
+        return covering
+    slack, slack_work, unders = _build_rest_model(draft, hard_coverage=False)
+    if unders:
+        slack.Minimize(sum(unders))
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = seconds
+    solver.parameters.num_search_workers = 1
+    status = solver.Solve(slack)
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return [_fallback_rest_days(draft)]
+    return [_off_from_solver(solver, slack_work, draft)]
+
+
+def _plan_rest_days(draft: PlanningDraft, seed: int = 0) -> dict[str, set[int]]:
+    """One legal rest calendar (first of the covering enumeration)."""
+    del seed
+    return _enumerate_rest_days(draft)[0]
 
 
 def _iter_service_windows(draft: PlanningDraft, start_day: int = 0):
@@ -1195,10 +1394,11 @@ def _displace_for_window(
             employee_pool=employee_pool,
         ):
             continue
+        others = [employee for employee in employee_pool if employee.id != person.id]
         replacement = _pick_for_post(
             draft,
             without,
-            employee_pool=employee_pool,
+            employee_pool=others,
             window_level=held.post_level,
             day_index=held.day_index,
             weekday=held.weekday,
@@ -1298,29 +1498,54 @@ def _hours_miss(draft: PlanningDraft, assignments: tuple[Shift, ...] | list[Shif
     return round(miss, 2)
 
 
+def _below_role_count(draft: PlanningDraft, assignments: tuple[Shift, ...] | list[Shift]) -> int:
+    by_id = {employee.id: employee for employee in draft.employees}
+    count = 0
+    for shift in assignments:
+        person = by_id.get(shift.employee_id)
+        if person is not None and person.level > shift.post_level:
+            count += 1
+    return count
+
+
+def _overqualification(draft: PlanningDraft, assignments: tuple[Shift, ...] | list[Shift]) -> int:
+    total = 0
+    by_id = {employee.id: employee for employee in draft.employees}
+    for shift in assignments:
+        person = by_id.get(shift.employee_id)
+        if person is None:
+            continue
+        total += person.level - shift.post_level
+    return total
+
+
 def _attempt_key(draft: PlanningDraft, result: EngineResult) -> tuple:
     empty = sum(1 for warning in result.warnings if warning.code == "empty_post")
     interdit = len(result.of_severity(WarningSeverity.INTERDIT))
     souhait = len(result.of_severity(WarningSeverity.SOUHAIT))
-    return (empty, interdit, _hours_miss(draft, result.assignments), souhait)
+    return (
+        empty,
+        interdit,
+        _hours_miss(draft, result.assignments),
+        souhait,
+        _below_role_count(draft, result.assignments),
+        _overqualification(draft, result.assignments),
+    )
 
 
-def generate_cycle(draft: PlanningDraft) -> EngineResult:
+def generate_cycle(draft: PlanningDraft, search: SearchEffort | None = None) -> EngineResult:
     if SEQUENTIAL_WEEK_SOLVE:
         raise RuntimeError("Sequential week-A-then-week-B generation is not used")
+    effort = search if search is not None else draft.search_effort
     best: EngineResult | None = None
     best_key: tuple | None = None
     roster = list(draft.employees)
-    for attempt in range(GENERATION_ATTEMPTS):
-        off_days = _plan_rest_days(draft, seed=attempt)
-        pool = roster[attempt:] + roster[:attempt]
-        assignments = _fill_assignments(draft, off_days, pool, start_day=attempt % CYCLE_DAYS)
+    for off_days in _enumerate_rest_days(draft, effort):
+        assignments = _fill_assignments(draft, off_days, roster)
         result = evaluate(draft.with_assignments(assignments))
         key = _attempt_key(draft, result)
         if best_key is None or key < best_key:
             best = result
             best_key = key
-        if key[0] == 0 and key[1] == 0:
-            break
     assert best is not None
     return best

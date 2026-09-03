@@ -47,6 +47,7 @@ def test_employee_contract_profile():
     assert person.level == 2
     assert person.team is Team.CUISINE
     assert person.contractual_hours_per_week == 35
+    assert person.min_shift_hours == 4
 
 
 def test_unavailability_patterns_round_trip():

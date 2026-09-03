@@ -36,7 +36,12 @@
 - [x] 4.13 Do not assign the only person who can cover an earlier empty post to a later post when another colleague can take the later post, and verify a 10:00 level-1 opening is filled rather than leaving it empty while that person sits on a 12:00 level-2
 - [x] 4.14 When hours-to-contract ratios are equal, prefer completing a started day over opening a new person, and verify an evening post goes to the midday person rather than a colleague still off that day
 - [x] 4.15 Search several deterministic generation starts (rest seed, staff order, start day) plus a same-day reassignment repair, keep the best, and verify a midi-then-evening hole is filled by moving the midday person and giving midi to a midi-only colleague
+- [x] 4.17 Enumerate every covering rest calendar (no immediate service hole), fill each, keep the best score, and verify generate_cycle is deterministic and rest calendars are unique
+- [x] 4.18 Cap reserved services per week at floor(contract hours / typical post duration) so a 15h employee with ~5h posts is reserved for at most three shifts, and verify generate_cycle does not assign them a fourth
 - [x] 4.16 Count wellbeing coupures per week (not per cycle) and verify three split days in week A produce a souhait on week A only when the cap is two per week
+- [x] 4.19 Skip a second service at generation when it would exceed that employee’s weekly coupure cap, and verify generate_cycle does not give them a third midi+soir week when the cap is two
+- [x] 4.20 Store min_shift_hours on the employee (default 4) and skip shorter posts at generation, and verify a 3h evening is left empty for a default employee
+- [x] 4.21 Expose search_effort minimal / optimized / maximal on generate_cycle (default optimized), and verify default generation is deterministic and does not require enumerating every rest calendar
 
 ## 5. Cycle, instances, sandbox
 

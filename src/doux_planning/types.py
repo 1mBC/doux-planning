@@ -31,6 +31,14 @@ class WellbeingPreference(str, Enum):
     MAX_THREE_COUPURES_PER_WEEK = "max_three_coupures_per_week"
 
 
+class SearchEffort(str, Enum):
+    """How many rest-calendar hypotheses generation tries before keeping the best."""
+
+    MINIMAL = "minimal"
+    OPTIMIZED = "optimized"
+    MAXIMAL = "maximal"
+
+
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 QUANTUM_MINUTES = 15
 CYCLE_DAYS = 14
@@ -40,6 +48,7 @@ MAX_COUPURE_HOURS = 5
 MAX_DAILY_HOURS_CUISINE = 11.0
 MAX_DAILY_HOURS_SALLE = 11.5
 MAX_WEEKLY_HOURS = 48.0
+DEFAULT_MIN_SHIFT_HOURS = 4.0
 
 
 def weekday_index(name: str) -> int:

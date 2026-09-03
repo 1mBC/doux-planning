@@ -19,11 +19,11 @@ The system SHALL let the restaurateur define, per team, named roles each with an
 - **THEN** those four roles exist on the cuisine team with those levels and the substitution explanation has been shown
 
 ### Requirement: Employee contract profile
-The system SHALL store for each employee: name, role, skill level, team, and contractual hours per week.
+The system SHALL store for each employee: name, role, skill level, team, contractual hours per week, and a minimum shift length in hours (default 4). The restaurateur MAY edit that minimum later.
 
 #### Scenario: Create a commis
 - **WHEN** the restaurateur creates an employee named Sam, role commis, level 2, team cuisine, 35 contractual hours
-- **THEN** the employee profile contains those values
+- **THEN** the employee profile contains those values and a minimum shift of 4 hours
 
 ### Requirement: Recurring and service unavailabilities
 The system SHALL record employee unavailabilities as restaurateur-stated constraints, including patterns such as every morning, every given weekday, or specific services. Generation MUST NOT assign an unavailable employee to a blocked slot; an empty post is preferred. Manual override after generation MAY place them and MUST then score an interdit warning.
