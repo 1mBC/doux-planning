@@ -365,6 +365,9 @@ class RestaurantState:
     published_cycles: dict[Team, PublishedCycle | None] = field(
         default_factory=lambda: {Team.SALLE: None, Team.CUISINE: None}
     )
+    live_sandboxes: dict[Team, Sandbox | None] = field(
+        default_factory=lambda: {Team.SALLE: None, Team.CUISINE: None}
+    )
     weeks: dict[str, CalendarWeek] = field(default_factory=dict)
     sandbox: Sandbox | None = None
     accounts: list[EmployeeAccount] = field(default_factory=list)
@@ -428,18 +431,23 @@ class PlanningStore:
         sandbox.last_result = evaluate(sandbox.draft)
         return sandbox
 
-    def apply_edit(self, restaurant_id: str, assignments: tuple[Shift, ...]) -> EngineResult:
-        sandbox = self.get(restaurant_id).sandbox
-        if sandbox is None:
-            raise RuntimeError("No sandbox")
+    def apply_edit(
+        self, restaurant_id: str, assignments: tuple[Shift, ...], team: Team | None = None
+    ) -> EngineResult:
+        sandbox = self._require_sandbox(restaurant_id, team)
         sandbox.draft = sandbox.draft.with_assignments(assignments)
         sandbox.last_result = evaluate(sandbox.draft)
         return sandbox.last_result
 
     def preview_retune(
-        self, restaurant_id: str, shift: Shift, start_minutes: int, end_minutes: int
+        self,
+        restaurant_id: str,
+        shift: Shift,
+        start_minutes: int,
+        end_minutes: int,
+        team: Team | None = None,
     ) -> list[PreviewProposal]:
-        sandbox = self._require_sandbox(restaurant_id)
+        sandbox = self._require_sandbox(restaurant_id, team)
         self._require_shift(sandbox, shift)
         current = sandbox.last_result or evaluate(sandbox.draft)
         start = validate_quantum(_clip_minutes(start_minutes))
@@ -469,8 +477,10 @@ class PlanningStore:
             )
         ]
 
-    def preview_replace(self, restaurant_id: str, shift: Shift) -> list[PreviewProposal]:
-        sandbox = self._require_sandbox(restaurant_id)
+    def preview_replace(
+        self, restaurant_id: str, shift: Shift, team: Team | None = None
+    ) -> list[PreviewProposal]:
+        sandbox = self._require_sandbox(restaurant_id, team)
         self._require_shift(sandbox, shift)
         current = sandbox.last_result or evaluate(sandbox.draft)
         remaining = tuple(item for item in sandbox.draft.assignments if item != shift)
@@ -506,8 +516,10 @@ class PlanningStore:
             )
         return proposals
 
-    def preview_swap(self, restaurant_id: str, shift: Shift) -> list[PreviewProposal]:
-        sandbox = self._require_sandbox(restaurant_id)
+    def preview_swap(
+        self, restaurant_id: str, shift: Shift, team: Team | None = None
+    ) -> list[PreviewProposal]:
+        sandbox = self._require_sandbox(restaurant_id, team)
         self._require_shift(sandbox, shift)
         current = sandbox.last_result or evaluate(sandbox.draft)
         scored: list[tuple[Shift, EngineResult]] = []
@@ -549,8 +561,9 @@ class PlanningStore:
         slot: FillSlot,
         start_minutes: int | None = None,
         end_minutes: int | None = None,
+        team: Team | None = None,
     ) -> list[PreviewProposal]:
-        sandbox = self._require_sandbox(restaurant_id)
+        sandbox = self._require_sandbox(restaurant_id, team)
         row = sandbox.draft.employee(slot.employee_id)
         if any(
             item.employee_id == slot.employee_id
@@ -611,15 +624,17 @@ class PlanningStore:
             for index, (person, trial, _trial_shift) in enumerate(ordered, start=1)
         ]
 
-    def apply_proposal(self, restaurant_id: str, proposal: PreviewProposal) -> EngineResult:
-        sandbox = self._require_sandbox(restaurant_id)
+    def apply_proposal(
+        self, restaurant_id: str, proposal: PreviewProposal, team: Team | None = None
+    ) -> EngineResult:
+        sandbox = self._require_sandbox(restaurant_id, team)
         sandbox.history.append(
             SandboxSnapshot(assignments=sandbox.draft.assignments, last_result=sandbox.last_result)
         )
-        return self.apply_edit(restaurant_id, proposal.result.assignments)
+        return self.apply_edit(restaurant_id, proposal.result.assignments, team=team)
 
-    def undo_sandbox(self, restaurant_id: str) -> EngineResult:
-        sandbox = self._require_sandbox(restaurant_id)
+    def undo_sandbox(self, restaurant_id: str, team: Team | None = None) -> EngineResult:
+        sandbox = self._require_sandbox(restaurant_id, team)
         if not sandbox.history:
             raise EmptyHistoryError("No cranted sandbox edit to undo")
         snapshot = sandbox.history.pop()
@@ -627,8 +642,14 @@ class PlanningStore:
         sandbox.last_result = snapshot.last_result
         return sandbox.last_result or evaluate(sandbox.draft)
 
-    def _require_sandbox(self, restaurant_id: str) -> Sandbox:
-        sandbox = self.get(restaurant_id).sandbox
+    def _require_sandbox(self, restaurant_id: str, team: Team | None = None) -> Sandbox:
+        state = self.get(restaurant_id)
+        if team is not None:
+            sandbox = state.live_sandboxes.get(team)
+            if sandbox is None:
+                raise RuntimeError("No live sandbox")
+            return sandbox
+        sandbox = state.sandbox
         if sandbox is None:
             raise RuntimeError("No sandbox")
         return sandbox
