@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass, field, replace
 
 from doux_planning.types import (
@@ -96,6 +97,7 @@ class Employee:
     max_evenings_per_week: int | None = None
     max_mornings_per_week: int | None = None
     min_shift_hours: float = DEFAULT_MIN_SHIFT_HOURS
+    invite_token: str = field(default_factory=lambda: secrets.token_urlsafe(16))
 
     def __post_init__(self) -> None:
         if self.team != self.role.team:
@@ -106,6 +108,11 @@ class Employee:
             raise ValueError("min_shift_hours must be > 0")
         object.__setattr__(self, "wellbeing", frozenset(self.wellbeing))
         object.__setattr__(self, "forced_off_days", frozenset(self.forced_off_days))
+        if not self.invite_token or self.invite_token == self.id:
+            token = secrets.token_urlsafe(16)
+            while token == self.id:
+                token = secrets.token_urlsafe(16)
+            object.__setattr__(self, "invite_token", token)
 
     @property
     def level(self) -> int:

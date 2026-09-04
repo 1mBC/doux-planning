@@ -170,7 +170,9 @@ def test_employee_cannot_see_sandbox_draft():
     week = instantiate_week(state.cycle.result.assignments, date(2026, 9, 14), "w12", "cycle-1")
     state.weeks = {"w12": week}
     store.add_restaurant(state)
-    account = redeem_invite(state.identity, "join-me", "acc-1", "chef-a")
+    account, _identity = redeem_invite(
+        state.identity, state.employees, "join-me", "acc-1", employee_id="chef-a"
+    )
     before = store.employee_view("resto-1", account)
     store.enter_sandbox("resto-1", "cycle")
     store.apply_edit("resto-1", (_shift(employee_id="sam"),))

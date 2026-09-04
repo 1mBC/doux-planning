@@ -1,4 +1,14 @@
-from doux_planning.invites import InvalidInviteCode, RestaurantIdentity, assert_restaurateur_owns_constraints, redeem_invite
+from doux_planning.hydrate import hydrate_delivered_cycle
+from doux_planning.invites import (
+    InvalidInviteCode,
+    InviteAlreadyRedeemed,
+    RestaurantIdentity,
+    UnknownInviteToken,
+    assert_restaurateur_owns_constraints,
+    redeem_invite,
+    rotate_employee_invite_token,
+)
+from doux_planning.planning import PlanningStore
 from doux_planning.staff import (
     Employee,
     Role,
@@ -84,10 +94,15 @@ def test_legal_rules_visible_without_generation():
 
 def test_invite_code_links_account():
     restaurant = RestaurantIdentity(id="resto-1")
-    account = redeem_invite(restaurant, restaurant.invite_code, "acc-1", "sam")
+    sam = employee("Sam", "commis")
+    account, restaurant = redeem_invite(
+        restaurant, (sam,), restaurant.invite_code, "acc-1", employee_id="sam"
+    )
     assert account.restaurant_id == "resto-1"
+    assert account.employee_id == "sam"
+    assert "sam" in restaurant.linked_employee_ids
     try:
-        redeem_invite(restaurant, "nope", "acc-2", "sam")
+        redeem_invite(restaurant, (sam,), "nope", "acc-2", employee_id="sam")
         raise AssertionError("expected InvalidInviteCode")
     except InvalidInviteCode:
         pass
@@ -97,6 +112,65 @@ def test_invite_code_links_account():
         raise AssertionError("expected permission error")
     except PermissionError:
         pass
+
+
+def test_employee_invite_token_generated_and_not_id():
+    person = employee("Sam", "commis")
+    assert person.invite_token
+    assert person.invite_token != person.id
+
+
+def test_redeem_manual_qr_rotate_and_bad_company_code():
+    restaurant = RestaurantIdentity(id="resto-1", invite_code="join-me")
+    first = employee("Ada", "commis", employee_id="ada")
+    second = employee("Bea", "commis", employee_id="bea")
+    staff = (first, second)
+    account_a, restaurant = redeem_invite(
+        restaurant, staff, "join-me", "acc-a", employee_id="ada"
+    )
+    assert account_a.employee_id == "ada"
+    assert restaurant.linked_employee_ids == frozenset({"ada"})
+    try:
+        redeem_invite(restaurant, staff, "join-me", "acc-a2", employee_id="ada")
+        raise AssertionError("expected InviteAlreadyRedeemed")
+    except InviteAlreadyRedeemed:
+        pass
+    try:
+        redeem_invite(restaurant, staff, "join-me", "acc-a3", employee_token=first.invite_token)
+        raise AssertionError("expected InviteAlreadyRedeemed")
+    except InviteAlreadyRedeemed:
+        pass
+    old_token = first.invite_token
+    rotated = rotate_employee_invite_token(first)
+    assert rotated.invite_token != old_token
+    staff_rotated = (rotated, second)
+    unlinked = RestaurantIdentity(id="resto-1", invite_code="join-me")
+    try:
+        redeem_invite(unlinked, staff_rotated, "join-me", "acc-old", employee_token=old_token)
+        raise AssertionError("expected UnknownInviteToken")
+    except UnknownInviteToken:
+        pass
+    account_rotated, linked = redeem_invite(
+        unlinked, staff_rotated, "join-me", "acc-new", employee_token=rotated.invite_token
+    )
+    assert account_rotated.employee_id == "ada"
+    assert "ada" in linked.linked_employee_ids
+    account_b, after_b = redeem_invite(
+        restaurant, staff, "join-me", "acc-b", employee_token=second.invite_token
+    )
+    assert account_b.employee_id == "bea"
+    assert after_b.linked_employee_ids == frozenset({"ada", "bea"})
+    try:
+        redeem_invite(restaurant, staff, "wrong", "acc-x", employee_id="bea")
+        raise AssertionError("expected InvalidInviteCode")
+    except InvalidInviteCode:
+        pass
+
+
+def test_hydrate_saint_cloud_employees_have_invite_tokens():
+    state = hydrate_delivered_cycle(PlanningStore(), "saint-cloud")
+    assert state.employees
+    assert all(person.invite_token and person.invite_token != person.id for person in state.employees)
 
 
 def test_continuous_vs_services_and_closures():
