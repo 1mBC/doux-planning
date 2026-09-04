@@ -4,6 +4,17 @@ import { employeeName, HoursImpact, SwapReplaceImpact } from "./impact";
 import { dayThenClock, formatClock, GESTURE_CHOICE_FR } from "./format";
 import type { Employee, FillSlot, Gesture, PreviewProposal, ShiftIdentity } from "./types";
 
+export type PreviewOccupied = (
+  gesture: Gesture,
+  shift: ShiftIdentity,
+  hours?: { start_minutes: number; end_minutes: number },
+) => Promise<PreviewProposal[]>;
+
+export type PreviewEmpty = (
+  slot: FillSlot,
+  hours: { start_minutes: number | null; end_minutes: number | null },
+) => Promise<PreviewProposal[]>;
+
 const STEP_MINUTES = 15;
 
 function proposalTitle(proposal: PreviewProposal, employees: Employee[]): string {
@@ -22,12 +33,14 @@ export function Overlay({
   onClose,
   onCommit,
   onError,
+  preview = previewSandbox,
 }: {
   shift: ShiftIdentity;
   employees: Employee[];
   onClose: () => void;
   onCommit: (gesture: Gesture, proposal: PreviewProposal) => Promise<void>;
   onError: (message: string) => void;
+  preview?: PreviewOccupied;
 }) {
   const [gesture, setGesture] = useState<Gesture | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,7 +63,7 @@ export function Overlay({
     }
     setLoading(true);
     try {
-      setProposals(await previewSandbox(next, shift));
+      setProposals(await preview(next, shift));
     } catch (err) {
       const message = err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue";
       setLocalError(message);
@@ -69,7 +82,7 @@ export function Overlay({
     setLoading(true);
     setLocalError(null);
     try {
-      const next = await previewSandbox("retune", shift, { start_minutes: nextStart, end_minutes: nextEnd });
+      const next = await preview("retune", shift, { start_minutes: nextStart, end_minutes: nextEnd });
       if (seq !== previewSeq.current) {
         return;
       }
@@ -204,12 +217,14 @@ export function FillOverlay({
   onClose,
   onCommit,
   onError,
+  preview = previewFill,
 }: {
   slot: FillSlot;
   employees: Employee[];
   onClose: () => void;
   onCommit: (proposal: PreviewProposal) => Promise<void>;
   onError: (message: string) => void;
+  preview?: PreviewEmpty;
 }) {
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState<PreviewProposal[] | null>(null);
@@ -223,7 +238,7 @@ export function FillOverlay({
     const seq = ++previewSeq.current;
     setLoading(true);
     setLocalError(null);
-    void previewFill(slot, { start_minutes: null, end_minutes: null })
+    void preview(slot, { start_minutes: null, end_minutes: null })
       .then((next) => {
         if (seq !== previewSeq.current) {
           return;
@@ -248,7 +263,7 @@ export function FillOverlay({
           setLoading(false);
         }
       });
-  }, [slot, onError]);
+  }, [slot, onError, preview]);
 
   async function stepHours(which: "start" | "end", delta: number) {
     if (startMinutes === null || endMinutes === null) {
@@ -262,7 +277,7 @@ export function FillOverlay({
     setLoading(true);
     setLocalError(null);
     try {
-      const next = await previewFill(slot, { start_minutes: nextStart, end_minutes: nextEnd });
+      const next = await preview(slot, { start_minutes: nextStart, end_minutes: nextEnd });
       if (seq !== previewSeq.current) {
         return;
       }

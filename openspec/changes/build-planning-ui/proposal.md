@@ -11,7 +11,8 @@ Le moteur et le contrat d’exemple existent (`GET /v1/examples/saint-cloud`), m
 - Token en `sessionStorage`, header `Authorization: Bearer` uniquement sur register/login/logout/`GET /v1/me`. **Pas** sur `/v1/examples/*` ni `/v1/sandbox/*`. Sans session : auth **et** exemple Saint-Cloud restent accessibles (« Voir l’exemple »). Ne pas bloquer la grille derrière le login.
 - `kind: employee` : pas de Mode édition ; phrase FR (planning publié personnel plus tard). Pas de wizard `/context` (403 API).
 - `kind: company` : route `/context` (lien « Mon restaurant ») — wizard contexte selon `contracts/http/v1-context.md` : identité (nom PATCH, légal France lecture seule, `company_code`) puis rôles → fiches → services → types → semaine type. Salle et cuisine indépendantes. `ready.*` affiché tel quel (badges FR). Bearer sur GET/PATCH `/v1/context` en plus de l’auth. Toujours pas sur exemple / sandbox.
-- `kind: company` : route `/planning` (lien « Planning ») selon `contracts/http/v1-generate.md` : GET `/v1/cycles` + GET `/v1/context`, sélecteur équipe, **Calculer** seulement si `ready[team]` (JSON context, pas un bool inventé), POST `{ team, search_effort: "minimal" }`. Grille 14 j. + warnings du cycle publié. Pas de stats / legal_rows / wish_rows inventés. Pas de sandbox sur ce cycle. Salarié : 403 / pas d’écran. Bearer sur `/v1/generate` et `/v1/cycles`.
+- `kind: company` : route `/planning` (lien « Planning ») selon `contracts/http/v1-generate.md` : GET `/v1/cycles` + GET `/v1/context`, sélecteur équipe, **Calculer** seulement si `ready[team]` (JSON context, pas un bool inventé), POST `{ team, search_effort: "minimal" }`. Grille 14 j. + warnings du cycle publié. Pas de stats / legal_rows / wish_rows inventés. Salarié : 403 / pas d’écran. Bearer sur `/v1/generate` et `/v1/cycles`.
+- `kind: company` : **Mode édition** sur `/planning` si `published[team]` existe — `POST /v1/live/sandbox/{team}/enter` (Bearer) selon `contracts/http/v1-live-sandbox.md`. Même overlays que le joujou (retune ±15 Valider, replace, swap, fill). Lecture sans discard. Publier → `POST .../publish` puis grille = `GET /v1/cycles`. Zéro appel `/v1/sandbox/*` depuis `/planning`. `/exemple` joujou inchangé (public).
 - UX en français. Les messages moteur anglais sont présentés, pas recalculés.
 - Ne pas archiver ni synchroniser. Ne pas modifier `src/doux_planning/`, `contracts/`, Compose, Alembic.
 
@@ -19,7 +20,7 @@ Le moteur et le contrat d’exemple existent (`GET /v1/examples/saint-cloud`), m
 
 ### New Capabilities
 
-- `planning-ui`: application web du snapshot d’exemple, login / register / session, wizard contexte, et cycle publié (Calculer).
+- `planning-ui`: application web du snapshot d’exemple, login / register / session, wizard contexte, cycle publié (Calculer), et édition live du cycle.
 
 ### Modified Capabilities
 
@@ -27,4 +28,4 @@ Le moteur et le contrat d’exemple existent (`GET /v1/examples/saint-cloud`), m
 
 ## Impact
 
-Uniquement `web/`. Proxy Vite `/v1` inchangé. L’API generate tourne à part (ne pas merger `generate/infra` / `generate/core`). Types = JSON du contrat ; clé manquante → throw. Pas de nouvelle dépendance. Version `0.9.0`. Hors slice : rotate invite-token, `optimized` 30 s, sandbox live, grille employé colorée.
+Uniquement `web/`. Proxy Vite `/v1` inchangé. L’API live tourne à part (ne pas merger `live/infra` / `live/core`). Types = JSON du contrat (`team` sur LiveState) ; clé manquante → throw. Pas de nouvelle dépendance. Version `0.10.0`. Hors slice : rotate invite-token, `optimized` 30 s, grille employé colorée.

@@ -1,9 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApiHttpError } from "./sandbox";
+import { Overlay, FillOverlay } from "./Overlay";
+import {
+  ApiHttpError,
+  commitBody,
+  commitFillBody,
+  historyEntryFromCran,
+} from "./sandbox";
+import {
+  commitLiveSandbox,
+  discardLiveSandbox,
+  enterLiveSandbox,
+  previewLiveFill,
+  previewLiveOccupied,
+  publishLiveSandbox,
+  undoLiveSandbox,
+  type LiveState,
+} from "./liveSandbox";
 import { loadContext, CONTEXT_SERVICES, type ContextServiceId, type RestaurantContext, type TeamId } from "./context";
 import { loadCycles, postGenerate, type CycleAssignment, type PublishedCycles } from "./generate";
 import {
   DAYS_FR,
+  GESTURE_HISTORY_FR,
   formatClock,
   formatDuration,
   formatHoursTotal,
@@ -11,8 +28,22 @@ import {
   personInk,
   SEVERITY_FR,
   warningTitle,
+  weekdayFromDayIndex,
 } from "./format";
-import type { Employee, WarningItem } from "./types";
+import { cranHow, fillHow, fillSlotSummary, GestureImpact, slotSummary } from "./impact";
+import type {
+  Assignment,
+  Employee,
+  FillSlot,
+  Gesture,
+  HistoryEntry,
+  PreviewProposal,
+  ShiftIdentity,
+  WarningItem,
+} from "./types";
+import { toShiftIdentity } from "./types";
+
+type OverlayTarget = { kind: "occupied"; shift: ShiftIdentity } | { kind: "fill"; slot: FillSlot };
 
 const TEAMS: { id: TeamId; label: string }[] = [
   { id: "salle", label: "Salle" },
@@ -61,6 +92,10 @@ function serviceRows(ctx: RestaurantContext, assignments: CycleAssignment[]): { 
   return known.length ? known : CONTEXT_SERVICES.filter((item) => item.id === "midday" || item.id === "evening");
 }
 
+function asAssignment(shift: CycleAssignment): Assignment {
+  return shift as Assignment;
+}
+
 function PublishedSheet({
   title,
   weekOffset,
@@ -68,6 +103,8 @@ function PublishedSheet({
   assignments,
   services,
   byKey,
+  onOccupiedClick,
+  onEmptyClick,
 }: {
   title: string;
   weekOffset: 0 | 7;
@@ -75,6 +112,8 @@ function PublishedSheet({
   assignments: CycleAssignment[];
   services: { id: ContextServiceId; label: string }[];
   byKey: Map<string, CycleAssignment>;
+  onOccupiedClick?: (shift: CycleAssignment) => void;
+  onEmptyClick?: (slot: FillSlot) => void;
 }) {
   const groups = groupedEmployees(employees);
   const span = Math.max(services.length, 1);
@@ -135,7 +174,28 @@ function PublishedSheet({
                       return (["start", "end", "hours"] as const).map((field, fieldIndex) => (
                         <td
                           key={`${person.id}-${service.id}-${day}-${field}`}
-                          className={[fieldIndex === 0 ? "d" : "", worked ? "work" : "rest"].filter(Boolean).join(" ")}
+                          className={[
+                            fieldIndex === 0 ? "d" : "",
+                            worked ? "work" : "rest",
+                            worked && onOccupiedClick ? "slot" : "",
+                            !worked && onEmptyClick ? "empty-slot" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          onClick={
+                            shift && onOccupiedClick
+                              ? () => onOccupiedClick(shift)
+                              : !shift && onEmptyClick
+                                ? () =>
+                                    onEmptyClick({
+                                      employee_id: person.id,
+                                      day_index: weekOffset + day,
+                                      weekday: weekdayFromDayIndex(weekOffset + day),
+                                      service_id: service.id as FillSlot["service_id"],
+                                      team: person.team,
+                                    })
+                                : undefined
+                          }
                         >
                           {shift
                             ? field === "start"
@@ -162,6 +222,42 @@ function PublishedSheet({
         </table>
       </div>
     </section>
+  );
+}
+
+function HistoryList({
+  entries,
+  employees,
+}: {
+  entries: HistoryEntry[];
+  employees: Employee[];
+}) {
+  if (entries.length === 0) {
+    return <p className="sub">Aucun cran.</p>;
+  }
+  return (
+    <ol className="history">
+      {entries.map((entry) => (
+        <li key={entry.index} className="history-item">
+          <strong>
+            {entry.index}. {GESTURE_HISTORY_FR[entry.gesture]}
+          </strong>
+          {entry.shift ? <p className="history-who">{slotSummary(entry.shift, employees)}</p> : null}
+          {entry.slot && entry.proposal ? (
+            <p className="history-who">{fillSlotSummary(entry.slot, entry.proposal, employees)}</p>
+          ) : null}
+          {entry.shift && entry.proposal ? (
+            <p className="history-how">{cranHow(entry.gesture, entry.shift, entry.proposal, employees)}</p>
+          ) : null}
+          {entry.slot && entry.proposal ? (
+            <p className="history-how">{fillHow(entry.slot, entry.proposal, employees)}</p>
+          ) : null}
+          {entry.proposal ? (
+            <GestureImpact gesture={entry.gesture} impact={entry.proposal.impact} employees={employees} />
+          ) : null}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -197,6 +293,9 @@ export function PublishedPlanning() {
   const [team, setTeam] = useState<TeamId>("salle");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [live, setLive] = useState<LiveState | null>(null);
+  const [overlay, setOverlay] = useState<OverlayTarget | null>(null);
+  const editing = live !== null;
 
   useEffect(() => {
     let cancelled = false;
@@ -220,13 +319,20 @@ export function PublishedPlanning() {
 
   const cycle = published?.[team] ?? null;
   const people = useMemo(
-    () => (ctx ? ctx.employees.filter((person) => person.team === team).map(toGridEmployee) : []),
-    [ctx, team],
+    () =>
+      editing
+        ? live.restaurant.employees
+        : ctx
+          ? ctx.employees.filter((person) => person.team === team).map(toGridEmployee)
+          : [],
+    [ctx, team, editing, live],
   );
-  const assignments = cycle?.assignments ?? [];
+  const assignments = editing ? (live.planning.assignments as CycleAssignment[]) : (cycle?.assignments ?? []);
+  const warnings = editing ? live.planning.warnings : (cycle?.warnings ?? []);
   const byKey = useMemo(() => indexCycle(assignments), [assignments]);
   const services = ctx ? serviceRows(ctx, assignments) : [];
-  const canCalculate = ctx?.ready[team] === true;
+  const canCalculate = ctx?.ready[team] === true && !editing;
+  const canEdit = cycle !== null && !editing;
 
   async function calculate() {
     if (!canCalculate) {
@@ -244,6 +350,86 @@ export function PublishedPlanning() {
     }
   }
 
+  async function startEdit() {
+    if (!cycle) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      setLive(await enterLiveSandbox(team));
+    } catch (err) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function leaveEdit() {
+    setLive(null);
+    setOverlay(null);
+  }
+
+  async function applyCommit(gesture: Gesture, proposal: PreviewProposal) {
+    if (!overlay || overlay.kind !== "occupied") {
+      return;
+    }
+    try {
+      setLive(await commitLiveSandbox(team, commitBody(gesture, overlay.shift, proposal)));
+      setOverlay(null);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    }
+  }
+
+  async function applyFill(proposal: PreviewProposal) {
+    if (!overlay || overlay.kind !== "fill") {
+      return;
+    }
+    try {
+      setLive(await commitLiveSandbox(team, commitFillBody(overlay.slot, proposal)));
+      setOverlay(null);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    }
+  }
+
+  async function undoLast() {
+    try {
+      setLive(await undoLiveSandbox(team));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    }
+  }
+
+  async function discardAll() {
+    try {
+      setLive(await discardLiveSandbox(team));
+      setOverlay(null);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    }
+  }
+
+  async function publish() {
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await publishLiveSandbox(team);
+      setPublished(next.published);
+      setLive(null);
+      setOverlay(null);
+    } catch (err) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!ctx && !error) {
     return (
       <main className="page">
@@ -254,8 +440,12 @@ export function PublishedPlanning() {
 
   return (
     <main className="page planning-page">
-      <h1>Planning publié</h1>
-      <p className="sub">Cycle persisté par équipe. Pas d’édition sandbox ici.</p>
+      <h1>Planning {editing ? "— édition" : "publié"}</h1>
+      <p className="sub">
+        {editing
+          ? "Brouillon live persisté. Lecture quitte sans jeter. Publier écrit le cycle."
+          : "Cycle persisté par équipe."}
+      </p>
       {ctx ? (
         <p className="ready-badges">
           <span className={ctx.ready.salle ? "badge-ready" : "badge-wait"}>
@@ -273,7 +463,11 @@ export function PublishedPlanning() {
             key={item.id}
             type="button"
             className={team === item.id ? "choice active" : "choice"}
-            onClick={() => setTeam(item.id)}
+            onClick={() => {
+              setTeam(item.id);
+              setLive(null);
+              setOverlay(null);
+            }}
           >
             {item.label}
           </button>
@@ -281,6 +475,21 @@ export function PublishedPlanning() {
         <button type="button" className="choice active" disabled={!canCalculate || busy} onClick={() => void calculate()}>
           {busy ? "Calcul…" : "Calculer"}
         </button>
+        {canEdit ? (
+          <button type="button" className="choice active" disabled={busy} onClick={() => void startEdit()}>
+            {busy ? "Ouverture…" : "Mode édition"}
+          </button>
+        ) : null}
+        {editing ? (
+          <>
+            <button type="button" className="choice" onClick={leaveEdit}>
+              Lecture
+            </button>
+            <button type="button" className="choice active" disabled={busy} onClick={() => void publish()}>
+              {busy ? "Publication…" : "Publier"}
+            </button>
+          </>
+        ) : null}
       </div>
 
       {error ? (
@@ -289,7 +498,7 @@ export function PublishedPlanning() {
         </p>
       ) : null}
 
-      {cycle ? (
+      {cycle || editing ? (
         <>
           <PublishedSheet
             title="Semaine A"
@@ -298,6 +507,10 @@ export function PublishedPlanning() {
             assignments={assignments}
             services={services}
             byKey={byKey}
+            onOccupiedClick={
+              editing ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) }) : undefined
+            }
+            onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
           />
           <PublishedSheet
             title="Semaine B"
@@ -306,12 +519,54 @@ export function PublishedPlanning() {
             assignments={assignments}
             services={services}
             byKey={byKey}
+            onOccupiedClick={
+              editing ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) }) : undefined
+            }
+            onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
           />
-          <WarningsList warnings={cycle.warnings} />
+          <WarningsList warnings={warnings} />
+          {editing ? (
+            <section>
+              <h2>Historique</h2>
+              <p className="sub">Annuler enlève uniquement le dernier cran. Tout annuler revient au cycle publié.</p>
+              <HistoryList entries={live.history.map(historyEntryFromCran)} employees={people} />
+              <div className="history-actions">
+                <button type="button" className="choice" onClick={() => void undoLast()}>
+                  Annuler
+                </button>
+                {live.history.length > 0 ? (
+                  <button type="button" className="choice" onClick={() => void discardAll()}>
+                    Tout annuler
+                  </button>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
         </>
       ) : (
         <p className="sub">Pas encore calculé</p>
       )}
+
+      {overlay?.kind === "occupied" && live ? (
+        <Overlay
+          shift={overlay.shift}
+          employees={people}
+          onClose={() => setOverlay(null)}
+          onCommit={applyCommit}
+          onError={setError}
+          preview={(gesture, shift, hours) => previewLiveOccupied(team, gesture, shift, hours)}
+        />
+      ) : null}
+      {overlay?.kind === "fill" && live ? (
+        <FillOverlay
+          slot={overlay.slot}
+          employees={people}
+          onClose={() => setOverlay(null)}
+          onCommit={applyFill}
+          onError={setError}
+          preview={(slot, hours) => previewLiveFill(team, slot, hours)}
+        />
+      ) : null}
     </main>
   );
 }

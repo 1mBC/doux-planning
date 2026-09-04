@@ -20,6 +20,7 @@ uvicorn  :8000  --  GET /v1/examples/saint-cloud   (public)
                  --  /v1/auth/*  /v1/me  /v1/invites/{code}
                  --  GET|PATCH /v1/context   (Bearer company)
                  --  POST /v1/generate  GET /v1/cycles  (Bearer company)
+                 --  /v1/live/sandbox/{team}/*  (Bearer company)
                          ^
                          | proxy /v1
 vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
@@ -33,10 +34,11 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 - Add login / register / QR / session chrome that follow `contracts/http/v1-auth.md` without scoring or inventing fields.
 - Company wizard at `/context` following `contracts/http/v1-context.md`.
 - Company published cycle at `/planning` following `contracts/http/v1-generate.md` (`search_effort: "minimal"`).
+- Live sandbox Mode édition on `/planning` following `contracts/http/v1-live-sandbox.md` (shapes from `v1-sandbox-edit.md`).
 
 **Non-Goals:**
-- `optimized` / `maximal` UI, live sandbox on the published cycle, rotate invite-token, colored employee grid.
-- Merging `generate/infra` / `generate/core`, new FastAPI routes, a second scoring path, react-router.
+- `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, colored employee grid.
+- Merging `live/infra` / `live/core`, new FastAPI routes, a second scoring path, react-router.
 - Pixel-identical clone of the GitHub Pages HTML.
 - Translating engine messages into a new diagnosis.
 - « Mot de passe oublié ».
@@ -79,7 +81,7 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 - `/register` : bascule **Entreprise** / **Salarié**. Entreprise → `{ kind: company, email, password }` seulement. Salarié → code → `GET /v1/invites/{company_code}` → choisir une fiche (`id`, `name`, `role`, `team`) → `{ kind: employee, company_code, employee_id, email, password }` (pas de token).
 - QR : `/register?company_code=…&employee_token=…` — kind salarié verrouillé, pas de liste, POST avec `employee_token` (pas d’`employee_id`).
 - Password ≥ 8. Afficher `detail` tel quel. Pas de « mot de passe oublié ».
-- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, `GET /v1/cycles`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
+- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
 - Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 n’empêche pas l’exemple.
 - Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`.
 - Sans session : login/register **et** `/exemple`. La grille n’est pas derrière le login.
@@ -101,9 +103,13 @@ Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seul
 
 ### 9. Published cycle (company)
 
-Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Calculer** actif seulement si `ready[team] === true` (badge context). Sinon disabled, pas de POST. POST `{ team, search_effort: "minimal" }`. Busy + `detail` si 409/400. Si `published[team]` non null : grille 14 j. (A/B) fiches de l’équipe + assignments + warnings (message moteur, sévérité FR). Pas de stats / legal_rows / wish_rows inventés. Pas de Mode édition / sandbox sur ce cycle. Cuisine `null` : « Pas encore calculé », salle intacte. Reload = même GET. Recalculer remplace cette équipe.
+Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Calculer** actif seulement si `ready[team] === true` (badge context). Sinon disabled, pas de POST. POST `{ team, search_effort: "minimal" }`. Busy + `detail` si 409/400. Si `published[team]` non null : grille 14 j. (A/B) fiches de l’équipe + assignments + warnings (message moteur, sévérité FR). Pas de stats / legal_rows / wish_rows inventés. Cuisine `null` : « Pas encore calculé », salle intacte. Reload = même GET. Recalculer remplace cette équipe. Mode édition live = §10.
 
-Hors slice : rotate invite-token, `optimized` 30 s, sandbox live.
+### 10. Live sandbox on `/planning`
+
+Mode édition seulement si `published[team]` existe. POST `/v1/live/sandbox/{team}/enter` (Bearer). Cuisine sans cycle : pas de bouton (409 API). Overlays = joujou (injecter le client live, ne pas appeler `/v1/sandbox/*`). Lecture quitte l’UI sans discard. Reload / ré-enter = GET/enter live (cran conservé). Publier → Cycles, sortir d’édition, l’autre équipe intacte. Tout annuler = discard live.
+
+Hors slice : rotate invite-token, `optimized` 30 s.
 
 ## Risks / Trade-offs
 
@@ -117,4 +123,4 @@ Greenfield `web/`. Rollback = delete `web/` (and revert CORS if it was added). E
 
 ## Open Questions
 
-None that block this slice. `optimized` and live sandbox wait.
+None that block this slice. `optimized` waits.
