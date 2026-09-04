@@ -62,6 +62,42 @@ class ServiceStructure:
 
 
 @dataclass(frozen=True)
+class ServiceType:
+    id: str
+    name: str
+    team: Team
+    service_id: str
+    arrivals: tuple[ArrivalWave, ...]
+    departures: tuple[DepartureWave, ...]
+
+    def __post_init__(self) -> None:
+        times = [wave.time_minutes for wave in self.arrivals] + [
+            wave.time_minutes for wave in self.departures
+        ]
+        if times != sorted(times):
+            raise ValueError("Waves must be in chronological order")
+
+
+@dataclass(frozen=True)
+class TypicalWeekCell:
+    weekday: str
+    service_id: str
+    type_id: str | None
+    closed: bool
+    team: Team
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "weekday", self.weekday.lower())
+        if self.weekday not in WEEKDAYS:
+            raise ValueError(f"Unknown weekday: {self.weekday}")
+
+
+@dataclass(frozen=True)
+class TypicalWeek:
+    cells: tuple[TypicalWeekCell, ...] = ()
+
+
+@dataclass(frozen=True)
 class RestaurantHours:
     mode: str
     services: tuple[str, ...]
