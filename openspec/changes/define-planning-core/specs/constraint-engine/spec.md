@@ -148,11 +148,23 @@ A higher level SHALL take a lower-level post as soon as closer-level eligible co
 - **THEN** generation assigns the level-3 employee
 
 ### Requirement: Minimum shift length
-Generation MUST NOT assign an employee to a post shorter than that employee’s `min_shift_hours` (default 4). An empty post is preferred over bringing someone in for a shorter shift. A restaurateur MAY later lower that minimum on the employee profile.
+Generation MUST NOT assign an employee to a post shorter than that employee’s `min_shift_hours` (default 4). That minimum is per employee, not a frozen global constant; a restaurateur MAY lower it on a profile. Posts are paired FIFO when remaining coverage still allows it (higher skill stays if the remaining posts need that skill). If the resulting window is still shorter than that employee’s minimum, generation MUST stretch the shift to that minimum (extend the end first, then the start) within the service span, even if that overstaffs the tail of the service. An empty post is used only when the service span cannot fit the minimum. Having already worked another service that day MUST NOT authorize a shorter shift.
 
-#### Scenario: Three-hour evening is skipped
-- **WHEN** an employee has the default 4-hour minimum and Monday evening is a 3-hour post
-- **THEN** generation leaves that post unassigned for that employee
+#### Scenario: FIFO opener leaves first
+- **WHEN** two level-1 posts start at 10:00 and 11:00 and one level-1 leaves at 14:00
+- **THEN** generation treats the 10:00 post as 10:00–14:00 and the 11:00 post as 11:00–15:00
+
+#### Scenario: Higher-skill opener stays until close
+- **WHEN** a level-3 opener starts at 18:00 and remaining coverage at 22:30 still includes a level-3 post
+- **THEN** that opener’s window runs until the last departure of the service
+
+#### Scenario: Three-hour closer is stretched
+- **WHEN** an employee has the default 4-hour minimum and a closer post is 19:30–22:30 while the service continues until 24:00
+- **THEN** generation assigns 19:30–23:30 rather than leaving the post empty
+
+#### Scenario: Service too short stays empty
+- **WHEN** an employee has the default 4-hour minimum and the whole service is only 3 hours
+- **THEN** generation leaves that post unassigned
 
 ### Requirement: Generate a full 14-day cycle
 The engine MUST generate week A and week B as one problem, including wrap-around rest and every-other-weekend preferences. Sequential independent week solves MUST NOT be the generation method.

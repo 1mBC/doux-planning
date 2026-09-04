@@ -47,6 +47,25 @@ def _drop_lowest(posts: list[int], remaining: tuple[int, ...]) -> list[int]:
     return kept
 
 
+def structure_span(structure: ServiceStructure) -> tuple[int, int]:
+    times = [wave.time_minutes for wave in (*structure.arrivals, *structure.departures)]
+    return min(times), max(times)
+
+
+def stretch_to_min_shift(window: PostWindow, min_hours: float, structure: ServiceStructure) -> PostWindow:
+    """Keep the coverage window, then extend the shift to min_hours (end first, then start)."""
+    need = int(min_hours * 60)
+    duration = window.end_minutes - window.start_minutes
+    if duration >= need:
+        return window
+    service_start, service_end = structure_span(structure)
+    end = min(max(window.end_minutes, window.start_minutes + need), service_end)
+    start = window.start_minutes
+    if end - start < need:
+        start = max(service_start, end - need)
+    return PostWindow(level=window.level, start_minutes=start, end_minutes=end)
+
+
 def derive_post_windows(structure: ServiceStructure) -> tuple[PostWindow, ...]:
     live: list[tuple[int, int]] = []  # (level, start)
     finished: list[PostWindow] = []
@@ -67,7 +86,9 @@ def derive_post_windows(structure: ServiceStructure) -> tuple[PostWindow, ...]:
             kept_levels = _drop_lowest(current_levels, remaining)
             new_live: list[tuple[int, int]] = []
             kept_bag = list(kept_levels)
-            for level, start in sorted(live, key=lambda item: -item[0]):
+            # Higher skill stays for remaining posts; among equals, later arrivals stay
+            # so the earliest arrival leaves first (FIFO) when coverage still allows it.
+            for level, start in sorted(live, key=lambda item: (-item[0], -item[1])):
                 if level in kept_bag:
                     kept_bag.remove(level)
                     new_live.append((level, start))

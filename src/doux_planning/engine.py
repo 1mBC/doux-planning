@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, replace
 
 from ortools.sat.python import cp_model
 
-from doux_planning.coverage import derive_post_windows, derive_slices, PostWindow
+from doux_planning.coverage import derive_post_windows, derive_slices, stretch_to_min_shift, PostWindow
 from doux_planning.staff import Employee, LegalRule, Unavailability, default_legal_rules
 from doux_planning.structures import RestaurantHours, ServiceStructure
 from doux_planning.types import (
@@ -699,9 +699,20 @@ def _would_exceed_coupures(assignments: list[Shift], employee: Employee, trial: 
     return _coupure_count_in_week(with_trial, employee.id, week_start) > cap
 
 
-def _window_meets_min_shift(employee: Employee, window: PostWindow) -> bool:
-    duration = window.end_minutes - window.start_minutes
-    return duration >= int(employee.min_shift_hours * 60)
+def _assigned_window(
+    employee: Employee, window: PostWindow, structure: ServiceStructure
+) -> PostWindow | None:
+    stretched = stretch_to_min_shift(window, employee.min_shift_hours, structure)
+    duration = stretched.end_minutes - stretched.start_minutes
+    if duration < int(employee.min_shift_hours * 60):
+        return None
+    return stretched
+
+
+def _window_meets_min_shift(
+    employee: Employee, window: PostWindow, structure: ServiceStructure
+) -> bool:
+    return _assigned_window(employee, window, structure) is not None
 
 
 def _eligible_for_service(
@@ -717,8 +728,13 @@ def _eligible_for_service(
         return False
     return any(
         employee.level >= window.level
-        and _window_meets_min_shift(employee, window)
-        and not _unavailable(employee, weekday, service_id, window.start_minutes)
+        and _window_meets_min_shift(employee, window, structure)
+        and not _unavailable(
+            employee,
+            weekday,
+            service_id,
+            (_assigned_window(employee, window, structure) or window).start_minutes,
+        )
         for window in windows
     )
 
@@ -747,8 +763,13 @@ def _staffing_needs(
                         employee.team == team
                         and employee.level >= window.level
                         and day_index not in employee.forced_off_days
-                        and _window_meets_min_shift(employee, window)
-                        and not _unavailable(employee, weekday, service_id, window.start_minutes)
+                        and _window_meets_min_shift(employee, window, structure)
+                        and not _unavailable(
+                            employee,
+                            weekday,
+                            service_id,
+                            (_assigned_window(employee, window, structure) or window).start_minutes,
+                        )
                         for employee in draft.employees
                     )
                 ]
@@ -760,7 +781,18 @@ def _staffing_needs(
                     if _eligible_for_service(employee, draft, weekday, service_id, team)
                     and day_index not in employee.forced_off_days
                 )
-                shortest = min(window.end_minutes - window.start_minutes for window in assignable)
+                stretched_minutes = []
+                for window in assignable:
+                    for employee in draft.employees:
+                        if employee.team != team or employee.level < window.level:
+                            continue
+                        assigned = _assigned_window(employee, window, structure)
+                        if assigned is not None:
+                            stretched_minutes.append(assigned.end_minutes - assigned.start_minutes)
+                shortest = min(
+                    stretched_minutes,
+                    default=min(window.end_minutes - window.start_minutes for window in assignable),
+                )
                 needs.append((day_index, team, service_id, len(assignable), eligible, shortest))
     return needs
 
@@ -824,11 +856,15 @@ def _can_fill_window(
 ) -> bool:
     if employee.team != team or employee.level < window.level:
         return False
-    if not _window_meets_min_shift(employee, window):
+    structure = draft.structure_for(team, service_id, weekday)
+    if structure is None:
+        return False
+    assigned = _assigned_window(employee, window, structure)
+    if assigned is None:
         return False
     if day_index in off_days.get(employee.id, set()):
         return False
-    if _unavailable(employee, weekday, service_id, window.start_minutes):
+    if _unavailable(employee, weekday, service_id, assigned.start_minutes):
         return False
     trial = Shift(
         employee_id=employee.id,
@@ -836,8 +872,8 @@ def _can_fill_window(
         weekday=weekday,
         service_id=service_id,
         team=team,
-        start_minutes=window.start_minutes,
-        end_minutes=window.end_minutes,
+        start_minutes=assigned.start_minutes,
+        end_minutes=assigned.end_minutes,
         post_level=window.level,
     )
     if _has_overlap(assignments, trial):
@@ -904,26 +940,30 @@ def _pick_for_post(
     end_minutes: int,
     off_days: dict[str, set[int]],
     remaining_windows: tuple[PostWindow, ...] = (),
-) -> Employee | None:
-    occupied = {
-        shift.employee_id
-        for shift in assignments
-        if shift.day_index == day_index
-        and shift.start_minutes < end_minutes
-        and start_minutes < shift.end_minutes
-    }
+) -> tuple[Employee, PostWindow] | None:
+    structure = draft.structure_for(team, service_id, weekday)
+    if structure is None:
+        return None
+    hole = PostWindow(level=window_level, start_minutes=start_minutes, end_minutes=end_minutes)
     scored: list[tuple] = []
     for employee in employee_pool:
         if employee.team != team or employee.level < window_level:
             continue
-        trial_window = PostWindow(level=window_level, start_minutes=start_minutes, end_minutes=end_minutes)
-        if not _window_meets_min_shift(employee, trial_window):
+        assigned = _assigned_window(employee, hole, structure)
+        if assigned is None:
             continue
+        occupied = {
+            shift.employee_id
+            for shift in assignments
+            if shift.day_index == day_index
+            and shift.start_minutes < assigned.end_minutes
+            and assigned.start_minutes < shift.end_minutes
+        }
         if day_index in off_days.get(employee.id, set()):
             continue
         if employee.id in occupied:
             continue
-        if _unavailable(employee, weekday, service_id, start_minutes):
+        if _unavailable(employee, weekday, service_id, assigned.start_minutes):
             continue
         trial = Shift(
             employee_id=employee.id,
@@ -931,8 +971,8 @@ def _pick_for_post(
             weekday=weekday,
             service_id=service_id,
             team=team,
-            start_minutes=start_minutes,
-            end_minutes=end_minutes,
+            start_minutes=assigned.start_minutes,
+            end_minutes=assigned.end_minutes,
             post_level=window_level,
         )
         if _has_overlap(assignments, trial):
@@ -954,22 +994,23 @@ def _pick_for_post(
                     pool_index=ranks[employee.id],
                 ),
                 employee,
+                assigned,
             )
         )
     if not scored:
         return None
     scored.sort(key=lambda item: item[0])
-    legal = [employee for penalty, employee in scored if penalty[0] == 0]
+    legal = [(employee, assigned) for penalty, employee, assigned in scored if penalty[0] == 0]
     if not legal:
         return None
     if remaining_windows and len(legal) > 1:
         kept = [
-            employee
-            for employee in legal
+            pair
+            for pair in legal
             if not _is_unique_for_earlier_hole(
                 draft,
                 assignments,
-                employee,
+                pair[0],
                 remaining_windows=remaining_windows,
                 current_start=start_minutes,
                 day_index=day_index,
@@ -1018,8 +1059,11 @@ def _eligible_post_durations(draft: PlanningDraft, employee: Employee, week_star
             for window in derive_post_windows(structure):
                 if employee.level < window.level:
                     continue
-                duration = window.end_minutes - window.start_minutes
-                if duration > 0 and duration >= int(employee.min_shift_hours * 60):
+                assigned = _assigned_window(employee, window, structure)
+                if assigned is None:
+                    continue
+                duration = assigned.end_minutes - assigned.start_minutes
+                if duration > 0:
                     durations.append(duration)
     return durations
 
@@ -1267,23 +1311,45 @@ def _iter_service_windows(draft: PlanningDraft, start_day: int = 0):
                 yield day_index, weekday, service_id, team, windows
 
 
-def _window_taken(
+def _shift_covers_window(
+    shift: Shift,
+    window: PostWindow,
+    *,
+    day_index: int,
+    service_id: str,
+    team: Team,
+) -> bool:
+    return (
+        shift.day_index == day_index
+        and shift.service_id == service_id
+        and shift.team == team
+        and shift.post_level == window.level
+        and shift.start_minutes <= window.start_minutes
+        and shift.end_minutes >= window.end_minutes
+    )
+
+
+def _taken_windows(
     assignments: list[Shift],
     *,
     day_index: int,
     service_id: str,
     team: Team,
-    window: PostWindow,
-) -> bool:
-    return any(
-        shift.day_index == day_index
-        and shift.service_id == service_id
-        and shift.team == team
-        and shift.start_minutes == window.start_minutes
-        and shift.end_minutes == window.end_minutes
-        and shift.post_level == window.level
-        for shift in assignments
-    )
+    windows: list[PostWindow] | tuple[PostWindow, ...],
+) -> set[PostWindow]:
+    taken: set[PostWindow] = set()
+    used: set[int] = set()
+    for window in sorted(windows, key=lambda item: (-item.level, item.start_minutes)):
+        for index, shift in enumerate(assignments):
+            if index in used:
+                continue
+            if _shift_covers_window(
+                shift, window, day_index=day_index, service_id=service_id, team=team
+            ):
+                taken.add(window)
+                used.add(index)
+                break
+    return taken
 
 
 def _append_shift(
@@ -1320,7 +1386,7 @@ def _fill_assignments(
     for day_index, weekday, service_id, team, windows in _iter_service_windows(draft, start_day):
         pending = list(windows)
         for window in windows:
-            chosen = _pick_for_post(
+            picked = _pick_for_post(
                 draft,
                 assignments,
                 employee_pool=employee_pool,
@@ -1335,8 +1401,9 @@ def _fill_assignments(
                 remaining_windows=tuple(pending),
             )
             pending.remove(window)
-            if chosen is None:
+            if picked is None:
                 continue
+            chosen, assigned = picked
             _append_shift(
                 assignments,
                 chosen,
@@ -1344,14 +1411,10 @@ def _fill_assignments(
                 weekday=weekday,
                 service_id=service_id,
                 team=team,
-                window=window,
+                window=assigned,
             )
     _repair_holes(draft, assignments, off_days, employee_pool, start_day=start_day)
     return assignments
-
-
-def _vacated_window(shift: Shift) -> PostWindow:
-    return PostWindow(level=shift.post_level, start_minutes=shift.start_minutes, end_minutes=shift.end_minutes)
 
 
 def _displace_for_window(
@@ -1395,7 +1458,7 @@ def _displace_for_window(
         ):
             continue
         others = [employee for employee in employee_pool if employee.id != person.id]
-        replacement = _pick_for_post(
+        picked = _pick_for_post(
             draft,
             without,
             employee_pool=others,
@@ -1408,8 +1471,13 @@ def _displace_for_window(
             end_minutes=held.end_minutes,
             off_days=off_days,
         )
-        if replacement is None or replacement.id == person.id:
+        if picked is None or picked[0].id == person.id:
             continue
+        replacement, replacement_window = picked
+        hole_structure = draft.structure_for(team, service_id, weekday)
+        hole_assigned = (
+            _assigned_window(person, hole, hole_structure) if hole_structure is not None else hole
+        ) or hole
         assignments[:] = without
         _append_shift(
             assignments,
@@ -1418,7 +1486,7 @@ def _displace_for_window(
             weekday=held.weekday,
             service_id=held.service_id,
             team=held.team,
-            window=_vacated_window(held),
+            window=replacement_window,
         )
         _append_shift(
             assignments,
@@ -1427,7 +1495,7 @@ def _displace_for_window(
             weekday=weekday,
             service_id=service_id,
             team=team,
-            window=hole,
+            window=hole_assigned,
         )
         return True
     return False
@@ -1441,11 +1509,12 @@ def _repair_holes(
     start_day: int = 0,
 ) -> None:
     for day_index, weekday, service_id, team, windows in _iter_service_windows(draft, start_day):
-        pending = [window for window in windows if not _window_taken(
-            assignments, day_index=day_index, service_id=service_id, team=team, window=window
-        )]
+        taken = _taken_windows(
+            assignments, day_index=day_index, service_id=service_id, team=team, windows=windows
+        )
+        pending = [window for window in windows if window not in taken]
         for window in list(pending):
-            chosen = _pick_for_post(
+            picked = _pick_for_post(
                 draft,
                 assignments,
                 employee_pool=employee_pool,
@@ -1459,7 +1528,8 @@ def _repair_holes(
                 off_days=off_days,
                 remaining_windows=tuple(pending),
             )
-            if chosen is not None:
+            if picked is not None:
+                chosen, assigned = picked
                 _append_shift(
                     assignments,
                     chosen,
@@ -1467,7 +1537,7 @@ def _repair_holes(
                     weekday=weekday,
                     service_id=service_id,
                     team=team,
-                    window=window,
+                    window=assigned,
                 )
                 pending.remove(window)
                 continue

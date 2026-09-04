@@ -503,12 +503,20 @@ def test_generate_keeps_opener_for_earlier_level1():
 def test_prefer_completing_a_started_day():
     on_duty = employee("Aurore", "commis", hours=20, employee_id="aurore")
     idle = employee("Lucie", "plongeur", hours=15, employee_id="lucie")
-    draft = _draft(employees=(on_duty, idle))
+    evening = ServiceStructure(
+        id="eve-complete-day",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(18 * 60, (1,)),),
+        departures=(DepartureWave(22 * 60, ()),),
+    )
+    draft = _draft(employees=(on_duty, idle), extra_structures=(evening,))
     assignments = [
         _shift("aurore", 0, 10 * 60, 14 * 60, 2),
         _shift("lucie", 1, 11 * 60, 14 * 60, 1),
     ]
-    chosen = _pick_for_post(
+    picked = _pick_for_post(
         draft,
         assignments,
         employee_pool=[on_duty, idle],
@@ -521,8 +529,10 @@ def test_prefer_completing_a_started_day():
         end_minutes=22 * 60,
         off_days={"aurore": set(), "lucie": set()},
     )
-    assert chosen is not None
+    assert picked is not None
+    chosen, assigned = picked
     assert chosen.id == "aurore"
+    assert assigned.end_minutes - assigned.start_minutes >= 4 * 60
 
 
 def test_generate_does_not_exceed_weekly_coupure_cap():
@@ -680,3 +690,61 @@ def test_generate_reassigns_same_day_to_fill_a_hole():
     assert "empty_post" not in {
         warning.code for warning in result.warnings if warning.day_index == 0
     }
+
+
+def test_short_post_is_stretched_to_employee_min_shift():
+    person = employee("Lucie", "plongeur", hours=20, employee_id="lucie")
+    evening = ServiceStructure(
+        id="short-closer",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(19 * 60 + 30, (1,)),),
+        departures=(DepartureWave(22 * 60 + 30, ()), DepartureWave(24 * 60, ())),
+    )
+    hours = RestaurantHours.multi_service(
+        ServiceName.EVENING.value, closed_weekdays=set(WEEKDAYS) - {"monday"}
+    )
+    result = generate_cycle(PlanningDraft(employees=(person,), structures=(evening,), hours=hours))
+    monday = [shift for shift in result.assignments if shift.day_index == 0]
+    assert monday
+    assert monday[0].start_minutes == 19 * 60 + 30
+    assert monday[0].end_minutes == 23 * 60 + 30
+    assert "empty_post" not in {warning.code for warning in result.warnings if warning.day_index == 0}
+
+
+def test_short_post_stays_empty_when_service_cannot_reach_min_shift():
+    person = employee("Lucie", "plongeur", hours=20, employee_id="lucie")
+    evening = ServiceStructure(
+        id="too-short",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(19 * 60 + 30, (1,)),),
+        departures=(DepartureWave(22 * 60 + 30, ()),),
+    )
+    hours = RestaurantHours.multi_service(
+        ServiceName.EVENING.value, closed_weekdays=set(WEEKDAYS) - {"monday"}
+    )
+    result = generate_cycle(PlanningDraft(employees=(person,), structures=(evening,), hours=hours))
+    assert not [shift for shift in result.assignments if shift.day_index == 0]
+    assert "empty_post" in {warning.code for warning in result.warnings if warning.day_index == 0}
+
+
+def test_lower_personal_min_shift_fills_a_short_post():
+    person = replace(employee("Lucie", "plongeur", hours=20, employee_id="lucie"), min_shift_hours=3.0)
+    evening = ServiceStructure(
+        id="three-hour",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(19 * 60 + 30, (1,)),),
+        departures=(DepartureWave(22 * 60 + 30, ()),),
+    )
+    hours = RestaurantHours.multi_service(
+        ServiceName.EVENING.value, closed_weekdays=set(WEEKDAYS) - {"monday"}
+    )
+    result = generate_cycle(PlanningDraft(employees=(person,), structures=(evening,), hours=hours))
+    monday = [shift for shift in result.assignments if shift.day_index == 0]
+    assert monday
+    assert monday[0].duration_hours == 3.0

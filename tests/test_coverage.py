@@ -1,7 +1,8 @@
-from doux_planning.coverage import derive_slices
+from doux_planning.coverage import PostWindow, derive_post_windows, derive_slices, stretch_to_min_shift
 from doux_planning.matching import match_posts
 from doux_planning.staff import Employee
-from doux_planning.types import Team
+from doux_planning.structures import ArrivalWave, DepartureWave, ServiceStructure
+from doux_planning.types import ServiceName, Team
 from tests.fixtures import cuisine_ladder, employee, kitchen_midday_structure, kitchen_staff
 
 
@@ -36,3 +37,56 @@ def test_sole_chef_stays_chef_not_plonge():
     empty = [item for item in matched if item.employee is None]
     assert len(empty) == 1
     assert empty[0].post_level == 1
+
+
+def test_fifo_same_level_opener_leaves_first():
+    structure = ServiceStructure(
+        id="two-l1",
+        team=Team.CUISINE,
+        service_id=ServiceName.MIDDAY.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(10 * 60, (1,)), ArrivalWave(11 * 60, (1,))),
+        departures=(DepartureWave(14 * 60, (1,)), DepartureWave(15 * 60, ())),
+    )
+    windows = {(item.start_minutes, item.end_minutes, item.level) for item in derive_post_windows(structure)}
+    assert (10 * 60, 14 * 60, 1) in windows
+    assert (11 * 60, 15 * 60, 1) in windows
+
+
+def test_higher_skill_opener_stays_until_close():
+    structure = ServiceStructure(
+        id="eve-skill",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"tuesday"}),
+        arrivals=(
+            ArrivalWave(18 * 60, (3,)),
+            ArrivalWave(19 * 60, (1,)),
+            ArrivalWave(19 * 60 + 30, (2, 1)),
+        ),
+        departures=(
+            DepartureWave(22 * 60 + 30, (3, 2, 1)),
+            DepartureWave(23 * 60, (3, 2)),
+            DepartureWave(24 * 60, ()),
+        ),
+    )
+    windows = derive_post_windows(structure)
+    chef = [item for item in windows if item.level == 3]
+    assert len(chef) == 1
+    assert chef[0].start_minutes == 18 * 60
+    assert chef[0].end_minutes == 24 * 60
+
+
+def test_stretch_extends_end_then_start():
+    structure = ServiceStructure(
+        id="short-eve",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"tuesday"}),
+        arrivals=(ArrivalWave(19 * 60 + 30, (1,)),),
+        departures=(DepartureWave(22 * 60 + 30, ()), DepartureWave(24 * 60, ())),
+    )
+    hole = PostWindow(level=1, start_minutes=19 * 60 + 30, end_minutes=22 * 60 + 30)
+    stretched = stretch_to_min_shift(hole, 4.0, structure)
+    assert stretched.start_minutes == 19 * 60 + 30
+    assert stretched.end_minutes == 23 * 60 + 30

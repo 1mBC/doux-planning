@@ -1,4 +1,8 @@
+import os
 from datetime import date, timedelta
+from pathlib import Path
+
+import pytest
 
 from doux_planning.engine import PlanningDraft, Shift, evaluate
 from doux_planning.invites import RestaurantIdentity, redeem_invite
@@ -175,14 +179,28 @@ def test_employee_cannot_see_sandbox_draft():
     assert all(shift.employee_id == "chef-a" for shift in after)
 
 
-def test_saint_cloud_example_separates_france_legal():
-    from doux_planning.api.examples import example_payload
+@pytest.fixture(scope="session", autouse=True)
+def _postgres_example_schema():
+    if not os.environ.get("DATABASE_URL"):
+        return
+    from alembic import command
+    from alembic.config import Config
 
-    payload = example_payload("saint-cloud")
-    assert payload["example"] == "saint-cloud"
-    assert payload["legal"]["id"] == "france"
-    assert payload["legal"]["kind"] == "legal_context"
-    assert {rule["id"] for rule in payload["legal"]["rules"]} == {
+    from doux_planning.api.db import reset_engine
+    from doux_planning.api.seed import seed_from_files
+
+    command.upgrade(Config(str(Path(__file__).resolve().parents[1] / "alembic.ini")), "head")
+    reset_engine()
+    seed_from_files()
+
+
+def _assert_saint_cloud_contract(body: dict) -> None:
+    assert body["example"] == "saint-cloud"
+    assert set(body) >= {"example", "legal", "restaurant", "planning"}
+    assert body["legal"]["id"] == "france"
+    assert body["legal"]["kind"] == "legal_context"
+    assert "label" in body["legal"]
+    assert {rule["id"] for rule in body["legal"]["rules"]} == {
         "rest_between_days",
         "weekly_rest_days",
         "max_coupure",
@@ -190,10 +208,66 @@ def test_saint_cloud_example_separates_france_legal():
         "max_daily_salle",
         "max_weekly_hours",
     }
-    assert "legal_rules" not in payload["restaurant"]
-    assert payload["restaurant"]["id"] == "saint-cloud"
-    assert payload["planning"]["assignments"]
-    assert payload["planning"]["search_effort"] == "optimized"
+    for rule in body["legal"]["rules"]:
+        assert "id" in rule and "label_fr" in rule and "severity" in rule
+    assert "legal_rules" not in body["restaurant"]
+    assert body["restaurant"]["id"] == "saint-cloud"
+    assert body["restaurant"]["name"] == "Saint-Cloud"
+    assert body["restaurant"]["team"] == "salle"
+    assert "hours" in body["restaurant"]
+    employees = body["restaurant"]["employees"]
+    assert employees
+    for person in employees:
+        assert {"id", "name", "role", "team"} <= set(person)
+        assert {"name", "level", "team"} <= set(person["role"])
+    planning = body["planning"]
+    for key in (
+        "search_effort",
+        "calendars",
+        "seconds",
+        "assignments",
+        "warnings",
+        "stats",
+        "legal_rows",
+        "wish_cols",
+        "wish_rows",
+    ):
+        assert key in planning
+    assert planning["search_effort"] == "optimized"
+    assert planning["stats"] == {
+        "assignments": 92,
+        "empty": 0,
+        "interdit": 0,
+        "below_role": 43,
+        "hours": {
+            "assigned": 416.0,
+            "contracted": 494.0,
+            "percent": 84,
+        },
+        "wellbeing": {
+            "held": 21,
+            "total": 21,
+        },
+    }
+    assert len(planning["assignments"]) == 92
+    assert len(planning["warnings"]) == 14
+    theo = next(
+        item
+        for item in planning["assignments"]
+        if item["employee_id"] == "theo" and item["day_index"] == 0 and item["service_id"] == "midday"
+    )
+    assert theo["start_minutes"] == 660
+    assert theo["end_minutes"] == 960
+    assert theo["duration_hours"] == 5.0
+    diane = next(row for row in planning["wish_rows"] if row["employee_id"] == "diane")
+    assert diane["cells"]["contrat"] == {"ok": False, "text": "30h · 29h / 39h"}
+
+
+def test_saint_cloud_example_separates_france_legal():
+    from doux_planning.api.examples import example_payload
+
+    payload = example_payload("saint-cloud")
+    _assert_saint_cloud_contract(payload)
 
 
 def test_saint_cloud_example_route():
@@ -206,10 +280,25 @@ def test_saint_cloud_example_route():
     assert missing.status_code == 404
     response = client.get("/v1/examples/saint-cloud")
     assert response.status_code == 200
-    body = response.json()
-    assert body["legal"]["id"] == "france"
-    assert body["restaurant"]["name"] == "Saint-Cloud"
-    assert body["planning"]["stats"]["assignments"] == 70
+    _assert_saint_cloud_contract(response.json())
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_saint_cloud_seed_restaurant_points_at_france():
+    from doux_planning.api.db import Restaurant, session_scope
+
+    with session_scope() as session:
+        row = session.get(Restaurant, "saint-cloud")
+        assert row is not None
+        assert row.legal_context == "france"
+        assert "legal_rules" not in row.document
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_saint_cloud_postgres_payload_matches_files():
+    from doux_planning.api.examples import example_payload_from_db, example_payload_from_files
+
+    assert example_payload_from_db("saint-cloud") == example_payload_from_files("saint-cloud")
 
 
 def test_brasserie_template_is_editable():
