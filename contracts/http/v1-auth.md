@@ -45,7 +45,8 @@ GET  /v1/invites/{company_code} → 200 { restaurant_name, employees: [{ id, nam
 POST /v1/staff/{id}/invite-token → 200 { employee_id, employee_token }  (Bearer company)
 ```
 
-QR web (UI plus tard) : `/register?company_code=…&employee_token=…`. Infra ne sert pas cette page.
+QR web : `/register?company_code=…&employee_token=…` (même formulaire register).  
+UI tranche écrans : login unique ; register Entreprise | Salarié ; token en `sessionStorage` ; Bearer seulement sur `/v1/auth/*` et `/v1/me` (pas exemple, pas sandbox). Sans session, l’exemple public reste ouvrable.
 
 ### `POST /v1/auth/register`
 

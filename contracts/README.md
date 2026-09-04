@@ -11,13 +11,13 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | Tranche | Fichier | Consommateurs |
 |---|---|---|
 | 0 — exemple public | `http/v1-examples.md` | UI + Infra |
-| 1 — auth | `http/v1-auth.md` ; brief `infra-auth-http.md` | Infra (Core tokens faits) |
+| 1 — auth | `http/v1-auth.md` ; brief `ui-auth-screens.md` | UI (Infra HTTP fait) |
 | 2 — édition sandbox | `http/v1-sandbox-edit.md` | Infra + UI (HTTP actuel) |
 | 3 — feedback overlay | `http/v1-sandbox-edit.md` | fusionné dans `preview-sandbox-edits` |
 | 4 — rôle / downrole | `http/v1-sandbox-edit.md` (`impact.role_fit`) | swap = créneau cliqué (pas la somme des deux) |
 | 5 — case vide | `http/v1-sandbox-edit.md` (`gesture: fill`) | fait |
 | 6 — fin sandbox | `http/v1-sandbox-edit.md` (`discard` + recap `history`) | fait |
-| 7 — auth / QR | `http/v1-auth.md` ; briefs Core puis Infra | Core tokens faits ; Infra HTTP maintenant |
+| 7 — auth / QR | `http/v1-auth.md` ; briefs Core → Infra → UI | UI écrans maintenant |
 
 ## Ownership git (ne pas croiser)
 
