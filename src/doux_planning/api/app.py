@@ -4,7 +4,8 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import Response
 
 from doux_planning.api.examples import ExampleNotFound, LegalContextNotFound, example_payload
 from doux_planning.planning import EmptyHistoryError
@@ -20,6 +21,51 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="doux-planning", version="0.1.0", lifespan=lifespan)
+
+
+@app.post("/v1/auth/register", status_code=201)
+def auth_register(body: dict[str, Any]) -> dict:
+    from doux_planning.api.auth import register
+
+    return register(body)
+
+
+@app.post("/v1/auth/login")
+def auth_login(body: dict[str, Any]) -> dict:
+    from doux_planning.api.auth import login
+
+    return login(body)
+
+
+@app.post("/v1/auth/logout", status_code=204)
+def auth_logout(authorization: str | None = Header(default=None)) -> Response:
+    from doux_planning.api.auth import logout
+
+    logout(authorization)
+    return Response(status_code=204)
+
+
+@app.get("/v1/me")
+def auth_me(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.auth import me
+
+    return me(authorization)
+
+
+@app.get("/v1/invites/{company_code}")
+def auth_invites(company_code: str) -> dict:
+    from doux_planning.api.auth import list_invites
+
+    return list_invites(company_code)
+
+
+@app.post("/v1/staff/{employee_id}/invite-token")
+def auth_rotate_invite_token(
+    employee_id: str, authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.auth import rotate_invite_token
+
+    return rotate_invite_token(employee_id, authorization)
 
 
 @app.get("/v1/examples/{example_id}")

@@ -40,9 +40,13 @@ The system SHALL store the Saint-Cloud public snapshot independently of later li
 - **WHEN** the restaurateur publishes a new cycle
 - **THEN** restaurateur cycle reads return the newly published result and the public example snapshot is unchanged
 
-### Requirement: Single restaurant per deployment
-The live store SHALL hold one restaurant. The system MUST NOT expose listing, creating, or switching among multiple restaurant tenants.
+### Requirement: Live companies are distinct from the Saint-Cloud snapshot
+A `kind: company` register SHALL insert a new live company row (empty name, Core invite code) and MUST NOT reuse the seeded `restaurants` / `example_snapshots` Saint-Cloud row. Each company session is bound to that live company id. The system MUST NOT expose a restaurant-collection picker in this change.
 
 #### Scenario: No restaurant picker
 - **WHEN** a restaurateur session is issued
-- **THEN** it is bound to the single deployment restaurant and no restaurant-collection route exists
+- **THEN** it is bound to the live company created at register (or the employee’s linked company) and no restaurant-collection route exists
+
+#### Scenario: Company register does not attach to Saint-Cloud
+- **WHEN** a caller registers `kind: company`
+- **THEN** `me.restaurant_id` is not the seeded Saint-Cloud restaurant id and `GET /v1/examples/saint-cloud` is unchanged

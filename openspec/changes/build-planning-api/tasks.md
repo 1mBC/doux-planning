@@ -5,12 +5,12 @@
 - [x] 1.3 Seed France from `data/legal/france.json` and Saint-Cloud from `data/examples/saint-cloud.json` at boot or migrate, and verify the restaurant row stores `legal_context = france` with no `legal_rules` column/document
 - [x] 1.4 Point `GET /v1/examples/{example_id}` at the live store (not a per-request file read, not `generate_cycle`, not a job) inside `src/doux_planning/api/` only, and verify `TestClient` `GET /v1/examples/saint-cloud` is 200 with `example`, `legal.id == france`, `legal.kind == legal_context`, no `restaurant.legal_rules`, `planning.search_effort == optimized`, `planning.stats.assignments == 70`, and `GET /v1/examples/inconnu` is 404 (extend `tests/test_planning.py`)
 
-## 2. Auth for restaurateur and employee
+## 2. Auth HTTP (unified contract)
 
-- [ ] 2.1 Add Argon2 password hashes plus `restaurateur_accounts`, `employee_accounts`, and `sessions` tables (opaque Bearer token), and verify a stored password is hashed and the raw token is not persisted
-- [ ] 2.2 Implement `POST /v1/auth/restaurateur/register` (first account only, bound to the seeded restaurant) and `POST /v1/auth/restaurateur/login`, and verify register-then-login issues a session, a second register is rejected, and a wrong password is rejected with a French error (extend existing tests)
-- [ ] 2.3 Implement `GET /v1/invites/{code}` (restaurant name + unlinked employees) and `POST /v1/auth/employee/register` `{invite_code, employee_id, email, password}` using existing `redeem_invite`, and verify a valid code links the account, an invalid code is rejected, and a second register on the same employee id is rejected
-- [ ] 2.4 Implement employee login, `GET /v1/me`, and `POST /v1/auth/logout`, and verify protected routes without a session return a French error, the session `restaurant_id` is used (no restaurant id in the path), and logout invalidates the token
+- [x] 2.1 Add Argon2 password hashes plus live company/fiche tables, `restaurateur_accounts`, `employee_accounts`, and hashed `sessions` (opaque Bearer), and verify a stored password is hashed, the raw token is not persisted, and auth without `DATABASE_URL` returns 503 while the public example dual-read is unchanged
+- [x] 2.2 Implement unified `POST /v1/auth/register` and `POST /v1/auth/login` (`kind: company` creates a new empty company, not Saint-Cloud; `kind: employee` wraps `redeem_invite`). Verify company register → login → `GET /v1/me` `kind` company, duplicate email is 409, wrong password is 401, and `/v1/auth/restaurateur/*` + `/v1/auth/employee/*` are not implemented (extend TestClient tests)
+- [x] 2.3 Implement public `GET /v1/invites/{company_code}` (unlinked fiches only, no tokens in JSON) and `POST /v1/staff/{id}/invite-token` (company Bearer, `rotate_employee_invite_token`). Verify two inserted fiches appear in invites, manual register on A is 201 then gone from invites, same fiche is 409, QR token B links B, bad `company_code` is 400, and rotate A rejects the old token then accepts the new one
+- [x] 2.4 Implement `POST /v1/auth/logout` and `GET /v1/me`, and verify logout then `/me` is 401, `GET /v1/examples/saint-cloud` stays 200 / 92 assignments with and without a session, and existing sandbox routes stay 200 without Bearer
 
 ## 3. Domain persistence
 
