@@ -12,11 +12,11 @@
 - [x] 2.3 Implement public `GET /v1/invites/{company_code}` (unlinked fiches only, no tokens in JSON) and `POST /v1/staff/{id}/invite-token` (company Bearer, `rotate_employee_invite_token`). Verify two inserted fiches appear in invites, manual register on A is 201 then gone from invites, same fiche is 409, QR token B links B, bad `company_code` is 400, and rotate A rejects the old token then accepts the new one
 - [x] 2.4 Implement `POST /v1/auth/logout` and `GET /v1/me`, and verify logout then `/me` is 401, `GET /v1/examples/saint-cloud` stays 200 / 92 assignments with and without a session, and existing sandbox routes stay 200 without Bearer
 
-## 3. Domain persistence
+## 3. Live context persist (`GET` / `PATCH /v1/context`)
 
-- [ ] 3.1 Persist staff, structures, hours, invite code, published cycle, weeks, intents, and at most one sandbox per restaurant in Postgres (still only new code under `api/` plus migrations), and verify a process restart returns the same published cycle without calling generate
-- [ ] 3.2 Wire a Postgres-backed store that performs `PlanningStore` operations without editing `planning.py` / `engine.py`, and verify in-memory `PlanningStore` domain tests still pass unchanged
-- [ ] 3.3 Verify a restaurateur live staff edit does not rewrite `data/examples/saint-cloud.json`, and that writing a different live cycle/sandbox does not change `GET /v1/examples/saint-cloud`
+- [x] 3.1 Extend `companies` / `staff_fiches` (legal_context_id, services, ladders, types, typical week, contract / unavail / wellbeing / min_shift / role level) and implement `GET /v1/context` (Bearer company, wrap `empty_restaurant` / `team_ready`, no `generate_cycle`). Verify register company then GET is empty (name `""`, services `[]`, ladders/types/week empty, ready false, `legal_context_id` `france`, `company_code` = invite), employee Bearer is 403, and without `DATABASE_URL` context is 503
+- [x] 3.2 Implement `PATCH /v1/context` (optional section replace) and persist restart-safe. Verify PATCH name + salle ladder + 1 fiche + services + type + open week → `ready.salle` true / `ready.cuisine` false; `reset_engine` then same GET; open cell without type → salle false; new fiches get a Core `invite_token`; rotate stays `POST /v1/staff/{id}/invite-token`
+- [x] 3.3 Verify PATCH does not write `example_snapshots` or `data/examples/saint-cloud.json`, `GET /v1/examples/saint-cloud` stays 92 assignments, `GET /v1/invites/{company_code}` lists the unlinked fiche, and auth login/logout stay green
 
 ## 4. Generation jobs
 
