@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: doux
+      POSTGRES_PASSWORD: doux
+      POSTGRES_DB: doux_planning
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U doux -d doux_planning"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://doux:doux@db:5432/doux_planning
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
