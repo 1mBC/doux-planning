@@ -362,6 +362,9 @@ class RestaurantState:
     structures: list[ServiceStructure]
     hours: RestaurantHours | None = None
     cycle: PublishedCycle | None = None
+    published_cycles: dict[Team, PublishedCycle | None] = field(
+        default_factory=lambda: {Team.SALLE: None, Team.CUISINE: None}
+    )
     weeks: dict[str, CalendarWeek] = field(default_factory=dict)
     sandbox: Sandbox | None = None
     accounts: list[EmployeeAccount] = field(default_factory=list)
