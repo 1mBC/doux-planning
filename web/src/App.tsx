@@ -424,9 +424,7 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
                 {entering ? "Ouverture…" : "Mode édition"}
               </button>
             )
-          ) : (
-            <p className="sub">Le planning publié personnel arrive plus tard.</p>
-          )}
+          ) : null}
         </div>
         <p className="release">
           v{UI_RELEASE.version} · {UI_RELEASE.note}

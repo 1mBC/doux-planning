@@ -549,3 +549,60 @@ table.plan td.empty-slot {
   background: #f4f1e6;
   color: #7a6410;
 }
+
+table.plan tr.colleague {
+  opacity: 0.48;
+}
+
+table.plan tr.me th.name {
+  font-weight: 750;
+}
+
+.employee-panel {
+  margin: 20px 0 32px;
+  padding: 14px 16px;
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  max-width: 640px;
+}
+
+.employee-panel h2 {
+  margin: 14px 0 6px;
+  font-size: 15px;
+}
+
+.employee-panel h2:first-child {
+  margin-top: 0;
+}
+
+.employee-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.employee-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eef0f3;
+}
+
+.wish-held strong {
+  color: #1f6b3a;
+}
+
+.wish-missed strong {
+  color: #b42318;
+}
+
+.contract-ok {
+  color: #1f6b3a;
+  font-weight: 650;
+}
+
+.contract-off {
+  color: #b42318;
+  font-weight: 650;
+}

@@ -21,6 +21,7 @@ uvicorn  :8000  --  GET /v1/examples/saint-cloud   (public)
                  --  GET|PATCH /v1/context   (Bearer company)
                  --  POST /v1/generate  GET /v1/cycles  (Bearer company)
                  --  /v1/live/sandbox/{team}/*  (Bearer company)
+                 --  GET /v1/me/planning         (Bearer employee)
                          ^
                          | proxy /v1
 vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
@@ -35,10 +36,11 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 - Company wizard at `/context` following `contracts/http/v1-context.md`.
 - Company published cycle at `/planning` following `contracts/http/v1-generate.md` (`search_effort: "minimal"`).
 - Live sandbox Mode édition on `/planning` following `contracts/http/v1-live-sandbox.md` (shapes from `v1-sandbox-edit.md`).
+- Employee `/planning` following `contracts/http/v1-me-planning.md` (team grid, highlight, read-only contract panel).
 
 **Non-Goals:**
-- `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, colored employee grid.
-- Merging `live/infra` / `live/core`, new FastAPI routes, a second scoring path, react-router.
+- `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit.
+- Merging `employee/infra` / `employee/core`, new FastAPI routes, a second scoring path, react-router.
 - Pixel-identical clone of the GitHub Pages HTML.
 - Translating engine messages into a new diagnosis.
 - « Mot de passe oublié ».
@@ -81,11 +83,11 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 - `/register` : bascule **Entreprise** / **Salarié**. Entreprise → `{ kind: company, email, password }` seulement. Salarié → code → `GET /v1/invites/{company_code}` → choisir une fiche (`id`, `name`, `role`, `team`) → `{ kind: employee, company_code, employee_id, email, password }` (pas de token).
 - QR : `/register?company_code=…&employee_token=…` — kind salarié verrouillé, pas de liste, POST avec `employee_token` (pas d’`employee_id`).
 - Password ≥ 8. Afficher `detail` tel quel. Pas de « mot de passe oublié ».
-- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
+- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
 - Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 n’empêche pas l’exemple.
-- Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`.
-- Sans session : login/register **et** `/exemple`. La grille n’est pas derrière le login.
-- `kind: employee` : pas de Mode édition ; pas de wizard ; pas de `/planning` ; « Le planning publié personnel arrive plus tard. »
+- Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`. Employee : lien **Planning** → `/planning`.
+- Sans session : login/register **et** `/exemple`. La grille d’exemple n’est pas derrière le login.
+- `kind: employee` : pas de Mode édition ; pas de wizard ; `/planning` = `GET /v1/me/planning` (pas Calculer / live). Login/register atterrit sur `/planning`.
 - `kind: company` : wizard `/context` + `/planning` + grille / sandbox exemple.
 
 ### 8. Context wizard (company)
@@ -109,7 +111,11 @@ Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Sa
 
 Mode édition seulement si `published[team]` existe. POST `/v1/live/sandbox/{team}/enter` (Bearer). Cuisine sans cycle : pas de bouton (409 API). Overlays = joujou (injecter le client live, ne pas appeler `/v1/sandbox/*`). Lecture quitte l’UI sans discard. Reload / ré-enter = GET/enter live (cran conservé). Publier → Cycles, sortir d’édition, l’autre équipe intacte. Tout annuler = discard live.
 
-Hors slice : rotate invite-token, `optimized` 30 s.
+Hors slice : rotate invite-token, `optimized` 30 s, edit contraintes salarié.
+
+### 11. Employee board
+
+`kind: employee` → `/planning`. GET `/v1/me/planning` (Bearer). Grille 14 j. (A/B) depuis `employees` + `assignments` de **son** équipe. Lignes `employee_id === me` colorées ; collègues visibles, atténués. Assignments vides → « Pas encore publié ». Panneau lecture : `contract` (weekly / assigned / ok), `unavailabilities`, `wishes` (`key` → libellé FR, `held` tenu / non tenu). Aucun edit. Pas de `wish_rows` inventés. Company `/planning` / `/context` / live et `/exemple` inchangés.
 
 ## Risks / Trade-offs
 

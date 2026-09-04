@@ -1,11 +1,11 @@
 ## Purpose
 
-Lets the restaurateur open a French web screen that shows the engine’s Saint-Cloud example snapshot: 14-day paper grid, warnings, stats, legal rows, and wish rows — plus login / register / session, a company context wizard, and a published-cycle Calculer screen — without scoring or deciding in the client.
+Lets the restaurateur open a French web screen that shows the engine’s Saint-Cloud example snapshot: 14-day paper grid, warnings, stats, legal rows, and wish rows — plus login / register / session, a company context wizard, a published-cycle Calculer screen, live sandbox edit, and an employee team board — without scoring or deciding in the client.
 
 ## ADDED Requirements
 
 ### Requirement: Client loads only the example snapshot
-The web client SHALL obtain restaurant, legal context, and planning data solely by calling `GET /v1/examples/saint-cloud`. It MUST NOT embed a second copy of the snapshot as source of truth, and MUST NOT invoke the constraint engine. Auth routes (`/v1/auth/*`, `/v1/me`, `/v1/invites/{company_code}`), `GET`/`PATCH /v1/context`, `POST /v1/generate`, and `GET /v1/cycles` MAY be called for session / company context / published cycles and MUST NOT feed the example grid. The client MUST NOT send `Authorization` on `/v1/examples/*` or `/v1/sandbox/*`.
+The web client SHALL obtain restaurant, legal context, and planning data solely by calling `GET /v1/examples/saint-cloud`. It MUST NOT embed a second copy of the snapshot as source of truth, and MUST NOT invoke the constraint engine. Auth routes (`/v1/auth/*`, `/v1/me`, `/v1/invites/{company_code}`), `GET`/`PATCH /v1/context`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, and `GET /v1/me/planning` MAY be called for session / company context / published cycles / live edit / employee board and MUST NOT feed the example grid. The client MUST NOT send `Authorization` on `/v1/examples/*` or `/v1/sandbox/*`.
 
 #### Scenario: Successful load
 - **WHEN** the restaurateur opens the example screen and the example route returns 200 with `example`, `legal`, `restaurant`, and `planning`
@@ -82,7 +82,7 @@ The client SHALL offer one login (email + password) via `POST /v1/auth/login` an
 - **THEN** the form is locked to Salarié, lists no fiches, and commits with `employee_token`
 
 ### Requirement: Session token and logout
-The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, `GET /v1/cycles`, and `/v1/live/sandbox/{team}/*` when a token exists, and MUST NOT be sent on example or `/v1/sandbox/*` requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context` and `/planning`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard or `/planning`, and SHALL show that the personal published planning comes later.
+The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, and `GET /v1/me/planning` when a token exists, and MUST NOT be sent on example or `/v1/sandbox/*` requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context` and `/planning`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard, and SHALL open `/planning` via `GET /v1/me/planning`.
 
 #### Scenario: Logout
 - **WHEN** the restaurateur clicks Déconnexion
@@ -90,7 +90,7 @@ The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent 
 
 #### Scenario: Employee cannot edit
 - **WHEN** `me.kind` is `employee`
-- **THEN** Mode édition is absent, `/context` and `/planning` are not shown, and a French sentence says the personal published planning arrives later
+- **THEN** Mode édition is absent on `/exemple`, `/context` is not shown, and `/planning` is the employee board (not Calculer / live)
 
 ### Requirement: Company context wizard
 A `kind: company` session SHALL reach `/context` after login/register and via « Mon restaurant ». The client SHALL `GET /v1/context` and PATCH optional keys per `contracts/http/v1-context.md`. Identity SHALL show editable `name` (empty allowed), read-only « Droit du travail : France » from `legal_context_id`, and `company_code`. The wizard SHALL be sequential (roles → employees → services → types → typical week) then remain editable. Salle and cuisine SHALL be independent. Roles PATCH `ladders` with `substitution_explained: true`. Employees PATCH is the full list; show `invite_token` and the QR register URL; do not rotate. Services PATCH the restaurant list. Types PATCH the full list. Typical week PATCH `{ salle, cuisine }`; a closed cell is `closed: true` and `type_id` null. `ready.salle` / `ready.cuisine` SHALL be shown as returned (« Prêt à calculer » / « Pas encore prêt »). The client MUST NOT call generate or invent ready.
@@ -118,9 +118,20 @@ A `kind: company` session SHALL reach `/planning` via « Planning ». The client
 - **WHEN** the restaurateur reloads `/planning` after a salle generate
 - **THEN** GET `/v1/cycles` still has the salle cycle and cuisine remains null
 
-#### Scenario: Employee cannot open planning
+#### Scenario: Employee cannot open company planning
 - **WHEN** `me.kind` is `employee`
-- **THEN** the published-cycle screen is not shown
+- **THEN** the company published-cycle screen (Calculer / Mode édition) is not shown
+
+### Requirement: Employee published board
+A `kind: employee` session SHALL reach `/planning` after login/register and via « Planning ». The client SHALL `GET /v1/me/planning` with Bearer. Types MUST match `contracts/http/v1-me-planning.md` JSON; a missing key MUST throw. API `detail` SHALL be shown as-is. The client SHALL render a 14-day paper grid (weeks A/B) from `employees` + `assignments` of that employee’s team. Rows whose `employee_id` equals `me` (`employee_id` on the payload) SHALL be highlighted; other teammates SHALL stay visible but muted. Empty `assignments` SHALL show « Pas encore publié » instead of a fake grid. A read-only panel SHALL show `contract` (`weekly` / `assigned` / `ok`), `unavailabilities`, and `wishes` (`key` mapped to a French label, `held` as tenu / non tenu). The client MUST NOT invent `wish_rows`, MUST NOT offer Calculer, Mode édition, the context wizard, generate, or live sandbox, and MUST NOT edit wishes or unavailabilities.
+
+#### Scenario: Published salle teammate grid
+- **WHEN** a salarié linked to a published salle fiche opens `/planning`
+- **THEN** the grid lists that team’s employees and assignments, the salarié’s rows are colored, colleagues are muted, and the contract / wishes panel shows payload values
+
+#### Scenario: No published cycle
+- **WHEN** `assignments` is empty
+- **THEN** the screen shows « Pas encore publié » and still shows the contract panel from the payload
 
 ### Requirement: Live sandbox on published cycle
 A `kind: company` session on `/planning` SHALL show **Mode édition** only when `published[team]` is not null. The button SHALL `POST /v1/live/sandbox/{team}/enter` with Bearer and MUST NOT call `/v1/sandbox/*`. LiveState MUST include `team`; a missing key MUST throw. Edit UX SHALL match the example sandbox: occupied overlay (retune ±15 Valider, replace, swap), empty-cell fill, API `detail`, history, **Annuler**, **Tout annuler** (discard). **Lecture** SHALL leave the edit UI without discard. Re-entering SHALL keep the draft cran (GET/enter live). **Publier** SHALL `POST .../publish`, leave edit UI, and show the updated `published` from that body or GET `/v1/cycles`. The other team MUST stay intact. `/exemple` SHALL keep calling `/v1/sandbox/*` without Bearer.

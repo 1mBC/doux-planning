@@ -90,7 +90,7 @@ function parseWarning(value: unknown, path: string): WarningItem {
   };
 }
 
-function parseAssignment(value: unknown, path: string): CycleAssignment {
+export function parseCycleAssignment(value: unknown, path: string): CycleAssignment {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
@@ -116,7 +116,7 @@ function parseCycle(value: unknown, path: string): PublishedCycle | null {
   }
   return {
     assignments: requireArray(value, "assignments", path).map((item, i) =>
-      parseAssignment(item, `${path}.assignments[${i}]`),
+      parseCycleAssignment(item, `${path}.assignments[${i}]`),
     ),
     warnings: requireArray(value, "warnings", path).map((item, i) => parseWarning(item, `${path}.warnings[${i}]`)),
   };
