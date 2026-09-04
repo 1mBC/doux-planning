@@ -52,6 +52,10 @@ Même objet `published` (sans `team` / `search_effort` du dernier POST). Resto j
 JSONB (ou tables) sur l’entreprise live — **pas** `example_snapshots`, pas `data/examples/saint-cloud.json`.  
 `reset_engine` / restart → même `GET /v1/cycles`. Regenerer une équipe remplace seulement cette clé.
 
+## UI (cette tranche)
+
+Route `/planning` (company). **Calculer** si `ready[team]` ; POST `search_effort: "minimal"`. Grille = `published[team]` + fiches context. Pas d’édition sandbox live. Exemple sans session inchangé.
+
 ## Hors tranche
 
-Worker, jobs, sandbox live, publish semaine, `/me/shifts`, UI Calculer, CORS sauf proxy cassé.
+Worker, jobs, sandbox live, publish semaine, `/me/shifts`, CORS sauf proxy cassé.
