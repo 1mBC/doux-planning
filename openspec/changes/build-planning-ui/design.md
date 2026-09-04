@@ -18,9 +18,10 @@ GET /v1/examples/saint-cloud
 uvicorn  :8000  --  GET /v1/examples/saint-cloud   (public)
                  --  /v1/sandbox/*                 (public)
                  --  /v1/auth/*  /v1/me  /v1/invites/{code}
+                 --  GET|PATCH /v1/context   (Bearer company)
                          ^
                          | proxy /v1
-vite SPA :5173  --  pathname : / login, /register, /exemple
+vite SPA :5173  --  pathname : / login, /register, /exemple, /context
 ```
 
 ## Goals / Non-Goals
@@ -29,10 +30,11 @@ vite SPA :5173  --  pathname : / login, /register, /exemple
 - Keep the Vite + React + TypeScript app under `web/` as the restaurateur’s first useful screen.
 - Keep presentation (layout, French chrome, time formatting) strictly downstream of the snapshot.
 - Add login / register / QR / session chrome that follow `contracts/http/v1-auth.md` without scoring or inventing fields.
+- Company wizard at `/context` following `contracts/http/v1-context.md` (no generate).
 
 **Non-Goals:**
-- Generate, publish, rotate invite-token UI, context panels, team wizard, colored employee grid.
-- Merging `auth/infra` / `auth/core`, new FastAPI routes, a second scoring path, react-router.
+- Generate, publish, rotate invite-token UI, colored employee grid.
+- Merging `context/infra` / `context/core`, new FastAPI routes, a second scoring path, react-router.
 - Pixel-identical clone of the GitHub Pages HTML.
 - Translating engine messages into a new diagnosis.
 - « Mot de passe oublié ».
@@ -75,14 +77,27 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 - `/register` : bascule **Entreprise** / **Salarié**. Entreprise → `{ kind: company, email, password }` seulement. Salarié → code → `GET /v1/invites/{company_code}` → choisir une fiche (`id`, `name`, `role`, `team`) → `{ kind: employee, company_code, employee_id, email, password }` (pas de token).
 - QR : `/register?company_code=…&employee_token=…` — kind salarié verrouillé, pas de liste, POST avec `employee_token` (pas d’`employee_id`).
 - Password ≥ 8. Afficher `detail` tel quel. Pas de « mot de passe oublié ».
-- Token : `sessionStorage`. Bearer seulement sur register/login/logout/`GET /v1/me`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
-- Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 (`Base indisponible.`) n’empêche pas l’exemple.
-- Session chrome : email + kind (Entreprise / Salarié) + **Déconnexion** (`POST /v1/auth/logout`, oublier le token).
-- Sans session : login/register **et** `/exemple` (lien « Voir l’exemple »). La grille n’est pas derrière le login.
-- `kind: employee` : pas de Mode édition ; « Le planning publié personnel arrive plus tard. »
-- `kind: company` (et sans session) : grille + sandbox comme aujourd’hui.
+- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me` et GET/PATCH `/v1/context`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
+- Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 n’empêche pas l’exemple.
+- Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` (après login/register entreprise aussi).
+- Sans session : login/register **et** `/exemple`. La grille n’est pas derrière le login.
+- `kind: employee` : pas de Mode édition ; pas de wizard ; « Le planning publié personnel arrive plus tard. »
+- `kind: company` : wizard `/context` + grille / sandbox exemple.
 
-Hors slice : rotate invite-token, panneaux contexte, wizard, generate.
+### 8. Context wizard (company)
+
+Séquentiel puis tout éditable. Salle et cuisine indépendantes.
+
+1. Rôles (équipe) : nom + niveau ≥ 1. Afficher : un niveau plus élevé peut tenir un poste inférieur. PATCH `ladders` avec `substitution_explained: true` (les deux équipes).
+2. Fiches (équipe) : nom, rôle de l’échelle, heures contrat, indispos, wellbeing (clés contrat), `min_shift_hours` 4. PATCH `employees` = liste complète. Afficher `invite_token` + URL register QR. Pas de rotate.
+3. Services (resto, une fois) : petit-déj / déj / dîner → `morning` / `midday` / `evening`. PATCH `services`.
+4. Types (équipe × service) : nom, vagues ±15, `post_levels`. PATCH `types` = liste complète.
+5. Semaine type : type ou Fermé. PATCH `typical_week` = `{ salle, cuisine }`. Fermé : `closed: true`, `type_id` null.
+
+Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`.  
+`ready.salle` / `ready.cuisine` = JSON seulement, badges « Prêt à calculer » / « Pas encore prêt ». Aucun bouton generate.
+
+Hors slice : rotate invite-token, generate.
 
 ## Risks / Trade-offs
 

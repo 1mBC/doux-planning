@@ -49,6 +49,11 @@ export function SessionChrome({
             <button type="button" className="choice" disabled={busy} onClick={() => void signOut()}>
               {busy ? "Déconnexion…" : "Déconnexion"}
             </button>
+            {me.kind === "company" ? (
+              <button type="button" className="choice" onClick={() => go("/context")}>
+                Mon restaurant
+              </button>
+            ) : null}
           </>
         ) : (
           <>
@@ -86,8 +91,9 @@ export function LoginScreen({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
     setBusy(true);
     setError(null);
     try {
-      onSignedIn(await login(email, password));
-      go("/");
+      const me = await login(email, password);
+      onSignedIn(me);
+      go(me.kind === "company" ? "/context" : "/exemple");
     } catch (err) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {
@@ -200,7 +206,7 @@ export function RegisterScreen({ onSignedIn }: { onSignedIn: (me: Me) => void })
               employee_id: employeeId,
             });
       onSignedIn(me);
-      go("/");
+      go(me.kind === "company" ? "/context" : "/exemple");
     } catch (err) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {

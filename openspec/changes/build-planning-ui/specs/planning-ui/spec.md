@@ -5,7 +5,7 @@ Lets the restaurateur open a French web screen that shows the engine’s Saint-C
 ## ADDED Requirements
 
 ### Requirement: Client loads only the example snapshot
-The web client SHALL obtain restaurant, legal context, and planning data solely by calling `GET /v1/examples/saint-cloud`. It MUST NOT embed a second copy of the snapshot as source of truth, and MUST NOT invoke the constraint engine. Auth routes (`/v1/auth/*`, `/v1/me`, `/v1/invites/{company_code}`) MAY be called for session only and MUST NOT feed the grid. The client MUST NOT send `Authorization` on `/v1/examples/*` or `/v1/sandbox/*`.
+The web client SHALL obtain restaurant, legal context, and planning data solely by calling `GET /v1/examples/saint-cloud`. It MUST NOT embed a second copy of the snapshot as source of truth, and MUST NOT invoke the constraint engine. Auth routes (`/v1/auth/*`, `/v1/me`, `/v1/invites/{company_code}`) and `GET`/`PATCH /v1/context` MAY be called for session / company context and MUST NOT feed the example grid. The client MUST NOT send `Authorization` on `/v1/examples/*` or `/v1/sandbox/*`.
 
 #### Scenario: Successful load
 - **WHEN** the restaurateur opens the example screen and the example route returns 200 with `example`, `legal`, `restaurant`, and `planning`
@@ -82,7 +82,7 @@ The client SHALL offer one login (email + password) via `POST /v1/auth/login` an
 - **THEN** the form is locked to Salarié, lists no fiches, and commits with `employee_token`
 
 ### Requirement: Session token and logout
-The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me` when a token exists, and MUST NOT be sent on example or sandbox requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox. `kind: employee` SHALL hide Mode édition and show that the personal published planning comes later.
+The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me` and GET/PATCH `/v1/context` when a token exists, and MUST NOT be sent on example or sandbox requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard, and SHALL show that the personal published planning comes later.
 
 #### Scenario: Logout
 - **WHEN** the restaurateur clicks Déconnexion
@@ -90,4 +90,19 @@ The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent 
 
 #### Scenario: Employee cannot edit
 - **WHEN** `me.kind` is `employee`
-- **THEN** Mode édition is absent and a French sentence says the personal published planning arrives later
+- **THEN** Mode édition is absent, `/context` is not shown, and a French sentence says the personal published planning arrives later
+
+### Requirement: Company context wizard
+A `kind: company` session SHALL reach `/context` after login/register and via « Mon restaurant ». The client SHALL `GET /v1/context` and PATCH optional keys per `contracts/http/v1-context.md`. Identity SHALL show editable `name` (empty allowed), read-only « Droit du travail : France » from `legal_context_id`, and `company_code`. The wizard SHALL be sequential (roles → employees → services → types → typical week) then remain editable. Salle and cuisine SHALL be independent. Roles PATCH `ladders` with `substitution_explained: true`. Employees PATCH is the full list; show `invite_token` and the QR register URL; do not rotate. Services PATCH the restaurant list. Types PATCH the full list. Typical week PATCH `{ salle, cuisine }`; a closed cell is `closed: true` and `type_id` null. `ready.salle` / `ready.cuisine` SHALL be shown as returned (« Prêt à calculer » / « Pas encore prêt »). The client MUST NOT call generate or invent ready.
+
+#### Scenario: Salle ready, cuisine not
+- **WHEN** the restaurateur completes the five salle steps and leaves cuisine empty
+- **THEN** the body has `ready.salle` true and `ready.cuisine` false
+
+#### Scenario: Reload keeps context
+- **WHEN** the restaurateur reloads `/context`
+- **THEN** GET returns the same name, ladders, employees, services, types, and typical week
+
+#### Scenario: Employee cannot open context
+- **WHEN** `me.kind` is `employee`
+- **THEN** the wizard is not shown
