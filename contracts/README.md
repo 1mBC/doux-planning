@@ -20,7 +20,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 7 — auth / QR | `http/v1-auth.md` | close (signaux Core → Infra → UI) |
 | 8 — contexte onboarding | `http/v1-context.md` | close (signaux Core → Infra → UI) |
 | 9 — generate / cycles | `http/v1-generate.md` | close (signaux Core → Infra → UI) |
-| 10 — sandbox live | `domain/live-sandbox.md` ; brief `core-live-sandbox.md` | Core d’abord (après merge generate/* → master) |
+| 10 — sandbox live | `http/v1-live-sandbox.md` ; brief `infra-live-sandbox.md` | Infra (Core live fait) |
 
 ## Ownership git (ne pas croiser)
 
