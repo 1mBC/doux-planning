@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
-from doux_planning.engine import PlanningDraft, evaluate, generate_cycle
-from doux_planning.invites import RestaurantIdentity
-from doux_planning.planning import PublishedCycle, RestaurantState, Sandbox
-from doux_planning.staff import Employee, RoleLadder, default_legal_rules
+from doux_planning.engine import PlanningDraft, Shift, evaluate, generate_cycle
+from doux_planning.invites import RestaurantIdentity, UnknownEmployee
+from doux_planning.planning import CONTRACT_HOUR_TOLERANCE, PublishedCycle, RestaurantState, Sandbox
+from doux_planning.staff import Employee, RoleLadder, Unavailability, default_legal_rules
 from doux_planning.structures import (
     RestaurantHours,
     ServiceStructure,
     ServiceType,
     TypicalWeek,
 )
-from doux_planning.types import SearchEffort, ServiceName, Team, WEEKDAYS
+from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WEEKDAYS, WellbeingPreference
 
 COMPANY_SERVICE_IDS = frozenset(
     {ServiceName.MORNING.value, ServiceName.MIDDAY.value, ServiceName.EVENING.value}
@@ -30,6 +30,40 @@ class NoPublishedCycle(ValueError):
     def __init__(self, team: Team) -> None:
         self.team = team
         super().__init__(f"no published cycle for {team.value}")
+
+
+WISH_WARNING_CODES = {
+    WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS: "consecutive_rest_days",
+    WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS: "weekend_every_two_weeks",
+    WellbeingPreference.AT_LEAST_ONE_WEEKEND_REST_DAY: "weekend_rest_day",
+    WellbeingPreference.NO_EVENING_SERVICE: "no_evening",
+    WellbeingPreference.NO_MORNING_SERVICE: "no_morning",
+    WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK: "max_coupures",
+    WellbeingPreference.MAX_THREE_COUPURES_PER_WEEK: "max_coupures",
+}
+
+
+@dataclass(frozen=True)
+class BoardContract:
+    weekly: float
+    assigned: float
+    ok: bool
+
+
+@dataclass(frozen=True)
+class BoardWish:
+    key: WellbeingPreference
+    held: bool
+
+
+@dataclass(frozen=True)
+class EmployeeBoard:
+    employee_id: str
+    team: Team
+    assignments: tuple[Shift, ...]
+    contract: BoardContract
+    wishes: tuple[BoardWish, ...]
+    unavailabilities: tuple[Unavailability, ...]
 
 
 def empty_restaurant(restaurant_id: str) -> RestaurantState:
@@ -206,3 +240,44 @@ def publish_live_sandbox(state: RestaurantState, team: Team) -> RestaurantState:
     )
     state.live_sandboxes[team] = None
     return state
+
+
+def employee_board(state: RestaurantState, employee_id: str) -> EmployeeBoard:
+    person = next((item for item in state.employees if item.id == employee_id), None)
+    if person is None:
+        raise UnknownEmployee("Unknown employee")
+    published = state.published_cycles.get(person.team)
+    assignments = published.result.assignments if published is not None else ()
+    warnings = published.result.warnings if published is not None else ()
+    assigned = round(
+        sum(shift.duration_hours for shift in assignments if shift.employee_id == person.id),
+        2,
+    )
+    if published is None:
+        ok = abs(assigned - person.contractual_hours_per_week) <= CONTRACT_HOUR_TOLERANCE
+    else:
+        ok = not any(item.code == "contract_hours" and item.employee_id == person.id for item in warnings)
+    wishes = tuple(
+        BoardWish(
+            key=pref,
+            held=not any(
+                item.severity == WarningSeverity.SOUHAIT
+                and item.employee_id == person.id
+                and item.code == WISH_WARNING_CODES[pref]
+                for item in warnings
+            ),
+        )
+        for pref in sorted(person.wellbeing, key=lambda item: item.value)
+    )
+    return EmployeeBoard(
+        employee_id=person.id,
+        team=person.team,
+        assignments=assignments,
+        contract=BoardContract(
+            weekly=person.contractual_hours_per_week,
+            assigned=assigned,
+            ok=ok,
+        ),
+        wishes=wishes,
+        unavailabilities=person.unavailabilities,
+    )
