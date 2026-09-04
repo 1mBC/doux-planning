@@ -31,6 +31,10 @@ GET /v1/me/planning   Bearer employee → 200 EmployeePlanning
 `assignments` = **toute** l’équipe publiée (`employee_board`) ; vide si pas de cycle.  
 `wishes` / `contract` / `unavailabilities` = Core, lecture seule.
 
+## UI (cette tranche)
+
+`kind: employee` → `/planning` + `GET /v1/me/planning`. Grille équipe, lignes du salarié colorées, panneau contrat / indispos / souhaits lecture. Pas de Calculer ni Mode édition.
+
 ## Hors tranche
 
-UI couleurs, edit salarié, generate, live sandbox, joujou.
+Edit salarié, generate, live sandbox, joujou.
