@@ -1,0 +1,36 @@
+# Planning salarié
+
+Freeze HTTP. Wrappe `employee_board` (`contracts/domain/employee-board.md`).  
+Bearer **employee** (`me.employee_id`). Pas d’id resto / fiche dans le path.  
+`kind: company` → 403 `Action réservée au salarié.`  
+Sans Bearer → 401 `Session invalide.`  
+Sans `DATABASE_URL` → 503 `Base indisponible.`
+
+Pas `/v1/me/shifts`. Pas de brouillon live. Pas de `invite_token`. Pas de `legal_rows` / `wish_rows` snapshot.
+
+## Route
+
+```
+GET /v1/me/planning   Bearer employee → 200 EmployeePlanning
+```
+
+```
+{
+  "employee_id": "...",
+  "team": "salle"|"cuisine",
+  "employees": [{ "id", "name", "role": { "name", "level", "team" }, "team" }],
+  "assignments": [ Shift ],
+  "contract": { "weekly": number, "assigned": number, "ok": bool },
+  "wishes": [{ "key": "<WellbeingPreference>", "held": bool }],
+  "unavailabilities": [{ "weekday"?, "every_morning", "every_evening", "service_id"? }]
+}
+```
+
+`Shift` = mêmes clés que `GET /v1/cycles`.  
+`employees` = fiches **de son équipe** (noms pour la grille).  
+`assignments` = **toute** l’équipe publiée (`employee_board`) ; vide si pas de cycle.  
+`wishes` / `contract` / `unavailabilities` = Core, lecture seule.
+
+## Hors tranche
+
+UI couleurs, edit salarié, generate, live sandbox, joujou.

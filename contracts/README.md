@@ -21,7 +21,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 8 — contexte onboarding | `http/v1-context.md` | close (signaux Core → Infra → UI) |
 | 9 — generate / cycles | `http/v1-generate.md` | close (signaux Core → Infra → UI) |
 | 10 — sandbox live | `http/v1-live-sandbox.md` | close (signaux Core → Infra → UI) |
-| 11 — grille employé | `domain/employee-board.md` ; brief `core-employee-board.md` | Core d’abord (après merge live/* → master) |
+| 11 — grille employé | `http/v1-me-planning.md` ; brief `infra-employee-board.md` | Infra (Core employee_board fait) |
 
 ## Ownership git (ne pas croiser)
 
