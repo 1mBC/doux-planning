@@ -16,7 +16,8 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 3 — feedback overlay | `http/v1-sandbox-edit.md` | fusionné dans `preview-sandbox-edits` |
 | 4 — rôle / downrole | `http/v1-sandbox-edit.md` (`impact.role_fit`) | swap = créneau cliqué (pas la somme des deux) |
 | 5 — case vide | `http/v1-sandbox-edit.md` (`gesture: fill`) | fait |
-| 6 — fin sandbox | `http/v1-sandbox-edit.md` (`discard` + recap `history`) ; brief `infra-sandbox-close.md` | Infra d’abord |
+| 6 — fin sandbox | `http/v1-sandbox-edit.md` (`discard` + recap `history`) | fait |
+| 7 — auth / QR | `http/v1-auth.md` ; brief `core-employee-invite-tokens.md` | Core d’abord |
 
 ## Ownership git (ne pas croiser)
 
