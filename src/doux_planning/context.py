@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import replace
 
-from doux_planning.engine import PlanningDraft, generate_cycle
+from doux_planning.engine import PlanningDraft, evaluate, generate_cycle
 from doux_planning.invites import RestaurantIdentity
-from doux_planning.planning import PublishedCycle, RestaurantState
+from doux_planning.planning import PublishedCycle, RestaurantState, Sandbox
 from doux_planning.staff import Employee, RoleLadder, default_legal_rules
 from doux_planning.structures import (
     RestaurantHours,
@@ -24,6 +24,12 @@ class TeamNotReady(ValueError):
     def __init__(self, team: Team) -> None:
         self.team = team
         super().__init__(f"team {team.value} is not ready")
+
+
+class NoPublishedCycle(ValueError):
+    def __init__(self, team: Team) -> None:
+        self.team = team
+        super().__init__(f"no published cycle for {team.value}")
 
 
 def empty_restaurant(restaurant_id: str) -> RestaurantState:
@@ -160,4 +166,43 @@ def generate_team(
         result=result,
     )
     state.published_cycles[team] = published
+    return state
+
+
+def enter_live_sandbox(state: RestaurantState, team: Team) -> Sandbox:
+    published = state.published_cycles.get(team)
+    if published is None:
+        raise NoPublishedCycle(team)
+    existing = state.live_sandboxes.get(team)
+    if existing is not None:
+        return existing
+    sandbox = Sandbox(
+        restaurant_id=state.identity.id,
+        target="cycle",
+        week_id=None,
+        draft=replace(published.draft),
+        last_result=published.result,
+    )
+    state.live_sandboxes[team] = sandbox
+    return sandbox
+
+
+def discard_live_sandbox(state: RestaurantState, team: Team) -> None:
+    state.live_sandboxes[team] = None
+
+
+def publish_live_sandbox(state: RestaurantState, team: Team) -> RestaurantState:
+    sandbox = state.live_sandboxes.get(team)
+    if sandbox is None:
+        raise RuntimeError("No live sandbox")
+    result = sandbox.last_result or evaluate(sandbox.draft)
+    published = state.published_cycles.get(team)
+    if published is None:
+        raise NoPublishedCycle(team)
+    state.published_cycles[team] = PublishedCycle(
+        id=published.id,
+        draft=sandbox.draft.with_assignments(result.assignments),
+        result=result,
+    )
+    state.live_sandboxes[team] = None
     return state
