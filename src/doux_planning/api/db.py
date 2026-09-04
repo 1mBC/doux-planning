@@ -62,6 +62,9 @@ class Company(Base):
     ladders: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     types: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     typical_week: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    published_cycles: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=lambda: {"salle": None, "cuisine": None}
+    )
 
 
 class StaffFiche(Base):

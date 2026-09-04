@@ -4,12 +4,12 @@ Le moteur, le domaine (y compris invites / `PlanningStore`) et `GET /v1/examples
 
 ## What Changes
 
-- Persister le **contexte live** (`GET` / `PATCH /v1/context`, `contracts/http/v1-context.md`) dans PostgreSQL : identité, services, échelles, fiches, types, semaine type, `ready` via Core `team_ready`. Cycle / jobs / publish restent plus tard. Les fichiers `data/` restent le seed figé, pas un second runtime.
+- Persister le **contexte live** (`GET` / `PATCH /v1/context`) et les **cycles publiés par équipe** (`POST /v1/generate` + `GET /v1/cycles`, `contracts/http/v1-generate.md`) : wrappe Core `generate_team`, persist JSONB `published_cycles`. Sync, pas de jobs / worker. Publish semaine / `/me/shifts` restent plus tard. Les fichiers `data/` restent le seed figé.
 - Seeder au boot / migrate l’exemple Saint-Cloud (resto + snapshot planning + `legal_context` france). `GET /v1/examples/saint-cloud` reste **public**, lit le snapshot stocké, et ne lance ni `generate_cycle` ni job.
 - Le légal France est un contexte pays (`legal_contexts`), pas une propriété du restaurant (`legal_context: "france"`).
 - Auth unifiée (`contracts/http/v1-auth.md`) : `POST /v1/auth/register` (`kind: company` | `employee`) et un seul `POST /v1/auth/login`. `kind: company` crée une **nouvelle** entreprise vide (nom `""`), un restaurateur, pas Saint-Cloud. `kind: employee` wrappe `redeem_invite` (QR ou manuel). Pas d’OAuth, pas de magic link. Les vieilles routes `/v1/auth/restaurateur/*` et `/v1/auth/employee/*` ne s’implémentent pas.
 - Droits : restaurateur (`kind: company`) = config, generate, sandbox, publish (plus tard). Employé = lecture du publié seulement. Routes resto scopées au `restaurant_id` de la session. Un restaurateur par entreprise live. Sandbox et exemple restent publics dans la tranche auth.
-- `POST generate` → job Postgres (`job_id`, `status`, `search_effort`, `estimated_seconds`). `GET job` pour poller. evaluate / swap / rank et sandbox enter/edit/discard/publish restent synchrones.
+- `POST /v1/generate` synchrone → `generate_team` → 200 `{ team, search_effort, published }`. `GET /v1/cycles` relit le persisté. Pas de table `jobs`, pas de worker. evaluate / swap / rank et sandbox live restent plus tard.
 - Un seul chemin de score : appeler le moteur, sérialiser `EngineResult`. Pas de Redis/Celery. Pas de React. Pas de modification du moteur hors `api/` sauf blocage.
 - Ne pas archiver `define-planning-core`. Ne pas synchroniser ses deltas vers les specs principales.
 

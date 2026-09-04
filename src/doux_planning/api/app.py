@@ -84,6 +84,22 @@ def patch_context(
     return write_context(authorization, body)
 
 
+@app.get("/v1/cycles")
+def get_cycles(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.generate import get_cycles as read_cycles
+
+    return read_cycles(authorization)
+
+
+@app.post("/v1/generate")
+def post_generate(
+    body: dict[str, Any], authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.generate import post_generate as write_generate
+
+    return write_generate(authorization, body)
+
+
 @app.get("/v1/examples/{example_id}")
 def get_example(example_id: str) -> dict:
     try:

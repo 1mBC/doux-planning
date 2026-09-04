@@ -66,6 +66,8 @@ Session:
 Restaurateur (company Bearer), this slice:
 - `GET|PATCH /v1/context`
 - `POST /v1/staff/{id}/invite-token`
+- `POST /v1/generate` (sync `generate_team`)
+- `GET /v1/cycles`
 
 Restaurateur:
 - `GET|PATCH /v1/restaurant` (hours, name, legal_context id)
@@ -73,23 +75,22 @@ Restaurateur:
 - `GET /v1/cycle`, `GET /v1/weeks`
 - `POST /v1/sandbox/enter|discard`, `POST /v1/sandbox/edit`, `POST /v1/sandbox/publish` (acknowledged warning keys)
 - `POST /v1/evaluate`, `/v1/swap`, `/v1/rank`
-- `POST /v1/generate` → job metadata
-- `GET /v1/jobs/{job_id}`
+- `POST /v1/generate` (sync; this slice)
+- `GET /v1/cycles` (this slice)
+- `GET /v1/jobs/{job_id}` (later; not in this slice)
 
 Employee:
 - `GET /v1/me/shifts`
 
 Errors: `{ "error": { "code": "...", "message": "<French>" } }`. Existing example 404 may keep FastAPI `detail` only if tests already assert it; prefer the structured shape for new routes and align the example route if it does not break the UI (UI only needs 200 body keys).
 
-### 6. Generate jobs: table + SKIP LOCKED worker, not Celery
+### 6. Generate is sync `generate_team` (no jobs in this slice)
 
-`jobs (id, restaurant_id, kind='generate', status, search_effort, estimated_seconds, elapsed_seconds, result jsonb, error_message, created_at, started_at, finished_at)`.
+`POST /v1/generate` `{ team, search_effort? }` (Bearer company) loads the live context, wraps Core `generate_team`, persists `published_cycles` JSONB on the company (`salle` / `cuisine` independently), and returns 200 `{ team, search_effort, published }`. Omitted effort is `optimized`. `TeamNotReady` → 409 `Cette équipe n'est pas prête à calculer.` with no solver call. `GET /v1/cycles` returns the persisted `{ published }` (both null until generated). Tests use `minimal` only.
 
-`POST /v1/generate` inserts `queued`, returns `job_id`, `status`, `search_effort`, `estimated_seconds` from `SEARCH_SECONDS` (imported from the engine module — time bound, not a score). Worker: `SELECT … FOR UPDATE SKIP LOCKED`, set `running`, call `generate_cycle(sandbox.draft, search)`, write sandbox, store serialized `EngineResult`, set `done` / `failed`.
+Do **not** add a `jobs` table, Compose worker, or `SKIP LOCKED` in this slice. The old async-job design is deferred. Do not write `example_snapshots` or Saint-Cloud files.
 
-Compose services: `db`, `api` (uvicorn), `worker` (same image, different command). No Redis.
-
-evaluate / swap / rank / sandbox stay synchronous as specified.
+evaluate / swap / rank / live sandbox stay later.
 
 ### 7. Serialize `EngineResult` only
 
