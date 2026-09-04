@@ -64,7 +64,7 @@ function authHeaders(withBearer: boolean, json: boolean): HeadersInit {
   return headers;
 }
 
-async function sendAuth(url: string, init: RequestInit, withBearer: boolean): Promise<unknown> {
+export async function sendAuth(url: string, init: RequestInit, withBearer: boolean): Promise<unknown> {
   const headers = new Headers(init.headers);
   const extra = authHeaders(withBearer, headers.get("Content-Type") === "application/json" || Boolean(init.body));
   for (const [key, value] of Object.entries(extra)) {

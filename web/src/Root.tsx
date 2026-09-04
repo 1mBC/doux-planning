@@ -3,6 +3,7 @@ import App from "./App";
 import { clearToken, loadMe, readStoredToken, type Me } from "./auth";
 import { ApiHttpError } from "./sandbox";
 import { LoginScreen, RegisterScreen, SessionChrome, go } from "./AuthScreens";
+import { ContextWizard } from "./ContextWizard";
 import "./App.css";
 
 function currentPath(): string {
@@ -55,7 +56,20 @@ export default function Root() {
     };
   }, []);
 
-  const route = path === "/register" ? "register" : path === "/exemple" || (me && path !== "/register") ? "exemple" : "login";
+  const route =
+    path === "/register"
+      ? "register"
+      : path === "/exemple"
+        ? "exemple"
+        : path === "/context" && me?.kind === "company"
+          ? "context"
+          : path === "/context"
+            ? "exemple"
+            : me?.kind === "company" && (path === "/" || path === "/login")
+              ? "context"
+              : me
+                ? "exemple"
+                : "login";
   const canEdit = me?.kind !== "employee";
 
   if (!ready) {
@@ -77,6 +91,7 @@ export default function Root() {
       ) : null}
       {route === "login" ? <LoginScreen onSignedIn={setMe} /> : null}
       {route === "register" ? <RegisterScreen onSignedIn={setMe} /> : null}
+      {route === "context" ? <ContextWizard /> : null}
       {route === "exemple" ? <App canEdit={canEdit} /> : null}
     </>
   );

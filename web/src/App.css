@@ -472,3 +472,80 @@ table.plan td.empty-slot {
   cursor: pointer;
   text-decoration: underline;
 }
+
+.context-page {
+  max-width: 960px;
+}
+
+.context-identity {
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 12px 0 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.context-identity input {
+  display: block;
+  margin-top: 4px;
+  width: min(420px, 100%);
+  box-sizing: border-box;
+  border: 1px solid #cfd3d8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.wizard-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.fiche-card {
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  display: grid;
+  gap: 8px;
+}
+
+.fiche-card input,
+.fiche-card select,
+.context-page select,
+.context-page input[type="number"],
+.context-page input[type="text"] {
+  border: 1px solid #cfd3d8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.ready-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.badge-ready,
+.badge-wait {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.badge-ready {
+  background: #e7f6ec;
+  color: #1f6b3a;
+}
+
+.badge-wait {
+  background: #f4f1e6;
+  color: #7a6410;
+}

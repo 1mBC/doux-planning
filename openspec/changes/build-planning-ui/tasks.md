@@ -27,3 +27,10 @@
 - [x] 5.3 `sessionStorage` token; session chrome (email + kind + Déconnexion); reload `GET /v1/me` (401 → login); example reachable without session (« Voir l’exemple »)
 - [x] 5.4 `kind: employee` hides Mode édition and shows the later-planning sentence; `kind: company` keeps grid + sandbox; bump `web/` to 0.7.0
 - [x] 5.5 Verify `npm run build`; company login → `/me` → logout; employee register (fiches + QR); example 92 assignments without session; employee has no Mode édition; version bar `v0.7.0`
+
+## 6. Context wizard
+
+- [x] 6.1 Types + GET/PATCH `/v1/context` matching the contract; missing keys throw; Bearer only on context (+ existing auth); never on example/sandbox
+- [x] 6.2 Company `/context` (after login/register + « Mon restaurant »): identity banner, sequential wizard roles → fiches → services → types → semaine, both teams, full-list PATCH rules, invite URL, no rotate, no generate
+- [x] 6.3 Show `ready.*` as JSON badges; employee cannot open `/context`; bump `web/` to 0.8.0
+- [x] 6.4 Verify `npm run build`; company salle 5 steps → `ready.salle` true / `ready.cuisine` false; reload same context; employee stays off wizard; example 92 without session; `v0.8.0`
