@@ -1,77 +1,62 @@
 ## Context
 
-See proposal.md for why. Main engine contract is already in `openspec/specs/` (archived V0). `PlanningStore` already has `enter_sandbox`, `apply_edit`, `generate_into_sandbox`. `rank_candidates` skips anyone overlapping the window (including the holder of an occupied slot). `swap_shifts` scores one pair. `Warning.key()` includes the message and is used for publish acknowledgement — leave that key alone.
+See proposal.md. `PlanningStore` already has `enter_sandbox`, `apply_edit`. `rank_candidates` skips overlapping occupants. `swap_shifts` scores one pair. `_attempt_key` / `_hours_miss` stay in `engine.py`. This change is the **Python sandbox** as shipped (hydrate, preview, impact, fill, apply, undo). HTTP is out of scope.
 
-This slice adds preview, history, undo, hydration, and three gesture enumerations on the **cycle** sandbox. No HTTP.
+`refine-sandbox-feedback` is folded: one-shot retune, delta ranking, impact, `role_fit`, `preview_fill`.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Python APIs a later overlay can call: hydrate delivered cycle, preview three gestures, apply one proposal, undo last crant.
-- One warning delta helper shared by all previews.
-- Tests that prove preview isolation and Saint-Cloud hydration without rewriting the snapshot.
+- Hydrate delivered cycle; preview retune/replace/swap/fill; apply; undo last crant.
+- Compact `PreviewImpact` + keep-best scores on each proposal.
 
 **Non-Goals:**
-- Changing FIFO pairing, keep-best `_attempt_key`, empty-slot `rank_candidates`, or single-pair `swap_shifts` semantics.
-- Week sandbox UX, publish/discard, HTTP shapes, React, `contracts/`, `api/`, GitHub Pages HTML.
-- Persisting history across process restart (in-memory stack on `Sandbox` is enough).
+- FIFO / keep-best formulas, empty-slot `rank_candidates` semantics, `generate_cycle`.
+- HTTP, React, `contracts/`, publish, auth, week sandbox UX.
 
 ## Decisions
 
-### 1. Hydration lives in the domain package, not `api/`
+### 1. Hydration lives in the domain package
 
-Read `data/examples/saint-cloud.json` from a helper next to `planning.py` (same data-dir rule as the files on disk: repo `data/` or `DOUX_PLANNING_DATA`). Map JSON → `Employee` / `ServiceStructure` / `RestaurantHours` / `Shift`, `add_restaurant`, set `PublishedCycle` with those assignments, `evaluate` for `result`, then `enter_sandbox(..., "cycle")`. Never import `doux_planning.api`. Never call `generate_cycle`. If a sandbox is already open, discard it first so hydration always yields a clean cycle sandbox of the delivered draft.
+Read `data/examples/saint-cloud.json` from `hydrate.py`. Map JSON → domain, `PublishedCycle`, `evaluate`, `enter_sandbox(..., "cycle")`. Never import `doux_planning.api`. Never call `generate_cycle`.
 
-Alternative: call `api.examples.load_example_file`. Rejected: this slice must not depend on the HTTP/adapter layer.
+### 2. Shared `PreviewProposal` + apply/undo
 
-### 2. Shared `PreviewProposal` + apply/undo on the store
-
-A frozen proposal holds: `rank`, gesture kind (`retune` | `replace` | `swap`), the trial `EngineResult`, warning delta, and the fields the overlay needs (new start/end, or replacement employee, or partner shift). Preview functions clone the draft, score trials, return a list; they must not assign `state.sandbox`. Apply copies current `(assignments, last_result)` onto `sandbox.history`, then reuses `apply_edit` with the proposal’s trial assignments (rescore, do not trust a stale result). Undo pops history and writes those assignments/`last_result` back. Empty history raises; draft unchanged.
-
-Alternative: mutate the sandbox during preview and “roll back”. Rejected: easy to leak a trial if a caller aborts.
-
-Alternative: undo any crant in the middle of the stack. Rejected: later crants would need replay/rebase. Stack undo only (last in, first out).
+Frozen proposal: rank, gesture, trial `EngineResult`, warning delta, **impact**, current/trial `_attempt_key`, hours / replacement / partner / fill candidate. Preview does not assign `state.sandbox`. Apply pushes history then `apply_edit`. Undo pops. Empty history raises.
 
 ### 3. Warning delta ignores message text
 
-Identity for added/removed/unchanged is `(severity, code, employee_id, day_index)`. Do not change `Warning.key()` (publish still needs the message). A `contract_hours` warning that only changes the hour count in the text is **unchanged**. Messages shown on the proposal are `result.warnings` as emitted.
+Identity `(severity, code, employee_id, day_index)`. Overlay display uses **impact**, not `delta.unchanged`.
 
-Alternative: use `Warning.key()` including message. Rejected: every retune would look like remove+add for the same contract miss.
+### 4. Retune is one timed trial
 
-### 4. Retune enumerates start × end in the ±2 h band
+`preview_retune(id, shift, start, end)` → 0 or 1 proposal. Grid 15, clip 0–1440, duration ≥ min. Identity → `IdentityRetuneError`. No ±2 h enumeration.
 
-15-minute quantum. Start in `[current_start - 120, current_start + 120]`, end in `[current_end - 120, current_end + 120]`, clip to `[0, 1440]`, keep `start < end`, duration ≥ that employee’s `min_shift_hours`, drop the identity pair. Same person, day, `service_id`, team, `post_level`. Score each trial with `evaluate`. Sort like `Candidate` without inventing a new key: `(interdit_count, souhait_count, start_minutes, end_minutes)`. Do not clip to the structure span: out-of-wave times are valid trials and surface as couverture via `evaluate`.
+### 5. Occupied replace/swap: build trials then re-sort by delta
 
-Alternative: restaurateur types one start/end and we only score that trial. Set aside: retune, replace, and swap then share the same overlay (ranked options, impact per option). We try that first.
+Drop holder then `rank_candidates`; swap via `swap_shifts`. Sort `occupied_sort_key`: added interdit, added souhait, hours-miss delta, `_attempt_key`.
 
-Alternative: slide a fixed duration only. Rejected: début and/or fin move independently.
+### 6. Impact is filtered delta + contract + clicked-slot `role_fit`
 
-### 5. Occupied replace is “drop holder, then existing rank”
+See folded refine design: `new_interdits`, `broken_wishes` (no `contract_hours`), contract closer/farther/excess for gesture people, `empty_post` add/remove, `role_fit` on the **clicked** shift only.
 
-`with_assignments` minus that one shift, then `rank_candidates` on the same window, then drop the incumbent if they reappear (they are no longer occupying that window). Do not change `rank_candidates` occupancy rules for empty slots.
+### 7. Fill is `preview_fill`
 
-Alternative: a flag on `rank_candidates` to ignore the holder. Rejected: extra branch on the empty-slot path.
+Structure span when hours omitted. `post_level` = row `role.level`. `OccupiedSlotError` if the cell is already filled. Rank 1 = row person when eligible.
 
-### 6. Swap preview is `swap_shifts` against every other person’s assignment
+### 8. Cycle target only; do not reverse week sandbox
 
-Partners = other assignments whose `employee_id` differs. Same person’s other shifts are omitted. Sort `(interdit_count, souhait_count, partner.day_index, partner.service_id, partner.employee_id, partner.start_minutes)`. Apply is that pair’s `swap_shifts` assignments, not a new swap implementation.
-
-Alternative: same-day or same-service partners only. Rejected: the brief is “échanger ce créneau avec un autre shift”; ranking already sinks illegal swaps.
-
-### 7. Cycle target only for this slice; do not reverse week sandbox
-
-`enter_sandbox` still accepts `week`. Hydration and the three gestures always use `target="cycle"`. Do not add a product prompt and do not delete week support.
+Gestures use `target="cycle"`. `enter_sandbox` still accepts `week`.
 
 ## Risks / Trade-offs
 
-- [Retune × Saint-Cloud can mean ~200 `evaluate` calls] → Mitigation: correctness tests use a tiny draft; one Saint-Cloud test hydrates and previews a single known shift without asserting the full candidate count.
-- [Swap preview is O(n) evaluates on 92 shifts] → Acceptable for an in-memory cycle; do not add a second scorer to trim the list.
-- [Generic `apply_edit` from older tests does not push history] → Gesture apply always pushes; leave `apply_edit` as the primitive. Undo is defined for crants made through apply-proposal.
+- [Swap preview is O(n) evaluates] → Acceptable in-memory.
+- [HTTP must pass retune times] → Infra wrap; Core does not edit `api/`.
 
 ## Migration Plan
 
-None. New in-memory APIs. No schema, no HTTP.
+None for data. `refine-sandbox-feedback/` removed; this directory is the Core sandbox change.
 
 ## Open Questions
 
-None that change the specs. Overlay field names wait for a later contract; this slice only needs enough Python data for rank, person or hours, warnings, and delta.
+None.

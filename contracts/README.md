@@ -13,7 +13,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 0 — exemple public | `http/v1-examples.md` | UI + Infra |
 | 1 — auth | (pas encore, sautée pour le joujou édition) | — |
 | 2 — édition sandbox | `http/v1-sandbox-edit.md` | Infra + UI (HTTP actuel) |
-| 3 — feedback overlay | `http/v1-sandbox-edit.md` + briefs `*-refine-sandbox-feedback.md` | fait |
+| 3 — feedback overlay | `http/v1-sandbox-edit.md` | fusionné dans `preview-sandbox-edits` |
 | 4 — rôle / downrole | `http/v1-sandbox-edit.md` (`impact.role_fit`) | swap = créneau cliqué (pas la somme des deux) |
 | 5 — case vide | `http/v1-sandbox-edit.md` (`gesture: fill`) | fait |
 | 6 — fin sandbox | `http/v1-sandbox-edit.md` (`discard` + recap `history`) ; brief `infra-sandbox-close.md` | Infra d’abord |
