@@ -107,6 +107,10 @@ Même clés que `Context`, toutes optionnelles, **sauf** `legal_context_id`, `co
 Ne pas écrire `example_snapshots` ni `data/examples/saint-cloud.json`. Ne pas réutiliser la ligne `restaurants` Saint-Cloud.  
 Restart process → même `GET /v1/context`. Auth + invites restent justes.
 
+## UI (wizard)
+
+Route `/context` (session company). Ordre : rôles → fiches → services entreprise → types → semaine type. Salle / cuisine indépendantes. `ready` affiché, pas de generate. PATCH listes = remplacement complet (renvoyer l’autre équipe). Exemple sans session inchangé.
+
 ## Hors tranche
 
-Generate, jobs, publish, lock sandbox, `GET /v1/me/shifts`, panneaux UI, seed Saint-Cloud live, CORS sauf proxy cassé.
+Generate, jobs, publish, lock sandbox, `GET /v1/me/shifts`, seed Saint-Cloud live, CORS sauf proxy cassé.

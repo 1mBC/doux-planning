@@ -18,7 +18,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 5 — case vide | `http/v1-sandbox-edit.md` (`gesture: fill`) | fait |
 | 6 — fin sandbox | `http/v1-sandbox-edit.md` (`discard` + recap `history`) | fait |
 | 7 — auth / QR | `http/v1-auth.md` | close (signaux Core → Infra → UI) |
-| 8 — contexte onboarding | `domain/restaurant-context.md` ; `http/v1-context.md` ; brief `infra-context-http.md` | Infra (Core domaine fait) |
+| 8 — contexte onboarding | `http/v1-context.md` ; brief `ui-context-wizard.md` | UI wizard (Infra HTTP fait) |
 
 ## Ownership git (ne pas croiser)
 
