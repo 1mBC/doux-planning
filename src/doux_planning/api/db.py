@@ -65,6 +65,9 @@ class Company(Base):
     published_cycles: Mapped[dict] = mapped_column(
         JSONB, nullable=False, default=lambda: {"salle": None, "cuisine": None}
     )
+    live_sandboxes: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=lambda: {"salle": None, "cuisine": None}
+    )
 
 
 class StaffFiche(Base):

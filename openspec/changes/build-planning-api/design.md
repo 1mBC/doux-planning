@@ -68,6 +68,7 @@ Restaurateur (company Bearer), this slice:
 - `POST /v1/staff/{id}/invite-token`
 - `POST /v1/generate` (sync `generate_team`)
 - `GET /v1/cycles`
+- `/v1/live/sandbox/{team}` enter / GET / preview / commit / undo / discard / publish
 
 Restaurateur:
 - `GET|PATCH /v1/restaurant` (hours, name, legal_context id)
@@ -90,7 +91,7 @@ Errors: `{ "error": { "code": "...", "message": "<French>" } }`. Existing exampl
 
 Do **not** add a `jobs` table, Compose worker, or `SKIP LOCKED` in this slice. The old async-job design is deferred. Do not write `example_snapshots` or Saint-Cloud files.
 
-evaluate / swap / rank / live sandbox stay later.
+evaluate / swap / rank stay later. Live sandbox HTTP is this slice (`/v1/live/sandbox/{team}`).
 
 ### 7. Serialize `EngineResult` only
 
@@ -99,6 +100,10 @@ JSON: `assignments` (including `duration_hours` as a derived field already on `S
 ### 8. Schema and stack
 
 PostgreSQL 16, SQLAlchemy 2 (sync) + Alembic, psycopg, Argon2. FastAPI handlers stay `def` (CPU-bound generate is in the worker). Docker Compose on the VPS as already chosen. One restaurant, ~15–25 employees — no extra cache layer.
+
+### 9. Live sandbox HTTP wraps Core per team
+
+`/v1/live/sandbox/{team}` (Bearer company) wraps `enter_live_sandbox`, `PlanningStore` preview / apply / undo with `team=`, `discard_live_sandbox`, and `publish_live_sandbox`. Persist brouillons on `companies.live_sandboxes` JSONB — not `sandbox_sessions`, not `example_snapshots`. `NoPublishedCycle` → 409 `Aucun cycle publié pour cette équipe.` Preview shapes match the joujou (`v1-sandbox-edit.md`) plus `"team"`. Public `/v1/sandbox/*` stays unchanged and unauthenticated. Tests use generate `minimal` only.
 
 ## Risks / Trade-offs
 

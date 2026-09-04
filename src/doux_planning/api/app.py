@@ -100,6 +100,59 @@ def post_generate(
     return write_generate(authorization, body)
 
 
+@app.post("/v1/live/sandbox/{team}/enter")
+def live_sandbox_enter(team: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.live_sandbox import enter
+
+    return enter(authorization, team)
+
+
+@app.get("/v1/live/sandbox/{team}")
+def live_sandbox_get(team: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.live_sandbox import get_live
+
+    return get_live(authorization, team)
+
+
+@app.post("/v1/live/sandbox/{team}/preview")
+def live_sandbox_preview(
+    team: str, body: dict[str, Any], authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.live_sandbox import preview
+
+    return preview(authorization, team, body)
+
+
+@app.post("/v1/live/sandbox/{team}/commit")
+def live_sandbox_commit(
+    team: str, body: dict[str, Any], authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.live_sandbox import commit
+
+    return commit(authorization, team, body)
+
+
+@app.post("/v1/live/sandbox/{team}/undo")
+def live_sandbox_undo(team: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.live_sandbox import undo
+
+    return undo(authorization, team)
+
+
+@app.post("/v1/live/sandbox/{team}/discard")
+def live_sandbox_discard(team: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.live_sandbox import discard
+
+    return discard(authorization, team)
+
+
+@app.post("/v1/live/sandbox/{team}/publish")
+def live_sandbox_publish(team: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.live_sandbox import publish
+
+    return publish(authorization, team)
+
+
 @app.get("/v1/examples/{example_id}")
 def get_example(example_id: str) -> dict:
     try:
