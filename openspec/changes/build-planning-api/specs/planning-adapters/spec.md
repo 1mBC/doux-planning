@@ -30,24 +30,24 @@ Evaluate, swap, rank, sandbox enter, sandbox edit, sandbox discard, and publish 
 - **WHEN** the restaurateur posts evaluate
 - **THEN** no generation job row is created
 
-### Requirement: Sandbox HTTP follows the domain state machine
-The restaurateur SHALL enter a sandbox with target `cycle` or `week` (week requires a week id). The target MUST stay immutable until discard or publish. Structural configuration writes MUST be rejected unless the sandbox target is `cycle`. Discard MUST drop the draft. Publish MUST require acknowledgement of remaining interdit warnings, then commit to the chosen target. Cycle publish MUST return dirty-week reconciliation choices (accept, keep, open-in-sandbox) without silently overwriting intent weeks. At most one sandbox per restaurant MUST be exposed.
+### Requirement: Live sandbox HTTP wraps Core per team
+The restaurateur SHALL edit a published team cycle through `/v1/live/sandbox/{team}` (Bearer company). Routes MUST wrap Core `enter_live_sandbox`, preview / apply / undo (same proposal shapes as the public joujou), `discard_live_sandbox`, and `publish_live_sandbox`. `team` is `salle` or `cuisine`. `NoPublishedCycle` MUST be HTTP 409 `Aucun cycle publié pour cette équipe.` Discard MUST re-enter the current published cycle (empty history). Publish MUST write only that team’s `published_cycles` key, close the draft (`GET` live → 404), and leave the other team intact. Public `/v1/sandbox/*` MUST stay unauthenticated and unchanged. Week reconciliation, evaluate / swap / rank, and `/me/shifts` remain later slices.
 
-#### Scenario: Enter week sandbox
-- **WHEN** the restaurateur enters a sandbox with target week 12
-- **THEN** subsequent edits and publish apply to week 12 only
+#### Scenario: Enter salle after generate
+- **WHEN** salle has a published cycle and the restaurateur posts enter for `salle`
+- **THEN** the response is HTTP 200 `LiveState` with `"team": "salle"` and the published assignments
 
-#### Scenario: Structure edit needs cycle sandbox
-- **WHEN** the restaurateur patches arrival waves while a week sandbox is open
-- **THEN** the request is rejected with a French error
+#### Scenario: Enter cuisine without a published cycle
+- **WHEN** only salle is published and the restaurateur posts enter for `cuisine`
+- **THEN** the response is HTTP 409 French and no cuisine draft is stored
 
-#### Scenario: Publish needs interdit acknowledgement
-- **WHEN** the sandbox still has unacknowledged interdit warnings and the restaurateur publishes without those acknowledgements
-- **THEN** publish is rejected and the published cycle is unchanged
+#### Scenario: Discard restores published
+- **WHEN** the restaurateur retunes, commits, then discards
+- **THEN** a subsequent enter matches the published assignments with empty history
 
-#### Scenario: Publish with acknowledgements
-- **WHEN** the restaurateur publishes after acknowledging remaining interdit warnings
-- **THEN** the target is updated and employees no longer see the discarded draft
+#### Scenario: Publish updates cycles only
+- **WHEN** the restaurateur publishes a retuned salle draft
+- **THEN** `GET /v1/cycles` shows the new salle cycle, `cuisine` stays `null`, and `GET /v1/live/sandbox/salle` is 404
 
 ### Requirement: Restaurateur can persist configuration
 Authenticated restaurateur routes SHALL allow reading and updating staff, structures, hours, cycle, weeks, and intents for the session restaurant. Employee sessions MUST be rejected on those writes. Updates that change coverage MUST go through the cycle sandbox as already required by cruise-planning.
