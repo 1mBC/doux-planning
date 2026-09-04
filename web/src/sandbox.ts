@@ -311,7 +311,7 @@ export function parseSandboxState(value: unknown): SandboxState {
   };
 }
 
-function parsePreviewBody(value: unknown): { proposals: PreviewProposal[] } {
+export function parsePreviewBody(value: unknown): { proposals: PreviewProposal[] } {
   if (!isRecord(value)) {
     throw new PayloadError("réponse preview invalide");
   }

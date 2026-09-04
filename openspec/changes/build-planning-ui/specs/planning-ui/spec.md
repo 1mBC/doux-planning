@@ -82,7 +82,7 @@ The client SHALL offer one login (email + password) via `POST /v1/auth/login` an
 - **THEN** the form is locked to Salarié, lists no fiches, and commits with `employee_token`
 
 ### Requirement: Session token and logout
-The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, and `GET /v1/cycles` when a token exists, and MUST NOT be sent on example or sandbox requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context` and `/planning`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard or `/planning`, and SHALL show that the personal published planning comes later.
+The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, `GET /v1/cycles`, and `/v1/live/sandbox/{team}/*` when a token exists, and MUST NOT be sent on example or `/v1/sandbox/*` requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context` and `/planning`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard or `/planning`, and SHALL show that the personal published planning comes later.
 
 #### Scenario: Logout
 - **WHEN** the restaurateur clicks Déconnexion
@@ -108,7 +108,7 @@ A `kind: company` session SHALL reach `/context` after login/register and via «
 - **THEN** the wizard is not shown
 
 ### Requirement: Company published cycle
-A `kind: company` session SHALL reach `/planning` via « Planning ». The client SHALL `GET /v1/cycles` and `GET /v1/context` on load. Types MUST match `contracts/http/v1-generate.md` (and context) JSON; a missing key MUST throw. **Calculer** SHALL be enabled only when `ready[team]` from context is true, and SHALL `POST /v1/generate` with `{ team, search_effort: "minimal" }`. If `ready[team]` is false the button MUST be disabled and the client MUST NOT POST. API `detail` SHALL be shown on 409/400. When `published[team]` is not null the client SHALL render a 14-day paper grid (weeks A/B) from that team’s context fiches plus `assignments`, and SHALL list every `warnings` item (engine `message`, French severity). The client MUST NOT invent `stats`, `legal_rows`, or `wish_rows`, and MUST NOT offer Mode édition / sandbox on this cycle. Regenerating SHALL replace that team only. Reload SHALL use the same GET.
+A `kind: company` session SHALL reach `/planning` via « Planning ». The client SHALL `GET /v1/cycles` and `GET /v1/context` on load. Types MUST match `contracts/http/v1-generate.md` (and context) JSON; a missing key MUST throw. **Calculer** SHALL be enabled only when `ready[team]` from context is true, and SHALL `POST /v1/generate` with `{ team, search_effort: "minimal" }`. If `ready[team]` is false the button MUST be disabled and the client MUST NOT POST. API `detail` SHALL be shown on 409/400. When `published[team]` is not null the client SHALL render a 14-day paper grid (weeks A/B) from that team’s context fiches plus `assignments`, and SHALL list every `warnings` item (engine `message`, French severity). The client MUST NOT invent `stats`, `legal_rows`, or `wish_rows`. Regenerating SHALL replace that team only. Reload SHALL use the same GET. When `published[team]` exists the client MAY offer Mode édition via the live sandbox routes.
 
 #### Scenario: Salle calculated, cuisine not
 - **WHEN** salle is ready and the restaurateur clicks Calculer, while cuisine is not ready
@@ -121,3 +121,18 @@ A `kind: company` session SHALL reach `/planning` via « Planning ». The client
 #### Scenario: Employee cannot open planning
 - **WHEN** `me.kind` is `employee`
 - **THEN** the published-cycle screen is not shown
+
+### Requirement: Live sandbox on published cycle
+A `kind: company` session on `/planning` SHALL show **Mode édition** only when `published[team]` is not null. The button SHALL `POST /v1/live/sandbox/{team}/enter` with Bearer and MUST NOT call `/v1/sandbox/*`. LiveState MUST include `team`; a missing key MUST throw. Edit UX SHALL match the example sandbox: occupied overlay (retune ±15 Valider, replace, swap), empty-cell fill, API `detail`, history, **Annuler**, **Tout annuler** (discard). **Lecture** SHALL leave the edit UI without discard. Re-entering SHALL keep the draft cran (GET/enter live). **Publier** SHALL `POST .../publish`, leave edit UI, and show the updated `published` from that body or GET `/v1/cycles`. The other team MUST stay intact. `/exemple` SHALL keep calling `/v1/sandbox/*` without Bearer.
+
+#### Scenario: Retune then publish
+- **WHEN** salle is published, the restaurateur enters live edit, validates a retune, leaves via Lecture, re-enters, then Publier
+- **THEN** the cran is still present after Lecture + re-enter, and after Publier + reload GET `/v1/cycles` matches the edited assignments
+
+#### Scenario: Cuisine without cycle
+- **WHEN** cuisine has no published cycle
+- **THEN** Mode édition is not offered for cuisine (API would 409)
+
+#### Scenario: Example joujou stays public
+- **WHEN** nobody is logged in and they open Mode édition on `/exemple`
+- **THEN** `POST /v1/sandbox/enter` still returns 200 and the snapshot still has 92 assignments

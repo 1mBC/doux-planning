@@ -41,3 +41,10 @@
 - [x] 7.2 Company `/planning` (chrome « Planning »): load cycles + context, team selector, Calculer iff `ready[team]`, POST `minimal`, grid + warnings, no invented stats/legal/wish, no sandbox on this cycle
 - [x] 7.3 Cuisine null / not ready: empty + « Pas encore calculé », salle intacte; employee cannot open `/planning`; bump `web/` to 0.9.0
 - [x] 7.4 Verify `npm run build`; salle ready → Calculer → cells + warnings; cuisine button off; reload keeps salle; employee stays off planning; example 92 without session; `v0.9.0`
+
+## 8. Live sandbox
+
+- [x] 8.1 Distinct live client `/v1/live/sandbox/{team}/…` + Bearer; parse LiveState (`team` required); reuse parsers; never call `/v1/sandbox/*` from `/planning`
+- [x] 8.2 `/planning` Mode édition if published[team]; overlays + history + Annuler + Tout annuler; Lecture without discard; Publier updates cycles
+- [x] 8.3 Cuisine without cycle: no edit; `/exemple` joujou unchanged; bump `web/` to 0.10.0
+- [x] 8.4 Verify `npm run build`; salle edit retune → Lecture keeps cran → Publier → reload; example enter without session still 92; `v0.10.0`
