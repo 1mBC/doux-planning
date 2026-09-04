@@ -16,8 +16,14 @@ from doux_planning.engine import (
     swap_shifts,
 )
 from doux_planning.invites import EmployeeAccount, RestaurantIdentity
-from doux_planning.staff import Employee, Unavailability, default_legal_rules
-from doux_planning.structures import RestaurantHours, ServiceStructure, StructuralEditRequiresCycleSandbox
+from doux_planning.staff import Employee, RoleLadder, Unavailability, default_legal_rules
+from doux_planning.structures import (
+    RestaurantHours,
+    ServiceStructure,
+    ServiceType,
+    StructuralEditRequiresCycleSandbox,
+    TypicalWeek,
+)
 from doux_planning.types import WEEKDAYS, Team, WarningSeverity, validate_quantum
 from doux_planning.warnings import Warning
 
@@ -354,12 +360,16 @@ class RestaurantState:
     identity: RestaurantIdentity
     employees: list[Employee]
     structures: list[ServiceStructure]
-    hours: RestaurantHours
+    hours: RestaurantHours | None = None
     cycle: PublishedCycle | None = None
     weeks: dict[str, CalendarWeek] = field(default_factory=dict)
     sandbox: Sandbox | None = None
     accounts: list[EmployeeAccount] = field(default_factory=list)
     today: date = field(default_factory=date.today)
+    service_types: list[ServiceType] = field(default_factory=list)
+    typical_week: TypicalWeek | None = None
+    ladders: dict[Team, RoleLadder] = field(default_factory=dict)
+    company_services: tuple[str, ...] = ()
 
     def as_draft(self, assignments: tuple[Shift, ...] = ()) -> PlanningDraft:
         return PlanningDraft(
