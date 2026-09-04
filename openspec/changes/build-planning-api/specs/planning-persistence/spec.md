@@ -5,7 +5,7 @@ Makes PostgreSQL the live source of truth for one restaurant’s domain data, in
 ## ADDED Requirements
 
 ### Requirement: Live store holds the onboarding context
-The system SHALL persist the live company context in Postgres: identity (`name`, `invite_code`, `legal_context_id` `france`), company services, role ladders, employees (contracts, unavailabilities, wellbeing, `min_shift_hours`, Core `invite_token`), service types, typical week, plus accounts and sessions already specified. `GET /v1/context` and `PATCH /v1/context` MUST wrap Core `empty_restaurant` / mutators / `team_ready` and MUST NOT call `generate_cycle`. After a process restart (`reset_engine`), `GET /v1/context` MUST return the same body. Published cycle, calendar weeks, intents, and generation jobs remain later slices.
+The system SHALL persist the live company context in Postgres: identity (`name`, `invite_code`, `legal_context_id` `france`), company services, role ladders, employees (contracts, unavailabilities, wellbeing, `min_shift_hours`, Core `invite_token`), service types, typical week, plus accounts and sessions already specified. `GET /v1/context` and `PATCH /v1/context` MUST wrap Core `empty_restaurant` / mutators / `team_ready` and MUST NOT call `generate_cycle`. After a process restart (`reset_engine`), `GET /v1/context` MUST return the same body. Calendar weeks, intents, and async generation jobs remain later slices. Live `published_cycles` (salle / cuisine) are persisted by the generate slice.
 
 #### Scenario: Empty company context after register
 - **WHEN** a caller registers `kind: company` then gets `/v1/context` with that company session

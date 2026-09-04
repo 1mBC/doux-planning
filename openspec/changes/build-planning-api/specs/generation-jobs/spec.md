@@ -1,57 +1,45 @@
 ## Purpose
 
-Wraps 14-day cycle generation in a pollable job so the client can show an estimated wait without streaming the solver or blocking on an immediate engine result.
+Generates a published 14-day cycle **per team** over HTTP by wrapping Core `generate_team` synchronously, and persists the two independent published cycles for the live company.
 
 ## ADDED Requirements
 
-### Requirement: Generate creates a job, not an immediate engine result
-`POST` generate (restaurateur, cycle sandbox) SHALL enqueue a generation job and return HTTP 202 (or 200 with job metadata only) containing `job_id`, `status`, `search_effort`, and `estimated_seconds`. The response MUST NOT include the generated assignments or warnings. `search_effort` MUST be `minimal`, `optimized`, or `maximal`, defaulting to `optimized` when omitted. `estimated_seconds` MUST be the engine’s existing per-effort time bound for that value (not a second scoring model and not a live remaining-time stream).
+### Requirement: Generate is a synchronous generate_team wrap
+`POST /v1/generate` (Bearer company) SHALL accept `{ team: "salle"|"cuisine", search_effort?: "minimal"|"optimized"|"maximal" }` and MUST call Core `generate_team` in the request. Omitted `search_effort` MUST default to `optimized`. HTTP tests in this slice MUST use `minimal` only. The 200 body MUST be `{ team, search_effort, published }` where `published` has `salle` and `cuisine` keys, each `null` or `{ assignments, warnings }` serialized from that team’s `EngineResult` (Shift keys including `duration_hours`; Warning keys `severity`, `code`, `message`, `employee_id`, `day_index`). The body MUST NOT include `legal_rows`, `wish_rows`, or invented `stats`. The system MUST NOT enqueue a job, MUST NOT start a worker, and MUST NOT use `SKIP LOCKED`.
 
-#### Scenario: Optimized generate is accepted as a job
-- **WHEN** the restaurateur posts generate with no effort (or `optimized`) while a cycle sandbox is open
-- **THEN** the body includes a `job_id`, `status` `queued` or `running`, `search_effort` `optimized`, and `estimated_seconds`, and does not include `assignments`
+#### Scenario: Salle generate when ready
+- **WHEN** the live context is salle-ready and the restaurateur posts generate with `team` `salle` and `search_effort` `minimal`
+- **THEN** the response is HTTP 200, `published.salle.assignments` is non-empty, every assignment has `team` `salle`, and `published.cuisine` is `null`
 
-#### Scenario: Effort is accepted
-- **WHEN** the restaurateur posts generate with `search_effort` `minimal`
-- **THEN** the job records `minimal` and `estimated_seconds` equals the engine bound for minimal
+#### Scenario: Cuisine not ready
+- **WHEN** only salle is ready and the restaurateur posts generate for `cuisine`
+- **THEN** the response is HTTP 409 with French `detail` `Cette équipe n'est pas prête à calculer.`, no solver run, and persisted cycles are unchanged
 
-#### Scenario: Generate without cycle sandbox
-- **WHEN** the restaurateur posts generate and no cycle sandbox is open
-- **THEN** no job is created and the request is rejected with a French error
+#### Scenario: Invalid team or effort
+- **WHEN** `team` or `search_effort` is missing or unknown
+- **THEN** the response is HTTP 400 `Champs invalides.`
 
-### Requirement: Job status is pollable
-`GET` job by id SHALL return `status` as one of `queued`, `running`, `done`, or `failed`, plus `elapsed_seconds` and `estimated_seconds`. When `status` is `done`, the body MUST include the serialized engine result (assignments and warnings) produced by calling the constraint engine once. When `status` is not `done`, the body MUST NOT present a complete planning result. The system MUST NOT stream solver progress.
+### Requirement: Regenerating one team leaves the other intact
+A second successful generate for a team SHALL replace only that team’s published cycle. The other key MUST stay as previously persisted (or `null`).
 
-#### Scenario: Poll while running
-- **WHEN** the restaurateur gets a job that is still running
-- **THEN** `status` is `running`, `elapsed_seconds` is present, and no assignments array is returned as the result
+#### Scenario: Second salle generate
+- **WHEN** salle has already been generated and the restaurateur posts generate salle again
+- **THEN** `published.salle` is the new result and `published.cuisine` remains `null` (or the previous cuisine cycle if one existed)
 
-#### Scenario: Poll when done
-- **WHEN** generation has finished successfully
-- **THEN** `status` is `done` and the result is the engine output written into the cycle sandbox
+### Requirement: GET cycles reads persisted published cycles
+`GET /v1/cycles` (Bearer company) SHALL return `{ published: { salle, cuisine } }` from the live store. A restaurant that has never generated MUST return both keys `null`. After `reset_engine` / process restart, the body MUST match the last persisted generate. The endpoint MUST NOT call `generate_team` or `generate_cycle`.
 
-#### Scenario: Poll when failed
-- **WHEN** generation fails
-- **THEN** `status` is `failed`, a French error is present, and no fabricated planning is returned
+#### Scenario: Never generated
+- **WHEN** a company session gets `/v1/cycles` before any generate
+- **THEN** `published.salle` and `published.cuisine` are `null`
 
-### Requirement: Job is wrapping only; same inputs yield the same planning
-The job MUST call the existing cycle generator with the sandbox draft and requested effort. It MUST NOT implement a second scorer or a different keep-best rule. The same staff, structures, hours, legal context, sandbox draft, and `search_effort` MUST produce the same assignments as a direct generator call. Jobs SHALL be stored in the live database.
+#### Scenario: Restart keeps cycles
+- **WHEN** salle has been generated and the API engine is reset
+- **THEN** `GET /v1/cycles` returns the same `published` object
 
-#### Scenario: Deterministic wrap
-- **WHEN** two generate jobs run with identical sandbox inputs and the same `search_effort`
-- **THEN** the done results contain the same assignments
+### Requirement: Auth and public surfaces stay unchanged
+Generate and cycles SHALL require a company session. An employee session MUST receive HTTP 403 `Action réservée au restaurateur.` Missing/invalid Bearer MUST be HTTP 401 `Session invalide.` Without `DATABASE_URL` those routes MUST be HTTP 503 `Base indisponible.` `GET /v1/examples/saint-cloud` MUST stay 200 with 92 assignments. Public sandbox and context GET/auth MUST stay green. Persist MUST NOT write `example_snapshots` or `data/examples/saint-cloud.json`.
 
-#### Scenario: Result lands in the sandbox
-- **WHEN** a generate job reaches `done`
-- **THEN** the restaurant’s cycle sandbox last result matches that job’s engine result
-
-### Requirement: Only the restaurateur may read their jobs
-A generate job SHALL belong to the session restaurant. An employee MUST NOT create or read generation jobs. A restaurateur MUST NOT read a job id that does not belong to their restaurant.
-
-#### Scenario: Employee cannot poll generate
-- **WHEN** an employee session gets a generate job id
-- **THEN** the request is rejected
-
-#### Scenario: Foreign job id
-- **WHEN** a restaurateur gets a job id that is not theirs
-- **THEN** the request is rejected or not found, and no other restaurant’s result is returned
+#### Scenario: Employee cannot generate
+- **WHEN** an employee session posts `/v1/generate`
+- **THEN** the request is rejected with HTTP 403 and no cycle is written

@@ -18,11 +18,11 @@
 - [x] 3.2 Implement `PATCH /v1/context` (optional section replace) and persist restart-safe. Verify PATCH name + salle ladder + 1 fiche + services + type + open week → `ready.salle` true / `ready.cuisine` false; `reset_engine` then same GET; open cell without type → salle false; new fiches get a Core `invite_token`; rotate stays `POST /v1/staff/{id}/invite-token`
 - [x] 3.3 Verify PATCH does not write `example_snapshots` or `data/examples/saint-cloud.json`, `GET /v1/examples/saint-cloud` stays 92 assignments, `GET /v1/invites/{company_code}` lists the unlinked fiche, and auth login/logout stay green
 
-## 4. Generation jobs
+## 4. Team generate (sync HTTP)
 
-- [ ] 4.1 Add a `jobs` table and `POST /v1/generate` that inserts `queued` and returns `job_id`, `status`, `search_effort` (default `optimized`), and `estimated_seconds` from engine `SEARCH_SECONDS`, and verify the response has no `assignments` and that generate without a cycle sandbox is rejected with a French error
-- [ ] 4.2 Add a Compose `worker` that claims jobs with `FOR UPDATE SKIP LOCKED`, calls `generate_cycle` with the sandbox draft and effort, writes the sandbox, and sets `done` or `failed`, and verify `GET /v1/jobs/{id}` reports `queued|running|done|failed`, `elapsed_seconds`, `estimated_seconds`, result only when `done`, and French error with no fake planning when `failed`
-- [ ] 4.3 Verify two generate jobs with the same sandbox inputs and effort return the same assignments, that an employee cannot create or poll jobs, and that a foreign `job_id` does not leak another restaurant’s result
+- [x] 4.1 Persist live `published_cycles` (JSONB on the company, not `example_snapshots`) and implement `GET /v1/cycles` (Bearer company). Verify a restaurant that never generated returns `{ published: { salle: null, cuisine: null } }`, employee Bearer is 403, and without `DATABASE_URL` generate/cycles are 503 while the public example stays 92
+- [x] 4.2 Implement sync `POST /v1/generate` `{ team, search_effort? }` that wraps Core `generate_team` (default effort `optimized`; tests use `minimal` only). Verify salle-ready context → POST `minimal` returns 200 with non-empty `published.salle.assignments` all `team: salle` and `published.cuisine` null; `TeamNotReady` (cuisine) is 409 French with no solve; a second POST salle replaces only salle
+- [x] 4.3 Verify `reset_engine` then `GET /v1/cycles` matches the last published body, `GET /v1/examples/saint-cloud` stays 92, and context GET / auth stay green. No `jobs` table, no Compose worker, no `SKIP LOCKED`
 
 ## 5. Synchronous adapters
 

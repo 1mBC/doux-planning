@@ -242,6 +242,7 @@ def _register_company(email: str, password: str) -> dict[str, Any]:
                     ladders={"salle": None, "cuisine": None},
                     types=[],
                     typical_week={"salle": None, "cuisine": None},
+                    published_cycles={"salle": None, "cuisine": None},
                 )
             )
             db.add(
