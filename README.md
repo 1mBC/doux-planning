@@ -34,4 +34,4 @@ npm install
 npm run dev
 ```
 
-Ouvrir [http://127.0.0.1:5173/](http://127.0.0.1:5173/). Écran français, lecture seule : grille 14 jours, warnings moteur, stats du JSON, tableaux légal et souhaits. Une seule route HTTP.
+Ouvrir [http://127.0.0.1:5173/](http://127.0.0.1:5173/). Écran français : lecture de l’example, puis **Mode édition** (sandbox cycle : retune / replace / swap / fill, historique, tout annuler). L’example public `GET /v1/examples/saint-cloud` reste figé. Pas d’auth ni de publish dans cette V0.
