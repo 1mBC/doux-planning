@@ -19,3 +19,11 @@
 
 - [x] 4.1 Apply paper-grid styling (sticky names, person tint, horizontal scroll) in the form of the GitHub Pages demo, not its hardcoded numbers; verify desktop layout in the browser (IronBee)
 - [x] 4.2 Document `uvicorn` + `npm run dev` in the root README and verify a new reader can open the French read-only screen without editing `src/doux_planning/` outside `api/`
+
+## 5. Auth screens
+
+- [x] 5.1 Types + loaders for login / register / logout / `GET /v1/me` / `GET /v1/invites/{company_code}` matching `contracts/http/v1-auth.md`; missing keys throw; Bearer never on examples or sandbox
+- [x] 5.2 Login (email + password) and register (`/register`, Entreprise / Salarié, no company name, employee fiches then `employee_id`, QR query locks salarié + `employee_token`); password ≥ 8; show API `detail`; no mot de passe oublié
+- [x] 5.3 `sessionStorage` token; session chrome (email + kind + Déconnexion); reload `GET /v1/me` (401 → login); example reachable without session (« Voir l’exemple »)
+- [x] 5.4 `kind: employee` hides Mode édition and shows the later-planning sentence; `kind: company` keeps grid + sandbox; bump `web/` to 0.7.0
+- [x] 5.5 Verify `npm run build`; company login → `/me` → logout; employee register (fiches + QR); example 92 assignments without session; employee has no Mode édition; version bar `v0.7.0`

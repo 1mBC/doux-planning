@@ -15,23 +15,27 @@ GET /v1/examples/saint-cloud
 ```
 
 ```
-uvicorn  :8000  --  GET /v1/examples/saint-cloud
+uvicorn  :8000  --  GET /v1/examples/saint-cloud   (public)
+                 --  /v1/sandbox/*                 (public)
+                 --  /v1/auth/*  /v1/me  /v1/invites/{code}
                          ^
                          | proxy /v1
-vite SPA :5173  --  React read-only screen
+vite SPA :5173  --  pathname : / login, /register, /exemple
 ```
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Ship a Vite + React + TypeScript app under `web/` that is the restaurateur’s first useful screen.
+- Keep the Vite + React + TypeScript app under `web/` as the restaurateur’s first useful screen.
 - Keep presentation (layout, French chrome, time formatting) strictly downstream of the snapshot.
+- Add login / register / QR / session chrome that follow `contracts/http/v1-auth.md` without scoring or inventing fields.
 
 **Non-Goals:**
-- Sandbox, generate, swap, publish, auth, PostgreSQL, Docker, mobile.
-- New HTTP routes or a second scoring path.
-- Pixel-identical clone of the GitHub Pages HTML (form, not a fork of its hardcoded numbers).
+- Generate, publish, rotate invite-token UI, context panels, team wizard, colored employee grid.
+- Merging `auth/infra` / `auth/core`, new FastAPI routes, a second scoring path, react-router.
+- Pixel-identical clone of the GitHub Pages HTML.
 - Translating engine messages into a new diagnosis.
+- « Mot de passe oublié ».
 
 ## Decisions
 
@@ -61,7 +65,24 @@ Match the demo’s structure: sticky person column, person tint, matin/soir rows
 
 ### 6. Types mirror the JSON
 
-TypeScript interfaces in `web/` describe the example payload. Missing required keys → French error, empty grid.
+TypeScript interfaces in `web/` describe the example payload and the auth JSON. Missing required keys → throw / French error, do not invent.
+
+### 7. Auth screens, pathname only
+
+No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
+
+- `/` and `/login` : un seul login (email + mot de passe) → `POST /v1/auth/login`. Le `kind` vient de `me`.
+- `/register` : bascule **Entreprise** / **Salarié**. Entreprise → `{ kind: company, email, password }` seulement. Salarié → code → `GET /v1/invites/{company_code}` → choisir une fiche (`id`, `name`, `role`, `team`) → `{ kind: employee, company_code, employee_id, email, password }` (pas de token).
+- QR : `/register?company_code=…&employee_token=…` — kind salarié verrouillé, pas de liste, POST avec `employee_token` (pas d’`employee_id`).
+- Password ≥ 8. Afficher `detail` tel quel. Pas de « mot de passe oublié ».
+- Token : `sessionStorage`. Bearer seulement sur register/login/logout/`GET /v1/me`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
+- Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 (`Base indisponible.`) n’empêche pas l’exemple.
+- Session chrome : email + kind (Entreprise / Salarié) + **Déconnexion** (`POST /v1/auth/logout`, oublier le token).
+- Sans session : login/register **et** `/exemple` (lien « Voir l’exemple »). La grille n’est pas derrière le login.
+- `kind: employee` : pas de Mode édition ; « Le planning publié personnel arrive plus tard. »
+- `kind: company` (et sans session) : grille + sandbox comme aujourd’hui.
+
+Hors slice : rotate invite-token, panneaux contexte, wizard, generate.
 
 ## Risks / Trade-offs
 
@@ -75,4 +96,4 @@ Greenfield `web/`. Rollback = delete `web/` (and revert CORS if it was added). E
 
 ## Open Questions
 
-None that block this slice. Editing, generate, and sandbox wait for a later change that will need new routes.
+None that block this slice. Rotate invite-token and context panels wait.
