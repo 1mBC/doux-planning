@@ -44,6 +44,7 @@ DETAIL_INVALID_INVITE = "Code entreprise ou jeton invalide."
 DETAIL_BAD_CREDENTIALS = "Email ou mot de passe incorrect."
 DETAIL_SESSION = "Session invalide."
 DETAIL_FORBIDDEN = "Action réservée au restaurateur."
+DETAIL_EMPLOYEE_ONLY = "Action réservée au salarié."
 DETAIL_EMAIL_TAKEN = "Cet email est déjà utilisé."
 DETAIL_FICHE_LINKED = "Cette fiche a déjà un compte."
 DETAIL_COMPANY_MISSING = "Entreprise introuvable."
@@ -182,6 +183,19 @@ def require_company_restaurant_id(authorization: str | None) -> str:
         if session.kind != "company":
             raise HTTPException(status_code=403, detail=DETAIL_FORBIDDEN)
         return session.restaurant_id
+
+
+def require_employee_session(authorization: str | None) -> tuple[str, str]:
+    require_database()
+    token = _bearer_token(authorization)
+    with session_scope() as db:
+        session = _load_session(db, token)
+        if session.kind != "employee":
+            raise HTTPException(status_code=403, detail=DETAIL_EMPLOYEE_ONLY)
+        account = db.get(EmployeeAccountRow, session.account_id)
+        if account is None:
+            raise HTTPException(status_code=401, detail=DETAIL_SESSION)
+        return session.restaurant_id, account.employee_id
 
 
 def _claim_email(db: Session, email: str) -> None:

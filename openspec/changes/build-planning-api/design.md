@@ -81,7 +81,7 @@ Restaurateur:
 - `GET /v1/jobs/{job_id}` (later; not in this slice)
 
 Employee:
-- `GET /v1/me/shifts`
+- `GET /v1/me/planning` (this slice; wrap `employee_board`)
 
 Errors: `{ "error": { "code": "...", "message": "<French>" } }`. Existing example 404 may keep FastAPI `detail` only if tests already assert it; prefer the structured shape for new routes and align the example route if it does not break the UI (UI only needs 200 body keys).
 
