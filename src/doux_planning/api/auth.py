@@ -132,14 +132,33 @@ def _issue_session(db: Session, *, kind: str, account_id: str, restaurant_id: st
 
 
 def _fiche_to_employee(row: StaffFiche) -> Employee:
+    from doux_planning.staff import Unavailability
+    from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS, WellbeingPreference
+
     team = Team(row.team)
-    role = Role(name=row.role, level=1, team=team)
+    role = Role(name=row.role, level=getattr(row, "role_level", 1) or 1, team=team)
+    unavailabilities = tuple(
+        Unavailability(
+            weekday=item.get("weekday"),
+            every_morning=bool(item.get("every_morning")),
+            every_evening=bool(item.get("every_evening")),
+            service_id=item.get("service_id"),
+        )
+        for item in (row.unavailabilities or [])
+        if isinstance(item, dict)
+    )
+    wellbeing = frozenset(
+        WellbeingPreference(value) for value in (row.wellbeing or []) if isinstance(value, str)
+    )
     return Employee(
         id=row.id,
         name=row.name,
         role=role,
         team=team,
-        contractual_hours_per_week=35,
+        contractual_hours_per_week=getattr(row, "contractual_hours_per_week", None) or 35,
+        unavailabilities=unavailabilities,
+        wellbeing=wellbeing,
+        min_shift_hours=getattr(row, "min_shift_hours", None) or DEFAULT_MIN_SHIFT_HOURS,
         invite_token=row.invite_token,
     )
 
@@ -150,7 +169,19 @@ def _identity_from_company(company: Company) -> RestaurantIdentity:
         id=company.id,
         invite_code=company.invite_code,
         linked_employee_ids=frozenset(linked),
+        name=company.name or "",
+        legal_context_id=getattr(company, "legal_context_id", None) or "france",
     )
+
+
+def require_company_restaurant_id(authorization: str | None) -> str:
+    require_database()
+    token = _bearer_token(authorization)
+    with session_scope() as db:
+        session = _load_session(db, token)
+        if session.kind != "company":
+            raise HTTPException(status_code=403, detail=DETAIL_FORBIDDEN)
+        return session.restaurant_id
 
 
 def _claim_email(db: Session, email: str) -> None:
@@ -206,6 +237,11 @@ def _register_company(email: str, password: str) -> dict[str, Any]:
                     invite_code=identity.invite_code,
                     name="",
                     linked_employee_ids=[],
+                    legal_context_id="france",
+                    services=[],
+                    ladders={"salle": None, "cuisine": None},
+                    types=[],
+                    typical_week={"salle": None, "cuisine": None},
                 )
             )
             db.add(

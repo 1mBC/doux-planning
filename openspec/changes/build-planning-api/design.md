@@ -46,7 +46,9 @@ No JWT. No cookies required.
 
 `POST /v1/auth/register`: `kind: company` → `RestaurantIdentity(...)` Core, persist invite code, one restaurateur, **new** empty company (not Saint-Cloud). `kind: employee` → load identity + fiches, wrap `redeem_invite` (QR `employee_token` or manual `employee_id`). `POST /v1/auth/login` is a single screen; `kind` comes from `me`. `GET /v1/me`. `POST /v1/auth/logout`. `GET /v1/invites/{company_code}` public (unlinked fiches only, no tokens). `POST /v1/staff/{id}/invite-token` company Bearer → `rotate_employee_invite_token`.
 
-Do not implement `/v1/auth/restaurateur/*` or `/v1/auth/employee/*`. Without `DATABASE_URL`, auth/invites/rotate return 503; example dual-read and public sandbox stay unchanged. Errors use `{ "detail": "<French>" }` like the sandbox.
+Do not implement `/v1/auth/restaurateur/*` or `/v1/auth/employee/*`. Without `DATABASE_URL`, auth/invites/rotate/context return 503; example dual-read and public sandbox stay unchanged. Errors use `{ "detail": "<French>" }` like the sandbox.
+
+Live context (`contracts/http/v1-context.md`): extend `companies` / `staff_fiches`. `GET` / `PATCH /v1/context` wrap Core `empty_restaurant`, mutators, and `team_ready`. Register company already persists an empty live company; GET returns that empty shape (`ready` false) without `generate_cycle`. PATCH keys are optional section replacements. New fiches get a Core `invite_token`; rotate stays `POST /v1/staff/{id}/invite-token`. Do not write `example_snapshots` or Saint-Cloud files.
 
 ### 5. Route map (restaurant id never in the path)
 
@@ -62,6 +64,7 @@ Session:
 - `GET /v1/me` (Bearer)
 
 Restaurateur (company Bearer), this slice:
+- `GET|PATCH /v1/context`
 - `POST /v1/staff/{id}/invite-token`
 
 Restaurateur:

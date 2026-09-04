@@ -4,16 +4,20 @@ Makes PostgreSQL the live source of truth for one restaurant’s domain data, in
 
 ## ADDED Requirements
 
-### Requirement: Live store holds the domain
-The system SHALL persist in the live database: restaurant identity and invite code, staff (roles, employees, contracts, unavailabilities, wellbeing), service structures, opening hours, published cycle, calendar weeks, intents, at most one sandbox per restaurant, legal contexts, restaurateur and employee accounts, sessions, and generation jobs. After a process restart, those records MUST still be readable without regenerating a cycle.
+### Requirement: Live store holds the onboarding context
+The system SHALL persist the live company context in Postgres: identity (`name`, `invite_code`, `legal_context_id` `france`), company services, role ladders, employees (contracts, unavailabilities, wellbeing, `min_shift_hours`, Core `invite_token`), service types, typical week, plus accounts and sessions already specified. `GET /v1/context` and `PATCH /v1/context` MUST wrap Core `empty_restaurant` / mutators / `team_ready` and MUST NOT call `generate_cycle`. After a process restart (`reset_engine`), `GET /v1/context` MUST return the same body. Published cycle, calendar weeks, intents, and generation jobs remain later slices.
 
-#### Scenario: Restart keeps published cycle
-- **WHEN** a restaurant has a published cycle and the API process restarts
-- **THEN** a subsequent restaurateur read returns the same published assignments and warnings
+#### Scenario: Empty company context after register
+- **WHEN** a caller registers `kind: company` then gets `/v1/context` with that company session
+- **THEN** the body has name `""`, `services` `[]`, empty ladders/types/week, `ready.salle` and `ready.cuisine` false, `legal_context_id` `france`, and `company_code` equal to the invite code
+
+#### Scenario: Restart keeps patched context
+- **WHEN** a restaurateur patches a ready salle context and the API engine is reset
+- **THEN** a subsequent `GET /v1/context` returns the same name, sections, and `ready` flags
 
 #### Scenario: Sandbox survives leave
 - **WHEN** the restaurateur enters a cycle sandbox, edits, and the session later returns
-- **THEN** the same unpublished sandbox draft is still present until discard or publish
+- **THEN** the same unpublished sandbox draft is still present until discard or publish (later slice; public sandbox in this slice is unchanged)
 
 ### Requirement: Restaurant references legal context by id
 Each restaurant SHALL store a `legal_context` identifier (Saint-Cloud: `france`). Legal rule documents SHALL live in legal-context records, not copied onto the restaurant row. Loading a restaurant MUST resolve displayable legal rules from that context.

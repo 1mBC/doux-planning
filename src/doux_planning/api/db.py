@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, create_engine
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, create_engine
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -57,6 +57,11 @@ class Company(Base):
     invite_code: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     linked_employee_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
+    legal_context_id: Mapped[str] = mapped_column(String, nullable=False, default="france")
+    services: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    ladders: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    types: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    typical_week: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
 
 class StaffFiche(Base):
@@ -68,6 +73,11 @@ class StaffFiche(Base):
     role: Mapped[str] = mapped_column(String, nullable=False)
     team: Mapped[str] = mapped_column(String, nullable=False)
     invite_token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    role_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    contractual_hours_per_week: Mapped[float] = mapped_column(Float, nullable=False, default=35)
+    min_shift_hours: Mapped[float] = mapped_column(Float, nullable=False, default=4)
+    unavailabilities: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    wellbeing: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
 
 
 class AccountEmail(Base):

@@ -68,6 +68,22 @@ def auth_rotate_invite_token(
     return rotate_invite_token(employee_id, authorization)
 
 
+@app.get("/v1/context")
+def get_context(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.context import get_context as read_context
+
+    return read_context(authorization)
+
+
+@app.patch("/v1/context")
+def patch_context(
+    body: dict[str, Any], authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.context import patch_context as write_context
+
+    return write_context(authorization, body)
+
+
 @app.get("/v1/examples/{example_id}")
 def get_example(example_id: str) -> dict:
     try:

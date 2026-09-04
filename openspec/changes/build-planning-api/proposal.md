@@ -4,7 +4,7 @@ Le moteur, le domaine (y compris invites / `PlanningStore`) et `GET /v1/examples
 
 ## What Changes
 
-- Persister le domaine live dans PostgreSQL (staff, structures, hours, cycle, weeks, sandbox, intents, contextes légaux, jobs). Les fichiers `data/` restent la source du seed et le contrat figé, pas un second runtime.
+- Persister le **contexte live** (`GET` / `PATCH /v1/context`, `contracts/http/v1-context.md`) dans PostgreSQL : identité, services, échelles, fiches, types, semaine type, `ready` via Core `team_ready`. Cycle / jobs / publish restent plus tard. Les fichiers `data/` restent le seed figé, pas un second runtime.
 - Seeder au boot / migrate l’exemple Saint-Cloud (resto + snapshot planning + `legal_context` france). `GET /v1/examples/saint-cloud` reste **public**, lit le snapshot stocké, et ne lance ni `generate_cycle` ni job.
 - Le légal France est un contexte pays (`legal_contexts`), pas une propriété du restaurant (`legal_context: "france"`).
 - Auth unifiée (`contracts/http/v1-auth.md`) : `POST /v1/auth/register` (`kind: company` | `employee`) et un seul `POST /v1/auth/login`. `kind: company` crée une **nouvelle** entreprise vide (nom `""`), un restaurateur, pas Saint-Cloud. `kind: employee` wrappe `redeem_invite` (QR ou manuel). Pas d’OAuth, pas de magic link. Les vieilles routes `/v1/auth/restaurateur/*` et `/v1/auth/employee/*` ne s’implémentent pas.
