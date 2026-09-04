@@ -260,7 +260,7 @@ function HistoryList({
 
 type OverlayTarget = { kind: "occupied"; shift: ShiftIdentity } | { kind: "fill"; slot: FillSlot };
 
-export default function App() {
+export default function App({ canEdit = true }: { canEdit?: boolean }) {
   const [payload, setPayload] = useState<ExamplePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sandbox, setSandbox] = useState<SandboxState | null>(null);
@@ -268,6 +268,13 @@ export default function App() {
   const [overlay, setOverlay] = useState<OverlayTarget | null>(null);
   const [entering, setEntering] = useState(false);
   const editing = sandbox !== null;
+
+  useEffect(() => {
+    if (!canEdit) {
+      setSandbox(null);
+      setOverlay(null);
+    }
+  }, [canEdit]);
 
   useEffect(() => {
     let cancelled = false;
@@ -400,21 +407,25 @@ export default function App() {
             : ` · recherche ${effortLabel(planning.search_effort)} (${planning.calendars} calendriers, ${formatSeconds(planning.seconds)}) · lecture seule`}
         </p>
         <div className="toolbar">
-          {editing ? (
-            <button
-              type="button"
-              className="choice"
-              onClick={() => {
-                setSandbox(null);
-                setOverlay(null);
-              }}
-            >
-              Lecture
-            </button>
+          {canEdit ? (
+            editing ? (
+              <button
+                type="button"
+                className="choice"
+                onClick={() => {
+                  setSandbox(null);
+                  setOverlay(null);
+                }}
+              >
+                Lecture
+              </button>
+            ) : (
+              <button type="button" className="choice active" disabled={entering} onClick={() => void startEdit()}>
+                {entering ? "Ouverture…" : "Mode édition"}
+              </button>
+            )
           ) : (
-            <button type="button" className="choice active" disabled={entering} onClick={() => void startEdit()}>
-              {entering ? "Ouverture…" : "Mode édition"}
-            </button>
+            <p className="sub">Le planning publié personnel arrive plus tard.</p>
           )}
         </div>
         <p className="release">

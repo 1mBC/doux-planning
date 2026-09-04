@@ -394,3 +394,81 @@ table.plan td.empty-slot {
 .impact-yellow {
   color: #9a7b12;
 }
+
+.session-bar {
+  margin: 0 auto;
+  padding: 12px 24px 0;
+  max-width: 1600px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.session-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-page {
+  max-width: 480px;
+}
+
+.auth-form label {
+  display: block;
+  margin: 12px 0 4px;
+  font-weight: 600;
+}
+
+.auth-form input:not([type="radio"]) {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfd3d8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.auth-form .choice {
+  margin-top: 14px;
+}
+
+.auth-switch {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.auth-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.auth-fiches {
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 10px 0 0;
+}
+
+.auth-fiche {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0;
+  font-weight: 400;
+}
+
+.linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: #2b6ea8;
+  cursor: pointer;
+  text-decoration: underline;
+}
