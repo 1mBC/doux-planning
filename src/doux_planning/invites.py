@@ -43,6 +43,8 @@ class RestaurantIdentity:
     id: str
     invite_code: str = field(default_factory=lambda: secrets.token_urlsafe(8))
     linked_employee_ids: frozenset[str] = field(default_factory=frozenset)
+    name: str = ""
+    legal_context_id: str = "france"
 
     def __post_init__(self) -> None:
         self.linked_employee_ids = frozenset(self.linked_employee_ids)
