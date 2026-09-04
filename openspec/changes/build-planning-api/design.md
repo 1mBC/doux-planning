@@ -9,7 +9,7 @@ Engine time bounds already exist (`SEARCH_SECONDS`: minimal 3s, optimized 30s, m
 **Goals:**
 - Postgres-backed live store plus FastAPI adapters that call the engine and serialize its result.
 - Public example contract preserved (same JSON keys, no auth, no solve).
-- Password sessions for restaurateur and employee; restaurant id only from the session.
+- Password sessions for company (`kind: company`) and employee; restaurant id only from the session. Unified `/v1/auth/register` and `/v1/auth/login` per `contracts/http/v1-auth.md`.
 - Generate as a Postgres job + worker poll; other engine calls stay in-request.
 
 **Non-Goals:**
@@ -40,21 +40,29 @@ Alternative: public GET returns the live published cycle. Rejected — `build-pl
 
 ### 4. Auth: Argon2 hashes + opaque sessions in Postgres
 
-`restaurateur_accounts (email unique, password_hash)` — one row. `employee_accounts (email unique, employee_id unique, restaurant_id, password_hash)`. `sessions (token_hash, account_kind, account_id, restaurant_id, expires_at)`. Login returns the raw token once; `Authorization: Bearer`. Logout deletes the session row.
+Live companies are **not** the seeded `restaurants` / Saint-Cloud snapshot row. New tables: live company (`id`, `invite_code`, `name` `""`, `linked_employee_ids`), live fiches (`id`, `company_id`, `name`, `role`, `team`, `invite_token`), `restaurateur_accounts` / `employee_accounts` (email unique **global**, Argon2 `password_hash`), `sessions` (`token_hash`, kind `company`|`employee`, `account_id`, `restaurant_id`, `expires_at`). Login/register return the raw token once; `Authorization: Bearer`. Logout deletes the session row.
 
-No JWT (cannot revoke without a denylist, which is another table). No cookies required for a future mobile client on the same API.
+No JWT. No cookies required.
 
-Bootstrap: `POST /v1/auth/restaurateur/register` succeeds only when no restaurateur exists; it binds to the seeded restaurant. `POST /v1/auth/restaurateur/login`. Employee: `GET /v1/invites/{code}` (restaurant name + unlinked employees), `POST /v1/auth/employee/register` `{invite_code, employee_id, email, password}`, `POST /v1/auth/employee/login`. `GET /v1/me`. `POST /v1/auth/logout`.
+`POST /v1/auth/register`: `kind: company` → `RestaurantIdentity(...)` Core, persist invite code, one restaurateur, **new** empty company (not Saint-Cloud). `kind: employee` → load identity + fiches, wrap `redeem_invite` (QR `employee_token` or manual `employee_id`). `POST /v1/auth/login` is a single screen; `kind` comes from `me`. `GET /v1/me`. `POST /v1/auth/logout`. `GET /v1/invites/{company_code}` public (unlinked fiches only, no tokens). `POST /v1/staff/{id}/invite-token` company Bearer → `rotate_employee_invite_token`.
 
-Invite redeem stays the domain function; HTTP supplies `employee_id` after the picker. One restaurant-level invite code (already specified).
+Do not implement `/v1/auth/restaurateur/*` or `/v1/auth/employee/*`. Without `DATABASE_URL`, auth/invites/rotate return 503; example dual-read and public sandbox stay unchanged. Errors use `{ "detail": "<French>" }` like the sandbox.
 
 ### 5. Route map (restaurant id never in the path)
 
 Public:
 - `GET /v1/examples/{example_id}`
-- `GET /v1/invites/{code}`
-- `POST /v1/auth/restaurateur/register|login`
-- `POST /v1/auth/employee/register|login`
+- `GET /v1/invites/{company_code}`
+- `POST /v1/auth/register`
+- `POST /v1/auth/login`
+- `/v1/sandbox/*` (unchanged in the auth slice)
+
+Session:
+- `POST /v1/auth/logout` (Bearer)
+- `GET /v1/me` (Bearer)
+
+Restaurateur (company Bearer), this slice:
+- `POST /v1/staff/{id}/invite-token`
 
 Restaurateur:
 - `GET|PATCH /v1/restaurant` (hours, name, legal_context id)
@@ -93,7 +101,7 @@ PostgreSQL 16, SQLAlchemy 2 (sync) + Alembic, psycopg, Argon2. FastAPI handlers 
 - [API tests need Postgres] → Extend existing tests with a `DATABASE_URL`; document Compose. Do not add SQLite as a second dialect.
 - [Worker down leaves jobs queued] → Status stays `queued`; UI keeps polling `estimated_seconds`. No fake result.
 - [In-process generate would block uvicorn] → Dedicated worker service.
-- [Restaurateur register race] → Unique constraint + reject if a restaurateur row exists.
+- [Restaurateur register race] → Unique email constraint (global) + one restaurateur per new live company, never bind to Saint-Cloud.
 - [Invite preview leaks first names] → Acceptable: the code is the secret, human-scale staff list.
 - [Temptation to “fix” the engine while wiring jobs] → Call `generate_cycle` / `evaluate` as-is; stop and ask if a result looks wrong.
 
@@ -103,4 +111,4 @@ Greenfield DB: `alembic upgrade` then seed. Rollback: drop Compose volumes; data
 
 ## Open Questions
 
-None that change specs or task order. Password minimum length can be tightened later without new capabilities.
+None that change specs or task order. Password minimum is 8 characters per the frozen HTTP contract.

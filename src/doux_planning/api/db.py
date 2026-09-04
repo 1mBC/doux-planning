@@ -3,8 +3,9 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, create_engine
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, create_engine
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -47,6 +48,62 @@ class SandboxSession(Base):
 
     restaurant_id: Mapped[str] = mapped_column(String, primary_key=True)
     document: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+
+class Company(Base):
+    __tablename__ = "companies"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    invite_code: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    linked_employee_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
+
+
+class StaffFiche(Base):
+    __tablename__ = "staff_fiches"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    team: Mapped[str] = mapped_column(String, nullable=False)
+    invite_token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+
+
+class AccountEmail(Base):
+    __tablename__ = "account_emails"
+
+    email: Mapped[str] = mapped_column(String, primary_key=True)
+
+
+class RestaurateurAccount(Base):
+    __tablename__ = "restaurateur_accounts"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    email: Mapped[str] = mapped_column(ForeignKey("account_emails.email"), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    restaurant_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), unique=True, nullable=False)
+
+
+class EmployeeAccountRow(Base):
+    __tablename__ = "employee_accounts"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    email: Mapped[str] = mapped_column(ForeignKey("account_emails.email"), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    restaurant_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    employee_id: Mapped[str] = mapped_column(ForeignKey("staff_fiches.id"), unique=True, nullable=False)
+
+
+class AuthSession(Base):
+    __tablename__ = "sessions"
+    __table_args__ = (UniqueConstraint("token_hash"),)
+
+    token_hash: Mapped[str] = mapped_column(String, primary_key=True)
+    kind: Mapped[str] = mapped_column(String, nullable=False)
+    account_id: Mapped[str] = mapped_column(String, nullable=False)
+    restaurant_id: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 def database_url() -> str | None:
