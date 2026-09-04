@@ -32,6 +32,10 @@ Discard : Core discard puis enter (brouillon = publié actuel). Publish : écrit
 
 Brouillons `live_sandboxes` sur l’entreprise live (pas `sandbox_sessions` Saint-Cloud, pas `example_snapshots`). Restart → même GET live. Joujou `/v1/sandbox/enter` sans Bearer toujours 200, exemple 92.
 
+## UI (cette tranche)
+
+`/planning` company : Mode édition → `/v1/live/sandbox/{team}/…` (Bearer). Même overlays que le joujou. Publier ferme le brouillon. `/exemple` continue d’appeler `/v1/sandbox/*` sans Bearer.
+
 ## Hors tranche
 
-Jobs, semaines / reconciliation, `/me/shifts`, UI Mode édition, lock du joujou public.
+Jobs, semaines / reconciliation, `/me/shifts`, lock du joujou public.
