@@ -3,20 +3,27 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import replace
 
+from doux_planning.engine import PlanningDraft, generate_cycle
 from doux_planning.invites import RestaurantIdentity
-from doux_planning.planning import RestaurantState
-from doux_planning.staff import Employee, RoleLadder
+from doux_planning.planning import PublishedCycle, RestaurantState
+from doux_planning.staff import Employee, RoleLadder, default_legal_rules
 from doux_planning.structures import (
     RestaurantHours,
     ServiceStructure,
     ServiceType,
     TypicalWeek,
 )
-from doux_planning.types import ServiceName, Team, WEEKDAYS
+from doux_planning.types import SearchEffort, ServiceName, Team, WEEKDAYS
 
 COMPANY_SERVICE_IDS = frozenset(
     {ServiceName.MORNING.value, ServiceName.MIDDAY.value, ServiceName.EVENING.value}
 )
+
+
+class TeamNotReady(ValueError):
+    def __init__(self, team: Team) -> None:
+        self.team = team
+        super().__init__(f"team {team.value} is not ready")
 
 
 def empty_restaurant(restaurant_id: str) -> RestaurantState:
@@ -128,3 +135,29 @@ def fortnight_coverage(structures: Sequence[ServiceStructure]) -> tuple[tuple, t
         )
 
     return week_key(0), week_key(7)
+
+
+def generate_team(
+    state: RestaurantState,
+    team: Team,
+    search: SearchEffort = SearchEffort.OPTIMIZED,
+) -> RestaurantState:
+    if not team_ready(state, team):
+        raise TeamNotReady(team)
+    structures = tuple(item for item in expand_typical_week(state) if item.team == team)
+    employees = tuple(person for person in state.employees if person.team == team)
+    draft = PlanningDraft(
+        employees=employees,
+        structures=structures,
+        hours=state.hours,
+        legal_rules=default_legal_rules(),
+        search_effort=search,
+    )
+    result = generate_cycle(draft, search)
+    published = PublishedCycle(
+        id=team.value,
+        draft=draft.with_assignments(result.assignments),
+        result=result,
+    )
+    state.published_cycles[team] = published
+    return state
