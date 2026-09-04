@@ -50,9 +50,14 @@ export function SessionChrome({
               {busy ? "Déconnexion…" : "Déconnexion"}
             </button>
             {me.kind === "company" ? (
-              <button type="button" className="choice" onClick={() => go("/context")}>
-                Mon restaurant
-              </button>
+              <>
+                <button type="button" className="choice" onClick={() => go("/context")}>
+                  Mon restaurant
+                </button>
+                <button type="button" className="choice" onClick={() => go("/planning")}>
+                  Planning
+                </button>
+              </>
             ) : null}
           </>
         ) : (

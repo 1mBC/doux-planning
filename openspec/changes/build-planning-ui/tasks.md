@@ -34,3 +34,10 @@
 - [x] 6.2 Company `/context` (after login/register + « Mon restaurant »): identity banner, sequential wizard roles → fiches → services → types → semaine, both teams, full-list PATCH rules, invite URL, no rotate, no generate
 - [x] 6.3 Show `ready.*` as JSON badges; employee cannot open `/context`; bump `web/` to 0.8.0
 - [x] 6.4 Verify `npm run build`; company salle 5 steps → `ready.salle` true / `ready.cuisine` false; reload same context; employee stays off wizard; example 92 without session; `v0.8.0`
+
+## 7. Team generate
+
+- [x] 7.1 Types + GET `/v1/cycles` + POST `/v1/generate` matching the contract; missing keys throw; Bearer on generate/cycles (+ existing auth/context); never on example/sandbox
+- [x] 7.2 Company `/planning` (chrome « Planning »): load cycles + context, team selector, Calculer iff `ready[team]`, POST `minimal`, grid + warnings, no invented stats/legal/wish, no sandbox on this cycle
+- [x] 7.3 Cuisine null / not ready: empty + « Pas encore calculé », salle intacte; employee cannot open `/planning`; bump `web/` to 0.9.0
+- [x] 7.4 Verify `npm run build`; salle ready → Calculer → cells + warnings; cuisine button off; reload keeps salle; employee stays off planning; example 92 without session; `v0.9.0`
