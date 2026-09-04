@@ -4,6 +4,7 @@ import { clearToken, loadMe, readStoredToken, type Me } from "./auth";
 import { ApiHttpError } from "./sandbox";
 import { LoginScreen, RegisterScreen, SessionChrome, go } from "./AuthScreens";
 import { ContextWizard } from "./ContextWizard";
+import { EmployeePlanning } from "./EmployeePlanning";
 import { PublishedPlanning } from "./PublishedPlanning";
 import "./App.css";
 
@@ -66,13 +67,17 @@ export default function Root() {
           ? "context"
           : path === "/planning" && me?.kind === "company"
             ? "planning"
-            : path === "/context" || path === "/planning"
-              ? "exemple"
-              : me?.kind === "company" && (path === "/" || path === "/login")
-                ? "context"
-                : me
-                  ? "exemple"
-                  : "login";
+            : path === "/planning" && me?.kind === "employee"
+              ? "employee"
+              : path === "/context" || path === "/planning"
+                ? "exemple"
+                : me?.kind === "company" && (path === "/" || path === "/login")
+                  ? "context"
+                  : me?.kind === "employee" && (path === "/" || path === "/login")
+                    ? "employee"
+                    : me
+                      ? "exemple"
+                      : "login";
   const canEdit = me?.kind !== "employee";
 
   if (!ready) {
@@ -96,6 +101,7 @@ export default function Root() {
       {route === "register" ? <RegisterScreen onSignedIn={setMe} /> : null}
       {route === "context" ? <ContextWizard /> : null}
       {route === "planning" ? <PublishedPlanning /> : null}
+      {route === "employee" ? <EmployeePlanning /> : null}
       {route === "exemple" ? <App canEdit={canEdit} /> : null}
     </>
   );

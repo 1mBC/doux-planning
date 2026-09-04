@@ -50,15 +50,13 @@ export function SessionChrome({
               {busy ? "Déconnexion…" : "Déconnexion"}
             </button>
             {me.kind === "company" ? (
-              <>
-                <button type="button" className="choice" onClick={() => go("/context")}>
-                  Mon restaurant
-                </button>
-                <button type="button" className="choice" onClick={() => go("/planning")}>
-                  Planning
-                </button>
-              </>
+              <button type="button" className="choice" onClick={() => go("/context")}>
+                Mon restaurant
+              </button>
             ) : null}
+            <button type="button" className="choice" onClick={() => go("/planning")}>
+              Planning
+            </button>
           </>
         ) : (
           <>
@@ -98,7 +96,7 @@ export function LoginScreen({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
     try {
       const me = await login(email, password);
       onSignedIn(me);
-      go(me.kind === "company" ? "/context" : "/exemple");
+      go(me.kind === "company" ? "/context" : "/planning");
     } catch (err) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {
@@ -211,7 +209,7 @@ export function RegisterScreen({ onSignedIn }: { onSignedIn: (me: Me) => void })
               employee_id: employeeId,
             });
       onSignedIn(me);
-      go(me.kind === "company" ? "/context" : "/exemple");
+      go(me.kind === "company" ? "/context" : "/planning");
     } catch (err) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {

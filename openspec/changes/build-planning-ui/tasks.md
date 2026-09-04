@@ -48,3 +48,10 @@
 - [x] 8.2 `/planning` Mode édition if published[team]; overlays + history + Annuler + Tout annuler; Lecture without discard; Publier updates cycles
 - [x] 8.3 Cuisine without cycle: no edit; `/exemple` joujou unchanged; bump `web/` to 0.10.0
 - [x] 8.4 Verify `npm run build`; salle edit retune → Lecture keeps cran → Publier → reload; example enter without session still 92; `v0.10.0`
+
+## 9. Employee board
+
+- [x] 9.1 Types + GET `/v1/me/planning` matching the contract; missing keys throw; Bearer on me/planning (+ existing auth); never on example/sandbox
+- [x] 9.2 Employee `/planning` (after login/register + chrome « Planning »): team grid, me highlight, muted colleagues, empty → « Pas encore publié », read-only contract / unavail / wishes panel; no Calculer / Mode édition / wizard
+- [x] 9.3 Company `/planning` / `/context` / live unchanged; `/exemple` joujou unchanged; remove later-planning sentence; bump `web/` to 0.11.0
+- [x] 9.4 Verify `npm run build`; employee with published salle fiche → team grid + color + panel; company `/planning` keeps Calculer; example 92 without session; `v0.11.0`
