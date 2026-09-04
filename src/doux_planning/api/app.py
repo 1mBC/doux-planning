@@ -52,6 +52,13 @@ def auth_me(authorization: str | None = Header(default=None)) -> dict:
     return me(authorization)
 
 
+@app.get("/v1/me/planning")
+def me_planning(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.me_planning import get_me_planning
+
+    return get_me_planning(authorization)
+
+
 @app.get("/v1/invites/{company_code}")
 def auth_invites(company_code: str) -> dict:
     from doux_planning.api.auth import list_invites

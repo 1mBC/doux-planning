@@ -61,11 +61,19 @@ Authenticated restaurateur routes SHALL allow reading and updating staff, struct
 - **THEN** the request is rejected and hours are unchanged
 
 ### Requirement: Employee planning route
-The system SHALL expose an employee route that returns only that account’s published shifts for the session restaurant. It MUST NOT return sandbox state, other people’s shifts, or generate controls.
+`GET /v1/me/planning` (Bearer employee) SHALL wrap Core `employee_board` for `me.employee_id`. The 200 body MUST be `{ employee_id, team, employees, assignments, contract, wishes, unavailabilities }` per `contracts/http/v1-me-planning.md`. `assignments` MUST be the full published team grid (empty if that team has no cycle). `employees` MUST be the fiches of that team (no `invite_token`). The route MUST NOT return live sandbox drafts, `/me/shifts`, or snapshot `legal_rows` / `wish_rows`. A company session MUST receive HTTP 403 `Action réservée au salarié.`
 
-#### Scenario: Employee shift list
-- **WHEN** a linked employee gets their planning
-- **THEN** each returned shift has that employee’s id and comes from published data
+#### Scenario: Salle employee sees the published team grid
+- **WHEN** a linked salle employee gets `/v1/me/planning` after a salle generate
+- **THEN** `assignments` matches the published salle cycle (every teammate’s shifts), `employee_id` is that account, and `contract` / `wishes` are present
+
+#### Scenario: Unpublished live cran is invisible
+- **WHEN** the restaurateur has an uncommitted-to-publish live sandbox edit
+- **THEN** `/v1/me/planning` still returns the published assignments
+
+#### Scenario: Company cannot read employee planning
+- **WHEN** a company session gets `/v1/me/planning`
+- **THEN** the response is HTTP 403 French
 
 ### Requirement: Product errors are French
 Protected and public API error bodies SHALL present a French `message` suitable to show in the product. OpenSpec requirements remain in English.
