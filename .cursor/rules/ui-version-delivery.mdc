@@ -1,0 +1,14 @@
+---
+description: Livrer un numéro de version et un mot sur le dernier changement UI
+alwaysApply: true
+---
+
+# Version UI à chaque livraison
+
+Quand tu changes l’interface (`web/`) :
+
+1. Incrémente `version` et mets à jour `note` (une phrase française) dans `web/src/release.ts`. Aligne `web/package.json` `version`.
+2. La barre de version dans l’app doit afficher ce couple version + note.
+3. Dans la réponse chat, ouvre par **vX.Y.Z** et le petit mot du dernier changement visible.
+
+Ne pas lancer Vite s’il tourne déjà dans le terminal `web/` de l’utilisateur.

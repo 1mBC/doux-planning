@@ -1,10 +1,25 @@
 from __future__ import annotations
 
+import os
+from contextlib import asynccontextmanager
+from typing import Any
+
 from fastapi import FastAPI, HTTPException
 
 from doux_planning.api.examples import ExampleNotFound, LegalContextNotFound, example_payload
+from doux_planning.planning import EmptyHistoryError
 
-app = FastAPI(title="doux-planning", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if os.environ.get("DATABASE_URL"):
+        from doux_planning.api.seed import seed_from_files
+
+        seed_from_files()
+    yield
+
+
+app = FastAPI(title="doux-planning", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/v1/examples/{example_id}")
@@ -15,3 +30,106 @@ def get_example(example_id: str) -> dict:
         raise HTTPException(status_code=404, detail=f"unknown example: {example_id}") from None
     except LegalContextNotFound as exc:
         raise HTTPException(status_code=500, detail=f"missing legal context: {exc}") from None
+
+
+@app.post("/v1/sandbox/enter")
+def sandbox_enter() -> dict:
+    from doux_planning.api.sandbox import enter_sandbox_state
+
+    return enter_sandbox_state()
+
+
+@app.get("/v1/sandbox")
+def sandbox_get() -> dict:
+    from doux_planning.api.sandbox import current_sandbox_state
+
+    try:
+        return current_sandbox_state()
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
+
+
+@app.post("/v1/sandbox/preview")
+def sandbox_preview(body: dict[str, Any]) -> dict:
+    from doux_planning.api.sandbox import preview
+    from doux_planning.planning import IdentityRetuneError, OccupiedSlotError
+
+    try:
+        return preview(body)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
+    except RuntimeError:
+        raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
+    except IdentityRetuneError:
+        raise HTTPException(status_code=400, detail="Ces horaires sont déjà ceux du créneau.") from None
+    except OccupiedSlotError:
+        raise HTTPException(status_code=409, detail="Cette case est déjà occupée.") from None
+    except ValueError as exc:
+        message = str(exc)
+        if "not in the sandbox" in message or "missing shift" in message:
+            raise HTTPException(status_code=404, detail="Ce créneau n'est pas dans le brouillon.") from None
+        if "unknown gesture" in message:
+            raise HTTPException(status_code=400, detail="Geste inconnu.") from None
+        if "min_shift_hours" in message:
+            raise HTTPException(status_code=400, detail="La durée est inférieure au minimum du salarié.") from None
+        if "15-minute grid" in message:
+            raise HTTPException(status_code=400, detail="Les horaires doivent être sur la grille de 15 minutes.") from None
+        if "closed" in message.lower():
+            raise HTTPException(status_code=400, detail="Ce service est fermé.") from None
+        raise HTTPException(status_code=400, detail="Champs manquants pour ce geste.") from None
+
+
+@app.post("/v1/sandbox/commit")
+def sandbox_commit(body: dict[str, Any]) -> dict:
+    from doux_planning.api.sandbox import commit
+    from doux_planning.planning import IdentityRetuneError, OccupiedSlotError
+
+    try:
+        return commit(body)
+    except LookupError as exc:
+        if str(exc) == "no proposal":
+            raise HTTPException(status_code=400, detail="Proposition introuvable.") from None
+        raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
+    except (RuntimeError, KeyError):
+        raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
+    except IdentityRetuneError:
+        raise HTTPException(status_code=400, detail="Ces horaires sont déjà ceux du créneau.") from None
+    except OccupiedSlotError:
+        raise HTTPException(status_code=409, detail="Cette case est déjà occupée.") from None
+    except ValueError as exc:
+        message = str(exc)
+        if "not in the sandbox" in message or "missing shift" in message:
+            raise HTTPException(status_code=404, detail="Ce créneau n'est pas dans le brouillon.") from None
+        if "unknown gesture" in message:
+            raise HTTPException(status_code=400, detail="Geste inconnu.") from None
+        if "min_shift_hours" in message:
+            raise HTTPException(status_code=400, detail="La durée est inférieure au minimum du salarié.") from None
+        if "15-minute grid" in message:
+            raise HTTPException(status_code=400, detail="Les horaires doivent être sur la grille de 15 minutes.") from None
+        if "closed" in message.lower():
+            raise HTTPException(status_code=400, detail="Ce service est fermé.") from None
+        raise HTTPException(status_code=400, detail="Champs manquants pour ce geste.") from None
+
+
+@app.post("/v1/sandbox/undo")
+def sandbox_undo() -> dict:
+    from doux_planning.api.sandbox import undo
+
+    try:
+        return undo()
+    except EmptyHistoryError:
+        raise HTTPException(status_code=409, detail="Aucune modification à annuler.") from None
+    except (LookupError, RuntimeError, KeyError):
+        raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
+
+
+@app.post("/v1/sandbox/discard")
+def sandbox_discard() -> dict:
+    from doux_planning.api.sandbox import discard_sandbox_state
+
+    try:
+        return discard_sandbox_state()
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
+    except (RuntimeError, KeyError):
+        raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None

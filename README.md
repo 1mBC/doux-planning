@@ -16,3 +16,22 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
 ```
+
+## UI lecture seule (exemple Saint-Cloud)
+
+Deux processus, sans `DATABASE_URL` (snapshot fichiers) :
+
+```bash
+# API — GET /v1/examples/saint-cloud
+source .venv/bin/activate
+uvicorn doux_planning.api.app:app --reload
+```
+
+```bash
+# Client React (proxy /v1 → http://127.0.0.1:8000)
+cd web
+npm install
+npm run dev
+```
+
+Ouvrir [http://127.0.0.1:5173/](http://127.0.0.1:5173/). Écran français, lecture seule : grille 14 jours, warnings moteur, stats du JSON, tableaux légal et souhaits. Une seule route HTTP.
