@@ -10,7 +10,7 @@
 
 ## 3. First useful screen
 
-- [x] 3.1 Show `planning.stats` counters (`assignments`, `empty`, `interdit`, `below_role`, `hours.percent` as « Heures vs contrat », `wellbeing.held` / `wellbeing.total` as « Souhaits bien-être ») and verify they equal the payload (92 / 0 / 0 / 43 / 84 % / 21 / 21) without displaying assigned/contracted, `stats.souhait`, or a semaines-à-l’heure ratio
+- [x] 3.1 Show `planning.stats` counters (`assignments`, `empty`, `interdit`, `below_role`, `hours.percent` as « Heures vs contrat », `wellbeing.held` / `wellbeing.total` as « Souhaits bien-être ») and verify they equal the payload (92 / 0 / 0 / 47 / 84 % / 10 / 12) without displaying assigned/contracted, `stats.souhait`, or a semaines-à-l’heure ratio
 - [x] 3.2 Render week A and week B paper grids (role groups, person + midi/soir, début/fin/H, empty = repos, post level in parentheses when below role) from `assignments` + `employees`; verify Théo midi lundi semaine A is 11h–16h 5h and that no assignment is invented
 - [x] 3.3 List every `planning.warnings` item (French severity label, engine `message` kept) and verify the list length equals `warnings.length` (14 on the current snapshot)
 - [x] 3.4 Render the legal table from `legal.rules` + `legal_rows` (omit rules with no cells) and the wish table from `wish_cols` + `wish_rows`; verify cuisine 11 h/j is absent and Diane contrat text is the payload’s `30h · 29h / 39h`
@@ -55,3 +55,10 @@
 - [x] 9.2 Employee `/planning` (after login/register + chrome « Planning »): team grid, me highlight, muted colleagues, empty → « Pas encore publié », read-only contract / unavail / wishes panel; no Calculer / Mode édition / wizard
 - [x] 9.3 Company `/planning` / `/context` / live unchanged; `/exemple` joujou unchanged; remove later-planning sentence; bump `web/` to 0.11.0
 - [x] 9.4 Verify `npm run build`; employee with published salle fiche → team grid + color + panel; company `/planning` keeps Calculer; example 92 without session; `v0.11.0`
+
+## 10. Wellbeing wizard
+
+- [x] 10.1 Context types: wellbeing object, indispos `{ weekday, service_id }`, `week_labels`; drop `WELLBEING_KEYS` / `every_*`; employee wishes `{ kind, held, … }`
+- [x] 10.2 Tabs Rôles → Équipe → Souhaits bien-être → Services → Types → Semaine type; Équipe popup jour×service; Souhaits columns; wishes not a ready gate
+- [x] 10.3 Labels A/B vs Paire/Impaire on semaine type + company/employee grids; exemple stats from JSON (92 / 17 / 10/12 / 47); bump `web/` to 0.12.0
+- [x] 10.4 Verify `npm run build`; popup 2 jours × 1 service → 2 créneaux; radio we paire → `week_labels` parity; reload persists; employee reads new wishes; exemple 92; `v0.12.0`

@@ -515,6 +515,73 @@ table.plan td.empty-slot {
   gap: 8px;
 }
 
+.equipe-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.equipe-line label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.unavail-summary {
+  margin: 0;
+  color: #555;
+}
+
+.unavail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.chip {
+  border: 1px solid #cfd3d8;
+  background: #f4f5f7;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.unavail-popup {
+  min-width: min(480px, 90vw);
+}
+
+.check-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 8px 0;
+}
+
+table.wishes-edit {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table.wishes-edit th,
+table.wishes-edit td {
+  border: 1px solid #e3e6ea;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+table.wishes-edit .max-services {
+  display: flex;
+  gap: 6px;
+}
+
+table.wishes-edit .max-services input {
+  width: 4.5rem;
+}
+
 .fiche-card input,
 .fiche-card select,
 .context-page select,

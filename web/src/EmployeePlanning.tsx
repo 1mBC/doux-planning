@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { ApiHttpError } from "./sandbox";
 import { CONTEXT_SERVICES, type ContextServiceId } from "./context";
-import { DAYS_FR, WEEKDAYS_EN, formatClock, formatDuration, formatHoursTotal, groupedEmployees, personInk } from "./format";
+import {
+  DAYS_FR,
+  WEEKDAYS_EN,
+  formatClock,
+  formatDuration,
+  formatHoursTotal,
+  groupedEmployees,
+  personInk,
+  weekSheetTitle,
+} from "./format";
 import {
   loadEmployeePlanning,
   serviceLabel,
@@ -50,18 +59,7 @@ function dayLabel(weekday: string): string {
 }
 
 function describeUnavail(row: Unavailability): string {
-  const parts: string[] = [];
-  parts.push(row.weekday ? dayLabel(row.weekday) : "Tous les jours");
-  if (row.every_morning) {
-    parts.push("tous les matins");
-  }
-  if (row.every_evening) {
-    parts.push("tous les soirs");
-  }
-  if (row.service_id) {
-    parts.push(serviceLabel(row.service_id));
-  }
-  return parts.join(" · ");
+  return `${dayLabel(row.weekday)} ${serviceLabel(row.service_id).toLowerCase()}`;
 }
 
 function EmployeeSheet({
@@ -180,8 +178,8 @@ function WishesList({ wishes }: { wishes: EmployeeWish[] }) {
   return (
     <ul className="employee-list">
       {wishes.map((wish) => (
-        <li key={wish.key} className={wish.held ? "wish-held" : "wish-missed"}>
-          <span>{wishLabel(wish.key)}</span>
+        <li key={`${wish.kind}-${"value" in wish ? wish.value : "limit" in wish ? wish.limit : "x"}`} className={wish.held ? "wish-held" : "wish-missed"}>
+          <span>{wishLabel(wish)}</span>
           <strong>{wish.held ? "tenu" : "non tenu"}</strong>
         </li>
       ))}
@@ -248,7 +246,7 @@ export function EmployeePlanning() {
       {board && published ? (
         <>
           <EmployeeSheet
-            title="Semaine A"
+            title={weekSheetTitle(board.week_labels, 0)}
             weekOffset={0}
             employees={board.employees}
             meId={board.employee_id}
@@ -257,7 +255,7 @@ export function EmployeePlanning() {
             byKey={byKey}
           />
           <EmployeeSheet
-            title="Semaine B"
+            title={weekSheetTitle(board.week_labels, 7)}
             weekOffset={7}
             employees={board.employees}
             meId={board.employee_id}

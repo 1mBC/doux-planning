@@ -33,14 +33,14 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 - Keep the Vite + React + TypeScript app under `web/` as the restaurateur’s first useful screen.
 - Keep presentation (layout, French chrome, time formatting) strictly downstream of the snapshot.
 - Add login / register / QR / session chrome that follow `contracts/http/v1-auth.md` without scoring or inventing fields.
-- Company wizard at `/context` following `contracts/http/v1-context.md`.
+- Company wizard at `/context` following `contracts/http/v1-context.md` (Équipe / Souhaits, `week_labels`).
 - Company published cycle at `/planning` following `contracts/http/v1-generate.md` (`search_effort: "minimal"`).
 - Live sandbox Mode édition on `/planning` following `contracts/http/v1-live-sandbox.md` (shapes from `v1-sandbox-edit.md`).
 - Employee `/planning` following `contracts/http/v1-me-planning.md` (team grid, highlight, read-only contract panel).
 
 **Non-Goals:**
-- `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit.
-- Merging `employee/infra` / `employee/core`, new FastAPI routes, a second scoring path, react-router.
+- `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit, seed button.
+- Merging `wellbeing/infra` / `wellbeing/core`, new FastAPI routes, a second scoring path, react-router.
 - Pixel-identical clone of the GitHub Pages HTML.
 - Translating engine messages into a new diagnosis.
 - « Mot de passe oublié ».
@@ -92,13 +92,14 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 
 ### 8. Context wizard (company)
 
-Séquentiel puis tout éditable. Salle et cuisine indépendantes.
+Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : Rôles → Équipe → Souhaits bien-être → Services → Types → Semaine type. « Fiches » n’existe plus.
 
 1. Rôles (équipe) : nom + niveau ≥ 1. Afficher : un niveau plus élevé peut tenir un poste inférieur. PATCH `ladders` avec `substitution_explained: true` (les deux équipes).
-2. Fiches (équipe) : nom, rôle de l’échelle, heures contrat, indispos, wellbeing (clés contrat), `min_shift_hours` 4. PATCH `employees` = liste complète. Afficher `invite_token` + URL register QR. Pas de rotate.
-3. Services (resto, une fois) : petit-déj / déj / dîner → `morning` / `midday` / `evening`. PATCH `services`.
-4. Types (équipe × service) : nom, vagues ±15, `post_levels`. PATCH `types` = liste complète.
-5. Semaine type : type ou Fermé. PATCH `typical_week` = `{ salle, cuisine }`. Fermé : `closed: true`, `type_id` null.
+2. Équipe : une ligne par salarié (nom, rôle, heures, `min_shift_hours`, synthèse FR des indispos `{ weekday, service_id }`). Popup **Ajouter une indispo** : jours × services → produit cartésien ajouté. Retirer un créneau depuis la ligne. QR / `invite_token` sur la ligne. PATCH `employees` = liste complète.
+3. Souhaits bien-être : objet `Wellbeing` (case `consecutive_rest`, radio `weekend` 0|1, chiffres `max_services.*`, chiffre `max_coupures_per_week`). Onglet **pas** un prérequis de `ready`. Plus de `WELLBEING_KEYS` / `every_*`.
+4. Services (resto, une fois) : petit-déj / déj / dîner → `morning` / `midday` / `evening`. PATCH `services`.
+5. Types (équipe × service) : nom, vagues ±15, `post_levels`. PATCH `types` = liste complète.
+6. Semaine type : type ou Fermé. PATCH `typical_week` = `{ salle, cuisine }`. Fermé : `closed: true`, `type_id` null. Libellés A/B ou Paire/Impaire selon `week_labels`.
 
 Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`.  
 `ready.salle` / `ready.cuisine` = JSON seulement, badges « Prêt à calculer » / « Pas encore prêt ».
@@ -115,7 +116,11 @@ Hors slice : rotate invite-token, `optimized` 30 s, edit contraintes salarié.
 
 ### 11. Employee board
 
-`kind: employee` → `/planning`. GET `/v1/me/planning` (Bearer). Grille 14 j. (A/B) depuis `employees` + `assignments` de **son** équipe. Lignes `employee_id === me` colorées ; collègues visibles, atténués. Assignments vides → « Pas encore publié ». Panneau lecture : `contract` (weekly / assigned / ok), `unavailabilities`, `wishes` (`key` → libellé FR, `held` tenu / non tenu). Aucun edit. Pas de `wish_rows` inventés. Company `/planning` / `/context` / live et `/exemple` inchangés.
+`kind: employee` → `/planning`. GET `/v1/me/planning` (Bearer). Grille 14 j. depuis `employees` + `assignments` de **son** équipe ; titres A/B ou Paire/Impaire selon `week_labels`. Lignes `employee_id === me` colorées ; collègues visibles, atténués. Assignments vides → « Pas encore publié ». Panneau lecture : `contract`, `unavailabilities` `{ weekday, service_id }`, `wishes` `{ kind, held, … }`. Aucun edit. Pas de `key` / `wish_rows` inventés.
+
+### 12. Week labels
+
+`week_labels` du GET context / me/planning (`"ab"` | `"parity"`) : tout le resto. `"ab"` → A / B. `"parity"` → Paire / Impaire (paire = j0–6). Semaine type + grilles `/planning` company et salarié. L’exemple Saint-Cloud reste A / B.
 
 ## Risks / Trade-offs
 
