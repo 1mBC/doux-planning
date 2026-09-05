@@ -122,8 +122,21 @@ class AuthSession(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+def normalize_database_url(url: str) -> str:
+    if url.startswith("postgresql+"):
+        return url
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url[len("postgres://") :]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://") :]
+    return url
+
+
 def database_url() -> str | None:
-    return os.environ.get("DATABASE_URL") or None
+    raw = os.environ.get("DATABASE_URL") or None
+    if not raw:
+        return None
+    return normalize_database_url(raw)
 
 
 def get_engine() -> Engine:
