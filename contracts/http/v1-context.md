@@ -18,7 +18,10 @@ Register `kind: company` crée déjà une `companies` vide. `GET /v1/context` do
 ```
 GET   /v1/context   Bearer company → 200 Context
 PATCH /v1/context   Bearer company → 200 Context
+POST  /v1/context/seed-example   Bearer company → 200 Context
 ```
+
+`POST /v1/context/seed-example` : pas de body. Wrappe Core `seed_example_context`. Écrase le contexte persisté (fiches liées **incluses**). Vide `published_cycles` / `live_sandboxes` / `linked_employee_ids`. 200 = même `Context` que GET. **Hors slice Core** (Infra).
 
 `PATCH` : clés **optionnelles**. Chaque clé fournie **remplace** cette section. Clés absentes inchangées. Corps vide = no-op 200.  
 `week_labels` n’est pas une clé PATCH (dérivé).
@@ -121,4 +124,4 @@ Route `/context` (session company). Ordre : rôles → fiches → services entre
 
 ## Hors tranche
 
-Generate, jobs, publish, lock sandbox, `GET /v1/me/shifts`, seed Saint-Cloud live, CORS sauf proxy cassé.
+Generate, jobs, publish, lock sandbox, `GET /v1/me/shifts`, bouton UI seed, CORS sauf proxy cassé. `POST /v1/context/seed-example` = Infra après Core `seed_example_context`.
