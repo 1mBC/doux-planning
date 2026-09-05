@@ -29,6 +29,7 @@ import {
   SEVERITY_FR,
   warningTitle,
   weekdayFromDayIndex,
+  weekSheetTitle,
 } from "./format";
 import { cranHow, fillHow, fillSlotSummary, GestureImpact, slotSummary } from "./impact";
 import type {
@@ -501,7 +502,7 @@ export function PublishedPlanning() {
       {cycle || editing ? (
         <>
           <PublishedSheet
-            title="Semaine A"
+            title={weekSheetTitle(ctx?.week_labels ?? "ab", 0)}
             weekOffset={0}
             employees={people}
             assignments={assignments}
@@ -513,7 +514,7 @@ export function PublishedPlanning() {
             onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
           />
           <PublishedSheet
-            title="Semaine B"
+            title={weekSheetTitle(ctx?.week_labels ?? "ab", 7)}
             weekOffset={7}
             employees={people}
             assignments={assignments}

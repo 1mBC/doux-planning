@@ -3,8 +3,7 @@ import { ApiHttpError } from "./sandbox";
 import { DAYS_FR, WEEKDAYS_EN } from "./format";
 import {
   CONTEXT_SERVICES,
-  WELLBEING_FR,
-  WELLBEING_KEYS,
+  emptyWellbeing,
   employeesForPatch,
   loadContext,
   newId,
@@ -17,10 +16,12 @@ import {
   type TeamId,
   type TypicalWeekCell,
   type Unavailability,
+  type WeekendChoice,
+  type Wellbeing,
 } from "./context";
-import { formatClock } from "./format";
+import { DAYS_FR_SHORT, formatClock, weekLabelPair } from "./format";
 
-const STEPS = ["Rôles", "Fiches", "Services", "Types", "Semaine type"] as const;
+const STEPS = ["Rôles", "Équipe", "Souhaits bien-être", "Services", "Types", "Semaine type"] as const;
 const TEAMS: { id: TeamId; label: string }[] = [
   { id: "salle", label: "Salle" },
   { id: "cuisine", label: "Cuisine" },
@@ -49,15 +50,15 @@ function inferUnlocked(ctx: RestaurantContext, team: TeamId): number {
     return 1;
   }
   if (ctx.services.length === 0) {
-    return 2;
-  }
-  if (!ctx.types.some((item) => item.team === team)) {
     return 3;
   }
-  if (ctx.typical_week[team] == null) {
+  if (!ctx.types.some((item) => item.team === team)) {
     return 4;
   }
-  return 5;
+  if (ctx.typical_week[team] == null) {
+    return 5;
+  }
+  return 6;
 }
 
 function dayLabel(weekday: string): string {
@@ -105,8 +106,11 @@ export function ContextWizard() {
       const next = await patchContext(body);
       setCtx(next);
       setNameDraft(next.name);
+      setUnlocked({
+        salle: inferUnlocked(next, "salle"),
+        cuisine: inferUnlocked(next, "cuisine"),
+      });
       if (advance) {
-        setUnlocked((prev) => ({ ...prev, [team]: Math.max(prev[team], step + 1) }));
         setStep((prev) => Math.min(prev + 1, STEPS.length - 1));
       }
     } catch (err) {
@@ -220,11 +224,12 @@ export function ContextWizard() {
       ) : null}
       {step === 1 ? (
         <EmployeesStep
-          key={`${team}-fiches`}
+          key={`${team}-equipe`}
           team={team}
           roles={ladder?.roles ?? []}
           people={teamEmployees}
           all={ctx.employees}
+          services={ctx.services}
           companyCode={ctx.company_code}
           busy={busy}
           onSave={(people) =>
@@ -241,6 +246,26 @@ export function ContextWizard() {
         />
       ) : null}
       {step === 2 ? (
+        <WishesStep
+          key={`${team}-souhaits`}
+          team={team}
+          people={teamEmployees}
+          all={ctx.employees}
+          busy={busy}
+          onSave={(people) =>
+            void apply(
+              {
+                employees: employeesForPatch([
+                  ...ctx.employees.filter((person) => person.team !== team),
+                  ...people,
+                ]),
+              },
+              true,
+            )
+          }
+        />
+      ) : null}
+      {step === 3 ? (
         <ServicesStep
           key={`${team}-services`}
           selected={ctx.services}
@@ -248,7 +273,7 @@ export function ContextWizard() {
           onSave={(services) => void apply({ services }, true)}
         />
       ) : null}
-      {step === 3 ? (
+      {step === 4 ? (
         <TypesStep
           key={`${team}-${ctx.services.join(",")}-types`}
           team={team}
@@ -265,7 +290,7 @@ export function ContextWizard() {
           }
         />
       ) : null}
-      {step === 4 ? (
+      {step === 5 ? (
         <WeekStep
           key={`${team}-${ctx.services.join(",")}-week`}
           team={team}
@@ -273,6 +298,7 @@ export function ContextWizard() {
           types={teamTypes}
           cells={ctx.typical_week[team] ?? emptyWeek(ctx.services)}
           other={team === "salle" ? ctx.typical_week.cuisine : ctx.typical_week.salle}
+          weekLabels={ctx.week_labels}
           busy={busy}
           onSave={(cells) =>
             void apply({
@@ -342,11 +368,20 @@ function RolesStep({
   );
 }
 
+function serviceCaption(serviceId: string): string {
+  return (CONTEXT_SERVICES.find((item) => item.id === serviceId)?.label ?? serviceId).toLowerCase();
+}
+
+function formatUnavailSlot(row: Unavailability): string {
+  return `${dayLabel(row.weekday)} ${serviceCaption(row.service_id)}`;
+}
+
 function EmployeesStep({
   team,
   roles,
   people,
   all,
+  services,
   companyCode,
   busy,
   onSave,
@@ -355,11 +390,13 @@ function EmployeesStep({
   roles: RoleRow[];
   people: ContextEmployee[];
   all: ContextEmployee[];
+  services: ContextServiceId[];
   companyCode: string;
   busy: boolean;
   onSave: (people: ContextEmployee[]) => void;
 }) {
   const [rows, setRows] = useState<ContextEmployee[]>(people);
+  const [popupIndex, setPopupIndex] = useState<number | null>(null);
   function add() {
     const role = roles[0];
     if (!role) {
@@ -375,109 +412,110 @@ function EmployeesStep({
         contractual_hours_per_week: 35,
         min_shift_hours: 4,
         unavailabilities: [],
-        wellbeing: [],
+        wellbeing: emptyWellbeing(),
         invite_token: "",
       },
     ]);
   }
   return (
     <section>
-      <h2>Fiches</h2>
-      <p className="sub">Liste complète envoyée (l’autre équipe est conservée : {all.filter((p) => p.team !== team).length} fiche(s)).</p>
+      <h2>Équipe</h2>
+      <p className="sub">
+        Liste complète envoyée (l’autre équipe est conservée : {all.filter((p) => p.team !== team).length} salarié(s)).
+      </p>
       {rows.map((person, index) => (
-        <article key={person.id} className="fiche-card">
-          <input
-            placeholder="Nom"
-            value={person.name}
-            onChange={(event) =>
-              setRows((prev) => prev.map((item, i) => (i === index ? { ...item, name: event.target.value } : item)))
-            }
-          />
-          <label>
-            Rôle
-            <select
-              value={person.role.name}
-              onChange={(event) => {
-                const role = roles.find((item) => item.name === event.target.value) ?? roles[0];
-                if (!role) {
-                  return;
-                }
-                setRows((prev) =>
-                  prev.map((item, i) =>
-                    i === index ? { ...item, role: { name: role.name, level: role.level, team } } : item,
-                  ),
-                );
-              }}
-            >
-              {roles.map((role) => (
-                <option key={role.name} value={role.name}>
-                  {role.name} ({role.level})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Heures contrat / semaine
+        <article key={person.id} className="fiche-card equipe-row">
+          <div className="equipe-line">
             <input
-              type="number"
-              min={0}
-              value={person.contractual_hours_per_week}
+              placeholder="Nom"
+              value={person.name}
               onChange={(event) =>
-                setRows((prev) =>
-                  prev.map((item, i) =>
-                    i === index ? { ...item, contractual_hours_per_week: Number(event.target.value) || 0 } : item,
-                  ),
-                )
+                setRows((prev) => prev.map((item, i) => (i === index ? { ...item, name: event.target.value } : item)))
               }
             />
-          </label>
-          <label>
-            Minimum de créneau (h)
-            <input
-              type="number"
-              min={1}
-              step={1}
-              value={person.min_shift_hours}
-              onChange={(event) =>
-                setRows((prev) =>
-                  prev.map((item, i) =>
-                    i === index ? { ...item, min_shift_hours: Math.max(1, Number(event.target.value) || 4) } : item,
-                  ),
-                )
-              }
-            />
-          </label>
-          <fieldset>
-            <legend>Souhaits</legend>
-            {WELLBEING_KEYS.map((key) => (
-              <label key={key} className="auth-fiche">
-                <input
-                  type="checkbox"
-                  checked={person.wellbeing.includes(key)}
-                  onChange={(event) =>
-                    setRows((prev) =>
-                      prev.map((item, i) => {
-                        if (i !== index) {
-                          return item;
-                        }
-                        const next = event.target.checked
-                          ? [...item.wellbeing, key]
-                          : item.wellbeing.filter((value) => value !== key);
-                        return { ...item, wellbeing: next };
-                      }),
-                    )
+            <label>
+              Rôle
+              <select
+                value={person.role.name}
+                onChange={(event) => {
+                  const role = roles.find((item) => item.name === event.target.value) ?? roles[0];
+                  if (!role) {
+                    return;
                   }
-                />
-                {WELLBEING_FR[key]}
-              </label>
+                  setRows((prev) =>
+                    prev.map((item, i) =>
+                      i === index ? { ...item, role: { name: role.name, level: role.level, team } } : item,
+                    ),
+                  );
+                }}
+              >
+                {roles.map((role) => (
+                  <option key={role.name} value={role.name}>
+                    {role.name} ({role.level})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Heures contrat
+              <input
+                type="number"
+                min={0}
+                value={person.contractual_hours_per_week}
+                onChange={(event) =>
+                  setRows((prev) =>
+                    prev.map((item, i) =>
+                      i === index ? { ...item, contractual_hours_per_week: Number(event.target.value) || 0 } : item,
+                    ),
+                  )
+                }
+              />
+            </label>
+            <label>
+              Min. créneau (h)
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={person.min_shift_hours}
+                onChange={(event) =>
+                  setRows((prev) =>
+                    prev.map((item, i) =>
+                      i === index ? { ...item, min_shift_hours: Math.max(1, Number(event.target.value) || 4) } : item,
+                    ),
+                  )
+                }
+              />
+            </label>
+          </div>
+          <p className="unavail-summary">
+            {person.unavailabilities.length === 0
+              ? "Aucune indispo"
+              : person.unavailabilities.map((row) => formatUnavailSlot(row)).join(", ")}
+          </p>
+          <div className="unavail-chips">
+            {person.unavailabilities.map((row, slotIndex) => (
+              <button
+                key={`${row.weekday}-${row.service_id}-${slotIndex}`}
+                type="button"
+                className="chip"
+                onClick={() =>
+                  setRows((prev) =>
+                    prev.map((item, i) =>
+                      i === index
+                        ? { ...item, unavailabilities: item.unavailabilities.filter((_, j) => j !== slotIndex) }
+                        : item,
+                    ),
+                  )
+                }
+              >
+                {formatUnavailSlot(row)} ×
+              </button>
             ))}
-          </fieldset>
-          <UnavailEditor
-            rows={person.unavailabilities}
-            onChange={(unavailabilities) =>
-              setRows((prev) => prev.map((item, i) => (i === index ? { ...item, unavailabilities } : item)))
-            }
-          />
+            <button type="button" className="choice" onClick={() => setPopupIndex(index)}>
+              Ajouter une indispo
+            </button>
+          </div>
           {person.invite_token ? (
             <p className="sub">
               Jeton : <code>{person.invite_token}</code>
@@ -491,7 +529,7 @@ function EmployeesStep({
         </article>
       ))}
       <button type="button" className="choice" disabled={!roles.length} onClick={add}>
-        Ajouter une fiche
+        Ajouter un salarié
       </button>
       <button
         type="button"
@@ -501,86 +539,225 @@ function EmployeesStep({
       >
         Enregistrer et continuer
       </button>
+      {popupIndex !== null ? (
+        <UnavailPopup
+          services={services.length ? services : CONTEXT_SERVICES.map((item) => item.id)}
+          onClose={() => setPopupIndex(null)}
+          onConfirm={(slots) => {
+            const target = popupIndex;
+            setRows((prev) =>
+              prev.map((item, i) => {
+                if (i !== target) {
+                  return item;
+                }
+                const seen = new Set(item.unavailabilities.map((row) => `${row.weekday}:${row.service_id}`));
+                const extra = slots.filter((row) => !seen.has(`${row.weekday}:${row.service_id}`));
+                return { ...item, unavailabilities: [...item.unavailabilities, ...extra] };
+              }),
+            );
+            setPopupIndex(null);
+          }}
+        />
+      ) : null}
     </section>
   );
 }
 
-function UnavailEditor({
-  rows,
-  onChange,
+function UnavailPopup({
+  services,
+  onClose,
+  onConfirm,
 }: {
-  rows: Unavailability[];
-  onChange: (rows: Unavailability[]) => void;
+  services: ContextServiceId[];
+  onClose: () => void;
+  onConfirm: (slots: Unavailability[]) => void;
 }) {
+  const [days, setDays] = useState<string[]>([]);
+  const [serviceIds, setServiceIds] = useState<ContextServiceId[]>([]);
+  function toggleDay(day: string) {
+    setDays((prev) => (prev.includes(day) ? prev.filter((item) => item !== day) : [...prev, day]));
+  }
+  function toggleService(id: ContextServiceId) {
+    setServiceIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  }
   return (
-    <fieldset>
-      <legend>Indisponibilités</legend>
-      {rows.map((row, index) => (
-        <div key={index} className="auth-row">
-          <select
-            value={row.weekday ?? ""}
-            onChange={(event) =>
-              onChange(
-                rows.map((item, i) =>
-                  i === index ? { ...item, weekday: event.target.value || undefined } : item,
-                ),
+    <div className="overlay-backdrop" onClick={onClose}>
+      <div className="overlay unavail-popup" onClick={(event) => event.stopPropagation()} role="dialog" aria-labelledby="unavail-title">
+        <h3 id="unavail-title">Ajouter une indispo</h3>
+        <p className="sub">Jours × services : chaque case cochée produit un créneau.</p>
+        <fieldset>
+          <legend>Jours</legend>
+          <div className="check-grid">
+            {WEEKDAYS_EN.map((day, index) => (
+              <label key={day} className="auth-fiche">
+                <input type="checkbox" checked={days.includes(day)} onChange={() => toggleDay(day)} />
+                {DAYS_FR_SHORT[index]}
+              </label>
+            ))}
+          </div>
+          <div className="auth-row">
+            <button type="button" className="choice" onClick={() => setDays([...WEEKDAYS_EN])}>
+              Tout sélectionner
+            </button>
+            <button type="button" className="choice" onClick={() => setDays([])}>
+              Tout déselectionner
+            </button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Services</legend>
+          <div className="check-grid">
+            {CONTEXT_SERVICES.filter((item) => services.includes(item.id)).map((item) => (
+              <label key={item.id} className="auth-fiche">
+                <input type="checkbox" checked={serviceIds.includes(item.id)} onChange={() => toggleService(item.id)} />
+                {item.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="auth-row">
+          <button type="button" className="choice" onClick={onClose}>
+            Annuler
+          </button>
+          <button
+            type="button"
+            className="choice active"
+            disabled={days.length === 0 || serviceIds.length === 0}
+            onClick={() =>
+              onConfirm(
+                days.flatMap((weekday) => serviceIds.map((service_id) => ({ weekday, service_id }))),
               )
             }
           >
-            <option value="">Tous les jours</option>
-            {WEEKDAYS_EN.map((day) => (
-              <option key={day} value={day}>
-                {dayLabel(day)}
-              </option>
-            ))}
-          </select>
-          <label>
-            <input
-              type="checkbox"
-              checked={row.every_morning}
-              onChange={(event) =>
-                onChange(rows.map((item, i) => (i === index ? { ...item, every_morning: event.target.checked } : item)))
-              }
-            />{" "}
-            matin
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={row.every_evening}
-              onChange={(event) =>
-                onChange(rows.map((item, i) => (i === index ? { ...item, every_evening: event.target.checked } : item)))
-              }
-            />{" "}
-            soir
-          </label>
-          <select
-            value={row.service_id ?? ""}
-            onChange={(event) =>
-              onChange(
-                rows.map((item, i) =>
-                  i === index ? { ...item, service_id: event.target.value || undefined } : item,
-                ),
-              )
-            }
-          >
-            <option value="">Tous les services</option>
-            {CONTEXT_SERVICES.map((service) => (
-              <option key={service.id} value={service.id}>
-                {service.label}
-              </option>
-            ))}
-          </select>
+            Valider
+          </button>
         </div>
-      ))}
-      <button
-        type="button"
-        className="choice"
-        onClick={() => onChange([...rows, { every_morning: true, every_evening: false }])}
-      >
-        Ajouter une indispo
+      </div>
+    </div>
+  );
+}
+
+const WEEKEND_OPTIONS: { value: WeekendChoice; label: string }[] = [
+  { value: "every_two", label: "Un we sur deux" },
+  { value: "even", label: "We paire" },
+  { value: "odd", label: "We impaire" },
+];
+
+function digitValue(raw: string): number | undefined {
+  if (raw.trim() === "") {
+    return undefined;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function WishesStep({
+  team,
+  people,
+  all,
+  busy,
+  onSave,
+}: {
+  team: TeamId;
+  people: ContextEmployee[];
+  all: ContextEmployee[];
+  busy: boolean;
+  onSave: (people: ContextEmployee[]) => void;
+}) {
+  const [rows, setRows] = useState<ContextEmployee[]>(people);
+  function setWellbeing(index: number, patch: Partial<Wellbeing>) {
+    setRows((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, wellbeing: { ...item.wellbeing, ...patch } } : item)),
+    );
+  }
+  return (
+    <section>
+      <h2>Souhaits bien-être</h2>
+      <p className="sub">
+        Pas un prérequis pour calculer. L’autre équipe est conservée ({all.filter((p) => p.team !== team).length}{" "}
+        salarié(s)).
+      </p>
+      <div className="scroll">
+        <table className="wishes-edit">
+          <thead>
+            <tr>
+              <th>Salarié</th>
+              <th>Deux repos consécutifs par semaine</th>
+              <th>Week-end</th>
+              <th>Max petit-déj / déj / dîner</th>
+              <th>Nbre de coupures max</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((person, index) => (
+              <tr key={person.id}>
+                <td>{person.name || "—"}</td>
+                <td>
+                  <label className="auth-fiche">
+                    <input
+                      type="checkbox"
+                      checked={person.wellbeing.consecutive_rest}
+                      onChange={(event) => setWellbeing(index, { consecutive_rest: event.target.checked })}
+                    />
+                  </label>
+                </td>
+                <td>
+                  {WEEKEND_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={person.wellbeing.weekend === option.value ? "choice active" : "choice"}
+                      onClick={() =>
+                        setWellbeing(index, {
+                          weekend: person.wellbeing.weekend === option.value ? null : option.value,
+                        })
+                      }
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </td>
+                <td className="max-services">
+                  {(["morning", "midday", "evening"] as const).map((id) => (
+                    <input
+                      key={id}
+                      type="number"
+                      min={0}
+                      placeholder={id === "morning" ? "PDJ" : id === "midday" ? "Déj" : "Dîner"}
+                      value={person.wellbeing.max_services[id] ?? ""}
+                      onChange={(event) => {
+                        const next = { ...person.wellbeing.max_services };
+                        const parsed = digitValue(event.target.value);
+                        if (parsed === undefined) {
+                          delete next[id];
+                        } else {
+                          next[id] = parsed;
+                        }
+                        setWellbeing(index, { max_services: next });
+                      }}
+                    />
+                  ))}
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    min={0}
+                    value={person.wellbeing.max_coupures_per_week ?? ""}
+                    onChange={(event) => {
+                      const parsed = digitValue(event.target.value);
+                      setWellbeing(index, { max_coupures_per_week: parsed === undefined ? null : parsed });
+                    }}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" className="choice active" disabled={busy || rows.length === 0} onClick={() => onSave(rows)}>
+        Enregistrer et continuer
       </button>
-    </fieldset>
+    </section>
   );
 }
 
@@ -780,6 +957,7 @@ function WeekStep({
   types,
   cells,
   other,
+  weekLabels,
   busy,
   onSave,
 }: {
@@ -788,6 +966,7 @@ function WeekStep({
   types: ServiceType[];
   cells: TypicalWeekCell[];
   other: TypicalWeekCell[] | null;
+  weekLabels: "ab" | "parity";
   busy: boolean;
   onSave: (cells: TypicalWeekCell[]) => void;
 }) {
@@ -815,6 +994,7 @@ function WeekStep({
   return (
     <section>
       <h2>Semaine type · {team}</h2>
+      <p className="sub">Libellés de cycle : {weekLabelPair(weekLabels)}</p>
       <div className="scroll">
         <table className="matrix">
           <thead>

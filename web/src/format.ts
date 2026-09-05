@@ -9,6 +9,20 @@ import type {
 } from "./types";
 
 export const DAYS_FR = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+export const DAYS_FR_SHORT = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
+
+export type WeekLabelScheme = "ab" | "parity";
+
+export function weekSheetTitle(scheme: WeekLabelScheme, weekOffset: 0 | 7): string {
+  if (scheme === "parity") {
+    return weekOffset === 0 ? "Semaine paire" : "Semaine impaire";
+  }
+  return weekOffset === 0 ? "Semaine A" : "Semaine B";
+}
+
+export function weekLabelPair(scheme: WeekLabelScheme): string {
+  return scheme === "parity" ? "Paire / Impaire" : "A / B";
+}
 
 export const WEEKDAYS_EN = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 
