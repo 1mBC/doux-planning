@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from doux_planning.api.auth import (
@@ -13,7 +15,14 @@ from doux_planning.api.auth import (
     require_database,
     _fiche_to_employee,
 )
-from doux_planning.api.db import Company, StaffFiche, session_scope
+from doux_planning.api.db import (
+    AccountEmail,
+    AuthSession,
+    Company,
+    EmployeeAccountRow,
+    StaffFiche,
+    session_scope,
+)
 from doux_planning.api.wellbeing_codec import (
     unavailability_from_json,
     unavailability_to_json,
@@ -22,6 +31,7 @@ from doux_planning.api.wellbeing_codec import (
 )
 from doux_planning.context import (
     empty_restaurant,
+    seed_example_context,
     set_restaurant_name,
     set_role_ladder,
     set_services,
@@ -34,7 +44,14 @@ from doux_planning.context import (
 from doux_planning.invites import RestaurantIdentity
 from doux_planning.planning import RestaurantState
 from doux_planning.staff import Employee, Role, RoleLadder
-from doux_planning.structures import ArrivalWave, DepartureWave, ServiceType, TypicalWeek, TypicalWeekCell
+from doux_planning.structures import (
+    ArrivalWave,
+    DepartureWave,
+    RestaurantHours,
+    ServiceType,
+    TypicalWeek,
+    TypicalWeekCell,
+)
 from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS, Team, WEEKDAYS
 
 TEAMS = (Team.SALLE, Team.CUISINE)
@@ -83,6 +100,8 @@ def _state_from_rows(company: Company, fiches: list[StaffFiche]) -> RestaurantSt
         week = _week_from_json(company.typical_week or {})
         if week is not None:
             set_typical_week(state, week)
+        if company.hours:
+            state.hours = _hours_from_json(company.hours)
     except (ValueError, KeyError, TypeError) as exc:
         raise _invalid() from exc
     return state
@@ -181,6 +200,28 @@ def _week_from_json(payload: Any) -> TypicalWeek | None:
     if not any_grid:
         return None
     return TypicalWeek(cells=tuple(cells))
+
+
+def _hours_from_json(raw: Any) -> RestaurantHours:
+    if not isinstance(raw, dict):
+        raise ValueError("invalid hours")
+    return RestaurantHours(
+        mode=raw["mode"],
+        services=tuple(raw["services"]),
+        closed_weekdays=frozenset(raw.get("closed_weekdays") or ()),
+        closed_services=frozenset(raw.get("closed_services") or ()),
+    )
+
+
+def _hours_to_json(hours: RestaurantHours | None) -> dict[str, Any] | None:
+    if hours is None:
+        return None
+    return {
+        "mode": hours.mode,
+        "services": list(hours.services),
+        "closed_weekdays": sorted(hours.closed_weekdays),
+        "closed_services": sorted(hours.closed_services),
+    }
 
 
 def _employee_from_json(item: Any, existing_token: str | None) -> Employee:
@@ -303,11 +344,30 @@ def serialize_context(state: RestaurantState) -> dict[str, Any]:
     }
 
 
-def _persist_state(restaurant_id: str, state: RestaurantState) -> None:
+def _purge_company_employees(db: Session, restaurant_id: str) -> None:
+    accounts = list(db.scalars(select(EmployeeAccountRow).where(EmployeeAccountRow.restaurant_id == restaurant_id)))
+    emails = [row.email for row in accounts]
+    account_ids = {row.id for row in accounts}
+    sessions = list(db.scalars(select(AuthSession).where(AuthSession.restaurant_id == restaurant_id)))
+    for session in sessions:
+        if session.kind == "employee" or session.account_id in account_ids:
+            db.delete(session)
+    for row in accounts:
+        db.delete(row)
+    db.flush()
+    for email in emails:
+        addr = db.get(AccountEmail, email)
+        if addr is not None:
+            db.delete(addr)
+
+
+def _persist_state(restaurant_id: str, state: RestaurantState, *, smash_live: bool = False) -> None:
     with session_scope() as db:
         company = db.get(Company, restaurant_id)
         if company is None:
             raise HTTPException(status_code=401, detail="Session invalide.")
+        if smash_live:
+            _purge_company_employees(db, restaurant_id)
         company.name = state.identity.name
         company.invite_code = state.identity.invite_code
         company.legal_context_id = state.identity.legal_context_id
@@ -319,11 +379,18 @@ def _persist_state(restaurant_id: str, state: RestaurantState) -> None:
         }
         company.types = [_serialize_type(item) for item in state.service_types]
         company.typical_week = _serialize_week(state.typical_week)
+        company.hours = _hours_to_json(state.hours)
         flag_modified(company, "linked_employee_ids")
         flag_modified(company, "services")
         flag_modified(company, "ladders")
         flag_modified(company, "types")
         flag_modified(company, "typical_week")
+        flag_modified(company, "hours")
+        if smash_live:
+            company.published_cycles = {"salle": None, "cuisine": None}
+            company.live_sandboxes = {"salle": None, "cuisine": None}
+            flag_modified(company, "published_cycles")
+            flag_modified(company, "live_sandboxes")
         existing = {
             row.id: row
             for row in db.scalars(select(StaffFiche).where(StaffFiche.company_id == restaurant_id))
@@ -375,6 +442,21 @@ def patch_context(authorization: str | None, body: dict[str, Any]) -> dict[str, 
     except (ValueError, KeyError, TypeError):
         raise _invalid() from None
     _persist_state(restaurant_id, state)
+    company, fiches = _load_company(restaurant_id)
+    return serialize_context(_state_from_rows(company, fiches))
+
+
+def seed_example(authorization: str | None) -> dict[str, Any]:
+    require_database()
+    restaurant_id = require_company_restaurant_id(authorization)
+    company, fiches = _load_company(restaurant_id)
+    state = _state_from_rows(company, fiches)
+    try:
+        seed_example_context(state)
+    except (ValueError, KeyError, TypeError, OSError) as exc:
+        raise _invalid() from exc
+    state.identity = replace(state.identity, linked_employee_ids=frozenset())
+    _persist_state(restaurant_id, state, smash_live=True)
     company, fiches = _load_company(restaurant_id)
     return serialize_context(_state_from_rows(company, fiches))
 

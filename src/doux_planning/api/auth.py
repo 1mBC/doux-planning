@@ -411,8 +411,8 @@ def rotate_invite_token(employee_id: str, authorization: str | None) -> dict[str
         session = _load_session(db, token)
         if session.kind != "company":
             raise HTTPException(status_code=403, detail=DETAIL_FORBIDDEN)
-        fiche = db.get(StaffFiche, employee_id)
-        if fiche is None or fiche.company_id != session.restaurant_id:
+        fiche = db.get(StaffFiche, (session.restaurant_id, employee_id))
+        if fiche is None:
             raise HTTPException(status_code=404, detail=DETAIL_FICHE_MISSING)
         rotated = rotate_employee_invite_token(_fiche_to_employee(fiche))
         fiche.invite_token = rotated.invite_token
