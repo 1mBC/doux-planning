@@ -34,14 +34,14 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 - Keep presentation (layout, French chrome, time formatting) strictly downstream of the snapshot.
 - Add login / register / QR / session chrome that follow `contracts/http/v1-auth.md` without scoring or inventing fields.
 - Company wizard at `/context` following `contracts/domain/wizard-ui.md` + `v1-context.md` (Services first, `weekend_rest_day`, Services types waves).
-- Company published cycle at `/planning` following `contracts/http/v1-generate.md` (`search_effort: "minimal"`).
+- Company published cycle at `/planning` following `contracts/http/v1-generate.md` + `cycle-recaps.md` (pastilles + tableaux hors édition).
 - Live sandbox Mode édition on `/planning` following `contracts/http/v1-live-sandbox.md` (shapes from `v1-sandbox-edit.md`).
 - Employee `/planning` following `contracts/http/v1-me-planning.md` (team grid, highlight, read-only contract panel).
 - Company `/context` seed button following `POST /v1/context/seed-example`.
 
 **Non-Goals:**
 - `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit.
-- Merging `weekend-rest/infra` / `weekend-rest/core`, new FastAPI routes, a second scoring path, react-router.
+- Merging `recaps/infra` / `recaps/core`, new FastAPI routes, a second scoring path, react-router.
 - Pixel-identical clone of the GitHub Pages HTML.
 - Translating engine messages into a new diagnosis.
 - « Mot de passe oublié ».
@@ -99,7 +99,7 @@ Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : **Se
 2. Rôles (équipe) : nom + niveau ≥ 1. PATCH `ladders` avec `substitution_explained: true`.
 3. Équipe : une ligne par salarié ; popup indispo jours × **services offerts**. PATCH `employees` = liste complète.
 4. Souhaits bien-être : `Wellbeing` (cases `consecutive_rest` + **`weekend_rest_day`** à côté de la radio `weekend`, chiffres `max_services` **offerts seulement**, `max_coupures_per_week`). Pas un prérequis de `ready`. Bool `weekend_rest_day` requis au parse.
-5. Services types (équipe × service offert) : sous-onglets par service ; **Ajouter un type** en bas. Vagues : pickers d’échelle (pas de `;`), sac affiché, pire-cas → `remaining_post_levels`. PATCH `types` = liste complète.
+5. Services types (équipe × service offert) : sous-onglets par service ; **Ajouter un type** en bas. Vagues en **une ligne** chronologique (arrivée ou départ), +/− par niveau, **STAFF après**, pire-cas → `remaining_post_levels`. PATCH `types` = liste complète.
 6. Semaine type : type ou Fermé, colonnes = services offerts. PATCH `typical_week` = `{ salle, cuisine }`. Libellés A/B ou Paire/Impaire selon `week_labels`.
 
 Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`. Bouton **Intégrer l’exemple Saint-Cloud** à côté du code (tous les comptes company). Confirm FR puis `POST /v1/context/seed-example` (Bearer, pas de body). 200 = même parse que GET ; rester sur `/context`.  
@@ -107,7 +107,7 @@ Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seul
 
 ### 9. Published cycle (company)
 
-Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Calculer** actif seulement si `ready[team] === true` (badge context). Sinon disabled, pas de POST. POST `{ team, search_effort: "minimal" }`. Busy + `detail` si 409/400. Si `published[team]` non null : grille 14 j. (A/B) fiches de l’équipe + assignments + warnings (message moteur, sévérité FR). Pas de stats / legal_rows / wish_rows inventés. Cuisine `null` : « Pas encore calculé », salle intacte. Reload = même GET. Recalculer remplace cette équipe. Mode édition live = §10.
+Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Calculer** actif seulement si `ready[team] === true`. POST `{ team, search_effort: "minimal" }`. Cycle non null : `stats` / `legal_cols` / `legal_rows` / `wish_cols` / `wish_rows` **requis** (throw si clé absente). Hors édition : pastilles (shifts, vides, interdit, sous-rôle, heures %, souhaits held/total) + tableaux **Règles légales** / **Souhaits** (`text` tel quel, cellule wish `null` = vide). Mode édition : cacher ces recaps (grille + warnings + historique). Warnings : `message` tel quel. Cuisine `null` : « Pas encore calculé ». Mode édition live = §10.
 
 ### 10. Live sandbox on `/planning`
 
@@ -130,6 +130,10 @@ Tous les comptes `kind: company` sur `/context`. Confirm d’une phrase (remplac
 ### 14. Weekend rest + Services-first types
 
 Suivre `contracts/domain/wizard-ui.md`. Déblocage : services → rôles ; échelle → équipe ; ≥1 fiche → souhaits **et** types ; types de l’équipe → semaine type. Pire-cas départ : réserver les `N_L` par niveau, retirer les K plus hauts parmi le reste, PATCH le sac trié croissant. K trop grand ou `N_L` > présence → bloquer (phrase FR).
+
+### 15. One-line types + live recaps
+
+Services types : liste chronologique, une ligne, +/− par niveau d’échelle, colonne **STAFF après** (plus « sac »). `/planning` company lit le `CycleRecap` persisté. `/exemple` garde les vieilles colonnes snapshot.
 
 ## Risks / Trade-offs
 

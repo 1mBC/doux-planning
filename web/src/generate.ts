@@ -1,6 +1,22 @@
-import { isRecord, PayloadError, requireArray, requireNumber, requireRecord, requireString } from "./api";
+import {
+  isRecord,
+  parseLegalRow,
+  parseStats,
+  parseWishCol,
+  parseWishRow,
+  PayloadError,
+  requireArray,
+  requireNumber,
+  requireRecord,
+  requireString,
+} from "./api";
 import { sendAuth } from "./auth";
-import type { WarningItem } from "./types";
+import type { LegalRow, PlanningStats, WarningItem, WishCol, WishRow } from "./types";
+
+export type LegalCol = {
+  id: string;
+  label_fr: string;
+};
 
 export type CycleTeam = "salle" | "cuisine";
 export type CycleServiceId = "morning" | "midday" | "evening";
@@ -21,6 +37,11 @@ export type CycleAssignment = {
 export type PublishedCycle = {
   assignments: CycleAssignment[];
   warnings: WarningItem[];
+  stats: PlanningStats;
+  legal_cols: LegalCol[];
+  legal_rows: LegalRow[];
+  wish_cols: WishCol[];
+  wish_rows: WishRow[];
 };
 
 export type PublishedCycles = {
@@ -107,6 +128,16 @@ export function parseCycleAssignment(value: unknown, path: string): CycleAssignm
   };
 }
 
+function parseLegalCol(value: unknown, path: string): LegalCol {
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  return {
+    id: requireString(value, "id", path),
+    label_fr: requireString(value, "label_fr", path),
+  };
+}
+
 function parseCycle(value: unknown, path: string): PublishedCycle | null {
   if (value === null) {
     return null;
@@ -119,6 +150,11 @@ function parseCycle(value: unknown, path: string): PublishedCycle | null {
       parseCycleAssignment(item, `${path}.assignments[${i}]`),
     ),
     warnings: requireArray(value, "warnings", path).map((item, i) => parseWarning(item, `${path}.warnings[${i}]`)),
+    stats: parseStats(value.stats, `${path}.stats`),
+    legal_cols: requireArray(value, "legal_cols", path).map((item, i) => parseLegalCol(item, `${path}.legal_cols[${i}]`)),
+    legal_rows: requireArray(value, "legal_rows", path).map((item, i) => parseLegalRow(item, `${path}.legal_rows[${i}]`)),
+    wish_cols: requireArray(value, "wish_cols", path).map((item, i) => parseWishCol(item, `${path}.wish_cols[${i}]`)),
+    wish_rows: requireArray(value, "wish_rows", path).map((item, i) => parseWishRow(item, `${path}.wish_rows[${i}]`)),
   };
 }
 

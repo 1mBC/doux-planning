@@ -9,20 +9,21 @@ import {
 } from "./context";
 import { formatClock } from "./format";
 import {
+  countsToLevels,
   formatBag,
+  levelsToCounts,
   remainFromBag,
   simulateWaves,
   type ArrivalDraft,
   type DepartureDraft,
 } from "./waves";
 
-function defaultLevel(roles: RoleRow[]): number {
-  const levels = roleLevels(roles);
-  return levels[0] ?? 1;
-}
-
 function roleLevels(roles: RoleRow[]): number[] {
   return [...new Set(roles.map((role) => role.level))].sort((a, b) => a - b);
+}
+
+function defaultLevel(roles: RoleRow[]): number {
+  return roleLevels(roles)[0] ?? 1;
 }
 
 function inferLeaveCounts(row: ServiceType): DepartureDraft[] {
@@ -67,6 +68,47 @@ function persistType(
       remaining_post_levels: sim.afterDeparture[index]?.bag ?? [],
     })),
   };
+}
+
+type Line = { kind: "arrival"; index: number; time: number } | { kind: "departure"; index: number; time: number };
+
+function timeline(arrivals: ArrivalDraft[], departures: DepartureDraft[]): Line[] {
+  const lines: Line[] = [
+    ...arrivals.map((item, index) => ({ kind: "arrival" as const, index, time: item.time_minutes })),
+    ...departures.map((item, index) => ({ kind: "departure" as const, index, time: item.time_minutes })),
+  ];
+  lines.sort((a, b) => {
+    if (a.time !== b.time) {
+      return a.time - b.time;
+    }
+    if (a.kind === b.kind) {
+      return a.index - b.index;
+    }
+    return a.kind === "arrival" ? -1 : 1;
+  });
+  return lines;
+}
+
+function Stepper({
+  value,
+  min = 0,
+  onChange,
+}: {
+  value: number;
+  min?: number;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <span className="stepper">
+      <button type="button" className="choice" onClick={() => onChange(Math.max(min, value - 1))}>
+        −
+      </button>
+      <span>{value}</span>
+      <button type="button" className="choice" onClick={() => onChange(value + 1)}>
+        +
+      </button>
+    </span>
+  );
 }
 
 export function ServiceTypesStep({
@@ -136,20 +178,17 @@ export function ServiceTypesStep({
     }
     const id = newId(`${team}-${offered}`);
     const arrivals = [{ time_minutes: 11 * 60, post_levels: [defaultLevel(roles)] }];
-    const departures: DepartureDraft[] = [];
-    setRows((prev) => [
-      ...prev,
-      { id, name: "", team, service_id: offered, arrivals: [], departures: [] },
-    ]);
-    setDrafts((prev) => ({ ...prev, [id]: { arrivals, departures } }));
+    setRows((prev) => [...prev, { id, name: "", team, service_id: offered, arrivals: [], departures: [] }]);
+    setDrafts((prev) => ({ ...prev, [id]: { arrivals, departures: [] } }));
   }
 
   function save() {
-    const next = rows.map((row) => {
-      const draft = draftFor(row.id);
-      return persistType(row.team, row.service_id, row.id, row.name, draft.arrivals, draft.departures);
-    });
-    onSave(next);
+    onSave(
+      rows.map((row) => {
+        const draft = draftFor(row.id);
+        return persistType(row.team, row.service_id, row.id, row.name, draft.arrivals, draft.departures);
+      }),
+    );
   }
 
   if (!offered) {
@@ -164,7 +203,7 @@ export function ServiceTypesStep({
   return (
     <section>
       <h2>Services types</h2>
-      <p className="sub">Sous-onglets = services offerts. Plusieurs types par service.</p>
+      <p className="sub">Une ligne par événement, dans l’ordre du temps. Sous-onglets = services offerts.</p>
       <div className="auth-switch">
         {services.map((id) => (
           <button
@@ -180,6 +219,7 @@ export function ServiceTypesStep({
       {visible.map((row) => {
         const draft = draftFor(row.id);
         const sim = simulateWaves(draft.arrivals, draft.departures);
+        const lines = timeline(draft.arrivals, draft.departures);
         return (
           <article key={row.id} className="fiche-card">
             <input
@@ -191,100 +231,214 @@ export function ServiceTypesStep({
                 )
               }
             />
-            <div className="wave-block">
-              <h3>Arrivées</h3>
-              {draft.arrivals.map((arrival, index) => (
-                <div key={`a-${index}`} className="wave-line">
-                  <p>
-                    {formatClock(arrival.time_minutes)}{" "}
-                    <button
-                      type="button"
-                      className="choice"
-                      onClick={() =>
-                        setDraft(row.id, {
-                          ...draft,
-                          arrivals: draft.arrivals.map((item, i) =>
-                            i === index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
-                          ),
-                        })
-                      }
-                    >
-                      −15
-                    </button>
-                    <button
-                      type="button"
-                      className="choice"
-                      onClick={() =>
-                        setDraft(row.id, {
-                          ...draft,
-                          arrivals: draft.arrivals.map((item, i) =>
-                            i === index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
-                          ),
-                        })
-                      }
-                    >
-                      +15
-                    </button>
-                  </p>
-                  <label>
-                    Personnes
-                    <input
-                      type="number"
-                      min={1}
-                      value={arrival.post_levels.length}
-                      onChange={(event) => {
-                        const n = Math.max(1, Number(event.target.value) || 1);
-                        const post_levels = arrival.post_levels.slice(0, n);
-                        while (post_levels.length < n) {
-                          post_levels.push(defaultLevel(roles));
-                        }
-                        setDraft(row.id, {
-                          ...draft,
-                          arrivals: draft.arrivals.map((item, i) => (i === index ? { ...item, post_levels } : item)),
-                        });
-                      }}
-                    />
-                  </label>
-                  <div className="level-pickers">
-                    {arrival.post_levels.map((level, person) => (
-                      <label key={person}>
-                        Niveau {person + 1}
-                        <select
-                          value={level}
-                          onChange={(event) => {
-                            const post_levels = arrival.post_levels.map((item, i) =>
-                              i === person ? Number(event.target.value) : item,
-                            );
-                            setDraft(row.id, {
-                              ...draft,
-                              arrivals: draft.arrivals.map((item, i) => (i === index ? { ...item, post_levels } : item)),
-                            });
-                          }}
-                        >
-                          {levels.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ))}
-                  </div>
-                  <p className="sub">Sac après : {formatBag(sim.afterArrival[index]?.bag ?? [])}</p>
-                  <button
-                    type="button"
-                    className="choice"
-                    onClick={() =>
-                      setDraft(row.id, {
-                        ...draft,
-                        arrivals: draft.arrivals.filter((_, i) => i !== index),
-                      })
+            <div className="scroll">
+              <table className="wave-table">
+                <thead>
+                  <tr>
+                    <th>Heure d’arrivée / de départ</th>
+                    <th>Nombre de personnes qui arrivent / qui partent</th>
+                    <th>Niveau minimal requis pour compléter le staff (arrivée) · à garder dans le staff (départ)</th>
+                    <th>STAFF après</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((line) => {
+                    if (line.kind === "arrival") {
+                      const arrival = draft.arrivals[line.index];
+                      const counts = levelsToCounts(arrival.post_levels);
+                      const staff = sim.afterArrival[line.index];
+                      return (
+                        <tr key={`a-${line.index}`} className="wave-row">
+                          <td>
+                            {formatClock(arrival.time_minutes)}{" "}
+                            <button
+                              type="button"
+                              className="choice"
+                              onClick={() =>
+                                setDraft(row.id, {
+                                  ...draft,
+                                  arrivals: draft.arrivals.map((item, i) =>
+                                    i === line.index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
+                                  ),
+                                })
+                              }
+                            >
+                              −15
+                            </button>
+                            <button
+                              type="button"
+                              className="choice"
+                              onClick={() =>
+                                setDraft(row.id, {
+                                  ...draft,
+                                  arrivals: draft.arrivals.map((item, i) =>
+                                    i === line.index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
+                                  ),
+                                })
+                              }
+                            >
+                              +15
+                            </button>
+                          </td>
+                          <td>
+                            <Stepper
+                              value={arrival.post_levels.length}
+                              min={1}
+                              onChange={(n) => {
+                                const post_levels = arrival.post_levels.slice(0, n);
+                                while (post_levels.length < n) {
+                                  post_levels.push(defaultLevel(roles));
+                                }
+                                setDraft(row.id, {
+                                  ...draft,
+                                  arrivals: draft.arrivals.map((item, i) =>
+                                    i === line.index ? { ...item, post_levels } : item,
+                                  ),
+                                });
+                              }}
+                            />
+                          </td>
+                          <td>
+                            <div className="level-steppers">
+                              {levels.map((level) => (
+                                <label key={level}>
+                                  {level}
+                                  <Stepper
+                                    value={counts[level] ?? 0}
+                                    min={0}
+                                    onChange={(next) => {
+                                      const updated = { ...counts, [level]: next };
+                                      setDraft(row.id, {
+                                        ...draft,
+                                        arrivals: draft.arrivals.map((item, i) =>
+                                          i === line.index
+                                            ? { ...item, post_levels: countsToLevels(updated) }
+                                            : item,
+                                        ),
+                                      });
+                                    }}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="staff-after">{staff?.error ?? `STAFF après : ${formatBag(staff?.bag ?? [])}`}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="choice trash"
+                              aria-label="Supprimer la ligne"
+                              onClick={() =>
+                                setDraft(row.id, {
+                                  ...draft,
+                                  arrivals: draft.arrivals.filter((_, i) => i !== line.index),
+                                })
+                              }
+                            >
+                              🗑
+                            </button>
+                          </td>
+                        </tr>
+                      );
                     }
-                  >
-                    Retirer l’arrivée
-                  </button>
-                </div>
-              ))}
+                    const departure = draft.departures[line.index];
+                    const staff = sim.afterDeparture[line.index];
+                    return (
+                      <tr key={`d-${line.index}`} className="wave-row">
+                        <td>
+                          {formatClock(departure.time_minutes)}{" "}
+                          <button
+                            type="button"
+                            className="choice"
+                            onClick={() =>
+                              setDraft(row.id, {
+                                ...draft,
+                                departures: draft.departures.map((item, i) =>
+                                  i === line.index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
+                                ),
+                              })
+                            }
+                          >
+                            −15
+                          </button>
+                          <button
+                            type="button"
+                            className="choice"
+                            onClick={() =>
+                              setDraft(row.id, {
+                                ...draft,
+                                departures: draft.departures.map((item, i) =>
+                                  i === line.index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
+                                ),
+                              })
+                            }
+                          >
+                            +15
+                          </button>
+                        </td>
+                        <td>
+                          <Stepper
+                            value={departure.leaveCount}
+                            min={0}
+                            onChange={(leaveCount) =>
+                              setDraft(row.id, {
+                                ...draft,
+                                departures: draft.departures.map((item, i) =>
+                                  i === line.index ? { ...item, leaveCount } : item,
+                                ),
+                              })
+                            }
+                          />
+                        </td>
+                        <td>
+                          <div className="level-steppers">
+                            {levels.map((level) => (
+                              <label key={level}>
+                                {level}
+                                <Stepper
+                                  value={departure.remainByLevel[level] ?? 0}
+                                  min={0}
+                                  onChange={(next) =>
+                                    setDraft(row.id, {
+                                      ...draft,
+                                      departures: draft.departures.map((item, i) =>
+                                        i === line.index
+                                          ? { ...item, remainByLevel: { ...item.remainByLevel, [level]: next } }
+                                          : item,
+                                      ),
+                                    })
+                                  }
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        </td>
+                        <td className={staff?.error ? "error" : "staff-after"}>
+                          {staff?.error ?? `STAFF après : ${formatBag(staff?.bag ?? [])}`}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="choice trash"
+                            aria-label="Supprimer la ligne"
+                            onClick={() =>
+                              setDraft(row.id, {
+                                ...draft,
+                                departures: draft.departures.filter((_, i) => i !== line.index),
+                              })
+                            }
+                          >
+                            🗑
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="auth-row">
               <button
                 type="button"
                 className="choice"
@@ -297,134 +451,33 @@ export function ServiceTypesStep({
               >
                 Ajouter une arrivée
               </button>
-            </div>
-            <div className="wave-block">
-              <h3>Départs</h3>
-              {draft.departures.map((departure, index) => (
-                <div key={`d-${index}`} className="wave-line">
-                  <p>
-                    {formatClock(departure.time_minutes)}{" "}
-                    <button
-                      type="button"
-                      className="choice"
-                      onClick={() =>
-                        setDraft(row.id, {
-                          ...draft,
-                          departures: draft.departures.map((item, i) =>
-                            i === index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
-                          ),
-                        })
-                      }
-                    >
-                      −15
-                    </button>
-                    <button
-                      type="button"
-                      className="choice"
-                      onClick={() =>
-                        setDraft(row.id, {
-                          ...draft,
-                          departures: draft.departures.map((item, i) =>
-                            i === index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
-                          ),
-                        })
-                      }
-                    >
-                      +15
-                    </button>
-                  </p>
-                  <label>
-                    Qui partent
-                    <input
-                      type="number"
-                      min={0}
-                      value={departure.leaveCount}
-                      onChange={(event) => {
-                        const leaveCount = Math.max(0, Number(event.target.value) || 0);
-                        setDraft(row.id, {
-                          ...draft,
-                          departures: draft.departures.map((item, i) =>
-                            i === index ? { ...item, leaveCount } : item,
-                          ),
-                        });
-                      }}
-                    />
-                  </label>
-                  <div className="level-pickers">
-                    {levels.map((level) => (
-                      <label key={level}>
-                        Reste niv. {level}
-                        <input
-                          type="number"
-                          min={0}
-                          value={departure.remainByLevel[level] ?? 0}
-                          onChange={(event) => {
-                            const remainByLevel = {
-                              ...departure.remainByLevel,
-                              [level]: Math.max(0, Number(event.target.value) || 0),
-                            };
-                            setDraft(row.id, {
-                              ...draft,
-                              departures: draft.departures.map((item, i) =>
-                                i === index ? { ...item, remainByLevel } : item,
-                              ),
-                            });
-                          }}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                  {sim.afterDeparture[index]?.error ? (
-                    <p className="error" role="alert">
-                      {sim.afterDeparture[index].error}
-                    </p>
-                  ) : (
-                    <p className="sub">Sac après : {formatBag(sim.afterDeparture[index]?.bag ?? [])}</p>
-                  )}
-                  <button
-                    type="button"
-                    className="choice"
-                    onClick={() =>
-                      setDraft(row.id, {
-                        ...draft,
-                        departures: draft.departures.filter((_, i) => i !== index),
-                      })
-                    }
-                  >
-                    Retirer le départ
-                  </button>
-                </div>
-              ))}
               <button
                 type="button"
                 className="choice"
                 onClick={() =>
                   setDraft(row.id, {
                     ...draft,
-                    departures: [
-                      ...draft.departures,
-                      { time_minutes: 16 * 60, leaveCount: 1, remainByLevel: {} },
-                    ],
+                    departures: [...draft.departures, { time_minutes: 16 * 60, leaveCount: 1, remainByLevel: {} }],
                   })
                 }
               >
                 Ajouter un départ
               </button>
+              <button
+                type="button"
+                className="choice"
+                onClick={() => {
+                  setRows((prev) => prev.filter((item) => item.id !== row.id));
+                  setDrafts((prev) => {
+                    const next = { ...prev };
+                    delete next[row.id];
+                    return next;
+                  });
+                }}
+              >
+                Retirer ce type
+              </button>
             </div>
-            <button
-              type="button"
-              className="choice"
-              onClick={() => {
-                setRows((prev) => prev.filter((item) => item.id !== row.id));
-                setDrafts((prev) => {
-                  const next = { ...prev };
-                  delete next[row.id];
-                  return next;
-                });
-              }}
-            >
-              Retirer ce type
-            </button>
           </article>
         );
       })}

@@ -194,15 +194,15 @@ function parseWellbeingStats(value: unknown): PlanningWellbeingStats {
   };
 }
 
-function parseStats(value: unknown): PlanningStats {
+export function parseStats(value: unknown, path = "planning.stats"): PlanningStats {
   if (!isRecord(value)) {
-    throw new PayloadError("clé absente ou invalide : planning.stats");
+    throw new PayloadError(`clé absente ou invalide : ${path}`);
   }
   return {
-    assignments: requireNumber(value, "assignments", "planning.stats"),
-    empty: requireNumber(value, "empty", "planning.stats"),
-    interdit: requireNumber(value, "interdit", "planning.stats"),
-    below_role: requireNumber(value, "below_role", "planning.stats"),
+    assignments: requireNumber(value, "assignments", path),
+    empty: requireNumber(value, "empty", path),
+    interdit: requireNumber(value, "interdit", path),
+    below_role: requireNumber(value, "below_role", path),
     hours: parseHoursStats(value.hours),
     wellbeing: parseWellbeingStats(value.wellbeing),
   };
@@ -222,7 +222,7 @@ function parseStatusCell(value: unknown, path: string): StatusCell {
   };
 }
 
-function parseLegalRow(value: unknown, path: string): LegalRow {
+export function parseLegalRow(value: unknown, path: string): LegalRow {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
@@ -241,7 +241,7 @@ function parseLegalRow(value: unknown, path: string): LegalRow {
   };
 }
 
-function parseWishCol(value: unknown, path: string): WishCol {
+export function parseWishCol(value: unknown, path: string): WishCol {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
@@ -251,7 +251,7 @@ function parseWishCol(value: unknown, path: string): WishCol {
   };
 }
 
-function parseWishRow(value: unknown, path: string): WishRow {
+export function parseWishRow(value: unknown, path: string): WishRow {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }

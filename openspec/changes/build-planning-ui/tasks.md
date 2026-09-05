@@ -76,3 +76,10 @@
 - [x] 12.2 `weekend_rest_day` required bool + checkbox beside we radio; max_services = offered only; employee `kind: weekend_rest_day` same label
 - [x] 12.3 Services types: offered-service subtabs, Ajouter un type, ladder pickers, bag + worst-case `remaining_post_levels`; bump `web/` to 0.14.0
 - [x] 12.4 Verify `npm run build`; Services first; uncheck PDJ after types → gone; repos we persists; 2 arrivées + 1 départ (freeze bags); employee reads wish; exemple 92; `v0.14.0`
+
+## 13. One-line types + live recaps
+
+- [x] 13.1 Services types: chronological one-line events, +/− per level, STAFF après, worst-case persist
+- [x] 13.2 Parse cycle `stats` / `legal_*` / `wish_*` (throw if missing); pastilles + 2 tables hors édition; hide in Mode édition; warning `message` as-is
+- [x] 13.3 `/exemple` snapshot unchanged; bump `web/` to 0.15.0
+- [x] 13.4 Verify `npm run build`; 2 arrivées + 1 départ on lines + STAFF + reload; Calculer recaps; edit hides them; 11 h clocks if present; exemple 92; `v0.15.0`

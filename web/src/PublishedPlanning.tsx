@@ -17,6 +17,7 @@ import {
   type LiveState,
 } from "./liveSandbox";
 import { loadContext, CONTEXT_SERVICES, type ContextServiceId, type RestaurantContext, type TeamId } from "./context";
+import { CycleStats, LegalRecap, WishRecap } from "./cycleRecaps";
 import { loadCycles, postGenerate, type CycleAssignment, type PublishedCycles } from "./generate";
 import {
   DAYS_FR,
@@ -501,6 +502,7 @@ export function PublishedPlanning() {
 
       {cycle || editing ? (
         <>
+          {cycle && !editing ? <CycleStats stats={cycle.stats} /> : null}
           <PublishedSheet
             title={weekSheetTitle(ctx?.week_labels ?? "ab", 0)}
             weekOffset={0}
@@ -526,6 +528,12 @@ export function PublishedPlanning() {
             onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
           />
           <WarningsList warnings={warnings} />
+          {cycle && !editing ? (
+            <>
+              <LegalRecap cols={cycle.legal_cols} rows={cycle.legal_rows} />
+              <WishRecap cycle={cycle} />
+            </>
+          ) : null}
           {editing ? (
             <section>
               <h2>Historique</h2>
