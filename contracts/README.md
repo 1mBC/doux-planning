@@ -24,7 +24,8 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 11 — grille employé | `http/v1-me-planning.md` | close (signaux Core → Infra → UI) |
 | 12 — recette Railway | `deploy/railway.md` ; brief `infra-deploy-railway.md` | Infra (auto-deploy `master`) |
 | 13 — bien-être / indispos | `domain/wellbeing.md` | **landed** `11dc586` |
-| 14 — seed exemple | `domain/example-seed.md` ; brief `seed-landing.md` | UI poussé `6dc665b` ; land |
+| 14 — seed exemple | `domain/example-seed.md` | **landed** `295bc9f` |
+| 15 — repos we + wizard | `domain/wellbeing.md` ; brief `core-weekend-rest-day.md` | Core case `weekend_rest_day` |
 
 ## Ownership git (ne pas croiser)
 
@@ -36,4 +37,4 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | `openspec/changes/build-planning-api/` + `src/doux_planning/api/` + Compose / migrations | Infra |
 | `openspec/changes/build-planning-ui/` + `web/` | UI |
 
-Interdit à tous : `/opsx-archive`, `/opsx-sync`, commit / push / PR sauf demande du facteur.
+Interdit : `/opsx-archive`, `/opsx-sync`. Spécialistes commit + push **leur** branche (pas `master`). Orchestrateur land Core → Infra → UI (`--no-ff`).
