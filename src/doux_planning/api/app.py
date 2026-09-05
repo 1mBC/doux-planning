@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from doux_planning.api.examples import ExampleNotFound, LegalContextNotFound, example_payload
 from doux_planning.planning import EmptyHistoryError
@@ -271,3 +273,34 @@ def sandbox_discard() -> dict:
         raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
     except (RuntimeError, KeyError):
         raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
+
+
+def web_dist() -> Path | None:
+    here = Path(__file__).resolve()
+    for root in (here.parents[3], here.parents[2], Path.cwd()):
+        index = root / "web" / "dist" / "index.html"
+        if index.is_file():
+            return index.parent
+    return None
+
+
+SPA_PATHS = ("/planning", "/login", "/register", "/context", "/exemple")
+
+
+def _mount_spa(application: FastAPI) -> None:
+    dist = web_dist()
+    if dist is None:
+        return
+    assets = dist / "assets"
+    if assets.is_dir():
+        application.mount("/assets", StaticFiles(directory=assets), name="web-assets")
+
+    def _index() -> FileResponse:
+        return FileResponse(dist / "index.html")
+
+    application.add_api_route("/", _index, methods=["GET"], include_in_schema=False)
+    for spa_path in SPA_PATHS:
+        application.add_api_route(spa_path, _index, methods=["GET"], include_in_schema=False)
+
+
+_mount_spa(app)
