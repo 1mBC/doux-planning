@@ -397,6 +397,17 @@ def _weekends_off(by_day: dict[int, list[Shift]], week_start: int) -> bool:
     return saturday not in by_day and sunday not in by_day
 
 
+def _has_weekend_rest_day(
+    by_day: dict[int, list[Shift]], week_start: int, hours: RestaurantHours
+) -> bool:
+    saturday = week_start + 5
+    sunday = week_start + 6
+    closed = _closed_days(hours, week_start)
+    sat_off = saturday not in by_day or saturday in closed
+    sun_off = sunday not in by_day or sunday in closed
+    return sat_off or sun_off
+
+
 def _service_count(by_day: dict[int, list[Shift]], week_start: int, service_id: str) -> int:
     return sum(
         1
@@ -426,6 +437,19 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
                             WarningSeverity.SOUHAIT,
                             "consecutive_rest_days",
                             f"{employee.name} missing two consecutive rest days",
+                            employee_id=employee.id,
+                            day_index=week_start,
+                        )
+                    )
+
+        if wish.weekend_rest_day:
+            for week_start in range(0, draft.horizon_days, 7):
+                if not _has_weekend_rest_day(by_day, week_start, draft.hours):
+                    warnings.append(
+                        Warning(
+                            WarningSeverity.SOUHAIT,
+                            "weekend_rest_day",
+                            f"{employee.name} should rest Saturday or Sunday",
                             employee_id=employee.id,
                             day_index=week_start,
                         )
@@ -1223,6 +1247,11 @@ def _build_rest_model(
             else:
                 model.Add(odd_off == 1)
                 model.Add(even_off == 0)
+        if employee.wellbeing.weekend_rest_day:
+            for week_start in (0, 7):
+                saturday = week_start + 5
+                sunday = week_start + 6
+                model.Add(work[employee.id, saturday] + work[employee.id, sunday] <= 1)
     return model, work, unders
 
 
@@ -1236,6 +1265,13 @@ def _fallback_rest_days(draft: PlanningDraft) -> dict[str, set[int]]:
             off[employee.id].update({5, 6})
         elif employee.wellbeing.weekend is WeekendChoice.ODD:
             off[employee.id].update({12, 13})
+        if employee.wellbeing.weekend_rest_day:
+            for week_start in (0, 7):
+                closed = _closed_days(draft.hours, week_start)
+                saturday = week_start + 5
+                sunday = week_start + 6
+                if saturday not in closed and sunday not in closed:
+                    off[employee.id].add(saturday)
     return off
 
 

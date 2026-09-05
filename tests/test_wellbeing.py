@@ -1,6 +1,6 @@
 import pytest
 
-from doux_planning.context import empty_restaurant, upsert_employee, week_label_scheme
+from doux_planning.context import employee_board, empty_restaurant, upsert_employee, week_label_scheme
 from doux_planning.engine import PlanningDraft, Shift, _has_weekday_consecutive_rest, evaluate
 from doux_planning.planning import PlanningStore
 from doux_planning.hydrate import _wellbeing, hydrate_delivered_cycle
@@ -132,3 +132,75 @@ def test_hydrate_refuses_legacy_wellbeing():
         _wellbeing({"wellbeing": ["two_consecutive_rest_days"]})
     with pytest.raises(ValueError, match="legacy"):
         _wellbeing({"max_evenings_per_week": 2, "wellbeing": {}})
+    with pytest.raises(ValueError, match="legacy"):
+        _wellbeing({"wellbeing": {"at_least_one_weekend_rest_day": True}})
+
+
+def test_sunday_closed_weekend_rest_day_held_without_other_weekend_rest():
+    hours = RestaurantHours.multi_service(ServiceName.MIDDAY.value, closed_weekdays={"sunday"})
+    person = employee("Ada", "commis", hours=20, employee_id="ada").with_wellbeing(
+        Wellbeing(weekend_rest_day=True)
+    )
+    assignments = [_shift("ada", day, 11 * 60, 15 * 60, 2) for day in (0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12)]
+    result = evaluate(
+        PlanningDraft(
+            employees=(person,),
+            structures=(kitchen_midday_structure(),),
+            hours=hours,
+            assignments=tuple(assignments),
+        )
+    )
+    assert "weekend_rest_day" not in result.codes()
+
+
+def test_sunday_open_sat_and_sun_worked_warns_weekend_rest_day():
+    hours = RestaurantHours.multi_service(ServiceName.MIDDAY.value)
+    person = employee("Ada", "commis", hours=20, employee_id="ada").with_wellbeing(
+        Wellbeing(weekend_rest_day=True)
+    )
+    assignments = [_shift("ada", day, 11 * 60, 15 * 60, 2) for day in (5, 6, 12, 13)]
+    result = evaluate(
+        PlanningDraft(
+            employees=(person,),
+            structures=(kitchen_midday_structure(),),
+            hours=hours,
+            assignments=tuple(assignments),
+        )
+    )
+    assert "weekend_rest_day" in result.codes()
+    assert all(
+        item.severity is WarningSeverity.SOUHAIT
+        for item in result.warnings
+        if item.code == "weekend_rest_day"
+    )
+
+
+def test_weekend_rest_day_stacks_with_weekend_even():
+    hours = RestaurantHours.multi_service(ServiceName.MIDDAY.value)
+    person = employee("Ada", "commis", hours=20, employee_id="ada").with_wellbeing(
+        Wellbeing(weekend_rest_day=True, weekend=WeekendChoice.EVEN)
+    )
+    assignments = [_shift("ada", day, 11 * 60, 15 * 60, 2) for day in (5, 6, 12, 13)]
+    result = evaluate(
+        PlanningDraft(
+            employees=(person,),
+            structures=(kitchen_midday_structure(),),
+            hours=hours,
+            assignments=tuple(assignments),
+        )
+    )
+    assert "weekend_rest_day" in result.codes()
+    assert "weekend_even_weeks" in result.codes()
+
+
+def test_absent_weekend_rest_day_is_false_no_board_row():
+    assert _wellbeing({"wellbeing": {}}).weekend_rest_day is False
+    assert _wellbeing({"wellbeing": {"consecutive_rest": True}}).weekend_rest_day is False
+    state = empty_restaurant("resto")
+    posed = employee("Ada", "commis", employee_id="ada").with_wellbeing(Wellbeing(weekend_rest_day=True))
+    upsert_employee(state, posed)
+    board = employee_board(state, "ada")
+    assert any(item.kind == "weekend_rest_day" for item in board.wishes)
+    upsert_employee(state, employee("Bea", "commis", employee_id="bea"))
+    absent = employee_board(state, "bea")
+    assert all(item.kind != "weekend_rest_day" for item in absent.wishes)

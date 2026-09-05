@@ -363,6 +363,8 @@ def _board_wishes(person, warnings) -> tuple[BoardWish, ...]:
     rows: list[BoardWish] = []
     if wish.consecutive_rest:
         rows.append(BoardWish(kind="consecutive_rest", held=_held(warnings, person.id, "consecutive_rest_days")))
+    if wish.weekend_rest_day:
+        rows.append(BoardWish(kind="weekend_rest_day", held=_held(warnings, person.id, "weekend_rest_day")))
     if wish.weekend is not None:
         rows.append(
             BoardWish(

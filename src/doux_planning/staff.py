@@ -81,6 +81,7 @@ class RoleLadder:
 @dataclass(frozen=True)
 class Wellbeing:
     consecutive_rest: bool = False
+    weekend_rest_day: bool = False
     weekend: WeekendChoice | None = None
     max_services: MappingProxyType[str, int] = field(default_factory=lambda: MappingProxyType({}))
     max_coupures_per_week: int | None = None
