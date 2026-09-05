@@ -32,7 +32,7 @@ Seed writes:
 
 `GET /v1/examples/{id}` reads `example_snapshots` + `legal_contexts` + restaurant public fields. It never calls `generate_cycle`. Live generate/publish update cycle/sandbox tables only, so the UI example contract cannot drift.
 
-Alternative: public GET returns the live published cycle. Rejected — `build-planning-ui` and the frozen file are a contract; a later generate would change stats (70 assignments, etc.).
+Alternative: public GET returns the live published cycle. Rejected — `build-planning-ui` and the frozen file are a contract; a later generate would change stats (92 assignments, etc.).
 
 ### 3. After seed, no file runtime
 
@@ -49,6 +49,8 @@ No JWT. No cookies required.
 Do not implement `/v1/auth/restaurateur/*` or `/v1/auth/employee/*`. Without `DATABASE_URL`, auth/invites/rotate/context return 503; example dual-read and public sandbox stay unchanged. Errors use `{ "detail": "<French>" }` like the sandbox.
 
 Live context (`contracts/http/v1-context.md`): extend `companies` / `staff_fiches`. `GET` / `PATCH /v1/context` wrap Core `empty_restaurant`, mutators, and `team_ready`. Register company already persists an empty live company; GET returns that empty shape (`ready` false) without `generate_cycle`. PATCH keys are optional section replacements. New fiches get a Core `invite_token`; rotate stays `POST /v1/staff/{id}/invite-token`. Do not write `example_snapshots` or Saint-Cloud files.
+
+HTTP wellbeing wrap (Core already owns the model): persist `staff_fiches.wellbeing` as the Core object JSON. Read: object → parse; `[]` / absent → `Wellbeing()`; legacy preference keys or `every_morning` / `every_evening` → HTTP 400 `Champs invalides.` No aliases, no `WellbeingPreference`. PATCH/GET `employees[]` use `wellbeing` object + `unavailabilities: [{ weekday, service_id }]`. `GET /v1/context` and `GET /v1/me/planning` add `week_labels` from `week_label_scheme` (`"ab"` | `"parity"`). `week_labels` is read-only — PATCH must not accept it (same as `ready`). `GET /v1/me/planning` wishes are Core `BoardWish` (`kind`, `held`, optional `value` / `service_id` / `limit`), never `{ key }`. Public example stays the stored Core snapshot (92 / 17 / 10/12 / 47). Do not edit `engine.py`, `staff.py`, `hydrate.py`, or `data/examples/saint-cloud.json`.
 
 ### 5. Route map (restaurant id never in the path)
 

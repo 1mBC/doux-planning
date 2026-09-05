@@ -14,6 +14,12 @@ from doux_planning.api.auth import (
     _fiche_to_employee,
 )
 from doux_planning.api.db import Company, StaffFiche, session_scope
+from doux_planning.api.wellbeing_codec import (
+    unavailability_from_json,
+    unavailability_to_json,
+    wellbeing_from_json,
+    wellbeing_to_json,
+)
 from doux_planning.context import (
     empty_restaurant,
     set_restaurant_name,
@@ -23,16 +29,17 @@ from doux_planning.context import (
     team_ready,
     upsert_employee,
     upsert_service_type,
+    week_label_scheme,
 )
 from doux_planning.invites import RestaurantIdentity
 from doux_planning.planning import RestaurantState
-from doux_planning.staff import Employee, Role, RoleLadder, Unavailability
+from doux_planning.staff import Employee, Role, RoleLadder
 from doux_planning.structures import ArrivalWave, DepartureWave, ServiceType, TypicalWeek, TypicalWeekCell
-from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS, Team, WEEKDAYS, WellbeingPreference
+from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS, Team, WEEKDAYS
 
 TEAMS = (Team.SALLE, Team.CUISINE)
 SERVICE_IDS = frozenset({"morning", "midday", "evening"})
-FORBIDDEN_PATCH = frozenset({"legal_context_id", "company_code", "ready"})
+FORBIDDEN_PATCH = frozenset({"legal_context_id", "company_code", "ready", "week_labels"})
 
 
 def _invalid() -> HTTPException:
@@ -179,6 +186,8 @@ def _week_from_json(payload: Any) -> TypicalWeek | None:
 def _employee_from_json(item: Any, existing_token: str | None) -> Employee:
     if not isinstance(item, dict):
         raise ValueError("invalid employee")
+    if "max_evenings_per_week" in item or "max_mornings_per_week" in item:
+        raise ValueError("legacy max_evenings_per_week / max_mornings_per_week are not accepted")
     team = Team(item["team"])
     role_raw = item.get("role")
     if not isinstance(role_raw, dict):
@@ -193,20 +202,8 @@ def _employee_from_json(item: Any, existing_token: str | None) -> Employee:
     unavail_raw = item.get("unavailabilities") or []
     if not isinstance(unavail_raw, list):
         raise ValueError("invalid unavailabilities")
-    unavailabilities = tuple(
-        Unavailability(
-            weekday=entry.get("weekday"),
-            every_morning=bool(entry.get("every_morning")),
-            every_evening=bool(entry.get("every_evening")),
-            service_id=entry.get("service_id"),
-        )
-        for entry in unavail_raw
-        if isinstance(entry, dict)
-    )
-    wellbeing_raw = item.get("wellbeing") or []
-    if not isinstance(wellbeing_raw, list):
-        raise ValueError("invalid wellbeing")
-    wellbeing = frozenset(WellbeingPreference(value) for value in wellbeing_raw)
+    unavailabilities = tuple(unavailability_from_json(entry) for entry in unavail_raw)
+    wellbeing = wellbeing_from_json(item.get("wellbeing"))
     kwargs: dict[str, Any] = {
         "id": str(item["id"]),
         "name": str(item["name"]),
@@ -279,16 +276,8 @@ def _serialize_employee(person: Employee) -> dict[str, Any]:
         "role": {"name": person.role.name, "level": person.role.level, "team": person.role.team.value},
         "contractual_hours_per_week": person.contractual_hours_per_week,
         "min_shift_hours": person.min_shift_hours,
-        "unavailabilities": [
-            {
-                "weekday": item.weekday,
-                "every_morning": item.every_morning,
-                "every_evening": item.every_evening,
-                "service_id": item.service_id,
-            }
-            for item in person.unavailabilities
-        ],
-        "wellbeing": sorted(pref.value for pref in person.wellbeing),
+        "unavailabilities": [unavailability_to_json(item) for item in person.unavailabilities],
+        "wellbeing": wellbeing_to_json(person.wellbeing),
         "invite_token": person.invite_token,
     }
 
@@ -310,6 +299,7 @@ def serialize_context(state: RestaurantState) -> dict[str, Any]:
             "salle": team_ready(state, Team.SALLE),
             "cuisine": team_ready(state, Team.CUISINE),
         },
+        "week_labels": week_label_scheme(state),
     }
 
 
@@ -352,16 +342,8 @@ def _persist_state(restaurant_id: str, state: RestaurantState) -> None:
                 role_level=person.role.level,
                 contractual_hours_per_week=person.contractual_hours_per_week,
                 min_shift_hours=person.min_shift_hours,
-                unavailabilities=[
-                    {
-                        "weekday": item.weekday,
-                        "every_morning": item.every_morning,
-                        "every_evening": item.every_evening,
-                        "service_id": item.service_id,
-                    }
-                    for item in person.unavailabilities
-                ],
-                wellbeing=[pref.value for pref in person.wellbeing],
+                unavailabilities=[unavailability_to_json(item) for item in person.unavailabilities],
+                wellbeing=wellbeing_to_json(person.wellbeing),
             )
             if row is None:
                 db.add(StaffFiche(id=person.id, company_id=restaurant_id, **payload))

@@ -133,23 +133,15 @@ def _issue_session(db: Session, *, kind: str, account_id: str, restaurant_id: st
 
 
 def _fiche_to_employee(row: StaffFiche) -> Employee:
-    from doux_planning.staff import Unavailability
-    from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS, WellbeingPreference
+    from doux_planning.api.wellbeing_codec import unavailability_from_json, wellbeing_from_json
+    from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS
 
     team = Team(row.team)
     role = Role(name=row.role, level=getattr(row, "role_level", 1) or 1, team=team)
     unavailabilities = tuple(
-        Unavailability(
-            weekday=item.get("weekday"),
-            every_morning=bool(item.get("every_morning")),
-            every_evening=bool(item.get("every_evening")),
-            service_id=item.get("service_id"),
-        )
+        unavailability_from_json(item)
         for item in (row.unavailabilities or [])
         if isinstance(item, dict)
-    )
-    wellbeing = frozenset(
-        WellbeingPreference(value) for value in (row.wellbeing or []) if isinstance(value, str)
     )
     return Employee(
         id=row.id,
@@ -158,7 +150,7 @@ def _fiche_to_employee(row: StaffFiche) -> Employee:
         team=team,
         contractual_hours_per_week=getattr(row, "contractual_hours_per_week", None) or 35,
         unavailabilities=unavailabilities,
-        wellbeing=wellbeing,
+        wellbeing=wellbeing_from_json(row.wellbeing),
         min_shift_hours=getattr(row, "min_shift_hours", None) or DEFAULT_MIN_SHIFT_HOURS,
         invite_token=row.invite_token,
     )

@@ -64,15 +64,13 @@ def _ready_patch(salle_id: str, cuisine_id: str) -> dict:
                 "team": "salle",
                 "role": {"name": "RESPONSABLE", "level": 3, "team": "salle"},
                 "contractual_hours_per_week": 39,
-                "wellbeing": ["two_consecutive_rest_days"],
-                "unavailabilities": [
-                    {
-                        "weekday": "sunday",
-                        "every_morning": False,
-                        "every_evening": False,
-                        "service_id": None,
-                    }
-                ],
+                "wellbeing": {
+                    "consecutive_rest": True,
+                    "weekend": None,
+                    "max_services": {},
+                    "max_coupures_per_week": None,
+                },
+                "unavailabilities": [{"weekday": "sunday", "service_id": "midday"}],
             },
             {
                 "id": cuisine_id,
@@ -168,11 +166,12 @@ def test_me_planning_published_grid_hides_live_draft():
     assert body["contract"]["weekly"] == 39
     assert "assigned" in body["contract"]
     assert isinstance(body["contract"]["ok"], bool)
+    assert body["week_labels"] == "ab"
     assert body["wishes"]
-    assert body["wishes"][0]["key"] == "two_consecutive_rest_days"
+    assert body["wishes"][0]["kind"] == "consecutive_rest"
+    assert "key" not in body["wishes"][0]
     assert "held" in body["wishes"][0]
-    assert body["unavailabilities"]
-    assert body["unavailabilities"][0]["weekday"] == "sunday"
+    assert body["unavailabilities"] == [{"weekday": "sunday", "service_id": "midday"}]
 
     entered = client.post("/v1/live/sandbox/salle/enter", headers=company_headers)
     assert entered.status_code == 200
