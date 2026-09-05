@@ -151,4 +151,4 @@ Régression wellbeing-model (déjà landed) : repos consécutifs, we even/odd/ev
 
 ## Hors freeze
 
-Wizard Services-first, onglet « Services types », archive / sync. Persist HTTP du bool = brief Infra.
+Archive / sync. Wizard / types = `contracts/domain/wizard-ui.md`.

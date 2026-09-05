@@ -34,7 +34,7 @@ Un **type** = feuille nommée pour **un** couple (équipe × service) :
 ServiceType { id, name, team, service_id, arrivals[], departures[] }
 ```
 
-Vagues = mêmes `ArrivalWave` / `DepartureWave` qu’aujourd’hui (grille 15 min). Ce n’est **pas** un `ServiceStructure.weekdays` rempli à la main : les jours viennent de la semaine type.
+Vagues = mêmes `ArrivalWave` / `DepartureWave` qu’aujourd’hui (grille 15 min). L’UI calcule `remaining_post_levels` (`wizard-ui.md`) ; le moteur ne change pas. Ce n’est **pas** un `ServiceStructure.weekdays` rempli à la main : les jours viennent de la semaine type.
 
 ## Semaine type → 14 jours
 

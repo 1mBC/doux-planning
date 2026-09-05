@@ -123,7 +123,8 @@ Restart process → même `GET /v1/context`. Auth + invites restent justes.
 
 ## UI (wizard)
 
-Route `/context` (session company). Ordre : rôles → fiches → services entreprise → types → semaine type. Salle / cuisine indépendantes. `ready` affiché, pas de generate. PATCH listes = remplacement complet (renvoyer l’autre équipe). Exemple sans session inchangé.
+Route `/context` (session company). Ordre, purge service, vagues : **`contracts/domain/wizard-ui.md`** (gagne).  
+Salle / cuisine indépendantes. `ready` affiché, pas de generate. PATCH listes = remplacement complet (renvoyer l’autre équipe). Exemple sans session inchangé.
 
 ## Hors tranche
 
