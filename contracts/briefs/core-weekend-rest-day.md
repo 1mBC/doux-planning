@@ -1,6 +1,6 @@
 # Brief — coller dans le chat **Core Engine**
 
-Le tech lead : case bien-être **au moins un repos par week-end**. Relis `contracts/domain/wellbeing.md` (tu le suis, tu ne le modifies pas). `git pull origin master` ; master doit avoir **`contracts: weekend_rest_day`** (plus récent que `295bc9f`). Branche **`weekend-rest/core` depuis `master`**.
+Le tech lead : case bien-être **au moins un repos par week-end**. Relis `contracts/domain/wellbeing.md` (tu le suis, tu ne le modifies pas). `git pull origin master` ; master doit contenir **`e1063d4`** (`contracts: weekend_rest_day`). Branche **`weekend-rest/core` depuis `master`**.
 
 Nouveau change OpenSpec **`weekend-rest-day`**. Skills → **propose puis `/opsx-apply`**. Pas de `/opsx-update` wellbeing-model / seed / sandbox. Pas d’archive / sync.
 
