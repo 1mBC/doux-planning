@@ -61,11 +61,22 @@ Authenticated restaurateur routes SHALL allow reading and updating staff, struct
 - **THEN** the request is rejected and hours are unchanged
 
 ### Requirement: Employee planning route
-`GET /v1/me/planning` (Bearer employee) SHALL wrap Core `employee_board` for `me.employee_id`. The 200 body MUST be `{ employee_id, team, employees, assignments, contract, wishes, unavailabilities }` per `contracts/http/v1-me-planning.md`. `assignments` MUST be the full published team grid (empty if that team has no cycle). `employees` MUST be the fiches of that team (no `invite_token`). The route MUST NOT return live sandbox drafts, `/me/shifts`, or snapshot `legal_rows` / `wish_rows`. A company session MUST receive HTTP 403 `Action réservée au salarié.`
+`GET /v1/me/planning` (Bearer employee) SHALL wrap Core `employee_board` for `me.employee_id`. The 200 body MUST be `{ employee_id, team, week_labels, employees, assignments, contract, wishes, unavailabilities }` per `contracts/http/v1-me-planning.md`. `week_labels` MUST be Core `week_label_scheme`. `wishes` MUST be Core `BoardWish` objects (`kind`, `held`, optional `value` / `service_id` / `limit`) and MUST NOT use `{ key }`. `unavailabilities` MUST be `{ weekday, service_id }`. `assignments` MUST be the full published team grid (empty if that team has no cycle). `employees` MUST be the fiches of that team (no `invite_token`). The route MUST NOT return live sandbox drafts, `/me/shifts`, or snapshot `legal_rows` / `wish_rows`. A company session MUST receive HTTP 403 `Action réservée au salarié.`
 
 #### Scenario: Salle employee sees the published team grid
 - **WHEN** a linked salle employee gets `/v1/me/planning` after a salle generate
-- **THEN** `assignments` matches the published salle cycle (every teammate’s shifts), `employee_id` is that account, and `contract` / `wishes` are present
+- **THEN** `assignments` matches the published salle cycle (every teammate’s shifts), `employee_id` is that account, `contract` is present, and each wish has `kind` (not `key`)
+
+### Requirement: Context exposes Core wellbeing and week labels
+`GET /v1/context` (Bearer company) MUST include `week_labels` from Core `week_label_scheme` (`"ab"` or `"parity"`) and serialize each employee `wellbeing` as the Core object plus `unavailabilities` `{ weekday, service_id }`. PATCH MUST accept that same employee shape and MUST reject `week_labels` as a written field (HTTP 400 `Champs invalides.`). `weekend` `even` or `odd` on any fiche MUST yield `"parity"`; `every_two` alone MUST yield `"ab"`.
+
+#### Scenario: Even weekend switches restaurant labels to parity
+- **WHEN** a restaurateur patches one fiche `wellbeing.weekend` `even` then gets `/v1/context`
+- **THEN** `week_labels` is `parity` and the fiche wellbeing is an object
+
+#### Scenario: Every-two weekend keeps A/B labels
+- **WHEN** the only weekend choice on staff is `every_two`
+- **THEN** `GET /v1/context` returns `week_labels` `ab`
 
 #### Scenario: Unpublished live cran is invisible
 - **WHEN** the restaurateur has an uncommitted-to-publish live sandbox edit

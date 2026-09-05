@@ -30,7 +30,7 @@ The system SHALL load the legal rules from the country legal context named by th
 Serving `GET /v1/examples/{example_id}` MUST read the snapshot already stored for that example. It MUST NOT run cycle generation, MUST NOT create a generation job, and MUST NOT recompute assignments, warnings, stats, legal rows, or wish rows.
 
 #### Scenario: Stored Saint-Cloud planning is returned as-is
-- **WHEN** the stored Saint-Cloud snapshot contains `planning.search_effort` `optimized` and `planning.stats.assignments` equal to 70
+- **WHEN** the stored Saint-Cloud snapshot contains `planning.search_effort` `optimized` and `planning.stats.assignments` equal to 92
 - **THEN** the HTTP body repeats those stored values even if a later live generate exists for the restaurant
 
 #### Scenario: No generate on read

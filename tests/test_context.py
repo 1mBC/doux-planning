@@ -119,6 +119,7 @@ def test_context_get_patch_ready_invites_and_auth():
     assert body["types"] == []
     assert body["typical_week"] == {"salle": None, "cuisine": None}
     assert body["ready"] == {"salle": False, "cuisine": False}
+    assert body["week_labels"] == "ab"
 
     fiche_id = f"emma-{secrets.token_hex(4)}"
     patched = client.patch("/v1/context", headers=_bearer(token), json=_salle_patch(fiche_id))
@@ -130,6 +131,13 @@ def test_context_get_patch_ready_invites_and_auth():
     assert ready["employees"][0]["id"] == fiche_id
     assert ready["employees"][0]["invite_token"]
     assert ready["employees"][0]["min_shift_hours"] == 4
+    assert ready["week_labels"] == "ab"
+    assert ready["employees"][0]["wellbeing"] == {
+        "consecutive_rest": False,
+        "weekend": None,
+        "max_services": {},
+        "max_coupures_per_week": None,
+    }
     company_code = ready["company_code"]
 
     reset_engine()
@@ -187,3 +195,88 @@ def test_context_get_patch_ready_invites_and_auth():
     assert client.get("/v1/me", headers=_bearer(login_token)).status_code == 200
     assert client.post("/v1/auth/logout", headers=_bearer(login_token)).status_code == 204
     assert client.get("/v1/me", headers=_bearer(login_token)).status_code == 401
+
+
+def _fiche_payload(fiche_id: str, *, weekend: str | None, unavailabilities: list | None = None) -> dict:
+    return {
+        "id": fiche_id,
+        "name": "Emma",
+        "team": "salle",
+        "role": {"name": "RESPONSABLE", "level": 3, "team": "salle"},
+        "contractual_hours_per_week": 39,
+        "wellbeing": {
+            "consecutive_rest": False,
+            "weekend": weekend,
+            "max_services": {},
+            "max_coupures_per_week": None,
+        },
+        "unavailabilities": unavailabilities or [],
+    }
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_context_wellbeing_week_labels_and_unavail_service_id():
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"wb-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    token = registered.json()["token"]
+    headers = _bearer(token)
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+
+    even = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"employees": [_fiche_payload(fiche_id, weekend="even")]},
+    )
+    assert even.status_code == 200
+    assert even.json()["week_labels"] == "parity"
+    assert even.json()["employees"][0]["wellbeing"]["weekend"] == "even"
+    assert even.json()["employees"][0]["unavailabilities"] == []
+
+    reset_engine()
+    again = client.get("/v1/context", headers=headers)
+    assert again.status_code == 200
+    assert again.json()["week_labels"] == "parity"
+    assert again.json()["employees"][0]["wellbeing"] == {
+        "consecutive_rest": False,
+        "weekend": "even",
+        "max_services": {},
+        "max_coupures_per_week": None,
+    }
+
+    two = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"employees": [_fiche_payload(fiche_id, weekend="every_two")]},
+    )
+    assert two.status_code == 200
+    assert two.json()["week_labels"] == "ab"
+    assert two.json()["employees"][0]["wellbeing"]["weekend"] == "every_two"
+
+    missing = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"employees": [_fiche_payload(fiche_id, weekend="every_two", unavailabilities=[{"weekday": "sunday"}])]},
+    )
+    assert missing.status_code == 400
+    assert missing.json()["detail"] == "Champs invalides."
+    still = client.get("/v1/context", headers=headers)
+    assert still.status_code == 200
+    assert still.json()["week_labels"] == "ab"
+    assert still.json()["employees"][0]["unavailabilities"] == []
+
+    forced = client.patch("/v1/context", headers=headers, json={"week_labels": "parity"})
+    assert forced.status_code == 400
+    assert forced.json()["detail"] == "Champs invalides."
+    assert client.get("/v1/context", headers=headers).json()["week_labels"] == "ab"
+
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    stats = example.json()["planning"]["stats"]
+    assert stats["assignments"] == 92
+    assert len(example.json()["planning"]["warnings"]) == 17
+    assert stats["wellbeing"] == {"held": 10, "total": 12}
+    assert stats["below_role"] == 47

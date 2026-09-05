@@ -83,7 +83,7 @@ class StaffFiche(Base):
     contractual_hours_per_week: Mapped[float] = mapped_column(Float, nullable=False, default=35)
     min_shift_hours: Mapped[float] = mapped_column(Float, nullable=False, default=4)
     unavailabilities: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
-    wellbeing: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    wellbeing: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
 
 class AccountEmail(Base):
