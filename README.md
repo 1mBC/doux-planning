@@ -1,37 +1,41 @@
 # Doux Planning
 
-Moteur de planning de restaurant : cycle de 14 jours (salle / cuisine), postes à niveaux, contraintes légales et souhaits de bien-être.
+Moteur de planning restaurant (cycle 14 jours, salle / cuisine).
 
-## Rapport exemple (salle)
+**[Planning exemple](https://1mbc.github.io/doux-planning/)**
 
-Le cycle généré à partir du classeur *Exemple de restau* est en HTML :
+## Chez toi (2 terminaux)
 
-**[Ouvrir le planning 14 jours](https://1mbc.github.io/doux-planning/)**
-
-## Moteur (Python 3.12)
+Prérequis : Docker Desktop (Postgres), Python 3.12 + `uv`, Node 20+.
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-pytest
-```
-
-## UI lecture seule (exemple Saint-Cloud)
-
-Deux processus, sans `DATABASE_URL` (snapshot fichiers) :
-
-```bash
-# API — GET /v1/examples/saint-cloud
-source .venv/bin/activate
-uvicorn doux_planning.api.app:app --reload
+# une fois
+docker compose up -d db
+uv sync --extra dev
+uv run alembic upgrade head
+cd web && npm install && cd ..
 ```
 
 ```bash
-# Client React (proxy /v1 → http://127.0.0.1:8000)
-cd web
-npm install
-npm run dev
+# terminal 1 — API (127.0.0.1:8000)
+export DATABASE_URL=postgresql+psycopg://doux:doux@127.0.0.1:5432/doux_planning
+uv run uvicorn doux_planning.api.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Ouvrir [http://127.0.0.1:5173/](http://127.0.0.1:5173/). Écran français : lecture de l’example, puis **Mode édition** (sandbox cycle : retune / replace / swap / fill, historique, tout annuler). L’example public `GET /v1/examples/saint-cloud` reste figé. Pas d’auth ni de publish dans cette V0.
+```bash
+# terminal 2 — front (127.0.0.1:5173, proxy /v1 → API)
+cd web && npm run dev
+```
+
+Ouvre [http://127.0.0.1:5173/](http://127.0.0.1:5173/).
+
+Sans Postgres / sans `DATABASE_URL` : login → **503** `Base indisponible.`  
+L’exemple seul : [http://127.0.0.1:5173/exemple](http://127.0.0.1:5173/exemple) (API sans `DATABASE_URL` OK).
+
+Raccourci tout-en-un (background) : `./scripts/dev` — stop : `./scripts/dev stop`.
+
+## Tests
+
+```bash
+uv run pytest
+```
