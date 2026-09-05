@@ -101,4 +101,4 @@ Ne pas chasser un faux positif 11 h.
 
 ## Hors freeze
 
-Pastilles UI, dessin Services types, archive / sync. HTTP persist = brief Infra.
+Dessin Services types = `wizard-ui.md`. Archive / sync.

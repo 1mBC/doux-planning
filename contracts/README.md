@@ -26,7 +26,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 13 — bien-être / indispos | `domain/wellbeing.md` | **landed** `11dc586` |
 | 14 — seed exemple | `domain/example-seed.md` | **landed** `295bc9f` |
 | 15 — repos we + wizard | `domain/wellbeing.md`, `domain/wizard-ui.md` | **landed** `6c75004` |
-| 16 — recaps + types | `domain/cycle-recaps.md` ; briefs `core-cycle-recaps.md`, `infra-cycle-recaps.md` | Core @ `8f78a8c` ; Infra persist |
+| 16 — recaps + types | `domain/cycle-recaps.md`, `domain/wizard-ui.md` ; briefs core / infra / `ui-cycle-recaps.md` | Core @ `8f78a8c` ; Infra @ `3a3753d` ; UI |
 
 ## Ownership git (ne pas croiser)
 
