@@ -37,10 +37,11 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 - Company published cycle at `/planning` following `contracts/http/v1-generate.md` (`search_effort: "minimal"`).
 - Live sandbox Mode édition on `/planning` following `contracts/http/v1-live-sandbox.md` (shapes from `v1-sandbox-edit.md`).
 - Employee `/planning` following `contracts/http/v1-me-planning.md` (team grid, highlight, read-only contract panel).
+- Company `/context` seed button following `POST /v1/context/seed-example`.
 
 **Non-Goals:**
-- `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit, seed button.
-- Merging `wellbeing/infra` / `wellbeing/core`, new FastAPI routes, a second scoring path, react-router.
+- `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit.
+- Merging `seed/infra` / `seed/core`, new FastAPI routes, a second scoring path, react-router.
 - Pixel-identical clone of the GitHub Pages HTML.
 - Translating engine messages into a new diagnosis.
 - « Mot de passe oublié ».
@@ -83,7 +84,7 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 - `/register` : bascule **Entreprise** / **Salarié**. Entreprise → `{ kind: company, email, password }` seulement. Salarié → code → `GET /v1/invites/{company_code}` → choisir une fiche (`id`, `name`, `role`, `team`) → `{ kind: employee, company_code, employee_id, email, password }` (pas de token).
 - QR : `/register?company_code=…&employee_token=…` — kind salarié verrouillé, pas de liste, POST avec `employee_token` (pas d’`employee_id`).
 - Password ≥ 8. Afficher `detail` tel quel. Pas de « mot de passe oublié ».
-- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
+- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
 - Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 n’empêche pas l’exemple.
 - Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`. Employee : lien **Planning** → `/planning`.
 - Sans session : login/register **et** `/exemple`. La grille d’exemple n’est pas derrière le login.
@@ -101,7 +102,7 @@ Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : Rôl
 5. Types (équipe × service) : nom, vagues ±15, `post_levels`. PATCH `types` = liste complète.
 6. Semaine type : type ou Fermé. PATCH `typical_week` = `{ salle, cuisine }`. Fermé : `closed: true`, `type_id` null. Libellés A/B ou Paire/Impaire selon `week_labels`.
 
-Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`.  
+Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`. Bouton **Intégrer l’exemple Saint-Cloud** à côté du code (tous les comptes company). Confirm FR puis `POST /v1/context/seed-example` (Bearer, pas de body). 200 = même parse que GET ; rester sur `/context`.  
 `ready.salle` / `ready.cuisine` = JSON seulement, badges « Prêt à calculer » / « Pas encore prêt ».
 
 ### 9. Published cycle (company)
@@ -121,6 +122,10 @@ Hors slice : rotate invite-token, `optimized` 30 s, edit contraintes salarié.
 ### 12. Week labels
 
 `week_labels` du GET context / me/planning (`"ab"` | `"parity"`) : tout le resto. `"ab"` → A / B. `"parity"` → Paire / Impaire (paire = j0–6). Semaine type + grilles `/planning` company et salarié. L’exemple Saint-Cloud reste A / B.
+
+### 13. Seed example
+
+Tous les comptes `kind: company` sur `/context`. Confirm d’une phrase (remplace rôles / équipe / souhaits / types / semaine, garde le nom, casse les comptes salariés liés, ne colle pas le planning exemple). POST sans body. Pas de bouton salarié, `/exemple`, `/planning`, login. Pas de generate.
 
 ## Risks / Trade-offs
 

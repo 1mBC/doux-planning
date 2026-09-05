@@ -82,7 +82,7 @@ The client SHALL offer one login (email + password) via `POST /v1/auth/login` an
 - **THEN** the form is locked to Salarié, lists no fiches, and commits with `employee_token`
 
 ### Requirement: Session token and logout
-The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, and `GET /v1/me/planning` when a token exists, and MUST NOT be sent on example or `/v1/sandbox/*` requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context` and `/planning`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard, and SHALL open `/planning` via `GET /v1/me/planning`.
+The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, and `GET /v1/me/planning` when a token exists, and MUST NOT be sent on example or `/v1/sandbox/*` requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context` and `/planning`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard, and SHALL open `/planning` via `GET /v1/me/planning`.
 
 #### Scenario: Logout
 - **WHEN** the restaurateur clicks Déconnexion
@@ -106,6 +106,17 @@ A `kind: company` session SHALL reach `/context` after login/register and via «
 #### Scenario: Employee cannot open context
 - **WHEN** `me.kind` is `employee`
 - **THEN** the wizard is not shown
+
+### Requirement: Seed example on company context
+A `kind: company` session on `/context` SHALL show **Intégrer l’exemple Saint-Cloud** next to the company code, whether the restaurant is empty or already filled. The button MUST ask for a one-sentence French confirm (replaces roles, team, wishes, types, week; keeps the name; breaks linked employee accounts; does not paste the example planning) before `POST /v1/context/seed-example` with Bearer and no body. A 200 SHALL replace the wizard state via the same Context parse as GET. API `detail` SHALL be shown on error. The client MUST stay on `/context` and MUST NOT call generate. The button MUST NOT appear for employees, on `/exemple`, `/planning`, or login.
+
+#### Scenario: Empty company seeds Saint-Cloud context
+- **WHEN** a company account confirms the seed
+- **THEN** GET-shaped Context has salle ready, cuisine not ready, example fiches, `week_labels` `"ab"`, and the restaurant name unchanged
+
+#### Scenario: Second seed overwrites
+- **WHEN** the restaurateur confirms seed again
+- **THEN** the wizard again shows the example fiches (previous edits are gone)
 
 ### Requirement: Company published cycle
 A `kind: company` session SHALL reach `/planning` via « Planning ». The client SHALL `GET /v1/cycles` and `GET /v1/context` on load. Types MUST match `contracts/http/v1-generate.md` (and context) JSON; a missing key MUST throw. **Calculer** SHALL be enabled only when `ready[team]` from context is true, and SHALL `POST /v1/generate` with `{ team, search_effort: "minimal" }`. If `ready[team]` is false the button MUST be disabled and the client MUST NOT POST. API `detail` SHALL be shown on 409/400. When `published[team]` is not null the client SHALL render a 14-day paper grid (A/B or Paire/Impaire from `week_labels`) from that team’s context fiches plus `assignments`, and SHALL list every `warnings` item (engine `message`, French severity). The client MUST NOT invent `stats`, `legal_rows`, or `wish_rows`. Regenerating SHALL replace that team only. Reload SHALL use the same GET. When `published[team]` exists the client MAY offer Mode édition via the live sandbox routes.
