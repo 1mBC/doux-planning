@@ -11,8 +11,8 @@ from doux_planning.context import (
 )
 from doux_planning.invites import UnknownEmployee
 from doux_planning.planning import PlanningStore
-from doux_planning.staff import Employee, Role, Unavailability
-from doux_planning.types import SearchEffort, Team, WarningSeverity, WellbeingPreference
+from doux_planning.staff import Employee, Role, Unavailability, Wellbeing
+from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity
 from tests.test_team_generate import _complete_salle
 
 
@@ -21,8 +21,8 @@ def _salle_with_wish():
     emma = next(person for person in state.employees if person.id == "emma")
     upsert_employee(
         state,
-        emma.with_wellbeing(WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS).with_unavailability(
-            Unavailability(weekday="sunday")
+        emma.with_wellbeing(Wellbeing(consecutive_rest=True)).with_unavailability(
+            Unavailability(weekday="sunday", service_id=ServiceName.MIDDAY.value)
         ),
     )
     upsert_employee(
@@ -68,10 +68,10 @@ def test_salle_board_is_full_published_grid_and_wishes():
     assert board.assignments
     assert board.team is Team.SALLE
     assert board.contract.weekly == 39
-    assert board.unavailabilities == (Unavailability(weekday="sunday"),)
+    assert board.unavailabilities == (Unavailability(weekday="sunday", service_id=ServiceName.MIDDAY.value),)
     assert len(board.wishes) == 1
     wish = board.wishes[0]
-    assert wish.key is WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS
+    assert wish.kind == "consecutive_rest"
     warned = any(
         item.severity == WarningSeverity.SOUHAIT
         and item.employee_id == "emma"

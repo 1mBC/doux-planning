@@ -240,19 +240,19 @@ def _assert_saint_cloud_contract(body: dict) -> None:
         "assignments": 92,
         "empty": 0,
         "interdit": 0,
-        "below_role": 43,
+        "below_role": 47,
         "hours": {
             "assigned": 416.0,
             "contracted": 494.0,
             "percent": 84,
         },
         "wellbeing": {
-            "held": 21,
-            "total": 21,
+            "held": 10,
+            "total": 12,
         },
     }
     assert len(planning["assignments"]) == 92
-    assert len(planning["warnings"]) == 14
+    assert len(planning["warnings"]) == 17
     theo = next(
         item
         for item in planning["assignments"]

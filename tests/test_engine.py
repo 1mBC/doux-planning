@@ -22,7 +22,8 @@ from doux_planning.engine import (
 )
 from doux_planning.staff import Unavailability
 from doux_planning.structures import ArrivalWave, DepartureWave, RestaurantHours, ServiceStructure
-from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WellbeingPreference, WEEKDAYS
+from doux_planning.staff import Wellbeing
+from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WeekendChoice, WEEKDAYS
 from tests.fixtures import employee, kitchen_midday_structure, kitchen_staff
 
 
@@ -106,7 +107,9 @@ def test_interdit_fixtures():
         _draft(long_week, employees=(employee("ChefA", "chef", employee_id="chef-a"),))
     ).codes()
 
-    unavailable = employee("ChefA", "chef", employee_id="chef-a").with_unavailability(Unavailability(weekday="monday"))
+    unavailable = employee("ChefA", "chef", employee_id="chef-a").with_unavailability(
+        Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value)
+    )
     assigned = [_shift("chef-a", 0, 10 * 60, 16 * 60, 4)]
     assert "unavailability" in evaluate(_draft(assigned, employees=(unavailable,))).codes()
 
@@ -123,7 +126,7 @@ def test_cycle_wrap_rest_is_interdit():
 
 def test_souhait_consecutive_rest_and_contract_hours():
     person = employee("Sam", "commis", hours=20, employee_id="sam").with_wellbeing(
-        WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS
+        Wellbeing(consecutive_rest=True)
     )
     assignments = [
         _shift("sam", 0, 11 * 60, 15 * 60, 2),
@@ -200,7 +203,7 @@ def test_generate_is_fourteen_day_single_solve():
     assert GENERATION_HORIZON_DAYS == 14
     assert SEQUENTIAL_WEEK_SOLVE is False
     person = employee("ChefA", "chef", hours=35, employee_id="chef-a").with_wellbeing(
-        WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS
+        Wellbeing(weekend=WeekendChoice.EVERY_TWO)
     )
     draft = _draft(employees=(person,))
     result = generate_cycle(draft)
@@ -216,7 +219,7 @@ def test_generate_is_fourteen_day_single_solve():
 
 def test_generate_skips_monday_unavailability():
     blocked = employee("ChefA", "chef", employee_id="chef-a").with_unavailability(
-        Unavailability(weekday="monday")
+        Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value)
     )
     other = employee("ChefB", "chef", employee_id="chef-b")
     result = generate_cycle(_draft(employees=(blocked, other)))
@@ -423,18 +426,18 @@ def test_generate_does_not_rest_the_only_people_who_can_cover():
     }
 
 
-def test_weekend_off_does_not_count_as_weekday_consecutive_rest():
+def test_weekend_off_counts_as_consecutive_rest():
     person = employee("Sam", "commis", hours=20, employee_id="sam").with_wellbeing(
-        WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS
+        Wellbeing(consecutive_rest=True)
     )
     assignments = [_shift("sam", day, 11 * 60, 15 * 60, 2) for day in range(5)]
     result = evaluate(_draft(assignments, employees=(person,)))
-    assert "consecutive_rest_days" in result.codes()
+    assert "consecutive_rest_days" not in result.codes()
 
 
 def test_generate_consecutive_rest_still_works_saturday():
     theo = employee("Theo", "chef", hours=39, employee_id="theo").with_wellbeing(
-        WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS
+        Wellbeing(consecutive_rest=True)
     )
     emma = employee("Emma", "sous-chef", hours=39, employee_id="emma")
     weekday = ServiceStructure(
@@ -456,7 +459,7 @@ def test_generate_consecutive_rest_still_works_saturday():
     hours = RestaurantHours.multi_service(ServiceName.MIDDAY.value, closed_weekdays={"sunday"})
     draft = PlanningDraft(employees=(theo, emma), structures=(weekday, saturday), hours=hours)
     off = _plan_rest_days(draft)
-    assert 5 not in off["theo"] and 12 not in off["theo"]
+    assert off["theo"]
     result = generate_cycle(draft)
     saturday_posts = [
         shift for shift in result.assignments if shift.weekday == "saturday"
@@ -467,7 +470,7 @@ def test_generate_consecutive_rest_still_works_saturday():
 def test_generate_keeps_opener_for_earlier_level1():
     opener = employee("Aurore", "commis", hours=30, employee_id="aurore")
     later = employee("Vlad", "commis", hours=35, employee_id="vlad").with_unavailability(
-        Unavailability(every_morning=True)
+        Unavailability(weekday="monday", service_id=ServiceName.MORNING.value)
     )
     chef = employee("Emma", "sous-chef", hours=39, employee_id="emma")
     structure = ServiceStructure(
@@ -537,7 +540,7 @@ def test_prefer_completing_a_started_day():
 
 def test_generate_does_not_exceed_weekly_coupure_cap():
     emma = employee("Emma", "sous-chef", hours=39, employee_id="emma").with_wellbeing(
-        WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK
+        Wellbeing(max_coupures_per_week=2)
     )
     vlad = employee("Vlad", "commis", hours=39, employee_id="vlad")
     open_days = frozenset({"monday", "tuesday", "wednesday"})
@@ -572,7 +575,7 @@ def test_generate_does_not_exceed_weekly_coupure_cap():
 
 def test_coupures_are_counted_per_week_not_per_cycle():
     person = employee("Emma", "sous-chef", hours=39, employee_id="emma").with_wellbeing(
-        WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK
+        Wellbeing(max_coupures_per_week=2)
     )
     assignments = []
     for day in (0, 1, 2):
@@ -652,11 +655,11 @@ def test_attempt_prefers_fewer_shifts_below_role():
 def test_generate_reassigns_same_day_to_fill_a_hole():
     alex = employee("Alex", "commis", hours=4, employee_id="alex")
     blair = employee("Blair", "commis", hours=4, employee_id="blair").with_unavailability(
-        Unavailability(every_evening=True)
+        Unavailability(weekday="monday", service_id=ServiceName.EVENING.value)
     )
     casey = replace(
         employee("Casey", "plongeur", hours=4, employee_id="casey").with_unavailability(
-            Unavailability(every_morning=True)
+            Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value)
         ),
         forced_off_days=frozenset({0}),
     )

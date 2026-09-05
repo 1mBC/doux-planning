@@ -13,7 +13,7 @@ from doux_planning.structures import (
     ServiceType,
     TypicalWeek,
 )
-from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WEEKDAYS, WellbeingPreference
+from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WEEKDAYS, WeekendChoice
 
 COMPANY_SERVICE_IDS = frozenset(
     {ServiceName.MORNING.value, ServiceName.MIDDAY.value, ServiceName.EVENING.value}
@@ -32,14 +32,15 @@ class NoPublishedCycle(ValueError):
         super().__init__(f"no published cycle for {team.value}")
 
 
-WISH_WARNING_CODES = {
-    WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS: "consecutive_rest_days",
-    WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS: "weekend_every_two_weeks",
-    WellbeingPreference.AT_LEAST_ONE_WEEKEND_REST_DAY: "weekend_rest_day",
-    WellbeingPreference.NO_EVENING_SERVICE: "no_evening",
-    WellbeingPreference.NO_MORNING_SERVICE: "no_morning",
-    WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK: "max_coupures",
-    WellbeingPreference.MAX_THREE_COUPURES_PER_WEEK: "max_coupures",
+SERVICE_WISH_CODES = {
+    ServiceName.MORNING.value: "max_mornings",
+    ServiceName.MIDDAY.value: "max_middays",
+    ServiceName.EVENING.value: "max_evenings",
+}
+WEEKEND_WISH_CODES = {
+    WeekendChoice.EVERY_TWO: "weekend_every_two_weeks",
+    WeekendChoice.EVEN: "weekend_even_weeks",
+    WeekendChoice.ODD: "weekend_odd_weeks",
 }
 
 
@@ -52,8 +53,11 @@ class BoardContract:
 
 @dataclass(frozen=True)
 class BoardWish:
-    key: WellbeingPreference
+    kind: str
     held: bool
+    value: str | None = None
+    service_id: str | None = None
+    limit: int | None = None
 
 
 @dataclass(frozen=True)
@@ -257,18 +261,7 @@ def employee_board(state: RestaurantState, employee_id: str) -> EmployeeBoard:
         ok = abs(assigned - person.contractual_hours_per_week) <= CONTRACT_HOUR_TOLERANCE
     else:
         ok = not any(item.code == "contract_hours" and item.employee_id == person.id for item in warnings)
-    wishes = tuple(
-        BoardWish(
-            key=pref,
-            held=not any(
-                item.severity == WarningSeverity.SOUHAIT
-                and item.employee_id == person.id
-                and item.code == WISH_WARNING_CODES[pref]
-                for item in warnings
-            ),
-        )
-        for pref in sorted(person.wellbeing, key=lambda item: item.value)
-    )
+    wishes = _board_wishes(person, warnings)
     return EmployeeBoard(
         employee_id=person.id,
         team=person.team,
@@ -281,3 +274,52 @@ def employee_board(state: RestaurantState, employee_id: str) -> EmployeeBoard:
         wishes=wishes,
         unavailabilities=person.unavailabilities,
     )
+
+
+def week_label_scheme(state: RestaurantState) -> str:
+    for person in state.employees:
+        if person.wellbeing.weekend in {WeekendChoice.EVEN, WeekendChoice.ODD}:
+            return "parity"
+    return "ab"
+
+
+def _held(warnings, employee_id: str, code: str) -> bool:
+    return not any(
+        item.severity == WarningSeverity.SOUHAIT and item.employee_id == employee_id and item.code == code
+        for item in warnings
+    )
+
+
+def _board_wishes(person, warnings) -> tuple[BoardWish, ...]:
+    wish = person.wellbeing
+    rows: list[BoardWish] = []
+    if wish.consecutive_rest:
+        rows.append(BoardWish(kind="consecutive_rest", held=_held(warnings, person.id, "consecutive_rest_days")))
+    if wish.weekend is not None:
+        rows.append(
+            BoardWish(
+                kind="weekend",
+                value=wish.weekend.value,
+                held=_held(warnings, person.id, WEEKEND_WISH_CODES[wish.weekend]),
+            )
+        )
+    for service_id in (ServiceName.MORNING.value, ServiceName.MIDDAY.value, ServiceName.EVENING.value):
+        if service_id not in wish.max_services:
+            continue
+        rows.append(
+            BoardWish(
+                kind="max_services",
+                service_id=service_id,
+                limit=wish.max_services[service_id],
+                held=_held(warnings, person.id, SERVICE_WISH_CODES[service_id]),
+            )
+        )
+    if wish.max_coupures_per_week is not None:
+        rows.append(
+            BoardWish(
+                kind="max_coupures",
+                limit=wish.max_coupures_per_week,
+                held=_held(warnings, person.id, "max_coupures"),
+            )
+        )
+    return tuple(rows)
