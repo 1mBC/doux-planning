@@ -23,7 +23,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 10 — sandbox live | `http/v1-live-sandbox.md` | close (signaux Core → Infra → UI) |
 | 11 — grille employé | `http/v1-me-planning.md` | close (signaux Core → Infra → UI) |
 | 12 — recette Railway | `deploy/railway.md` ; brief `infra-deploy-railway.md` | Infra (auto-deploy `master`) |
-| 13 — bien-être / indispos | `domain/wellbeing.md` ; briefs `core-wellbeing-model.md` → `infra-wellbeing.md` | Core poussé `4005994` ; Infra HTTP |
+| 13 — bien-être / indispos | `domain/wellbeing.md` ; briefs Core → `infra-wellbeing.md` → `infra-wellbeing-push.md` | Core `4005994` ; Infra HTTP à pousser |
 
 ## Ownership git (ne pas croiser)
 
