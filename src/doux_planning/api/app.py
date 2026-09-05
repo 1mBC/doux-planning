@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from typing import Any
@@ -14,9 +15,25 @@ from doux_planning.planning import EmptyHistoryError
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     if os.environ.get("DATABASE_URL"):
+        from sqlalchemy.exc import OperationalError
+
         from doux_planning.api.seed import seed_from_files
 
-        seed_from_files()
+        # Compose peut publier le port avant que Postgres accepte les connexions.
+        last_error: Exception | None = None
+        for attempt in range(1, 31):
+            try:
+                seed_from_files()
+                last_error = None
+                break
+            except OperationalError as exc:
+                last_error = exc
+                await asyncio.sleep(1)
+        if last_error is not None:
+            raise RuntimeError(
+                "Postgres injoignable (DATABASE_URL est défini). "
+                "Lance `./scripts/dev` ou `docker compose up -d db`, puis réessaie."
+            ) from last_error
     yield
 
 
