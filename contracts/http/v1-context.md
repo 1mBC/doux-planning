@@ -62,6 +62,7 @@ POST  /v1/context/seed-example   Bearer company → 200 Context
   "unavailabilities": [{ "weekday", "service_id" }],
   "wellbeing": {
     "consecutive_rest": false,
+    "weekend_rest_day": false,
     "weekend": null,
     "max_services": {},
     "max_coupures_per_week": null

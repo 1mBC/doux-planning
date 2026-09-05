@@ -1,6 +1,7 @@
 # Bien-être, indispos, labels de semaine
 
-Freeze **domaine** (moteur + fiches + hydrate). HTTP persist = brief Infra suivant. UI onglets / seed clic = plus tard.
+Freeze **domaine** (moteur + fiches + hydrate).  
+Tranche 15 : `weekend_rest_day`. Persist HTTP du bool = brief Infra. Wizard / types = brief UI.
 
 Anciennes clés **supprimées** (pas d’alias) :  
 `at_least_one_weekend_rest_day`, `no_evening_service`, `no_morning_service`,  
@@ -14,18 +15,20 @@ Tout est du bien-être métier. Forme technique :
 ```
 Wellbeing {
   consecutive_rest: bool                 # défaut false
+  weekend_rest_day: bool                 # défaut false — au moins un repos sam ou dim, CHAQUE semaine
   weekend: null | "every_two" | "even" | "odd"
   max_services: { morning?: int, midday?: int, evening?: int }
   max_coupures_per_week: int | null      # défaut null
 }
 ```
 
-- `weekend` : **0 ou 1** choix (radio). `null` = pas de souhait week-end.  
+- `weekend_rest_day` : case **en plus** de la radio `weekend` (pas la même question : 1 jour we ≠ we complet).  
+  Tenue **par** semaine du cycle : samedi **ou** dimanche sans shift. Jour resto **fermé** = repos (dimanche fermé → déjà tenu ; case quand même posable).
+- `weekend` : **0 ou 1** choix (radio). `null` = pas de souhait we **complet**.  
   `every_two` = un week-end sur deux, **neutre** sur la parité.  
   `even` = week-end **paire** off. `odd` = week-end **impaire** off.
-- `max_services.<id>` : entier ≥ 0. **Clé absente** = pas de plafond. **0** = zéro service de ce type (remplace « pas de soir / pas de matin »).
+- `max_services.<id>` : entier ≥ 0. **Clé absente** = pas de plafond. **0** = zéro service de ce type.
 - `max_coupures_per_week` : entier ≥ 0, **0 autorisé**. `null` = pas de plafond.
-- Plus de case « au moins un jour we » (redondant avec la radio).
 
 `Employee.max_evenings_per_week` / `max_mornings_per_week` **fusionnent** dans `max_services`. Plus de flags coupures dans un `frozenset` d’enum.
 
@@ -85,6 +88,7 @@ L’UI (plus tard) coche N jours × M services → N×M lignes. Synthèse FR = U
 | Souhait | `code` |
 |---|---|
 | `consecutive_rest` | `consecutive_rest_days` |
+| `weekend_rest_day` | `weekend_rest_day` |
 | `weekend: every_two` | `weekend_every_two_weeks` |
 | `weekend: even` | `weekend_even_weeks` |
 | `weekend: odd` | `weekend_odd_weeks` |
@@ -93,9 +97,9 @@ L’UI (plus tard) coche N jours × M services → N×M lignes. Synthèse FR = U
 | `max_services.evening` | `max_evenings` |
 | `max_coupures_per_week` | `max_coupures` |
 
-Codes **retirés** : `weekend_rest_day`, `no_evening`, `no_morning`.
+Codes **retirés** : `no_evening`, `no_morning`. `weekend_rest_day` est **réintroduit** (bool objet, pas l’ancienne clé liste `at_least_one_weekend_rest_day`).
 
-Le solveur doit **viser** ces souhaits (pas seulement les warning après coup) : paires de repos, week-end even/odd/every_two, plafonds services / coupures. Formules légales (11 h, 2 repos, coupure 5 h, min shift 4 h, heures contrat) **inchangées**.
+Le solveur doit **viser** ces souhaits (pas seulement les warning après coup). Formules légales inchangées.
 
 ## `employee_board` — `wishes`
 
@@ -103,6 +107,7 @@ Une entrée **par souhait posé** sur la fiche (pas les absents) :
 
 ```
 { "kind": "consecutive_rest", "held" }
+{ "kind": "weekend_rest_day", "held" }
 { "kind": "weekend", "value": "every_two"|"even"|"odd", "held" }
 { "kind": "max_services", "service_id", "limit", "held" }
 { "kind": "max_coupures", "limit", "held" }
@@ -132,16 +137,18 @@ Si le solve (même effort que le snapshot, aujourd’hui `optimized`) **change**
 
 GET exemple public reste du **fichier** (pas un generate HTTP).
 
-## Tests (cette tranche)
+## Tests (cette tranche — `weekend_rest_day`)
 
-- Repos consécutifs : dimanche fermé → tenu ssi sam ou lun off ; 2 fermés non collés → faux sans 3ᵉ collé.
-- Week-end `even` / `odd` / `every_two` + `week_label_scheme` (une fiche `even` → `"parity"` resto entier ; `every_two` seul → `"ab"`).
-- `max_services.evening: 0` et `max_coupures_per_week: 0`.
-- Indispo = uniquement le couple jour×service.
-- Hydrate Saint-Cloud sans anciennes clés.
-- Pytest moteur / domaine / hydrate / `employee_board` verts.  
-  Si des tests HTTP (`api/`) cassent sur l’ancien `wellbeing: []` : **ne pas** patcher `api/` — lister au facteur.
+- Dimanche **fermé** + `weekend_rest_day: true` → tenu **sans** autre repos we (le fermé compte).
+- Dimanche **ouvert** + sam et dim travaillés → warning `weekend_rest_day`.
+- Cumul `weekend_rest_day` + `weekend: even` (deux souhaits, deux codes).
+- Clé absente → `false` : pas de warning, pas d’entrée board.
+- Ancienne clé liste `at_least_one_weekend_rest_day` → **refusée** (pas d’alias).
+- Saint-Cloud : **ne pas** réécrire `planning` (stats 92 / 17 / 10/12).
+- Pytest domaine / engine / board / hydrate verts. Pas `api/`.
+
+Régression wellbeing-model (déjà landed) : repos consécutifs, we even/odd/every_two, `max_services` / coupures 0, indispo jour×service.
 
 ## Hors freeze
 
-PATCH `/v1/context`, migration JSONB, onglets Équipe / Souhaits, popup indispos, bouton seed restaurateur, archive / sync.
+PATCH persist du bool, wizard Services-first, onglet « Services types », archive / sync.

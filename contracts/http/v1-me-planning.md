@@ -22,7 +22,7 @@ GET /v1/me/planning   Bearer employee → 200 EmployeePlanning
   "employees": [{ "id", "name", "role": { "name", "level", "team" }, "team" }],
   "assignments": [ Shift ],
   "contract": { "weekly": number, "assigned": number, "ok": bool },
-  "wishes": [ /* forme wellbeing.md : kind consecutive_rest | weekend | max_services | max_coupures */ ],
+  "wishes": [ /* forme wellbeing.md : kind consecutive_rest | weekend_rest_day | weekend | max_services | max_coupures */ ],
   "unavailabilities": [{ "weekday", "service_id" }]
 }
 ```
