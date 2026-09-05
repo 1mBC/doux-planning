@@ -83,7 +83,7 @@ Clés obligatoires, dans cet ordre sémantique (l’ordre JSON n’est pas un co
 Ancre UI : Théo midi lundi semaine A = `employee_id: "theo"`, `day_index: 0`, `service_id: "midday"`, `start_minutes: 660`, `end_minutes: 960`, `duration_hours: 5.0`.
 
 `service_id` : `"midday"` | `"evening"`.  
-`day_index` : `0..13` (0–6 semaine A, 7–13 semaine B).
+`day_index` : `0..13` (0–6 semaine 1 = A ou Paire, 7–13 = B ou Impaire). Snapshot public Saint-Cloud : **A / B** (pas de `weekend` even/odd). Si Core recompute `planning`, les invariants numériques de ce fichier sont périmés jusqu’à MAJ orchestrateur — Core remonte les stats, n’édite pas ce contrat.
 
 ### `planning.warnings[]`
 

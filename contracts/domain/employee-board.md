@@ -19,19 +19,7 @@ employee_board(state, employee_id) -> EmployeeBoard
 - `employee_id`, `team` (salle **ou** cuisine de la fiche)
 - `assignments` : **tous** les shifts de `published_cycles[team]` (pas seulement les siens). `None` publié → tuple vide (pas d’erreur).
 - `contract` : `{ weekly, assigned, ok }` — `weekly` = `contractual_hours_per_week` ; `assigned` = somme `duration_hours` de **cet** employé sur le cycle (0 si pas de publié) ; `ok` si chaque semaine du cycle est dans la tolérance contrat déjà au moteur (`CONTRACT_HOUR_TOLERANCE`) **ou**, si plus simple et documenté, `ok` = aucune warning contrat pour cet `employee_id` sur le result publié.
-- `wishes` : une entrée par clé `wellbeing` de la fiche `{ key, held }` ; `held` = **aucune** warning `souhait` de ce salarié dont le `code` correspond à la pref (mapping ci-dessous). Pref absente → pas de ligne.
-- `unavailabilities` : copie lecture des patterns fiche.
-
-Mapping pref → `code` warning :
-
-| WellbeingPreference | code |
-|---|---|
-| `two_consecutive_rest_days` | `consecutive_rest_days` |
-| `weekend_off_every_two_weeks` | `weekend_every_two_weeks` |
-| `at_least_one_weekend_rest_day` | `weekend_rest_day` |
-| `no_evening_service` | `no_evening` |
-| `no_morning_service` | `no_morning` |
-| `max_two_coupures_per_week` / `max_three_coupures_per_week` | `max_coupures` |
+- `wishes` / `unavailabilities` : forme et mapping **`contracts/domain/wellbeing.md`** (gagne). Plus de `{ key: WellbeingPreference }`.
 
 Fiche inconnue → `UnknownEmployee`. Ne pas lire `live_sandboxes`. Ne pas filtrer les assignments des collègues.
 
