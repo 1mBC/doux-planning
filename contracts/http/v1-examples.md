@@ -65,14 +65,14 @@ Clés obligatoires, dans cet ordre sémantique (l’ordre JSON n’est pas un co
 | `stats.assignments` | `92` |
 | `stats.empty` | `0` |
 | `stats.interdit` | `0` |
-| `stats.below_role` | `43` |
+| `stats.below_role` | `47` |
 | `stats.hours.assigned` | `416` |
 | `stats.hours.contracted` | `494` |
 | `stats.hours.percent` | `84` |
-| `stats.wellbeing.held` | `21` |
-| `stats.wellbeing.total` | `21` |
+| `stats.wellbeing.held` | `10` |
+| `stats.wellbeing.total` | `12` |
 | `assignments.length` | `92` |
-| `warnings.length` | `14` |
+| `warnings.length` | `17` |
 
 `stats.souhait` n’existe plus. Les manques d’heures de contrat sont dans `stats.hours` (`percent` = heures posées / heures contrat sur 14 j., arrondi). Les souhaits de bien-être (hors colonne `contrat` de `wish_rows`) sont dans `stats.wellbeing`. Pas de compteur « semaines à l’heure ».
 
@@ -83,7 +83,7 @@ Clés obligatoires, dans cet ordre sémantique (l’ordre JSON n’est pas un co
 Ancre UI : Théo midi lundi semaine A = `employee_id: "theo"`, `day_index: 0`, `service_id: "midday"`, `start_minutes: 660`, `end_minutes: 960`, `duration_hours: 5.0`.
 
 `service_id` : `"midday"` | `"evening"`.  
-`day_index` : `0..13` (0–6 semaine 1 = A ou Paire, 7–13 = B ou Impaire). Snapshot public Saint-Cloud : **A / B** (pas de `weekend` even/odd). Si Core recompute `planning`, les invariants numériques de ce fichier sont périmés jusqu’à MAJ orchestrateur — Core remonte les stats, n’édite pas ce contrat.
+`day_index` : `0..13` (0–6 semaine 1 = A ou Paire, 7–13 = B ou Impaire). Snapshot public Saint-Cloud : **A / B** (pas de `weekend` even/odd). Invariants = solve `optimized` **post** `wellbeing-model` (warnings 17, wellbeing 10/12, below_role 47).
 
 ### `planning.warnings[]`
 
