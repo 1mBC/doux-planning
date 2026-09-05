@@ -126,6 +126,7 @@ def _wellbeing(raw: dict[str, Any]) -> Wellbeing:
     weekend = payload.get("weekend")
     return Wellbeing(
         consecutive_rest=bool(payload.get("consecutive_rest", False)),
+        weekend_rest_day=bool(payload.get("weekend_rest_day", False)),
         weekend=None if weekend is None else WeekendChoice(weekend),
         max_services=payload.get("max_services") or {},
         max_coupures_per_week=payload.get("max_coupures_per_week"),
