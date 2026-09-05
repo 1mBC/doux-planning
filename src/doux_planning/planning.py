@@ -799,7 +799,10 @@ def _replay_intents(cycle_draft: PlanningDraft, week: CalendarWeek) -> EngineRes
         extra = []
         for intent in week.intents:
             if intent.kind == "unavailability" and intent.employee_id == employee.id:
-                extra.append(Unavailability(weekday=intent.weekday))
+                extra.extend(
+                    Unavailability(weekday=intent.weekday, service_id=service_id)
+                    for service_id in ("morning", "midday", "evening")
+                )
         if extra:
             employees.append(replace(employee, unavailabilities=employee.unavailabilities + tuple(extra)))
         else:

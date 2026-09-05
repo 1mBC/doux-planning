@@ -21,14 +21,10 @@ class WarningSeverity(str, Enum):
     SOUHAIT = "souhait"
 
 
-class WellbeingPreference(str, Enum):
-    TWO_CONSECUTIVE_REST_DAYS = "two_consecutive_rest_days"
-    WEEKEND_OFF_EVERY_TWO_WEEKS = "weekend_off_every_two_weeks"
-    AT_LEAST_ONE_WEEKEND_REST_DAY = "at_least_one_weekend_rest_day"
-    NO_EVENING_SERVICE = "no_evening_service"
-    NO_MORNING_SERVICE = "no_morning_service"
-    MAX_TWO_COUPURES_PER_WEEK = "max_two_coupures_per_week"
-    MAX_THREE_COUPURES_PER_WEEK = "max_three_coupures_per_week"
+class WeekendChoice(str, Enum):
+    EVERY_TWO = "every_two"
+    EVEN = "even"
+    ODD = "odd"
 
 
 class SearchEffort(str, Enum):

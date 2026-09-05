@@ -19,7 +19,7 @@ from doux_planning.types import (
     ServiceName,
     Team,
     WarningSeverity,
-    WellbeingPreference,
+    WeekendChoice,
     WEEKDAYS,
 )
 from doux_planning.warnings import Warning
@@ -335,10 +335,8 @@ def _unavailability_warnings(draft: PlanningDraft) -> list[Warning]:
     warnings: list[Warning] = []
     for shift in draft.assignments:
         employee = draft.employee(shift.employee_id)
-        morning = _is_morning(shift.service_id, shift.start_minutes)
-        evening = _is_evening(shift.service_id, shift.start_minutes)
         for pattern in employee.unavailabilities:
-            if pattern.blocks(shift.weekday, shift.service_id, morning, evening):
+            if pattern.blocks(shift.weekday, shift.service_id):
                 warnings.append(
                     Warning(
                         WarningSeverity.INTERDIT,
@@ -352,15 +350,45 @@ def _unavailability_warnings(draft: PlanningDraft) -> list[Warning]:
     return warnings
 
 
-WEEKDAY_CONSECUTIVE_OFFSETS = (0, 1, 2, 3)  # Mon-Tue .. Thu-Fri; not Fri-Sat or Sat-Sun
+def _adjacent_rest_pairs(week_start: int) -> tuple[tuple[int, int], ...]:
+    return tuple((week_start + offset, week_start + ((offset + 1) % 7)) for offset in range(7))
 
 
-def _has_weekday_consecutive_rest(off_days: set[int] | list[int], week_start: int) -> bool:
-    offs = set(off_days)
-    return any(
-        (week_start + offset) in offs and (week_start + offset + 1) in offs
-        for offset in WEEKDAY_CONSECUTIVE_OFFSETS
-    )
+def _closed_days(hours: RestaurantHours, week_start: int) -> set[int]:
+    closed: set[int] = set()
+    for day in range(week_start, week_start + 7):
+        weekday = WEEKDAYS[day % 7]
+        if all(hours.is_closed(weekday, service_id) for service_id in hours.services):
+            closed.add(day)
+    return closed
+
+
+def _has_weekday_consecutive_rest(
+    off_days: set[int] | list[int], week_start: int, closed: set[int] | None = None
+) -> bool:
+    closed_days = set(closed or ())
+    rest = set(off_days) | closed_days
+    pairs = _adjacent_rest_pairs(week_start)
+    extra = rest - closed_days
+    n_closed = len(closed_days)
+    closed_pair = any(left in closed_days and right in closed_days for left, right in pairs)
+    if n_closed == 0:
+        return any(left in rest and right in rest for left, right in pairs)
+    if n_closed == 1:
+        closed_day = next(iter(closed_days))
+        neighbors = {right for left, right in pairs if left == closed_day} | {
+            left for left, right in pairs if right == closed_day
+        }
+        return bool(extra & neighbors)
+    if closed_pair:
+        return True
+    for closed_day in closed_days:
+        neighbors = {right for left, right in pairs if left == closed_day} | {
+            left for left, right in pairs if right == closed_day
+        }
+        if extra & neighbors:
+            return True
+    return False
 
 
 def _weekends_off(by_day: dict[int, list[Shift]], week_start: int) -> bool:
@@ -369,24 +397,30 @@ def _weekends_off(by_day: dict[int, list[Shift]], week_start: int) -> bool:
     return saturday not in by_day and sunday not in by_day
 
 
+def _service_count(by_day: dict[int, list[Shift]], week_start: int, service_id: str) -> int:
+    return sum(
+        1
+        for day in range(week_start, week_start + 7)
+        for item in by_day.get(day, [])
+        if item.service_id == service_id
+    )
+
+
 def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
     warnings: list[Warning] = []
     grouped = _shifts_by_employee(draft)
     for employee in draft.employees:
-        prefs = employee.wellbeing
+        wish = employee.wellbeing
         shifts = grouped.get(employee.id, [])
         by_day: dict[int, list[Shift]] = {}
         for shift in shifts:
             by_day.setdefault(shift.day_index, []).append(shift)
 
-        if WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS in prefs:
+        if wish.consecutive_rest:
             for week_start in range(0, draft.horizon_days, 7):
-                offs = [
-                    day
-                    for day in range(week_start, week_start + 7)
-                    if day not in by_day
-                ]
-                if not _has_weekday_consecutive_rest(offs, week_start):
+                offs = {day for day in range(week_start, week_start + 7) if day not in by_day}
+                closed = _closed_days(draft.hours, week_start)
+                if not _has_weekday_consecutive_rest(offs, week_start, closed):
                     warnings.append(
                         Warning(
                             WarningSeverity.SOUHAIT,
@@ -397,10 +431,10 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
                         )
                     )
 
-        if WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS in prefs and draft.horizon_days >= 14:
-            off_a = _weekends_off(by_day, 0)
-            off_b = _weekends_off(by_day, 7)
-            if off_a == off_b:
+        if wish.weekend is not None and draft.horizon_days >= 14:
+            off_even = _weekends_off(by_day, 0)
+            off_odd = _weekends_off(by_day, 7)
+            if wish.weekend is WeekendChoice.EVERY_TWO and off_even == off_odd:
                 warnings.append(
                     Warning(
                         WarningSeverity.SOUHAIT,
@@ -409,83 +443,46 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
                         employee_id=employee.id,
                     )
                 )
-
-        if WellbeingPreference.AT_LEAST_ONE_WEEKEND_REST_DAY in prefs:
-            for week_start in range(0, draft.horizon_days, 7):
-                sat, sun = week_start + 5, week_start + 6
-                if sat in by_day and sun in by_day:
-                    warnings.append(
-                        Warning(
-                            WarningSeverity.SOUHAIT,
-                            "weekend_rest_day",
-                            f"{employee.name} works both weekend days",
-                            employee_id=employee.id,
-                            day_index=week_start,
-                        )
+            if wish.weekend is WeekendChoice.EVEN and not (off_even and not off_odd):
+                warnings.append(
+                    Warning(
+                        WarningSeverity.SOUHAIT,
+                        "weekend_even_weeks",
+                        f"{employee.name} should have the even weekend off",
+                        employee_id=employee.id,
                     )
-
-        if WellbeingPreference.NO_EVENING_SERVICE in prefs:
-            for shift in shifts:
-                if _is_evening(shift.service_id, shift.start_minutes):
-                    warnings.append(
-                        Warning(
-                            WarningSeverity.SOUHAIT,
-                            "no_evening",
-                            f"{employee.name} prefers no evening service",
-                            employee_id=employee.id,
-                            day_index=shift.day_index,
-                        )
-                    )
-        if WellbeingPreference.NO_MORNING_SERVICE in prefs:
-            for shift in shifts:
-                if _is_morning(shift.service_id, shift.start_minutes):
-                    warnings.append(
-                        Warning(
-                            WarningSeverity.SOUHAIT,
-                            "no_morning",
-                            f"{employee.name} prefers no morning service",
-                            employee_id=employee.id,
-                            day_index=shift.day_index,
-                        )
-                    )
-
-        if employee.max_evenings_per_week is not None:
-            for week_start in range(0, draft.horizon_days, 7):
-                evenings = sum(
-                    1
-                    for day in range(week_start, week_start + 7)
-                    for item in by_day.get(day, [])
-                    if _is_evening(item.service_id, item.start_minutes)
                 )
-                if evenings > employee.max_evenings_per_week:
-                    warnings.append(
-                        Warning(
-                            WarningSeverity.SOUHAIT,
-                            "max_evenings",
-                            f"{employee.name} has {evenings} evenings (max {employee.max_evenings_per_week})",
-                            employee_id=employee.id,
-                            day_index=week_start,
-                        )
+            if wish.weekend is WeekendChoice.ODD and not (off_odd and not off_even):
+                warnings.append(
+                    Warning(
+                        WarningSeverity.SOUHAIT,
+                        "weekend_odd_weeks",
+                        f"{employee.name} should have the odd weekend off",
+                        employee_id=employee.id,
                     )
-        if employee.max_mornings_per_week is not None:
-            for week_start in range(0, draft.horizon_days, 7):
-                mornings = sum(
-                    1
-                    for day in range(week_start, week_start + 7)
-                    for item in by_day.get(day, [])
-                    if _is_morning(item.service_id, item.start_minutes)
                 )
-                if mornings > employee.max_mornings_per_week:
+
+        service_codes = {
+            ServiceName.MORNING.value: "max_mornings",
+            ServiceName.MIDDAY.value: "max_middays",
+            ServiceName.EVENING.value: "max_evenings",
+        }
+        for service_id, limit in wish.max_services.items():
+            code = service_codes[service_id]
+            for week_start in range(0, draft.horizon_days, 7):
+                count = _service_count(by_day, week_start, service_id)
+                if count > limit:
                     warnings.append(
                         Warning(
                             WarningSeverity.SOUHAIT,
-                            "max_mornings",
-                            f"{employee.name} has {mornings} mornings (max {employee.max_mornings_per_week})",
+                            code,
+                            f"{employee.name} has {count} {service_id} (max {limit})",
                             employee_id=employee.id,
                             day_index=week_start,
                         )
                     )
-        max_coupures = _max_coupures_per_week(employee)
+
+        max_coupures = wish.max_coupures_per_week
         if max_coupures is not None:
             for week_start in range(0, draft.horizon_days, 7):
                 coupures = _coupure_count_in_week(grouped.get(employee.id, ()), employee.id, week_start)
@@ -580,12 +577,7 @@ def swap_shifts(draft: PlanningDraft, first: Shift, second: Shift) -> EngineResu
 
 
 def _unavailable(employee: Employee, weekday: str, service_id: str, start_minutes: int) -> bool:
-    morning = _is_morning(service_id, start_minutes)
-    evening = _is_evening(service_id, start_minutes)
-    return any(
-        pattern.blocks(weekday, service_id, morning, evening)
-        for pattern in employee.unavailabilities
-    )
+    return any(pattern.blocks(weekday, service_id) for pattern in employee.unavailabilities)
 
 
 def _hours_in_week(assignments: list[Shift], employee_id: str, day_index: int) -> float:
@@ -641,11 +633,7 @@ def _teammate_under_hours(
 
 
 def _max_coupures_per_week(employee: Employee) -> int | None:
-    if WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK in employee.wellbeing:
-        return 2
-    if WellbeingPreference.MAX_THREE_COUPURES_PER_WEEK in employee.wellbeing:
-        return 3
-    return None
+    return employee.wellbeing.max_coupures_per_week
 
 
 def _has_gap(shifts: list[Shift]) -> bool:
@@ -813,18 +801,21 @@ def _soft_penalty(
     over_day_cap = day_hours + duration > max_daily + 1e-9
     rest_bad = not _rest_between_ok(assignments, trial)
     pause_bad = not _pause_within_legal(assignments, trial)
-    evenings = sum(
-        1
-        for shift in assignments
-        if shift.employee_id == employee.id
-        and (shift.day_index // 7) == (trial.day_index // 7)
-        and _is_evening(shift.service_id, shift.start_minutes)
-    )
-    if _is_evening(trial.service_id, trial.start_minutes):
-        evenings += 1
-    over_evenings = (
-        employee.max_evenings_per_week is not None and evenings > employee.max_evenings_per_week
-    )
+    week_start = (trial.day_index // 7) * 7
+    over_service_cap = False
+    for service_id, limit in employee.wellbeing.max_services.items():
+        count = sum(
+            1
+            for shift in assignments
+            if shift.employee_id == employee.id
+            and week_start <= shift.day_index < week_start + 7
+            and shift.service_id == service_id
+        )
+        if trial.service_id == service_id:
+            count += 1
+        if count > limit:
+            over_service_cap = True
+            break
     overqual = employee.level - trial.post_level
     current_ratio = week_hours / max(employee.contractual_hours_per_week, 1.0)
     projected_ratio = (week_hours + duration) / max(employee.contractual_hours_per_week, 1.0)
@@ -834,7 +825,7 @@ def _soft_penalty(
         current_ratio,
         int(not started_day),
         overqual,
-        int(over_evenings),
+        int(over_service_cap),
         projected_ratio,
         pool_index,
         employee.id,
@@ -1202,24 +1193,36 @@ def _build_rest_model(
                 continue
             hours_open_rest = max(0, len(open_days) - max_shifts)
             legal_open_rest = max(0, REST_DAYS_PER_WEEK - len(already_days))
-            wants_pair = WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS in employee.wellbeing
-            has_pair = any(
-                (week_start + offset) in already_days and (week_start + offset + 1) in already_days
-                for offset in WEEKDAY_CONSECUTIVE_OFFSETS
-            )
+            wants_pair = employee.wellbeing.consecutive_rest
+            has_pair = _has_weekday_consecutive_rest(already_days, week_start, _closed_days(draft.hours, week_start))
             if wants_pair and not has_pair:
                 legal_open_rest = max(legal_open_rest, 2)
             open_rest_target = min(len(open_days), max(legal_open_rest, hours_open_rest))
             model.Add(sum(1 - work[employee.id, day] for day in open_days) == open_rest_target)
-        if WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS in employee.wellbeing:
+        if employee.wellbeing.consecutive_rest:
             for week_start in (0, 7):
                 pair_hits = []
-                for offset in WEEKDAY_CONSECUTIVE_OFFSETS:
-                    pair = model.NewBoolVar(f"pair_{employee.id}_{week_start}_{offset}")
-                    model.Add(work[employee.id, week_start + offset] == 0).OnlyEnforceIf(pair)
-                    model.Add(work[employee.id, week_start + offset + 1] == 0).OnlyEnforceIf(pair)
+                for left, right in _adjacent_rest_pairs(week_start):
+                    pair = model.NewBoolVar(f"pair_{employee.id}_{week_start}_{left}_{right}")
+                    model.Add(work[employee.id, left] == 0).OnlyEnforceIf(pair)
+                    model.Add(work[employee.id, right] == 0).OnlyEnforceIf(pair)
                     pair_hits.append(pair)
                 model.Add(sum(pair_hits) >= 1)
+        if employee.wellbeing.weekend is not None:
+            even_off = model.NewBoolVar(f"we_even_{employee.id}")
+            odd_off = model.NewBoolVar(f"we_odd_{employee.id}")
+            model.Add(work[employee.id, 5] + work[employee.id, 6] == 0).OnlyEnforceIf(even_off)
+            model.Add(work[employee.id, 5] + work[employee.id, 6] >= 1).OnlyEnforceIf(even_off.Not())
+            model.Add(work[employee.id, 12] + work[employee.id, 13] == 0).OnlyEnforceIf(odd_off)
+            model.Add(work[employee.id, 12] + work[employee.id, 13] >= 1).OnlyEnforceIf(odd_off.Not())
+            if employee.wellbeing.weekend is WeekendChoice.EVERY_TWO:
+                model.Add(even_off + odd_off == 1)
+            elif employee.wellbeing.weekend is WeekendChoice.EVEN:
+                model.Add(even_off == 1)
+                model.Add(odd_off == 0)
+            else:
+                model.Add(odd_off == 1)
+                model.Add(even_off == 0)
     return model, work, unders
 
 
@@ -1227,8 +1230,12 @@ def _fallback_rest_days(draft: PlanningDraft) -> dict[str, set[int]]:
     off: dict[str, set[int]] = {employee.id: set() for employee in draft.employees}
     for employee in draft.employees:
         off[employee.id].update({0, 1, 7, 8})
-        if WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS in employee.wellbeing:
+        if employee.wellbeing.weekend is WeekendChoice.EVERY_TWO:
             off[employee.id].update({5, 6})
+        elif employee.wellbeing.weekend is WeekendChoice.EVEN:
+            off[employee.id].update({5, 6})
+        elif employee.wellbeing.weekend is WeekendChoice.ODD:
+            off[employee.id].update({12, 13})
     return off
 
 
