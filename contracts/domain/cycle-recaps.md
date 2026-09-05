@@ -76,7 +76,21 @@ Colonnes **nouveau** modèle — **pas** `we1j` / `weA` / `weB` / `soirs` / `rep
 | `max_coupures` | Nbre de coupures max | si posé |
 
 Cellule **null** = non émis pour cette fiche.  
-`ok` / `text` : contrat = `{hA}h · {hB}h / {weekly}h` (`ok` = aucune warning `contract_hours`) ; indispo = `ok` ssi aucune warning `unavailability` ; souhaits = `held` du board (`OK` / `Non tenu`, weekend : ajouter la valeur FR).
+`ok` = `held` du board (contrat / indispo : aucune warning de ce code).
+
+Textes **comme le légal** : toujours une **mesure**, pas seulement OK / Non tenu.
+
+| `key` | Texte |
+|---|---|
+| `contrat` | inchangé `{hA}h · {hB}h / {weekly}h` |
+| `indispo` | `OK · {n} créneaux` / `Non tenu · {jour} {service}` (le premier cassé) |
+| `consecutive_rest` | `OK · tenu` + jours si évidents / `Non tenu · sem. A` (semaine du warning) |
+| `weekend_rest_day` | `OK · sam` ou `OK · dim` (jour off tenu) / `Non tenu · sem. A` |
+| `weekend` | `OK · {valeur FR}` / `Non tenu · {valeur FR}` |
+| `max_morning` / `_midday` / `_evening` | souhait **d’abord** : `max {limit} · {nA} / {nB} posés` ; préfixe `OK · ` si tenu. Ex. fail : `max 2 · 1 / 3 posés` |
+| `max_coupures` | même schéma `max {limit} · {cA} / {cB}` |
+
+`nA` / `nB` = compte de ce service (ou coupures) semaine 1 / 2.
 
 ## Warning `rest_between_days`
 
@@ -88,17 +102,41 @@ Enrichir **`evaluate`** (donc tout live / sandbox qui ré-évalue). `day_index` 
 ```
 
 Jours FR (`lundi`…`dimanche`). Heures `23h` / `11h30` (comme `formatClock`).  
-Ne pas traduire les **autres** messages dans cette tranche.  
 Ne pas chasser un faux positif 11 h.
+
+## Warnings `empty_post` / max services (cette tranche)
+
+Toujours `evaluate`. `severity` **inchangée** (`couverture` / `souhait`). `contract_hours` reste `souhait` (le label « Contrat » = UI).
+
+**`empty_post`** — `day_index` inchangé. Message FR :
+
+```
+{jour} · sem. {A|B|Paire|Impaire} · {service FR} · {début}–{fin} · niveau {n}
+```
+
+Semaine = `week_label_scheme` des fiches du draft (`even`/`odd` → Paire/Impaire, sinon A/B). Jour 0–6 = A/Paire, 7–13 = B/Impaire. Services : petit-déjeuner / déjeuner / dîner. Horloges `format_clock`.
+
+**`max_mornings` / `max_middays` / `max_evenings`** — `day_index` = début de semaine. Message FR :
+
+```
+{name} : {n} {service FR} / max {limit} ({jours} · sem. {…})
+```
+
+`jours` = jours FR de **cette** semaine où la personne a ce service.  
+`max_coupures` : `{name} : {n} coupures / max {limit} (sem. {…})`.
+
+Ne pas traduire les **autres** codes (contrat anglais OK). **Ne pas** réécrire `saint-cloud.json`.
 
 ## Tests
 
 - Resto salle généré `minimal` : `cycle_recap` a une ligne légale par fiche ; pas de col `max_daily_cuisine` ; `stats.assignments` = `len(assignments)`.
 - Fiche avec `weekend_rest_day` : col présente ; fiche sans → cellule `null` si la col existe via un collègue.
 - Paire de shifts qui casse 11 h : warning `rest_between_days` contient les deux horloges + jours FR.
-- Pas de `we1j` / `weA` dans `wish_cols`.
-- Hydrate / exemple public / board : verts. **Ne pas** réécrire `saint-cloud.json`.
+- `empty_post` : jour FR + sem. + service + horloges.
+- `max_evenings` : jours de la semaine + `max {limit}` dans le message.
+- Wish `max_evening` : texte `max {limit} · {nA} / {nB} posés`.
+- Pas de `we1j` / `weA`. Hydrate / board / exemple public verts. **Ne pas** réécrire `saint-cloud.json`.
 
 ## Hors freeze
 
-Dessin Services types = `wizard-ui.md`. Archive / sync.
+Label UI « Contrat », cases orange, invite / QR, style types, exports, admin, archive / sync.
