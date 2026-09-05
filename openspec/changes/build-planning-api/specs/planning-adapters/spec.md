@@ -86,6 +86,17 @@ Authenticated restaurateur routes SHALL allow reading and updating staff, struct
 - **WHEN** a company session gets `/v1/me/planning`
 - **THEN** the response is HTTP 403 French
 
+### Requirement: Example seed HTTP wraps Core
+`POST /v1/context/seed-example` (Bearer company, no body) SHALL wrap Core `seed_example_context` and return HTTP 200 with the same `Context` body as `GET /v1/context`. An employee session MUST receive HTTP 403 `Action réservée au restaurateur.` Missing Bearer MUST be 401. Without `DATABASE_URL` the route MUST be 503 `Base indisponible.` The public example MUST stay 92 assignments. The adapter MUST NOT call `hydrate_delivered_cycle`.
+
+#### Scenario: Company seed returns the smashed context
+- **WHEN** a company session posts `/v1/context/seed-example`
+- **THEN** the 200 body matches a subsequent GET (ready salle, not cuisine, example fiches, `week_labels` `ab`)
+
+#### Scenario: Employee cannot seed
+- **WHEN** an employee session posts `/v1/context/seed-example`
+- **THEN** the response is HTTP 403 French
+
 ### Requirement: Product errors are French
 Protected and public API error bodies SHALL present a French `message` suitable to show in the product. OpenSpec requirements remain in English.
 

@@ -280,3 +280,132 @@ def test_context_wellbeing_week_labels_and_unavail_service_id():
     assert len(example.json()["planning"]["warnings"]) == 17
     assert stats["wellbeing"] == {"held": 10, "total": 12}
     assert stats["below_role"] == 47
+
+
+def test_seed_example_without_database_is_503(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    reset_engine()
+    client = _client()
+    response = client.post("/v1/context/seed-example", headers=_bearer("x"))
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Base indisponible."
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92
+
+
+def _assert_seeded_context(body: dict) -> dict[str, str]:
+    assert body["ready"]["salle"] is True
+    assert body["ready"]["cuisine"] is False
+    assert body["services"] == ["midday", "evening"]
+    assert body["week_labels"] == "ab"
+    ids = {person["id"] for person in body["employees"]}
+    assert {"diane", "theo"} <= ids
+    tokens = {person["id"]: person["invite_token"] for person in body["employees"]}
+    assert all(token and token != person_id for person_id, token in tokens.items())
+    return tokens
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_seed_example_smashes_context_clears_cycles_and_unlinks():
+    client = _client()
+    email = f"seed-{secrets.token_hex(4)}@example.com"
+    password = "password1"
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": email, "password": password},
+    )
+    assert registered.status_code == 201
+    token = registered.json()["token"]
+    headers = _bearer(token)
+    restaurant_id = registered.json()["me"]["restaurant_id"]
+    assert restaurant_id != "saint-cloud"
+
+    empty = client.get("/v1/context", headers=headers)
+    assert empty.status_code == 200
+    assert empty.json()["name"] == ""
+
+    seeded = client.post("/v1/context/seed-example", headers=headers)
+    assert seeded.status_code == 200
+    first = seeded.json()
+    assert first["name"] == ""
+    first_tokens = _assert_seeded_context(first)
+    again = client.get("/v1/context", headers=headers)
+    assert again.status_code == 200
+    assert again.json() == first
+    cycles = client.get("/v1/cycles", headers=headers)
+    assert cycles.status_code == 200
+    assert cycles.json() == {"published": {"salle": None, "cuisine": None}}
+
+    named = client.patch("/v1/context", headers=headers, json={"name": "Chez Seed"})
+    assert named.status_code == 200
+    assert named.json()["name"] == "Chez Seed"
+
+    second = client.post("/v1/context/seed-example", headers=headers)
+    assert second.status_code == 200
+    assert second.json()["name"] == "Chez Seed"
+    second_tokens = _assert_seeded_context(second.json())
+    assert second_tokens != first_tokens
+    assert client.get("/v1/cycles", headers=headers).json() == {"published": {"salle": None, "cuisine": None}}
+
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id, "Chez Seed"))
+    assert patched.status_code == 200
+    generated = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "minimal"},
+    )
+    assert generated.status_code == 200
+    assert generated.json()["published"]["salle"]["assignments"]
+    company_code = patched.json()["company_code"]
+    employee = client.post(
+        "/v1/auth/register",
+        json={
+            "kind": "employee",
+            "email": f"emma-{secrets.token_hex(4)}@example.com",
+            "password": "password1",
+            "company_code": company_code,
+            "employee_id": fiche_id,
+        },
+    )
+    assert employee.status_code == 201
+    emp_token = employee.json()["token"]
+    assert client.get("/v1/me", headers=_bearer(emp_token)).status_code == 200
+
+    smash = client.post("/v1/context/seed-example", headers=headers)
+    assert smash.status_code == 200
+    assert smash.json()["name"] == "Chez Seed"
+    _assert_seeded_context(smash.json())
+    assert client.get("/v1/cycles", headers=headers).json() == {"published": {"salle": None, "cuisine": None}}
+    invites = client.get(f"/v1/invites/{company_code}")
+    assert invites.status_code == 200
+    invite_ids = {person["id"] for person in invites.json()["employees"]}
+    assert {"diane", "theo"} <= invite_ids
+    assert fiche_id not in invite_ids
+    assert client.get("/v1/me", headers=_bearer(emp_token)).status_code == 401
+
+    assert client.post("/v1/context/seed-example", headers=_bearer(emp_token)).status_code == 401
+    assert client.post("/v1/context/seed-example").status_code == 401
+
+    linked = client.post(
+        "/v1/auth/register",
+        json={
+            "kind": "employee",
+            "email": f"diane-{secrets.token_hex(4)}@example.com",
+            "password": "password1",
+            "company_code": company_code,
+            "employee_id": "diane",
+        },
+    )
+    assert linked.status_code == 201
+    employee_seed = client.post("/v1/context/seed-example", headers=_bearer(linked.json()["token"]))
+    assert employee_seed.status_code == 403
+    assert employee_seed.json()["detail"] == "Action réservée au restaurateur."
+
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92
+    logged = client.post("/v1/auth/login", json={"email": email, "password": password})
+    assert logged.status_code == 200
+    assert client.get("/v1/me", headers=_bearer(logged.json()["token"])).status_code == 200

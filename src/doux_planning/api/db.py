@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, create_engine
+from sqlalchemy import DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer, String, UniqueConstraint, create_engine
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -68,13 +68,14 @@ class Company(Base):
     live_sandboxes: Mapped[dict] = mapped_column(
         JSONB, nullable=False, default=lambda: {"salle": None, "cuisine": None}
     )
+    hours: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class StaffFiche(Base):
     __tablename__ = "staff_fiches"
 
+    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), primary_key=True)
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
     team: Mapped[str] = mapped_column(String, nullable=False)
@@ -103,12 +104,20 @@ class RestaurateurAccount(Base):
 
 class EmployeeAccountRow(Base):
     __tablename__ = "employee_accounts"
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "employee_id", name="employee_accounts_restaurant_employee_key"),
+        ForeignKeyConstraint(
+            ["restaurant_id", "employee_id"],
+            ["staff_fiches.company_id", "staff_fiches.id"],
+            name="employee_accounts_restaurant_employee_fkey",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     email: Mapped[str] = mapped_column(ForeignKey("account_emails.email"), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     restaurant_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), nullable=False)
-    employee_id: Mapped[str] = mapped_column(ForeignKey("staff_fiches.id"), unique=True, nullable=False)
+    employee_id: Mapped[str] = mapped_column(String, nullable=False)
 
 
 class AuthSession(Base):

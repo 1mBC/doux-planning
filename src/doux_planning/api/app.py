@@ -93,6 +93,13 @@ def patch_context(
     return write_context(authorization, body)
 
 
+@app.post("/v1/context/seed-example")
+def seed_example_context_route(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.context import seed_example
+
+    return seed_example(authorization)
+
+
 @app.get("/v1/cycles")
 def get_cycles(authorization: str | None = Header(default=None)) -> dict:
     from doux_planning.api.generate import get_cycles as read_cycles
