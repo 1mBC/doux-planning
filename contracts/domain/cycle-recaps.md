@@ -101,4 +101,4 @@ Ne pas chasser un faux positif 11 h.
 
 ## Hors freeze
 
-HTTP `/v1/generate` / `/v1/cycles`, pastilles UI, dessin Services types, archive / sync.
+Pastilles UI, dessin Services types, archive / sync. HTTP persist = brief Infra.

@@ -48,8 +48,10 @@ Team / effort invalide → 400 `Champs invalides.`
 }
 ```
 
-`Shift` / `Warning` = mêmes clés que l’exemple / sandbox (`employee_id`, `day_index`, `weekday`, `service_id`, `team`, `start_minutes`, `end_minutes`, `post_level`, `duration_hours` ; `severity`, `code`, `message`, `employee_id`, `day_index`).  
-Assignments du cycle salle = `team: "salle"` seulement. L’autre clé reste le cycle déjà persisté (ou `null`).
+`Shift` / `Warning` = mêmes clés que l’exemple / sandbox.  
+Recap = wrap **`cycle_recap`** (`stats`, `legal_cols`, `legal_rows`, `wish_cols`, `wish_rows`) — **pas** de chiffres inventés dans `api/`.  
+Assignments du cycle salle = `team: "salle"` seulement. L’autre clé reste le cycle déjà persisté (ou `null`), **avec** son recap s’il en a un.  
+Cycle `null` : pas de clés recap. Cycle non null : les 5 clés recap **requises**.
 
 ### `GET /v1/cycles`
 
@@ -57,8 +59,10 @@ Même objet `published` (sans `team` / `search_effort` du dernier POST). Resto j
 
 ## Persist
 
-JSONB (ou tables) sur l’entreprise live — **pas** `example_snapshots`, pas `data/examples/saint-cloud.json`.  
-`reset_engine` / restart → même `GET /v1/cycles`. Regenerer une équipe remplace seulement cette clé.
+JSONB `published_cycles` : assignments + warnings + recap. Pas d’Alembic. Pas `example_snapshots` / `saint-cloud.json`.  
+`reset_engine` / restart → même GET. Regenerer une équipe remplace seulement cette clé.  
+Cycle déjà persisté **sans** recap : au GET, hydrater + `cycle_recap` (pas de 500).  
+`POST /v1/live/sandbox/{team}/publish` → même `published` (recap inclus). Joujou + exemple 92 inchangés.
 
 ## UI (cette tranche)
 
@@ -66,4 +70,4 @@ Route `/planning` (company). **Calculer** si `ready[team]` ; POST `search_effort
 
 ## Hors tranche
 
-Worker, jobs, sandbox live, publish semaine, `/me/shifts`, CORS sauf proxy cassé.
+Worker, jobs, pastilles UI, `/me/shifts`, CORS sauf proxy cassé.
