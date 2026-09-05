@@ -49,16 +49,25 @@ arrivals[]:    { time_minutes, post_levels }            # length === N arrivants
 departures[]:  { time_minutes, remaining_post_levels }  # sac APRÈS le départ
 ```
 
-Pas de joker moteur. Pas de champ « qui part » persisté.  
-Pickers sur **l’échelle de l’équipe** (niveaux), **pas** de saisie `;` / virgules.
+Pas de joker moteur. Pas de champ « qui part » persisté.
 
-**Ligne arrivée** : heure (±15) + N personnes + **exactement N** niveaux min (un picker par personne).  
-Afficher le **sac courant** après cette ligne.
+**Dessin (brief UI)** : **une liste chronologique** (arrivées et départs mélangés). Chaque événement = **une ligne**.  
+Ajouter = choisir arrivée **ou** départ. Retirer = poubelle en bout de ligne.  
+Pas un `<table>` Excel : grille de lignes type tableau.
 
-**Ligne départ** : heure (±15) + K qui partent + **reste obligatoire par niveau** (entier ≥ 0 ; **0** = pas de contrainte sur ce niveau).  
-L’UI calcule `remaining_post_levels` ; l’utilisateur ne l’édite pas à la main.
+Colonnes :
 
-Plusieurs lignes arrivée / départ par type. Pouvoir ajouter / retirer.
+| | Arrivée | Départ |
+|---|---|---|
+| Heure | heure d’arrivée (±15) | heure de départ (±15) |
+| Nombre | personnes qui arrivent (somme des compteurs) | personnes qui partent (K) |
+| Niveaux | **chaque** niveau de l’échelle + compteur **+/−** = combien à ce min | **chaque** niveau + compteur **+/−** = combien **à garder** (0 = pas de contrainte) |
+| Dernière | **STAFF après** (plus « sac ») | **STAFF après** |
+
+`post_levels` persisté = le multiset « N × niveau » des compteurs arrivée (somme = N).  
+L’UI calcule `remaining_post_levels` ; l’utilisateur ne l’édite pas.
+
+Plusieurs lignes. Ordre d’affichage = ordre d’application.
 
 **Ordre d’application** : toutes les lignes (arrivées + départs) par `time_minutes` croissant ; à égalité, arrivées **avant** départs.
 
@@ -83,4 +92,4 @@ N_L > `count(L)` dans le sac → bloquer.
 
 ## Hors freeze
 
-Generate, formules moteur, coerce Railway, archive / sync.
+Recaps planning live = `cycle-recaps.md`. Formules moteur, coerce Railway, archive / sync.

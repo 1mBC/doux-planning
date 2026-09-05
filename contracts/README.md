@@ -25,7 +25,8 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 12 — recette Railway | `deploy/railway.md` ; brief `infra-deploy-railway.md` | Infra (auto-deploy `master`) |
 | 13 — bien-être / indispos | `domain/wellbeing.md` | **landed** `11dc586` |
 | 14 — seed exemple | `domain/example-seed.md` | **landed** `295bc9f` |
-| 15 — repos we + wizard | `domain/wellbeing.md`, `domain/wizard-ui.md` ; briefs core / infra / `ui-weekend-rest.md` | Core @ `4f1a862` ; Infra @ `8b66525` ; UI |
+| 15 — repos we + wizard | `domain/wellbeing.md`, `domain/wizard-ui.md` | **landed** `6c75004` |
+| 16 — recaps + types | `domain/cycle-recaps.md` ; brief `core-cycle-recaps.md` | Core recap + warning 11 h |
 
 ## Ownership git (ne pas croiser)
 

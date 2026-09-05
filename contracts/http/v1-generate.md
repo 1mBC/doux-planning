@@ -8,7 +8,7 @@ Sans `DATABASE_URL` → 503 `Base indisponible.`
 
 Exemple public + sandbox joujou **inchangés**. Pas de jobs / worker / `SKIP LOCKED` dans cette tranche. Sync : `POST` appelle `generate_team` et rend le cycle persisté. Tests = **`minimal`** seulement.
 
-Pas de `legal_rows` / `wish_rows` / `stats` moteur recréés côté HTTP. Assignments + warnings du `EngineResult` seulement.
+Tranche 16 : chaque cycle publié porte aussi le `CycleRecap` Core (`contracts/domain/cycle-recaps.md`) — **persist HTTP = brief Infra**. Assignments + warnings inchangés. Warning `rest_between_days` : `message` enrichi (deux horloges) déjà dans `EngineResult`.
 
 ## Routes
 
@@ -34,7 +34,15 @@ Team / effort invalide → 400 `Champs invalides.`
   "team": "salle",
   "search_effort": "minimal",
   "published": {
-    "salle": { "assignments": [Shift], "warnings": [Warning] },
+    "salle": {
+      "assignments": [Shift],
+      "warnings": [Warning],
+      "stats": { ... },
+      "legal_cols": [...],
+      "legal_rows": [...],
+      "wish_cols": [...],
+      "wish_rows": [...]
+    },
     "cuisine": null
   }
 }
