@@ -21,7 +21,8 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 8 — contexte onboarding | `http/v1-context.md` | close (signaux Core → Infra → UI) |
 | 9 — generate / cycles | `http/v1-generate.md` | close (signaux Core → Infra → UI) |
 | 10 — sandbox live | `http/v1-live-sandbox.md` | close (signaux Core → Infra → UI) |
-| 11 — grille employé | `http/v1-me-planning.md` ; brief `ui-employee-board.md` | UI salarié (Infra HTTP fait) |
+| 11 — grille employé | `http/v1-me-planning.md` | close (signaux Core → Infra → UI) |
+| 12 — recette Railway | `deploy/railway.md` ; brief `infra-deploy-railway.md` | Infra (auto-deploy `master`) |
 
 ## Ownership git (ne pas croiser)
 
