@@ -124,4 +124,4 @@ Route `/context` (session company). Ordre : rôles → fiches → services entre
 
 ## Hors tranche
 
-Generate, jobs, publish, lock sandbox, `GET /v1/me/shifts`, seed Saint-Cloud live, CORS sauf proxy cassé.
+Generate, jobs, publish, lock sandbox, `GET /v1/me/shifts`, bouton UI seed, CORS sauf proxy cassé. `POST /v1/context/seed-example` = Infra après Core `seed_example_context`.
