@@ -36,6 +36,15 @@ class SearchEffort(str, Enum):
 
 
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+WEEKDAY_FR = {
+    "monday": "lundi",
+    "tuesday": "mardi",
+    "wednesday": "mercredi",
+    "thursday": "jeudi",
+    "friday": "vendredi",
+    "saturday": "samedi",
+    "sunday": "dimanche",
+}
 QUANTUM_MINUTES = 15
 CYCLE_DAYS = 14
 MIN_REST_BETWEEN_DAYS_HOURS = 11
@@ -45,6 +54,16 @@ MAX_DAILY_HOURS_CUISINE = 11.0
 MAX_DAILY_HOURS_SALLE = 11.5
 MAX_WEEKLY_HOURS = 48.0
 DEFAULT_MIN_SHIFT_HOURS = 4.0
+
+
+def format_clock(minutes: int) -> str:
+    total = ((minutes % 1440) + 1440) % 1440
+    hours = total // 60
+    mins = total % 60
+    hour_label = "00h" if hours == 0 else f"{hours}h"
+    if mins == 0:
+        return hour_label
+    return f"{hours}h{mins:02d}"
 
 
 def weekday_index(name: str) -> int:
