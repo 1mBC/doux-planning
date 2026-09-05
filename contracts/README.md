@@ -24,7 +24,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 11 — grille employé | `http/v1-me-planning.md` | close (signaux Core → Infra → UI) |
 | 12 — recette Railway | `deploy/railway.md` ; brief `infra-deploy-railway.md` | Infra (auto-deploy `master`) |
 | 13 — bien-être / indispos | `domain/wellbeing.md` | **landed** `11dc586` |
-| 14 — seed exemple | `domain/example-seed.md` ; brief `ui-example-seed-push.md` | UI v0.13.0 à pousser ; puis land |
+| 14 — seed exemple | `domain/example-seed.md` ; brief `seed-landing.md` | UI poussé `6dc665b` ; land |
 
 ## Ownership git (ne pas croiser)
 
