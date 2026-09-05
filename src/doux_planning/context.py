@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
 from doux_planning.engine import PlanningDraft, Shift, evaluate, generate_cycle
+from doux_planning.hydrate import _employee, _hours, _structure, data_dir
 from doux_planning.invites import RestaurantIdentity, UnknownEmployee
 from doux_planning.planning import CONTRACT_HOUR_TOLERANCE, PublishedCycle, RestaurantState, Sandbox
-from doux_planning.staff import Employee, RoleLadder, Unavailability, default_legal_rules
+from doux_planning.staff import Employee, Role, RoleLadder, Unavailability, default_legal_rules
 from doux_planning.structures import (
     RestaurantHours,
     ServiceStructure,
     ServiceType,
     TypicalWeek,
+    TypicalWeekCell,
 )
 from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WEEKDAYS, WeekendChoice
 
@@ -78,6 +81,71 @@ def empty_restaurant(restaurant_id: str) -> RestaurantState:
         hours=None,
         cycle=None,
     )
+
+
+def seed_example_context(state: RestaurantState) -> RestaurantState:
+    path = data_dir() / "examples" / "saint-cloud.json"
+    restaurant = json.loads(path.read_text(encoding="utf-8"))["restaurant"]
+    hours = _hours(restaurant["hours"])
+    example_structures = [_structure(item) for item in restaurant["structures"]]
+    employees = [_employee(item) for item in restaurant["employees"]]
+
+    state.hours = hours
+    state.company_services = tuple(hours.services)
+    state.service_types = [
+        ServiceType(
+            id=item.id,
+            name=item.id,
+            team=item.team,
+            service_id=item.service_id,
+            arrivals=item.arrivals,
+            departures=item.departures,
+        )
+        for item in example_structures
+    ]
+
+    cells: list[TypicalWeekCell] = []
+    for team in Team:
+        for service_id in state.company_services:
+            for weekday in WEEKDAYS:
+                match = next(
+                    (
+                        item
+                        for item in example_structures
+                        if item.team == team and item.service_id == service_id and weekday in item.weekdays
+                    ),
+                    None,
+                )
+                cells.append(
+                    TypicalWeekCell(
+                        weekday=weekday,
+                        service_id=service_id,
+                        type_id=None if match is None else match.id,
+                        closed=match is None,
+                        team=team,
+                    )
+                )
+    state.typical_week = TypicalWeek(cells=tuple(cells))
+
+    unique_roles: dict[tuple[str, int, Team], Role] = {}
+    for person in employees:
+        role = person.role
+        unique_roles.setdefault((role.name, role.level, role.team), role)
+    state.ladders = {}
+    for team in {role.team for role in unique_roles.values()}:
+        state.ladders[team] = RoleLadder(
+            team,
+            tuple(role for role in unique_roles.values() if role.team == team),
+            substitution_explained=True,
+        )
+
+    state.employees = employees
+    state.structures = expand_typical_week(state)
+    state.published_cycles = {Team.SALLE: None, Team.CUISINE: None}
+    state.live_sandboxes = {Team.SALLE: None, Team.CUISINE: None}
+    state.cycle = None
+    state.accounts = []
+    return state
 
 
 def set_restaurant_name(state: RestaurantState, name: str) -> RestaurantState:
