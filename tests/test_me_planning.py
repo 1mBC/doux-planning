@@ -66,6 +66,7 @@ def _ready_patch(salle_id: str, cuisine_id: str) -> dict:
                 "contractual_hours_per_week": 39,
                 "wellbeing": {
                     "consecutive_rest": True,
+                    "weekend_rest_day": True,
                     "weekend": None,
                     "max_services": {},
                     "max_coupures_per_week": None,
@@ -171,6 +172,9 @@ def test_me_planning_published_grid_hides_live_draft():
     assert body["wishes"][0]["kind"] == "consecutive_rest"
     assert "key" not in body["wishes"][0]
     assert "held" in body["wishes"][0]
+    rest_day = next(item for item in body["wishes"] if item["kind"] == "weekend_rest_day")
+    assert "held" in rest_day
+    assert "key" not in rest_day
     assert body["unavailabilities"] == [{"weekday": "sunday", "service_id": "midday"}]
 
     entered = client.post("/v1/live/sandbox/salle/enter", headers=company_headers)

@@ -16,7 +16,7 @@ The system SHALL persist the live company context in Postgres: identity (`name`,
 - **THEN** a subsequent `GET /v1/context` returns the same name, sections, and `ready` flags
 
 ### Requirement: Staff wellbeing persists as a Core object
-`staff_fiches.wellbeing` SHALL be stored as a JSON object matching Core `Wellbeing` (`consecutive_rest`, `weekend`, `max_services`, `max_coupures_per_week`). On read the adapter MUST parse an object, treat `[]` or absent as `Wellbeing()`, and reject legacy preference keys or `every_morning` / `every_evening` with HTTP 400 `Champs invalides.` Unavailabilities MUST be `{ weekday, service_id }` with both fields required. The adapter MUST NOT import or serialize `WellbeingPreference`, key lists, or `every_*` flags. No aliases.
+`staff_fiches.wellbeing` SHALL be stored as a JSON object matching Core `Wellbeing` (`consecutive_rest`, `weekend_rest_day`, `weekend`, `max_services`, `max_coupures_per_week`). On read the adapter MUST parse an object, treat `[]` or absent as `Wellbeing()`, treat a missing `weekend_rest_day` key as `false`, always emit the bool on GET, and reject legacy preference keys (including `at_least_one_weekend_rest_day`) or `every_morning` / `every_evening` with HTTP 400 `Champs invalides.` Unavailabilities MUST be `{ weekday, service_id }` with both fields required. The adapter MUST NOT import or serialize `WellbeingPreference`, key lists, or `every_*` flags. No aliases. No Alembic. No coerce-on-read of stored key lists.
 
 #### Scenario: Weekend even persists and labels the restaurant
 - **WHEN** a restaurateur patches a fiche `wellbeing.weekend` `even`
@@ -29,6 +29,14 @@ The system SHALL persist the live company context in Postgres: identity (`name`,
 #### Scenario: Legacy wellbeing or incomplete unavailability is rejected
 - **WHEN** PATCH sends a wellbeing key list, a removed preference key, `every_morning` / `every_evening`, or an unavailability without `service_id`
 - **THEN** the response is HTTP 400 `Champs invalides.` and the stored fiche is unchanged
+
+#### Scenario: Weekend rest day persists as a bool
+- **WHEN** a restaurateur patches `wellbeing.weekend_rest_day` `true` then the API engine is reset
+- **THEN** GET context still returns `weekend_rest_day` `true`
+
+#### Scenario: Absent weekend rest day key is false
+- **WHEN** PATCH sends a wellbeing object without `weekend_rest_day`
+- **THEN** GET context returns `weekend_rest_day` `false`
 
 #### Scenario: Live sandbox survives restart
 - **WHEN** the restaurateur enters a live team sandbox, edits, and the API engine is reset

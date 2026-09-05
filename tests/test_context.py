@@ -134,6 +134,7 @@ def test_context_get_patch_ready_invites_and_auth():
     assert ready["week_labels"] == "ab"
     assert ready["employees"][0]["wellbeing"] == {
         "consecutive_rest": False,
+        "weekend_rest_day": False,
         "weekend": None,
         "max_services": {},
         "max_coupures_per_week": None,
@@ -206,6 +207,7 @@ def _fiche_payload(fiche_id: str, *, weekend: str | None, unavailabilities: list
         "contractual_hours_per_week": 39,
         "wellbeing": {
             "consecutive_rest": False,
+            "weekend_rest_day": False,
             "weekend": weekend,
             "max_services": {},
             "max_coupures_per_week": None,
@@ -242,6 +244,7 @@ def test_context_wellbeing_week_labels_and_unavail_service_id():
     assert again.json()["week_labels"] == "parity"
     assert again.json()["employees"][0]["wellbeing"] == {
         "consecutive_rest": False,
+        "weekend_rest_day": False,
         "weekend": "even",
         "max_services": {},
         "max_coupures_per_week": None,
@@ -280,6 +283,71 @@ def test_context_wellbeing_week_labels_and_unavail_service_id():
     assert len(example.json()["planning"]["warnings"]) == 17
     assert stats["wellbeing"] == {"held": 10, "total": 12}
     assert stats["below_role"] == 47
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_context_weekend_rest_day_persist_and_legacy_key():
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"wrd-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    headers = _bearer(registered.json()["token"])
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    posed = _fiche_payload(fiche_id, weekend=None)
+    posed["wellbeing"] = {
+        "consecutive_rest": False,
+        "weekend_rest_day": True,
+        "weekend": None,
+        "max_services": {},
+        "max_coupures_per_week": None,
+    }
+    patched = client.patch("/v1/context", headers=headers, json={"employees": [posed]})
+    assert patched.status_code == 200
+    assert patched.json()["employees"][0]["wellbeing"]["weekend_rest_day"] is True
+    reset_engine()
+    again = client.get("/v1/context", headers=headers)
+    assert again.status_code == 200
+    assert again.json()["employees"][0]["wellbeing"]["weekend_rest_day"] is True
+
+    omitted = _fiche_payload(fiche_id, weekend=None)
+    omitted["wellbeing"] = {
+        "consecutive_rest": False,
+        "weekend": None,
+        "max_services": {},
+        "max_coupures_per_week": None,
+    }
+    without = client.patch("/v1/context", headers=headers, json={"employees": [omitted]})
+    assert without.status_code == 200
+    assert without.json()["employees"][0]["wellbeing"]["weekend_rest_day"] is False
+
+    legacy_list = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"employees": [{**_fiche_payload(fiche_id, weekend=None), "wellbeing": ["at_least_one_weekend_rest_day"]}]},
+    )
+    assert legacy_list.status_code == 400
+    assert legacy_list.json()["detail"] == "Champs invalides."
+    legacy_key = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={
+            "employees": [
+                {
+                    **_fiche_payload(fiche_id, weekend=None),
+                    "wellbeing": {"at_least_one_weekend_rest_day": True},
+                }
+            ]
+        },
+    )
+    assert legacy_key.status_code == 400
+    assert legacy_key.json()["detail"] == "Champs invalides."
+    assert client.get("/v1/context", headers=headers).json()["employees"][0]["wellbeing"]["weekend_rest_day"] is False
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92
+    assert example.json()["planning"]["stats"]["wellbeing"] == {"held": 10, "total": 12}
 
 
 def test_seed_example_without_database_is_503(monkeypatch):
