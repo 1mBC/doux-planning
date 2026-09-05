@@ -66,8 +66,10 @@ Cycle déjà persisté **sans** recap : au GET, hydrater + `cycle_recap` (pas de
 
 ## UI (cette tranche)
 
-Route `/planning` (company). **Calculer** si `ready[team]` ; POST `search_effort: "minimal"`. Grille = `published[team]` + fiches context. Pas d’édition sandbox live. Exemple sans session inchangé.
+Route `/planning` (company). **Calculer** si `ready[team]` ; POST `search_effort: "minimal"`.  
+Hors édition : pastilles `stats` + tableaux `legal_*` / `wish_*` (payload, pas inventés) + warnings (`message` tel quel).  
+Mode édition : **cacher** recaps (comme `/exemple`). `/exemple` snapshot inchangé (`we1j` etc. restent).
 
 ## Hors tranche
 
-Worker, jobs, pastilles UI, `/me/shifts`, CORS sauf proxy cassé.
+Worker, jobs, `/me/shifts`, CORS sauf proxy cassé.
