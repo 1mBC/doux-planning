@@ -9,7 +9,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_company_restaurant_id, require_database
 from doux_planning.api.context import _load_company, _state_from_rows
 from doux_planning.api.db import Company, session_scope
-from doux_planning.api.generate import _cycle_json
+from doux_planning.api.generate import _team_cycle_json
 from doux_planning.api.sandbox import (
     GESTURES,
     _employee_json,
@@ -156,8 +156,8 @@ def _persist(
         flag_modified(company, "live_sandboxes")
         if published:
             company.published_cycles = {
-                "salle": _cycle_json(state.published_cycles.get(Team.SALLE)),
-                "cuisine": _cycle_json(state.published_cycles.get(Team.CUISINE)),
+                "salle": _team_cycle_json(state, Team.SALLE),
+                "cuisine": _team_cycle_json(state, Team.CUISINE),
             }
             flag_modified(company, "published_cycles")
 
@@ -375,7 +375,7 @@ def publish(authorization: str | None, team_raw: str) -> dict[str, Any]:
     _persist(restaurant_id, state, recaps, published=True)
     return {
         "published": {
-            "salle": _cycle_json(state.published_cycles.get(Team.SALLE)),
-            "cuisine": _cycle_json(state.published_cycles.get(Team.CUISINE)),
+            "salle": _team_cycle_json(state, Team.SALLE),
+            "cuisine": _team_cycle_json(state, Team.CUISINE),
         }
     }

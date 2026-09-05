@@ -7,9 +7,10 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm.attributes import flag_modified
 
 from doux_planning.api.app import app
-from doux_planning.api.db import reset_engine
+from doux_planning.api.db import Company, reset_engine, session_scope
 from doux_planning.types import WEEKDAYS
 
 
@@ -45,6 +46,18 @@ def _open_week(type_id: str | None) -> list[dict]:
         }
         for day in WEEKDAYS
     ]
+
+
+def _assert_live_recap(cycle: dict) -> None:
+    assert cycle["stats"]["assignments"] == len(cycle["assignments"])
+    assert cycle["legal_rows"]
+    assert cycle["legal_cols"]
+    assert cycle["wish_cols"]
+    assert cycle["wish_rows"]
+    wish_keys = {col["key"] for col in cycle["wish_cols"]}
+    assert "we1j" not in wish_keys
+    assert "weA" not in wish_keys
+    assert "weB" not in wish_keys
 
 
 def _salle_patch(fiche_id: str, name: str = "Chez Test") -> dict:
@@ -113,6 +126,7 @@ def test_generate_persist_cycles_auth_and_example():
     )
     assert registered.status_code == 201
     token = registered.json()["token"]
+    restaurant_id = registered.json()["me"]["restaurant_id"]
     headers = _bearer(token)
 
     empty = client.get("/v1/cycles", headers=headers)
@@ -156,6 +170,7 @@ def test_generate_persist_cycles_auth_and_example():
     )
     assert "legal_rows" not in body
     assert "stats" not in body
+    _assert_live_recap(salle)
     assert body["published"]["cuisine"] is None
 
     with patch("doux_planning.context.generate_cycle") as solve:
@@ -180,6 +195,7 @@ def test_generate_persist_cycles_auth_and_example():
     assert second.status_code == 200
     assert second.json()["published"]["salle"]["assignments"]
     assert all(shift["team"] == "salle" for shift in second.json()["published"]["salle"]["assignments"])
+    _assert_live_recap(second.json()["published"]["salle"])
     assert second.json()["published"]["cuisine"] is None
 
     published = second.json()["published"]
@@ -187,6 +203,22 @@ def test_generate_persist_cycles_auth_and_example():
     again = client.get("/v1/cycles", headers=headers)
     assert again.status_code == 200
     assert again.json() == {"published": published}
+
+    with session_scope() as session:
+        company = session.get(Company, restaurant_id)
+        assert company is not None
+        salle_blob = company.published_cycles["salle"]
+        company.published_cycles = {
+            "salle": {"assignments": salle_blob["assignments"], "warnings": salle_blob["warnings"]},
+            "cuisine": None,
+        }
+        flag_modified(company, "published_cycles")
+    reset_engine()
+    hydrated = client.get("/v1/cycles", headers=headers)
+    assert hydrated.status_code == 200
+    assert hydrated.json()["published"]["cuisine"] is None
+    _assert_live_recap(hydrated.json()["published"]["salle"])
+    assert hydrated.json()["published"]["salle"]["assignments"] == published["salle"]["assignments"]
 
     invalid = client.post("/v1/generate", headers=headers, json={"team": "bar", "search_effort": "minimal"})
     assert invalid.status_code == 400

@@ -8,13 +8,14 @@ from sqlalchemy.orm.attributes import flag_modified
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_company_restaurant_id, require_database
 from doux_planning.api.context import _load_company, _state_from_rows
 from doux_planning.api.db import Company, session_scope
-from doux_planning.context import TeamNotReady, generate_team
-from doux_planning.planning import PublishedCycle
+from doux_planning.context import CycleRecap, RecapCell, TeamNotReady, cycle_recap, generate_team
+from doux_planning.planning import PublishedCycle, RestaurantState
 from doux_planning.types import SearchEffort, Team
 
 DETAIL_NOT_READY = "Cette équipe n'est pas prête à calculer."
 TEAMS = ("salle", "cuisine")
 EFFORTS = ("minimal", "optimized", "maximal")
+RECAP_KEYS = ("stats", "legal_cols", "legal_rows", "wish_cols", "wish_rows")
 
 
 def _empty_published() -> dict[str, Any]:
@@ -50,14 +51,77 @@ def _warning_json(warning: Any) -> dict[str, Any]:
     }
 
 
-def _cycle_json(published: PublishedCycle | None) -> dict[str, Any] | None:
+def _cell_json(cell: RecapCell | None) -> dict[str, Any] | None:
+    if cell is None:
+        return None
+    return {"ok": cell.ok, "text": cell.text}
+
+
+def _row_json(row: Any) -> dict[str, Any]:
+    return {
+        "name": row.name,
+        "employee_id": row.employee_id,
+        "cells": {key: _cell_json(value) for key, value in row.cells.items()},
+    }
+
+
+def _cycle_recap_json(recap: CycleRecap) -> dict[str, Any]:
+    return {
+        "stats": {
+            "assignments": recap.stats.assignments,
+            "empty": recap.stats.empty,
+            "interdit": recap.stats.interdit,
+            "below_role": recap.stats.below_role,
+            "hours": {
+                "assigned": recap.stats.hours.assigned,
+                "contracted": recap.stats.hours.contracted,
+                "percent": recap.stats.hours.percent,
+            },
+            "wellbeing": {
+                "held": recap.stats.wellbeing.held,
+                "total": recap.stats.wellbeing.total,
+            },
+        },
+        "legal_cols": [{"id": col.id, "label_fr": col.label_fr} for col in recap.legal_cols],
+        "legal_rows": [_row_json(row) for row in recap.legal_rows],
+        "wish_cols": [{"key": col.key, "label": col.label} for col in recap.wish_cols],
+        "wish_rows": [_row_json(row) for row in recap.wish_rows],
+    }
+
+
+def _cycle_json(published: PublishedCycle | None, recap: CycleRecap | None = None) -> dict[str, Any] | None:
     if published is None:
         return None
     result = published.result
-    return {
+    body: dict[str, Any] = {
         "assignments": [_shift_json(shift) for shift in result.assignments],
         "warnings": [_warning_json(warning) for warning in result.warnings],
     }
+    if recap is not None:
+        body.update(_cycle_recap_json(recap))
+    return body
+
+
+def _team_cycle_json(state: RestaurantState, team: Team) -> dict[str, Any] | None:
+    published = state.published_cycles.get(team)
+    if published is None:
+        return None
+    return _cycle_json(published, cycle_recap(state, team))
+
+
+def _has_recap(blob: Any) -> bool:
+    return isinstance(blob, dict) and all(key in blob for key in RECAP_KEYS)
+
+
+def _blob_with_recap(state: RestaurantState, team: Team, blob: Any) -> dict[str, Any] | None:
+    if blob is None:
+        return None
+    if _has_recap(blob):
+        return blob
+    from doux_planning.api.live_sandbox import _published_from_json
+
+    state.published_cycles[team] = _published_from_json(state, team, blob)
+    return _team_cycle_json(state, team)
 
 
 def _parse_generate(body: dict[str, Any]) -> tuple[Team, SearchEffort]:
@@ -84,8 +148,17 @@ def _persist_published(restaurant_id: str, published: dict[str, Any]) -> None:
 def get_cycles(authorization: str | None) -> dict[str, Any]:
     require_database()
     restaurant_id = require_company_restaurant_id(authorization)
-    company, _fiches = _load_company(restaurant_id)
-    return {"published": _stored_published(company.published_cycles)}
+    company, fiches = _load_company(restaurant_id)
+    stored = _stored_published(company.published_cycles)
+    if all(blob is None or _has_recap(blob) for blob in stored.values()):
+        return {"published": stored}
+    state = _state_from_rows(company, fiches)
+    published = {
+        "salle": _blob_with_recap(state, Team.SALLE, stored["salle"]),
+        "cuisine": _blob_with_recap(state, Team.CUISINE, stored["cuisine"]),
+    }
+    _persist_published(restaurant_id, published)
+    return {"published": published}
 
 
 def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, Any]:
@@ -99,10 +172,21 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
         generate_team(state, team, search)
     except TeamNotReady as exc:
         raise HTTPException(status_code=409, detail=DETAIL_NOT_READY) from exc
-    stored[team.value] = _cycle_json(state.published_cycles[team])
-    _persist_published(restaurant_id, stored)
+    published = {
+        "salle": (
+            _team_cycle_json(state, Team.SALLE)
+            if team == Team.SALLE
+            else _blob_with_recap(state, Team.SALLE, stored["salle"])
+        ),
+        "cuisine": (
+            _team_cycle_json(state, Team.CUISINE)
+            if team == Team.CUISINE
+            else _blob_with_recap(state, Team.CUISINE, stored["cuisine"])
+        ),
+    }
+    _persist_published(restaurant_id, published)
     return {
         "team": team.value,
         "search_effort": search.value,
-        "published": stored,
+        "published": published,
     }

@@ -13,7 +13,7 @@ Engine time bounds already exist (`SEARCH_SECONDS`: minimal 3s, optimized 30s, m
 - Generate as a Postgres job + worker poll; other engine calls stay in-request.
 
 **Non-Goals:**
-- React, CORS-for-UI unless a later verify forces it, Redis/Celery, OAuth, SMTP, multi-restaurant, employee-authored constraints, rebuilding `legal_rows` / `wish_rows` on live results, changing keep-best / rest / coupure / min-shift rules.
+- React, CORS-for-UI unless a later verify forces it, Redis/Celery, OAuth, SMTP, multi-restaurant, employee-authored constraints, inventing recap stats/cells in `api/` (wrap Core `cycle_recap` only), changing keep-best / rest / coupure / min-shift rules.
 
 ## Decisions
 
@@ -102,7 +102,7 @@ evaluate / swap / rank stay later. Live sandbox HTTP is this slice (`/v1/live/sa
 
 ### 7. Serialize `EngineResult` only
 
-JSON: `assignments` (including `duration_hours` as a derived field already on `Shift`) and `warnings` (`severity`, `code`, `message`, `employee_id`, `day_index`). Optional `stats` = counts from that result (`assignments`, `empty` from `empty_post`, `interdit`, `souhait`, `below_role` from assignments vs roles). Do not generate `legal_rows` / `wish_rows` on live adapters in this change; those stay on the frozen example snapshot.
+JSON: `assignments` (including `duration_hours` as a derived field already on `Shift`) and `warnings` (`severity`, `code`, `message`, `employee_id`, `day_index`). A non-null published cycle also carries Core `cycle_recap` (`stats`, `legal_cols`, `legal_rows`, `wish_cols`, `wish_rows`). HTTP MUST serialize that object — it MUST NOT invent counts or cells. `null` cycles have no recap keys. A stored cycle missing recap keys is hydrated then passed to `cycle_recap` on GET (no 500). Persist the recap inside existing `published_cycles` JSONB (no Alembic). Public example snapshot and joujou `/v1/sandbox/*` stay unchanged. `POST /v1/live/sandbox/{team}/publish` returns the same `published` shape.
 
 ### 8. Schema and stack
 
