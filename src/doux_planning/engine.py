@@ -21,6 +21,8 @@ from doux_planning.types import (
     WarningSeverity,
     WeekendChoice,
     WEEKDAYS,
+    WEEKDAY_FR,
+    format_clock,
 )
 from doux_planning.warnings import Warning
 
@@ -319,11 +321,14 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
             else:
                 continue
             if rest < rest_needed:
+                jour_a = WEEKDAY_FR[WEEKDAYS[day_a % 7]]
+                jour_b = WEEKDAY_FR[WEEKDAYS[day_b % 7]]
+                clocks = f"{jour_a} {format_clock(last.end_minutes)} → {jour_b} {format_clock(first.start_minutes)}"
                 warnings.append(
                     Warning(
                         WarningSeverity.INTERDIT,
                         "rest_between_days",
-                        f"{employee.name} has less than {MIN_REST_BETWEEN_DAYS_HOURS}h rest",
+                        f"{employee.name} : moins de 11 h de repos ({clocks})",
                         employee_id=employee.id,
                         day_index=day_a,
                     )
