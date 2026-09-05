@@ -33,7 +33,7 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 - Keep the Vite + React + TypeScript app under `web/` as the restaurateur’s first useful screen.
 - Keep presentation (layout, French chrome, time formatting) strictly downstream of the snapshot.
 - Add login / register / QR / session chrome that follow `contracts/http/v1-auth.md` without scoring or inventing fields.
-- Company wizard at `/context` following `contracts/http/v1-context.md` (Équipe / Souhaits, `week_labels`).
+- Company wizard at `/context` following `contracts/domain/wizard-ui.md` + `v1-context.md` (Services first, `weekend_rest_day`, Services types waves).
 - Company published cycle at `/planning` following `contracts/http/v1-generate.md` (`search_effort: "minimal"`).
 - Live sandbox Mode édition on `/planning` following `contracts/http/v1-live-sandbox.md` (shapes from `v1-sandbox-edit.md`).
 - Employee `/planning` following `contracts/http/v1-me-planning.md` (team grid, highlight, read-only contract panel).
@@ -41,7 +41,7 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 
 **Non-Goals:**
 - `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit.
-- Merging `seed/infra` / `seed/core`, new FastAPI routes, a second scoring path, react-router.
+- Merging `weekend-rest/infra` / `weekend-rest/core`, new FastAPI routes, a second scoring path, react-router.
 - Pixel-identical clone of the GitHub Pages HTML.
 - Translating engine messages into a new diagnosis.
 - « Mot de passe oublié ».
@@ -93,14 +93,14 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 
 ### 8. Context wizard (company)
 
-Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : Rôles → Équipe → Souhaits bien-être → Services → Types → Semaine type. « Fiches » n’existe plus.
+Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : **Services → Rôles → Équipe → Souhaits bien-être → Services types → Semaine type**. « Fiches » / « Types » n’existent plus. Service non offert **invisible** (pas de fallback les 3).
 
-1. Rôles (équipe) : nom + niveau ≥ 1. Afficher : un niveau plus élevé peut tenir un poste inférieur. PATCH `ladders` avec `substitution_explained: true` (les deux équipes).
-2. Équipe : une ligne par salarié (nom, rôle, heures, `min_shift_hours`, synthèse FR des indispos `{ weekday, service_id }`). Popup **Ajouter une indispo** : jours × services → produit cartésien ajouté. Retirer un créneau depuis la ligne. QR / `invite_token` sur la ligne. PATCH `employees` = liste complète.
-3. Souhaits bien-être : objet `Wellbeing` (case `consecutive_rest`, radio `weekend` 0|1, chiffres `max_services.*`, chiffre `max_coupures_per_week`). Onglet **pas** un prérequis de `ready`. Plus de `WELLBEING_KEYS` / `every_*`.
-4. Services (resto, une fois) : petit-déj / déj / dîner → `morning` / `midday` / `evening`. PATCH `services`.
-5. Types (équipe × service) : nom, vagues ±15, `post_levels`. PATCH `types` = liste complète.
-6. Semaine type : type ou Fermé. PATCH `typical_week` = `{ salle, cuisine }`. Fermé : `closed: true`, `type_id` null. Libellés A/B ou Paire/Impaire selon `week_labels`.
+1. Services (resto, une fois) : petit-déj / déj / dîner. Liste vide → on reste ici. Décocher → warning FR puis purge types / semaine / indispos / `max_services` des **deux** équipes ; PATCH `services` + `employees` + `types` + `typical_week` nettoyés.
+2. Rôles (équipe) : nom + niveau ≥ 1. PATCH `ladders` avec `substitution_explained: true`.
+3. Équipe : une ligne par salarié ; popup indispo jours × **services offerts**. PATCH `employees` = liste complète.
+4. Souhaits bien-être : `Wellbeing` (cases `consecutive_rest` + **`weekend_rest_day`** à côté de la radio `weekend`, chiffres `max_services` **offerts seulement**, `max_coupures_per_week`). Pas un prérequis de `ready`. Bool `weekend_rest_day` requis au parse.
+5. Services types (équipe × service offert) : sous-onglets par service ; **Ajouter un type** en bas. Vagues : pickers d’échelle (pas de `;`), sac affiché, pire-cas → `remaining_post_levels`. PATCH `types` = liste complète.
+6. Semaine type : type ou Fermé, colonnes = services offerts. PATCH `typical_week` = `{ salle, cuisine }`. Libellés A/B ou Paire/Impaire selon `week_labels`.
 
 Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`. Bouton **Intégrer l’exemple Saint-Cloud** à côté du code (tous les comptes company). Confirm FR puis `POST /v1/context/seed-example` (Bearer, pas de body). 200 = même parse que GET ; rester sur `/context`.  
 `ready.salle` / `ready.cuisine` = JSON seulement, badges « Prêt à calculer » / « Pas encore prêt ».
@@ -117,7 +117,7 @@ Hors slice : rotate invite-token, `optimized` 30 s, edit contraintes salarié.
 
 ### 11. Employee board
 
-`kind: employee` → `/planning`. GET `/v1/me/planning` (Bearer). Grille 14 j. depuis `employees` + `assignments` de **son** équipe ; titres A/B ou Paire/Impaire selon `week_labels`. Lignes `employee_id === me` colorées ; collègues visibles, atténués. Assignments vides → « Pas encore publié ». Panneau lecture : `contract`, `unavailabilities` `{ weekday, service_id }`, `wishes` `{ kind, held, … }`. Aucun edit. Pas de `key` / `wish_rows` inventés.
+`kind: employee` → `/planning`. GET `/v1/me/planning` (Bearer). Grille 14 j. depuis `employees` + `assignments` de **son** équipe ; titres A/B ou Paire/Impaire selon `week_labels`. Lignes `employee_id === me` colorées ; collègues visibles, atténués. Assignments vides → « Pas encore publié ». Panneau lecture : `contract`, `unavailabilities` `{ weekday, service_id }`, `wishes` `{ kind, held, … }` y compris `weekend_rest_day` (« Au moins un repos samedi ou dimanche »). Aucun edit. Pas de `key` / `wish_rows` inventés.
 
 ### 12. Week labels
 
@@ -126,6 +126,10 @@ Hors slice : rotate invite-token, `optimized` 30 s, edit contraintes salarié.
 ### 13. Seed example
 
 Tous les comptes `kind: company` sur `/context`. Confirm d’une phrase (remplace rôles / équipe / souhaits / types / semaine, garde le nom, casse les comptes salariés liés, ne colle pas le planning exemple). POST sans body. Pas de bouton salarié, `/exemple`, `/planning`, login. Pas de generate.
+
+### 14. Weekend rest + Services-first types
+
+Suivre `contracts/domain/wizard-ui.md`. Déblocage : services → rôles ; échelle → équipe ; ≥1 fiche → souhaits **et** types ; types de l’équipe → semaine type. Pire-cas départ : réserver les `N_L` par niveau, retirer les K plus hauts parmi le reste, PATCH le sac trié croissant. K trop grand ou `N_L` > présence → bloquer (phrase FR).
 
 ## Risks / Trade-offs
 

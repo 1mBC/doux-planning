@@ -8,6 +8,7 @@ import {
   loadContext,
   newId,
   patchContext,
+  purgeRemovedServices,
   seedExampleContext,
   type ContextEmployee,
   type ContextServiceId,
@@ -20,9 +21,10 @@ import {
   type WeekendChoice,
   type Wellbeing,
 } from "./context";
-import { DAYS_FR_SHORT, formatClock, weekLabelPair } from "./format";
+import { DAYS_FR_SHORT, weekLabelPair } from "./format";
+import { ServiceTypesStep } from "./ServiceTypesStep";
 
-const STEPS = ["Rôles", "Équipe", "Souhaits bien-être", "Services", "Types", "Semaine type"] as const;
+const STEPS = ["Services", "Rôles", "Équipe", "Souhaits bien-être", "Services types", "Semaine type"] as const;
 const TEAMS: { id: TeamId; label: string }[] = [
   { id: "salle", label: "Salle" },
   { id: "cuisine", label: "Cuisine" },
@@ -44,14 +46,14 @@ function emptyWeek(services: ContextServiceId[]): TypicalWeekCell[] {
 }
 
 function inferUnlocked(ctx: RestaurantContext, team: TeamId): number {
-  if (!ctx.ladders[team]) {
+  if (ctx.services.length === 0) {
     return 0;
   }
-  if (!ctx.employees.some((person) => person.team === team)) {
+  if (!ctx.ladders[team]) {
     return 1;
   }
-  if (ctx.services.length === 0) {
-    return 3;
+  if (!ctx.employees.some((person) => person.team === team)) {
+    return 2;
   }
   if (!ctx.types.some((item) => item.team === team)) {
     return 4;
@@ -234,6 +236,37 @@ export function ContextWizard() {
       ) : null}
 
       {step === 0 ? (
+        <ServicesStep
+          key={`${wizardEpoch}-services`}
+          selected={ctx.services}
+          busy={busy}
+          onSave={(services) => {
+            const removed = ctx.services.filter((id) => !services.includes(id));
+            if (removed.length > 0) {
+              const ok = window.confirm(
+                "Ça efface types, cases de semaine, indispos et plafonds de ce service.",
+              );
+              if (!ok) {
+                return;
+              }
+              const cleaned = purgeRemovedServices(ctx, services);
+              setWizardEpoch((value) => value + 1);
+              void apply(
+                {
+                  services,
+                  employees: employeesForPatch(cleaned.employees),
+                  types: cleaned.types,
+                  typical_week: cleaned.typical_week,
+                },
+                true,
+              );
+              return;
+            }
+            void apply({ services }, true);
+          }}
+        />
+      ) : null}
+      {step === 1 ? (
         <RolesStep
           key={`${wizardEpoch}-${team}-roles`}
           roles={ladder?.roles ?? []}
@@ -251,7 +284,7 @@ export function ContextWizard() {
           }
         />
       ) : null}
-      {step === 1 ? (
+      {step === 2 ? (
         <EmployeesStep
           key={`${wizardEpoch}-${team}-equipe`}
           team={team}
@@ -274,12 +307,13 @@ export function ContextWizard() {
           }
         />
       ) : null}
-      {step === 2 ? (
+      {step === 3 ? (
         <WishesStep
           key={`${wizardEpoch}-${team}-souhaits`}
           team={team}
           people={teamEmployees}
           all={ctx.employees}
+          services={ctx.services}
           busy={busy}
           onSave={(people) =>
             void apply(
@@ -294,19 +328,12 @@ export function ContextWizard() {
           }
         />
       ) : null}
-      {step === 3 ? (
-        <ServicesStep
-          key={`${wizardEpoch}-${team}-services`}
-          selected={ctx.services}
-          busy={busy}
-          onSave={(services) => void apply({ services }, true)}
-        />
-      ) : null}
       {step === 4 ? (
-        <TypesStep
+        <ServiceTypesStep
           key={`${wizardEpoch}-${team}-${ctx.services.join(",")}-types`}
           team={team}
           services={ctx.services}
+          roles={ladder?.roles ?? []}
           types={teamTypes}
           busy={busy}
           onSave={(types) =>
@@ -684,12 +711,14 @@ function WishesStep({
   team,
   people,
   all,
+  services,
   busy,
   onSave,
 }: {
   team: TeamId;
   people: ContextEmployee[];
   all: ContextEmployee[];
+  services: ContextServiceId[];
   busy: boolean;
   onSave: (people: ContextEmployee[]) => void;
 }) {
@@ -713,7 +742,12 @@ function WishesStep({
               <th>Salarié</th>
               <th>Deux repos consécutifs par semaine</th>
               <th>Week-end</th>
-              <th>Max petit-déj / déj / dîner</th>
+              <th>
+                Max{" "}
+                {CONTEXT_SERVICES.filter((item) => services.includes(item.id))
+                  .map((item) => item.label.toLowerCase())
+                  .join(" / ") || "services"}
+              </th>
               <th>Nbre de coupures max</th>
             </tr>
           </thead>
@@ -731,36 +765,49 @@ function WishesStep({
                   </label>
                 </td>
                 <td>
-                  {WEEKEND_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className={person.wellbeing.weekend === option.value ? "choice active" : "choice"}
-                      onClick={() =>
-                        setWellbeing(index, {
-                          weekend: person.wellbeing.weekend === option.value ? null : option.value,
-                        })
-                      }
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                  <div className="weekend-cell">
+                    {WEEKEND_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={person.wellbeing.weekend === option.value ? "choice active" : "choice"}
+                        onClick={() =>
+                          setWellbeing(index, {
+                            weekend: person.wellbeing.weekend === option.value ? null : option.value,
+                          })
+                        }
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                    <label className="auth-fiche weekend-rest-day">
+                      <input
+                        type="checkbox"
+                        checked={person.wellbeing.weekend_rest_day}
+                        onChange={(event) =>
+                          setWellbeing(index, { weekend_rest_day: event.target.checked })
+                        }
+                      />
+                      Au moins un repos samedi ou dimanche
+                    </label>
+                    <p className="sub">Chaque semaine ; un jour resto fermé compte.</p>
+                  </div>
                 </td>
                 <td className="max-services">
-                  {(["morning", "midday", "evening"] as const).map((id) => (
+                  {CONTEXT_SERVICES.filter((item) => services.includes(item.id)).map((item) => (
                     <input
-                      key={id}
+                      key={item.id}
                       type="number"
                       min={0}
-                      placeholder={id === "morning" ? "PDJ" : id === "midday" ? "Déj" : "Dîner"}
-                      value={person.wellbeing.max_services[id] ?? ""}
+                      placeholder={item.id === "morning" ? "PDJ" : item.id === "midday" ? "Déj" : "Dîner"}
+                      value={person.wellbeing.max_services[item.id] ?? ""}
                       onChange={(event) => {
                         const next = { ...person.wellbeing.max_services };
                         const parsed = digitValue(event.target.value);
                         if (parsed === undefined) {
-                          delete next[id];
+                          delete next[item.id];
                         } else {
-                          next[id] = parsed;
+                          next[item.id] = parsed;
                         }
                         setWellbeing(index, { max_services: next });
                       }}
@@ -822,161 +869,6 @@ function ServicesStep({
         Enregistrer et continuer
       </button>
     </section>
-  );
-}
-
-function TypesStep({
-  team,
-  services,
-  types,
-  busy,
-  onSave,
-}: {
-  team: TeamId;
-  services: ContextServiceId[];
-  types: ServiceType[];
-  busy: boolean;
-  onSave: (types: ServiceType[]) => void;
-}) {
-  const [rows, setRows] = useState<ServiceType[]>(
-    types.length
-      ? types
-      : services.map((service_id) => ({
-          id: newId(`${team}-${service_id}`),
-          name: "",
-          team,
-          service_id,
-          arrivals: [{ time_minutes: 11 * 60, post_levels: [1] }],
-          departures: [{ time_minutes: 16 * 60, remaining_post_levels: [] }],
-        })),
-  );
-  return (
-    <section>
-      <h2>Types</h2>
-      {rows.map((row, index) => (
-        <article key={row.id} className="fiche-card">
-          <input
-            placeholder="Nom de la feuille"
-            value={row.name}
-            onChange={(event) =>
-              setRows((prev) => prev.map((item, i) => (i === index ? { ...item, name: event.target.value } : item)))
-            }
-          />
-          <p className="sub">
-            {CONTEXT_SERVICES.find((item) => item.id === row.service_id)?.label ?? row.service_id}
-          </p>
-          <WaveEditor
-            label="Arrivées"
-            time={row.arrivals[0]?.time_minutes ?? 660}
-            levels={row.arrivals[0]?.post_levels ?? [1]}
-            onTime={(time_minutes) =>
-              setRows((prev) =>
-                prev.map((item, i) =>
-                  i === index
-                    ? { ...item, arrivals: [{ time_minutes, post_levels: item.arrivals[0]?.post_levels ?? [1] }] }
-                    : item,
-                ),
-              )
-            }
-            onLevels={(post_levels) =>
-              setRows((prev) =>
-                prev.map((item, i) =>
-                  i === index
-                    ? { ...item, arrivals: [{ time_minutes: item.arrivals[0]?.time_minutes ?? 660, post_levels }] }
-                    : item,
-                ),
-              )
-            }
-          />
-          <WaveEditor
-            label="Départs"
-            time={row.departures[0]?.time_minutes ?? 960}
-            levels={row.departures[0]?.remaining_post_levels ?? []}
-            remaining
-            onTime={(time_minutes) =>
-              setRows((prev) =>
-                prev.map((item, i) =>
-                  i === index
-                    ? {
-                        ...item,
-                        departures: [
-                          { time_minutes, remaining_post_levels: item.departures[0]?.remaining_post_levels ?? [] },
-                        ],
-                      }
-                    : item,
-                ),
-              )
-            }
-            onLevels={(remaining_post_levels) =>
-              setRows((prev) =>
-                prev.map((item, i) =>
-                  i === index
-                    ? {
-                        ...item,
-                        departures: [
-                          { time_minutes: item.departures[0]?.time_minutes ?? 960, remaining_post_levels },
-                        ],
-                      }
-                    : item,
-                ),
-              )
-            }
-          />
-        </article>
-      ))}
-      <button
-        type="button"
-        className="choice active"
-        disabled={busy || rows.some((row) => !row.name.trim() || !row.arrivals[0]?.post_levels.length)}
-        onClick={() => onSave(rows)}
-      >
-        Enregistrer et continuer
-      </button>
-    </section>
-  );
-}
-
-function WaveEditor({
-  label,
-  time,
-  levels,
-  remaining,
-  onTime,
-  onLevels,
-}: {
-  label: string;
-  time: number;
-  levels: number[];
-  remaining?: boolean;
-  onTime: (minutes: number) => void;
-  onLevels: (levels: number[]) => void;
-}) {
-  return (
-    <div>
-      <p>
-        {label} {formatClock(time)}
-      </p>
-      <button type="button" className="choice" onClick={() => onTime(time - 15)}>
-        −15
-      </button>
-      <button type="button" className="choice" onClick={() => onTime(time + 15)}>
-        +15
-      </button>
-      <label>
-        {remaining ? "Niveaux restants" : "Niveaux de poste"}
-        <input
-          value={levels.join(",")}
-          onChange={(event) =>
-            onLevels(
-              event.target.value
-                .split(",")
-                .map((part) => Number(part.trim()))
-                .filter((value) => Number.isInteger(value)),
-            )
-          }
-        />
-      </label>
-    </div>
   );
 }
 
