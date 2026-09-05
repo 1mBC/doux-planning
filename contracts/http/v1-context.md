@@ -119,6 +119,8 @@ Même clés que `Context`, toutes optionnelles, **sauf** `legal_context_id`, `co
 Ne pas écrire `example_snapshots` ni `data/examples/saint-cloud.json`. Ne pas réutiliser la ligne `restaurants` Saint-Cloud.  
 Restart process → même `GET /v1/context`. Auth + invites restent justes.
 
+`staff_fiches.wellbeing` JSONB **objet** : inclut `weekend_rest_day` (bool). Clé absente au parse → `false`. Pas de nouvelle colonne / Alembic. `at_least_one_weekend_rest_day` → 400 `Champs invalides.` (déjà dans `REMOVED_WELLBEING_KEYS`).
+
 ## UI (wizard)
 
 Route `/context` (session company). Ordre : rôles → fiches → services entreprise → types → semaine type. Salle / cuisine indépendantes. `ready` affiché, pas de generate. PATCH listes = remplacement complet (renvoyer l’autre équipe). Exemple sans session inchangé.
