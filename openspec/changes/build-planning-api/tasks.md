@@ -26,6 +26,7 @@
 - [x] 4.1 Persist live `published_cycles` (JSONB on the company, not `example_snapshots`) and implement `GET /v1/cycles` (Bearer company). Verify a restaurant that never generated returns `{ published: { salle: null, cuisine: null } }`, employee Bearer is 403, and without `DATABASE_URL` generate/cycles are 503 while the public example stays 92
 - [x] 4.2 Implement sync `POST /v1/generate` `{ team, search_effort? }` that wraps Core `generate_team` (default effort `optimized`; tests use `minimal` only). Verify salle-ready context → POST `minimal` returns 200 with non-empty `published.salle.assignments` all `team: salle` and `published.cuisine` null; `TeamNotReady` (cuisine) is 409 French with no solve; a second POST salle replaces only salle
 - [x] 4.3 Verify `reset_engine` then `GET /v1/cycles` matches the last published body, `GET /v1/examples/saint-cloud` stays 92, and context GET / auth stay green. No `jobs` table, no Compose worker, no `SKIP LOCKED`
+- [x] 4.4 Persist Core `cycle_recap` on `POST /v1/generate` and `GET /v1/cycles` (and live publish). Verify salle `minimal` 200 has `stats.assignments == len(assignments)`, `legal_rows` / `wish_cols` present, no `we1j`; GET after reset matches; cuisine stays `null`; 409 if not ready; stored cycle without recap hydrates on GET; example stays 92. No Alembic. Do not recompute stats in `api/`
 
 ## 5. Synchronous adapters
 

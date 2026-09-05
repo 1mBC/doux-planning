@@ -31,7 +31,7 @@ Evaluate, swap, rank, sandbox enter, sandbox edit, sandbox discard, and publish 
 - **THEN** no generation job row is created
 
 ### Requirement: Live sandbox HTTP wraps Core per team
-The restaurateur SHALL edit a published team cycle through `/v1/live/sandbox/{team}` (Bearer company). Routes MUST wrap Core `enter_live_sandbox`, preview / apply / undo (same proposal shapes as the public joujou), `discard_live_sandbox`, and `publish_live_sandbox`. `team` is `salle` or `cuisine`. `NoPublishedCycle` MUST be HTTP 409 `Aucun cycle publié pour cette équipe.` Discard MUST re-enter the current published cycle (empty history). Publish MUST write only that team’s `published_cycles` key, close the draft (`GET` live → 404), and leave the other team intact. Public `/v1/sandbox/*` MUST stay unauthenticated and unchanged. Week reconciliation, evaluate / swap / rank, and `/me/shifts` remain later slices.
+The restaurateur SHALL edit a published team cycle through `/v1/live/sandbox/{team}` (Bearer company). Routes MUST wrap Core `enter_live_sandbox`, preview / apply / undo (same proposal shapes as the public joujou), `discard_live_sandbox`, and `publish_live_sandbox`. `team` is `salle` or `cuisine`. `NoPublishedCycle` MUST be HTTP 409 `Aucun cycle publié pour cette équipe.` Discard MUST re-enter the current published cycle (empty history). Publish MUST write only that team’s `published_cycles` key, close the draft (`GET` live → 404), and leave the other team intact. A non-null cycle on `POST /v1/live/sandbox/{team}/publish` MUST include the same Core `cycle_recap` keys as `POST /v1/generate` (`stats`, `legal_cols`, `legal_rows`, `wish_cols`, `wish_rows`) — serialized from `cycle_recap`, not invented in `api/`. Public `/v1/sandbox/*` MUST stay unauthenticated and unchanged. Week reconciliation, evaluate / swap / rank, and `/me/shifts` remain later slices.
 
 #### Scenario: Enter salle after generate
 - **WHEN** salle has a published cycle and the restaurateur posts enter for `salle`
@@ -48,6 +48,10 @@ The restaurateur SHALL edit a published team cycle through `/v1/live/sandbox/{te
 #### Scenario: Publish updates cycles only
 - **WHEN** the restaurateur publishes a retuned salle draft
 - **THEN** `GET /v1/cycles` shows the new salle cycle, `cuisine` stays `null`, and `GET /v1/live/sandbox/salle` is 404
+
+#### Scenario: Publish includes cycle recap
+- **WHEN** the restaurateur publishes a live salle sandbox
+- **THEN** `published.salle` includes `stats`, `legal_cols`, `legal_rows`, `wish_cols`, and `wish_rows` from Core `cycle_recap`, and `published.cuisine` stays `null`
 
 ### Requirement: Restaurateur can persist configuration
 Authenticated restaurateur routes SHALL allow reading and updating staff, structures, hours, cycle, weeks, and intents for the session restaurant. Employee sessions MUST be rejected on those writes. Updates that change coverage MUST go through the cycle sandbox as already required by cruise-planning.
