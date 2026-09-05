@@ -22,6 +22,7 @@ def wellbeing_from_json(payload: Any) -> Wellbeing:
     weekend = payload.get("weekend")
     return Wellbeing(
         consecutive_rest=bool(payload.get("consecutive_rest", False)),
+        weekend_rest_day=bool(payload.get("weekend_rest_day", False)),
         weekend=None if weekend is None else WeekendChoice(weekend),
         max_services=payload.get("max_services") or {},
         max_coupures_per_week=payload.get("max_coupures_per_week"),
@@ -31,6 +32,7 @@ def wellbeing_from_json(payload: Any) -> Wellbeing:
 def wellbeing_to_json(wellbeing: Wellbeing) -> dict[str, Any]:
     return {
         "consecutive_rest": wellbeing.consecutive_rest,
+        "weekend_rest_day": wellbeing.weekend_rest_day,
         "weekend": None if wellbeing.weekend is None else wellbeing.weekend.value,
         "max_services": dict(wellbeing.max_services),
         "max_coupures_per_week": wellbeing.max_coupures_per_week,
