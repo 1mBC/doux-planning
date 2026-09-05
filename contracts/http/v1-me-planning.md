@@ -18,11 +18,12 @@ GET /v1/me/planning   Bearer employee → 200 EmployeePlanning
 {
   "employee_id": "...",
   "team": "salle"|"cuisine",
+  "week_labels": "ab"|"parity",
   "employees": [{ "id", "name", "role": { "name", "level", "team" }, "team" }],
   "assignments": [ Shift ],
   "contract": { "weekly": number, "assigned": number, "ok": bool },
-  "wishes": [{ "key": "<WellbeingPreference>", "held": bool }],
-  "unavailabilities": [{ "weekday"?, "every_morning", "every_evening", "service_id"? }]
+  "wishes": [ /* forme wellbeing.md : kind consecutive_rest | weekend | max_services | max_coupures */ ],
+  "unavailabilities": [{ "weekday", "service_id" }]
 }
 ```
 

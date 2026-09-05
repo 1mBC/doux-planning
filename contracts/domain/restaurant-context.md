@@ -12,13 +12,14 @@ Salle et cuisine = équipes **indépendantes**. On peut être prêt à calculer 
 `RestaurantIdentity.name: str` défaut `""` (le register company ne l’a pas demandé).  
 `legal_context_id` défaut `"france"`.
 
-`empty_restaurant(id) -> RestaurantState` : nom `""`, zéro fiche, zéro type, **aucun** service choisi, pas de semaine type, pas de cycle publié. Hydrate Saint-Cloud **inchangé**.
+`empty_restaurant(id) -> RestaurantState` : nom `""`, zéro fiche, zéro type, **aucun** service choisi, pas de semaine type, pas de cycle publié. Hydrate Saint-Cloud : forme wellbeing / indispos = `wellbeing.md` (plus d’anciennes clés).
 
 ## Échelles et fiches (déjà au domaine — exposer clairement)
 
 - `RoleLadder` par équipe (niveaux + règle de substitution expliquée).
 - `Employee` : name, role, team, `contractual_hours_per_week`, `unavailabilities`, `wellbeing`, `min_shift_hours` (4), `invite_token`.
 - Une fiche = salle **ou** cuisine.
+- Forme `wellbeing` + indispos jour×service + `week_label_scheme` : **`contracts/domain/wellbeing.md`** (gagne).
 
 ## Services entreprise
 
@@ -43,7 +44,8 @@ TypicalWeek     # 7 jours × services entreprise
 ```
 
 Cellule ouverte → `type_id` d’un type du bon (team, service) — **par équipe** (deux grilles, ou une grille avec type salle et type cuisine). Cellule fermée → pas de couverture.  
-`expand_typical_week(state) -> list[ServiceStructure]` : copie **identiques** semaine A et B (jours 0–6 = 7–13). Les `ServiceStructure.weekdays` produits sont le seul input moteur.
+`expand_typical_week(state) -> list[ServiceStructure]` : copie **identiques** semaine 1 et 2 (jours 0–6 = 7–13). Les `ServiceStructure.weekdays` produits sont le seul input moteur.  
+Libellés UI **A/B** ou **Paire/Impaire** : `week_label_scheme` (`wellbeing.md`) — le domaine n’invente pas une 2ᵉ semaine type.
 
 ## Prêt à calculer (sans appeler generate)
 
@@ -59,4 +61,4 @@ Salle prête + cuisine incomplète → `team_ready(salle)` vrai, `team_ready(cui
 
 ## Hors freeze
 
-`generate_cycle`, jobs, publish, persist HTTP, panneaux UI, bouton seed Saint-Cloud, second cycle.
+`generate_cycle` (hors contraintes wellbeing déjà au moteur), jobs, persist HTTP, panneaux UI, bouton seed restaurateur.

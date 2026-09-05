@@ -20,7 +20,8 @@ GET   /v1/context   Bearer company → 200 Context
 PATCH /v1/context   Bearer company → 200 Context
 ```
 
-`PATCH` : clés **optionnelles**. Chaque clé fournie **remplace** cette section. Clés absentes inchangées. Corps vide = no-op 200.
+`PATCH` : clés **optionnelles**. Chaque clé fournie **remplace** cette section. Clés absentes inchangées. Corps vide = no-op 200.  
+`week_labels` n’est pas une clé PATCH (dérivé).
 
 ## Body 200 — `Context`
 
@@ -34,11 +35,13 @@ PATCH /v1/context   Bearer company → 200 Context
   "employees": [],
   "types": [],
   "typical_week": { "salle": null, "cuisine": null },
-  "ready": { "salle": false, "cuisine": false }
+  "ready": { "salle": false, "cuisine": false },
+  "week_labels": "ab"
 }
 ```
 
-`ready.*` = `team_ready` Core, jamais un bool inventé côté HTTP.
+`ready.*` = `team_ready` Core, jamais un bool inventé côté HTTP.  
+`week_labels` = `week_label_scheme` Core (`"ab"` | `"parity"`) — lecture seule, tout le resto. Ignoré en PATCH.
 
 ### `ladders.<team>`
 
@@ -53,8 +56,13 @@ PATCH /v1/context   Bearer company → 200 Context
   "role": { "name", "level", "team" },
   "contractual_hours_per_week",
   "min_shift_hours",          // défaut 4 si omis à la création
-  "unavailabilities": [{ "weekday"?, "every_morning", "every_evening", "service_id"? }],
-  "wellbeing": ["two_consecutive_rest_days", ...],
+  "unavailabilities": [{ "weekday", "service_id" }],
+  "wellbeing": {
+    "consecutive_rest": false,
+    "weekend": null,
+    "max_services": {},
+    "max_coupures_per_week": null
+  },
   "invite_token"
 }
 ```
@@ -85,7 +93,7 @@ PATCH `typical_week` remplace l’objet `{ salle, cuisine }` si la clé est envo
 
 ## PATCH body
 
-Même clés que `Context`, toutes optionnelles, **sauf** `legal_context_id`, `company_code`, `ready`, `invite_token` (sur une fiche) : ignorées ou 400 si on tente de les forcer.
+Même clés que `Context`, toutes optionnelles, **sauf** `legal_context_id`, `company_code`, `ready`, `week_labels`, `invite_token` (sur une fiche) : ignorées ou 400 si on tente de les forcer.
 
 `name` : string (peut rester `""`).
 
