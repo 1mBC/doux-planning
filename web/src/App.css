@@ -605,6 +605,40 @@ table.wishes-edit .max-services input {
   margin: 8px 0;
 }
 
+table.wave-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+table.wave-table th,
+table.wave-table td {
+  border-bottom: 1px solid #e4e7eb;
+  padding: 8px 6px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.level-steppers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.staff-after {
+  white-space: nowrap;
+}
+
+button.trash {
+  padding: 4px 8px;
+}
+
 .level-pickers {
   display: flex;
   flex-wrap: wrap;

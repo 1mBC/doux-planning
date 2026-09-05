@@ -47,6 +47,26 @@ export function formatBag(levels: number[]): string {
   return levels.slice().sort((a, b) => a - b).join(", ");
 }
 
+export function levelsToCounts(levels: number[]): Record<number, number> {
+  const out: Record<number, number> = {};
+  for (const level of levels) {
+    out[level] = (out[level] ?? 0) + 1;
+  }
+  return out;
+}
+
+export function countsToLevels(counts: Record<number, number>): number[] {
+  const out: number[] = [];
+  for (const level of Object.keys(counts)
+    .map(Number)
+    .sort((a, b) => a - b)) {
+    for (let i = 0; i < (counts[level] ?? 0); i += 1) {
+      out.push(level);
+    }
+  }
+  return out;
+}
+
 export type ArrivalDraft = {
   time_minutes: number;
   post_levels: number[];
