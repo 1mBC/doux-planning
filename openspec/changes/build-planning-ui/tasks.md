@@ -62,3 +62,10 @@
 - [x] 10.2 Tabs Rôles → Équipe → Souhaits bien-être → Services → Types → Semaine type; Équipe popup jour×service; Souhaits columns; wishes not a ready gate
 - [x] 10.3 Labels A/B vs Paire/Impaire on semaine type + company/employee grids; exemple stats from JSON (92 / 17 / 10/12 / 47); bump `web/` to 0.12.0
 - [x] 10.4 Verify `npm run build`; popup 2 jours × 1 service → 2 créneaux; radio we paire → `week_labels` parity; reload persists; employee reads new wishes; exemple 92; `v0.12.0`
+
+## 11. Seed example
+
+- [x] 11.1 `POST /v1/context/seed-example` Bearer, no body; 200 parsed as GET Context; `detail` on error
+- [x] 11.2 Company `/context` banner button **Intégrer l’exemple Saint-Cloud** (empty or filled) + one-sentence FR confirm; stay on `/context`; unlock salle tabs; no generate
+- [x] 11.3 No button on employee / exemple / planning / login; bump `web/` to 0.13.0
+- [x] 11.4 Verify `npm run build`; empty company → confirm → POST → Diane/Théo + semaine + salle ready; reload persists; second click overwrites; exemple 92; `v0.13.0`

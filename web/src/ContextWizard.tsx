@@ -8,6 +8,7 @@ import {
   loadContext,
   newId,
   patchContext,
+  seedExampleContext,
   type ContextEmployee,
   type ContextServiceId,
   type RestaurantContext,
@@ -74,6 +75,7 @@ export function ContextWizard() {
   const [step, setStep] = useState(0);
   const [unlocked, setUnlocked] = useState<{ salle: number; cuisine: number }>({ salle: 0, cuisine: 0 });
   const [nameDraft, setNameDraft] = useState("");
+  const [wizardEpoch, setWizardEpoch] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,17 +101,41 @@ export function ContextWizard() {
     };
   }, []);
 
+  function adopt(next: RestaurantContext) {
+    setCtx(next);
+    setNameDraft(next.name);
+    setUnlocked({
+      salle: inferUnlocked(next, "salle"),
+      cuisine: inferUnlocked(next, "cuisine"),
+    });
+  }
+
+  async function seedExample() {
+    const ok = window.confirm(
+      "Ça remplace rôles, équipe, souhaits, types et semaine, garde le nom, casse les comptes salariés liés, et ne colle pas le planning exemple.",
+    );
+    if (!ok) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await seedExampleContext();
+      adopt(next);
+      setWizardEpoch((value) => value + 1);
+    } catch (err) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function apply(body: Parameters<typeof patchContext>[0], advance = false) {
     setBusy(true);
     setError(null);
     try {
       const next = await patchContext(body);
-      setCtx(next);
-      setNameDraft(next.name);
-      setUnlocked({
-        salle: inferUnlocked(next, "salle"),
-        cuisine: inferUnlocked(next, "cuisine"),
-      });
+      adopt(next);
       if (advance) {
         setStep((prev) => Math.min(prev + 1, STEPS.length - 1));
       }
@@ -154,8 +180,11 @@ export function ContextWizard() {
           Enregistrer le nom
         </button>
         <p className="sub">Droit du travail : {legalLabel(ctx.legal_context_id)}</p>
-        <p>
-          Code entreprise : <code>{ctx.company_code}</code>
+        <p className="seed-row">
+          Code entreprise : <code>{ctx.company_code}</code>{" "}
+          <button type="button" className="choice" disabled={busy} onClick={() => void seedExample()}>
+            {busy ? "Intégration…" : "Intégrer l’exemple Saint-Cloud"}
+          </button>
         </p>
         <p className="ready-badges">
           <span className={ctx.ready.salle ? "badge-ready" : "badge-wait"}>
@@ -206,7 +235,7 @@ export function ContextWizard() {
 
       {step === 0 ? (
         <RolesStep
-          key={`${team}-roles`}
+          key={`${wizardEpoch}-${team}-roles`}
           roles={ladder?.roles ?? []}
           busy={busy}
           onSave={(roles) =>
@@ -224,7 +253,7 @@ export function ContextWizard() {
       ) : null}
       {step === 1 ? (
         <EmployeesStep
-          key={`${team}-equipe`}
+          key={`${wizardEpoch}-${team}-equipe`}
           team={team}
           roles={ladder?.roles ?? []}
           people={teamEmployees}
@@ -247,7 +276,7 @@ export function ContextWizard() {
       ) : null}
       {step === 2 ? (
         <WishesStep
-          key={`${team}-souhaits`}
+          key={`${wizardEpoch}-${team}-souhaits`}
           team={team}
           people={teamEmployees}
           all={ctx.employees}
@@ -267,7 +296,7 @@ export function ContextWizard() {
       ) : null}
       {step === 3 ? (
         <ServicesStep
-          key={`${team}-services`}
+          key={`${wizardEpoch}-${team}-services`}
           selected={ctx.services}
           busy={busy}
           onSave={(services) => void apply({ services }, true)}
@@ -275,7 +304,7 @@ export function ContextWizard() {
       ) : null}
       {step === 4 ? (
         <TypesStep
-          key={`${team}-${ctx.services.join(",")}-types`}
+          key={`${wizardEpoch}-${team}-${ctx.services.join(",")}-types`}
           team={team}
           services={ctx.services}
           types={teamTypes}
@@ -292,7 +321,7 @@ export function ContextWizard() {
       ) : null}
       {step === 5 ? (
         <WeekStep
-          key={`${team}-${ctx.services.join(",")}-week`}
+          key={`${wizardEpoch}-${team}-${ctx.services.join(",")}-week`}
           team={team}
           services={ctx.services}
           types={teamTypes}

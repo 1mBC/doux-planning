@@ -593,6 +593,13 @@ table.wishes-edit .max-services input {
   font: inherit;
 }
 
+.seed-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .ready-badges {
   display: flex;
   flex-wrap: wrap;

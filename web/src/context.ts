@@ -381,6 +381,10 @@ export async function patchContext(body: ContextPatch): Promise<RestaurantContex
   );
 }
 
+export async function seedExampleContext(): Promise<RestaurantContext> {
+  return parseRestaurantContext(await sendAuth("/v1/context/seed-example", { method: "POST" }, true));
+}
+
 export function employeesForPatch(employees: ContextEmployee[]): ContextPatch["employees"] {
   return employees.map(({ invite_token: _token, ...rest }) => rest);
 }
