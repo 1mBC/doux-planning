@@ -69,3 +69,10 @@
 - [x] 11.2 Company `/context` banner button **Intégrer l’exemple Saint-Cloud** (empty or filled) + one-sentence FR confirm; stay on `/context`; unlock salle tabs; no generate
 - [x] 11.3 No button on employee / exemple / planning / login; bump `web/` to 0.13.0
 - [x] 11.4 Verify `npm run build`; empty company → confirm → POST → Diane/Théo + semaine + salle ready; reload persists; second click overwrites; exemple 92; `v0.13.0`
+
+## 12. Weekend rest + Services-first types
+
+- [x] 12.1 Tabs Services → Rôles → Équipe → Souhaits → Services types → Semaine type; uncheck service → FR warning + purge both teams; non-offered invisible
+- [x] 12.2 `weekend_rest_day` required bool + checkbox beside we radio; max_services = offered only; employee `kind: weekend_rest_day` same label
+- [x] 12.3 Services types: offered-service subtabs, Ajouter un type, ladder pickers, bag + worst-case `remaining_post_levels`; bump `web/` to 0.14.0
+- [x] 12.4 Verify `npm run build`; Services first; uncheck PDJ after types → gone; repos we persists; 2 arrivées + 1 départ (freeze bags); employee reads wish; exemple 92; `v0.14.0`

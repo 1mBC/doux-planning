@@ -20,6 +20,7 @@ export type EmployeeContract = {
 
 export type EmployeeWish =
   | { kind: "consecutive_rest"; held: boolean }
+  | { kind: "weekend_rest_day"; held: boolean }
   | { kind: "weekend"; value: WeekendChoice; held: boolean }
   | { kind: "max_services"; service_id: ContextServiceId; limit: number; held: boolean }
   | { kind: "max_coupures"; limit: number; held: boolean };
@@ -111,6 +112,9 @@ function parseWish(value: unknown, path: string): EmployeeWish {
   if (kind === "consecutive_rest") {
     return { kind, held: value.held };
   }
+  if (kind === "weekend_rest_day") {
+    return { kind, held: value.held };
+  }
   if (kind === "weekend") {
     return { kind, value: parseWeekendValue(value.value, `${path}.value`), held: value.held };
   }
@@ -157,6 +161,9 @@ export async function loadEmployeePlanning(): Promise<EmployeePlanning> {
 export function wishLabel(wish: EmployeeWish): string {
   if (wish.kind === "consecutive_rest") {
     return "Deux repos consécutifs par semaine";
+  }
+  if (wish.kind === "weekend_rest_day") {
+    return "Au moins un repos samedi ou dimanche";
   }
   if (wish.kind === "weekend") {
     if (wish.value === "every_two") {

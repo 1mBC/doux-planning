@@ -30,6 +30,7 @@ export type MaxServices = {
 
 export type Wellbeing = {
   consecutive_rest: boolean;
+  weekend_rest_day: boolean;
   weekend: WeekendChoice | null;
   max_services: MaxServices;
   max_coupures_per_week: number | null;
@@ -104,6 +105,7 @@ export type ContextPatch = {
 export function emptyWellbeing(): Wellbeing {
   return {
     consecutive_rest: false,
+    weekend_rest_day: false,
     weekend: null,
     max_services: {},
     max_coupures_per_week: null,
@@ -202,8 +204,14 @@ export function parseWellbeing(value: unknown, path: string): Wellbeing {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
+  if ("at_least_one_weekend_rest_day" in value) {
+    throw new PayloadError(`clé invalide : ${path}.at_least_one_weekend_rest_day`);
+  }
   if (typeof value.consecutive_rest !== "boolean") {
     throw new PayloadError(`clé absente ou invalide : ${path}.consecutive_rest`);
+  }
+  if (typeof value.weekend_rest_day !== "boolean") {
+    throw new PayloadError(`clé absente ou invalide : ${path}.weekend_rest_day`);
   }
   if (!("weekend" in value)) {
     throw new PayloadError(`clé absente : ${path}.weekend`);
@@ -217,9 +225,37 @@ export function parseWellbeing(value: unknown, path: string): Wellbeing {
   }
   return {
     consecutive_rest: value.consecutive_rest,
+    weekend_rest_day: value.weekend_rest_day,
     weekend: parseWeekend(value.weekend, `${path}.weekend`),
     max_services: parseMaxServices(requireRecord(value, "max_services", path), `${path}.max_services`),
     max_coupures_per_week: coupures,
+  };
+}
+
+export function purgeRemovedServices(
+  ctx: RestaurantContext,
+  nextServices: ContextServiceId[],
+): Pick<RestaurantContext, "employees" | "types" | "typical_week"> {
+  const offered = new Set(nextServices);
+  return {
+    employees: ctx.employees.map((person) => {
+      const max_services: MaxServices = {};
+      for (const id of ["morning", "midday", "evening"] as const) {
+        if (offered.has(id) && person.wellbeing.max_services[id] !== undefined) {
+          max_services[id] = person.wellbeing.max_services[id];
+        }
+      }
+      return {
+        ...person,
+        unavailabilities: person.unavailabilities.filter((slot) => offered.has(slot.service_id as ContextServiceId)),
+        wellbeing: { ...person.wellbeing, max_services },
+      };
+    }),
+    types: ctx.types.filter((item) => offered.has(item.service_id)),
+    typical_week: {
+      salle: ctx.typical_week.salle && ctx.typical_week.salle.filter((cell) => offered.has(cell.service_id)),
+      cuisine: ctx.typical_week.cuisine && ctx.typical_week.cuisine.filter((cell) => offered.has(cell.service_id)),
+    },
   };
 }
 
