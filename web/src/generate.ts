@@ -11,6 +11,7 @@ import {
   requireString,
 } from "./api";
 import { sendAuth } from "./auth";
+import { ApiHttpError } from "./sandbox";
 import type { LegalRow, PlanningStats, WarningItem, WishCol, WishRow } from "./types";
 
 export type LegalCol = {
@@ -59,6 +60,24 @@ export type GenerateResult = {
   published: PublishedCycles;
 };
 
+export type GenerateJobStatus = "queued" | "running" | "done" | "failed";
+
+export type GenerateJob = {
+  job_id: string;
+  team: CycleTeam;
+  search_effort: SearchEffort;
+  status: GenerateJobStatus;
+  estimated_seconds: number;
+  error?: string;
+  published?: PublishedCycles;
+};
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function parseTeam(value: unknown, path: string): CycleTeam {
   if (value === "salle" || value === "cuisine") {
     return value;
@@ -71,6 +90,13 @@ function parseEffort(value: unknown, path: string): SearchEffort {
     return value;
   }
   throw new PayloadError(`search_effort inattendu : ${path}`);
+}
+
+function parseJobStatus(value: unknown, path: string): GenerateJobStatus {
+  if (value === "queued" || value === "running" || value === "done" || value === "failed") {
+    return value;
+  }
+  throw new PayloadError(`status inattendu : ${path}`);
 }
 
 function parseServiceId(value: unknown, path: string): CycleServiceId {
@@ -190,20 +216,70 @@ export function parseGenerateResult(value: unknown): GenerateResult {
   };
 }
 
+export function parseGenerateJob(value: unknown): GenerateJob {
+  if (!isRecord(value)) {
+    throw new PayloadError("réponse job invalide");
+  }
+  const job: GenerateJob = {
+    job_id: requireString(value, "job_id", "job"),
+    team: parseTeam(value.team, "job.team"),
+    search_effort: parseEffort(value.search_effort, "job.search_effort"),
+    status: parseJobStatus(value.status, "job.status"),
+    estimated_seconds: requireNumber(value, "estimated_seconds", "job"),
+  };
+  if ("error" in value && value.error !== undefined && value.error !== null) {
+    if (typeof value.error !== "string") {
+      throw new PayloadError("clé invalide : job.error");
+    }
+    job.error = value.error;
+  }
+  if ("published" in value && value.published !== undefined) {
+    job.published = parsePublished(value, "job");
+  }
+  return job;
+}
+
 export async function loadCycles(): Promise<CyclesPayload> {
   return parseCyclesPayload(await sendAuth("/v1/cycles", { method: "GET" }, true));
 }
 
-export async function postGenerate(team: CycleTeam): Promise<GenerateResult> {
-  return parseGenerateResult(
-    await sendAuth(
-      "/v1/generate",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ team, search_effort: "minimal" }),
-      },
-      true,
-    ),
+export async function getGenerateJob(jobId: string): Promise<GenerateJob> {
+  return parseGenerateJob(await sendAuth(`/v1/generate/jobs/${encodeURIComponent(jobId)}`, { method: "GET" }, true));
+}
+
+export async function pollGenerateJob(jobId: string): Promise<GenerateResult> {
+  for (;;) {
+    await sleep(1000);
+    const job = await getGenerateJob(jobId);
+    if (job.status === "done") {
+      if (!job.published) {
+        throw new PayloadError("published absent : job done");
+      }
+      return {
+        team: job.team,
+        search_effort: job.search_effort,
+        published: job.published,
+      };
+    }
+    if (job.status === "failed") {
+      throw new ApiHttpError(400, job.error ?? "Le calcul maximal a échoué.");
+    }
+  }
+}
+
+export async function postGenerate(team: CycleTeam, effort: SearchEffort): Promise<GenerateResult> {
+  const raw = await sendAuth(
+    "/v1/generate",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ team, search_effort: effort }),
+    },
+    true,
   );
+  if (effort === "maximal") {
+    const queued = parseGenerateJob(raw);
+    return pollGenerateJob(queued.job_id);
+  }
+  return parseGenerateResult(raw);
 }

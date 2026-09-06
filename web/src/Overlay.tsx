@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ApiHttpError, previewFill, previewSandbox } from "./sandbox";
 import { employeeName, HoursImpact, SwapReplaceImpact } from "./impact";
 import { dayThenClock, formatClock, GESTURE_CHOICE_FR } from "./format";
+import { Stepper } from "./Stepper";
 import type { Employee, FillSlot, Gesture, PreviewProposal, ShiftIdentity } from "./types";
 
 export type PreviewOccupied = (
@@ -130,26 +131,26 @@ export function Overlay({
         </div>
         {gesture === "retune" ? (
           <div className="steppers">
-            <div className="stepper">
-              <span>Début</span>
-              <button type="button" className="choice" disabled={loading || busy} onClick={() => void stepHours("start", -STEP_MINUTES)}>
-                −
-              </button>
-              <strong>{formatClock(startMinutes)}</strong>
-              <button type="button" className="choice" disabled={loading || busy} onClick={() => void stepHours("start", STEP_MINUTES)}>
-                +
-              </button>
-            </div>
-            <div className="stepper">
-              <span>Fin</span>
-              <button type="button" className="choice" disabled={loading || busy} onClick={() => void stepHours("end", -STEP_MINUTES)}>
-                −
-              </button>
-              <strong>{formatClock(endMinutes)}</strong>
-              <button type="button" className="choice" disabled={loading || busy} onClick={() => void stepHours("end", STEP_MINUTES)}>
-                +
-              </button>
-            </div>
+            <label className="stepper-field">
+              <span className="stepper-label">Début</span>
+              <Stepper
+                value={startMinutes}
+                step={STEP_MINUTES}
+                display={formatClock(startMinutes)}
+                disabled={loading || busy}
+                onChange={(next) => void stepHours("start", next - startMinutes)}
+              />
+            </label>
+            <label className="stepper-field">
+              <span className="stepper-label">Fin</span>
+              <Stepper
+                value={endMinutes}
+                step={STEP_MINUTES}
+                display={formatClock(endMinutes)}
+                disabled={loading || busy}
+                onChange={(next) => void stepHours("end", next - endMinutes)}
+              />
+            </label>
           </div>
         ) : null}
         {loading ? <p className="sub">Chargement des propositions…</p> : null}
@@ -318,26 +319,26 @@ export function FillOverlay({
         </p>
         {start !== null && end !== null ? (
           <div className="steppers">
-            <div className="stepper">
-              <span>Début</span>
-              <button type="button" className="choice" disabled={loading || busy} onClick={() => void stepHours("start", -STEP_MINUTES)}>
-                −
-              </button>
-              <strong>{formatClock(start)}</strong>
-              <button type="button" className="choice" disabled={loading || busy} onClick={() => void stepHours("start", STEP_MINUTES)}>
-                +
-              </button>
-            </div>
-            <div className="stepper">
-              <span>Fin</span>
-              <button type="button" className="choice" disabled={loading || busy} onClick={() => void stepHours("end", -STEP_MINUTES)}>
-                −
-              </button>
-              <strong>{formatClock(end)}</strong>
-              <button type="button" className="choice" disabled={loading || busy} onClick={() => void stepHours("end", STEP_MINUTES)}>
-                +
-              </button>
-            </div>
+            <label className="stepper-field">
+              <span className="stepper-label">Début</span>
+              <Stepper
+                value={start}
+                step={STEP_MINUTES}
+                display={formatClock(start)}
+                disabled={loading || busy}
+                onChange={(next) => void stepHours("start", next - start)}
+              />
+            </label>
+            <label className="stepper-field">
+              <span className="stepper-label">Fin</span>
+              <Stepper
+                value={end}
+                step={STEP_MINUTES}
+                display={formatClock(end)}
+                disabled={loading || busy}
+                onChange={(next) => void stepHours("end", next - end)}
+              />
+            </label>
           </div>
         ) : null}
         {loading ? <p className="sub">Chargement des propositions…</p> : null}

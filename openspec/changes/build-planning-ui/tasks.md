@@ -115,3 +115,8 @@
 
 - [x] 19.1 `parseMe` requires `admin` bool (employee → false) ; chrome **Admin** iff `me.admin` ; `/admin` fetches `{ entries }` or reserved message without GET ; day headers Paris + hover messages ; bump `web/` to 0.21.0
 - [x] 19.2 Verify `npm run build` ; admin link + 2 day headers + hover messages ; non-admin / employee 0 GET ; empty phrase ; exemple 92 ; `v0.21.0`
+
+## 20. Planning polish (steppers, types table, exports, three generate)
+
+- [x] 20.1 Compact stepper chrome everywhere (roles, types N/levels, overlay, ±15) ; types = one `<table>` per sheet (Type · Heure · N · Niveaux · STAFF minimal resultant) ; JPEG 2× + quality ≥ 0.95 ; XLSX 2 week sheets + dated title + one row per offered service ; three generate buttons (Minimal / Optimisé sync, Maximal 202 + poll, loader ≥ 1 s) ; bump `web/` to 0.22.0
+- [x] 20.2 Verify `npm run build` ; compact centered steppers on roles + types + overlay ; types table + Type + STAFF column ; company 3 buttons, Minimal recalc loader ≥ 1 s, Maximal 202 + poll → grid ; XLSX 2 sheets + dated title + service rows ; sharper JPEG ; exemple 92 ; admin unchanged ; `v0.22.0`

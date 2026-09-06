@@ -364,14 +364,16 @@ table.plan td.empty-slot {
   margin-bottom: 12px;
 }
 
-.stepper {
+.stepper-field {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
-.stepper span {
-  width: 3.2rem;
+.stepper-label {
+  font-size: 12px;
+  color: #444;
 }
 
 .retune-preview {
@@ -659,46 +661,55 @@ table.wishes-edit .max-services input {
   margin: 12px 0;
 }
 
-.wave-legend {
-  font-size: 12px;
-  color: #555;
-  margin: 8px 0 4px;
-}
-
-.wave-list {
-  display: grid;
-  gap: 8px;
-}
-
-.wave-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid #e4e7eb;
-  border-radius: 8px;
-  padding: 10px;
-  margin: 0;
-}
-
-table.wave-table {
+table.type-sheet {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  margin: 10px 0;
 }
 
-table.wave-table th,
-table.wave-table td {
+table.type-sheet th,
+table.type-sheet td {
   border-bottom: 1px solid #e4e7eb;
   padding: 8px 6px;
-  vertical-align: top;
+  vertical-align: middle;
   text-align: left;
+}
+
+table.type-sheet th {
+  font-size: 12px;
+  color: #333;
+  background: #f4f6f8;
 }
 
 .stepper {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+}
+
+.stepper-btn {
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 1px solid #c5cad3;
+  border-radius: 3px;
+  background: #f4f5f7;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stepper-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.stepper-value {
+  min-width: 1.85rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .level-steppers {
@@ -711,11 +722,23 @@ table.wave-table td {
   white-space: nowrap;
 }
 
-.wave-clock {
+.calc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
   display: flex;
   align-items: center;
-  gap: 6px;
-  white-space: nowrap;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.calc-overlay p {
+  margin: 0;
+  padding: 12px 20px;
+  border: 1px solid #d5d8dd;
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 650;
 }
 
 .count-field {

@@ -1,7 +1,15 @@
 import * as XLSX from "xlsx";
-import { CONTEXT_SERVICES, type ConfigEmployee, type RestaurantContext, type TeamId } from "./context";
-import { DAYS_FR, formatClock, formatDuration, weekLabelPair, type WeekLabelScheme } from "./format";
+import {
+  CONTEXT_SERVICES,
+  type ConfigEmployee,
+  type ContextServiceId,
+  type RestaurantContext,
+  type TeamId,
+} from "./context";
+import { DAYS_FR, formatClock, formatDuration, weekLabelPair, weekSheetTitle, type WeekLabelScheme } from "./format";
 import type { PublishedCycle } from "./generate";
+
+const DAYS_XLSX = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"] as const;
 
 export type PlanningExport = {
   export_version: 1;
@@ -130,15 +138,117 @@ function downloadCsv(payload: PlanningExport): void {
   );
 }
 
-function downloadXlsx(payload: PlanningExport): void {
+function xlsxServiceLabel(id: string): string {
+  if (id === "morning") {
+    return "PDJ";
+  }
+  if (id === "midday") {
+    return "DJ";
+  }
+  if (id === "evening") {
+    return "Dîner";
+  }
+  return serviceLabel(id);
+}
+
+function formatExportStamp(at = new Date()): string {
+  return at.toLocaleString("fr-FR");
+}
+
+function applyCellStyle(sheet: XLSX.WorkSheet, row: number, col: number, style: Record<string, unknown>) {
+  const addr = XLSX.utils.encode_cell({ r: row, c: col });
+  const cell = sheet[addr];
+  if (cell) {
+    cell.s = style;
+  }
+}
+
+function xlsxWeekSheet(
+  payload: PlanningExport,
+  offered: ContextServiceId[],
+  weekOffset: 0 | 7,
+): XLSX.WorkSheet {
+  const colCount = 2 + DAYS_XLSX.length * 3;
+  const title = `Planning validé en date du : ${formatExportStamp()}`;
+  const headerDays: string[] = ["Personne", "Service"];
+  const headerFields: string[] = ["", ""];
+  for (const day of DAYS_XLSX) {
+    headerDays.push(day, "", "");
+    headerFields.push("DEBUT", "FIN", "NB HEURES");
+  }
+  const rows: (string | number)[][] = [[title], headerDays, headerFields];
+  const names = payload.employees;
+  for (const person of names) {
+    for (const service of offered) {
+      const line: (string | number)[] = [person.name, xlsxServiceLabel(service)];
+      for (let day = 0; day < 7; day++) {
+        const shift = payload.assignments.find(
+          (item) =>
+            item.employee_id === person.id && item.day_index === weekOffset + day && item.service_id === service,
+        );
+        if (shift) {
+          line.push(
+            formatClock(shift.start_minutes),
+            formatClock(shift.end_minutes),
+            formatDuration(shift.duration_hours),
+          );
+        } else {
+          line.push("", "", "");
+        }
+      }
+      rows.push(line);
+    }
+  }
+  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  sheet["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } },
+    ...DAYS_XLSX.map((_, index) => ({
+      s: { r: 1, c: 2 + index * 3 },
+      e: { r: 1, c: 4 + index * 3 },
+    })),
+  ];
+  sheet["!cols"] = [{ wch: 18 }, { wch: 10 }, ...Array.from({ length: DAYS_XLSX.length * 3 }, () => ({ wch: 11 }))];
+  const titleStyle = {
+    font: { bold: true, sz: 14, color: { rgb: "1A365D" } },
+    fill: { fgColor: { rgb: "E2E8F0" } },
+  };
+  const dayStyle = {
+    font: { bold: true, color: { rgb: "FFFFFF" } },
+    fill: { fgColor: { rgb: "2B6CB0" } },
+    alignment: { horizontal: "center" },
+  };
+  const subStyle = {
+    font: { bold: true, color: { rgb: "1A365D" } },
+    fill: { fgColor: { rgb: "BEE3F8" } },
+    alignment: { horizontal: "center" },
+  };
+  const stripeStyle = { fill: { fgColor: { rgb: "F7FAFC" } } };
+  applyCellStyle(sheet, 0, 0, titleStyle);
+  for (let col = 0; col < colCount; col++) {
+    applyCellStyle(sheet, 1, col, dayStyle);
+    applyCellStyle(sheet, 2, col, subStyle);
+  }
+  const dataStart = 3;
+  for (let row = dataStart; row < rows.length; row++) {
+    if ((row - dataStart) % 2 === 1) {
+      for (let col = 0; col < colCount; col++) {
+        applyCellStyle(sheet, row, col, stripeStyle);
+      }
+    }
+  }
+  return sheet;
+}
+
+function downloadXlsx(payload: PlanningExport, offered: ContextServiceId[]): void {
+  const services = offered.length
+    ? offered
+    : (CONTEXT_SERVICES.map((item) => item.id).filter((id) =>
+        payload.assignments.some((shift) => shift.service_id === id),
+      ) as ContextServiceId[]);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(metadataRows(payload)), "Métadonnées");
-  XLSX.utils.book_append_sheet(
-    workbook,
-    XLSX.utils.aoa_to_sheet([["Personne", "Jour", "Service", "Début", "Fin", "Heures"], ...gridRows(payload)]),
-    "Grille",
-  );
-  const bytes = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+  XLSX.utils.book_append_sheet(workbook, xlsxWeekSheet(payload, services, 0), weekSheetTitle(payload.week_labels, 0));
+  XLSX.utils.book_append_sheet(workbook, xlsxWeekSheet(payload, services, 7), weekSheetTitle(payload.week_labels, 7));
+  const bytes = XLSX.write(workbook, { bookType: "xlsx", type: "array", cellStyles: true }) as ArrayBuffer;
   downloadBlob(
     new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
     planningExportFilename(payload.restaurant_name, payload.team, "xlsx"),
@@ -158,22 +268,24 @@ function paintSheet(sheet: HTMLElement): HTMLCanvasElement {
   const title = sheet.querySelector("h3")?.textContent ?? "";
   const table = sheet.querySelector("table.plan");
   const width = Math.max(sheet.scrollWidth, table?.scrollWidth ?? 0, 640);
-  const height = Math.max(sheet.scrollHeight, table ? table.scrollHeight + 36 : 48, 80);
+  const height = Math.max(sheet.scrollHeight, table ? table.scrollHeight + 48 : 56, 80);
+  const scale = Math.max(window.devicePixelRatio || 1, 2);
   const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil(width);
-  canvas.height = Math.ceil(height);
+  canvas.width = Math.ceil(width * scale);
+  canvas.height = Math.ceil(height * scale);
   const gfx = canvas.getContext("2d");
   if (!gfx) {
     throw new Error("canvas JPEG indisponible");
   }
+  gfx.setTransform(scale, 0, 0, scale, 0, 0);
   gfx.fillStyle = "#ffffff";
-  gfx.fillRect(0, 0, canvas.width, canvas.height);
+  gfx.fillRect(0, 0, width, height);
   gfx.fillStyle = "#1a1a1a";
-  gfx.font = "600 16px sans-serif";
-  gfx.fillText(title, 8, 22);
+  gfx.font = "600 18px sans-serif";
+  gfx.fillText(title, 8, 26);
   if (table) {
     const origin = table.getBoundingClientRect();
-    const top = 32;
+    const top = 36;
     for (const row of table.querySelectorAll("tr")) {
       for (const cell of row.querySelectorAll("th, td")) {
         const box = cell.getBoundingClientRect();
@@ -187,8 +299,8 @@ function paintSheet(sheet: HTMLElement): HTMLCanvasElement {
         const text = (cell.textContent ?? "").replace(/\s+/g, " ").trim();
         if (text) {
           gfx.fillStyle = cssColor(style.color, "#1a1a1a");
-          gfx.font = `${style.fontWeight} 11px sans-serif`;
-          gfx.fillText(text, x + 3, y + Math.min(14, box.height - 3), Math.max(box.width - 6, 8));
+          gfx.font = `${style.fontWeight} 13px sans-serif`;
+          gfx.fillText(text, x + 4, y + Math.min(18, box.height - 4), Math.max(box.width - 8, 8));
         }
       }
     }
@@ -218,7 +330,7 @@ async function downloadJpeg(sheets: HTMLElement[], payload: PlanningExport): Pro
     top += canvas.height;
   }
   const blob = await new Promise<Blob>((resolve, reject) => {
-    out.toBlob((next) => (next ? resolve(next) : reject(new Error("JPEG vide"))), "image/jpeg", 0.92);
+    out.toBlob((next) => (next ? resolve(next) : reject(new Error("JPEG vide"))), "image/jpeg", 0.95);
   });
   downloadBlob(blob, planningExportFilename(payload.restaurant_name, payload.team, "jpeg"));
 }
@@ -227,6 +339,7 @@ export async function exportPublishedPlanning(
   payload: PlanningExport,
   format: PlanningExportFormat,
   sheets: HTMLElement[],
+  offeredServices: ContextServiceId[] = [],
 ): Promise<void> {
   if (format === "json") {
     downloadJson(payload);
@@ -237,7 +350,7 @@ export async function exportPublishedPlanning(
     return;
   }
   if (format === "xlsx") {
-    downloadXlsx(payload);
+    downloadXlsx(payload, offeredServices);
     return;
   }
   await downloadJpeg(sheets, payload);
