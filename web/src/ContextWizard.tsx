@@ -1,12 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PayloadError } from "./api";
 import { ApiHttpError } from "./sandbox";
 import { DAYS_FR, WEEKDAYS_EN } from "./format";
 import {
   CONTEXT_SERVICES,
+  downloadConfigExport,
   emptyWellbeing,
   employeesForPatch,
+  exportRestaurantConfig,
+  importRestaurantConfig,
   loadContext,
   newId,
+  parseConfigExport,
   patchContext,
   purgeRemovedServices,
   seedExampleContext,
@@ -81,6 +86,7 @@ export function ContextWizard() {
   const [nameDraft, setNameDraft] = useState("");
   const [wizardEpoch, setWizardEpoch] = useState(0);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +119,46 @@ export function ContextWizard() {
       salle: inferUnlocked(next, "salle"),
       cuisine: inferUnlocked(next, "cuisine"),
     });
+  }
+
+  async function exportConfig() {
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = await exportRestaurantConfig();
+      downloadConfigExport(payload);
+    } catch (err) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importConfigFile(file: File) {
+    setError(null);
+    let parsed;
+    try {
+      parsed = parseConfigExport(JSON.parse(await file.text()) as unknown);
+    } catch (err) {
+      setError(err instanceof PayloadError || err instanceof Error ? err.message : "erreur inattendue");
+      return;
+    }
+    const ok = window.confirm(
+      "Ça remplace le nom, les rôles, l’équipe, les souhaits, les types et la semaine, casse les comptes salariés liés, et ne colle pas de planning.",
+    );
+    if (!ok) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const next = await importRestaurantConfig(parsed);
+      adopt(next);
+      setWizardEpoch((value) => value + 1);
+    } catch (err) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function seedExample() {
@@ -192,7 +238,26 @@ export function ContextWizard() {
           </button>{" "}
           <button type="button" className="choice" disabled={busy} onClick={() => void seedExample()}>
             {busy ? "Intégration…" : "Intégrer l’exemple Saint-Cloud"}
+          </button>{" "}
+          <button type="button" className="choice" disabled={busy} onClick={() => void exportConfig()}>
+            Exporter la config
+          </button>{" "}
+          <button type="button" className="choice" disabled={busy} onClick={() => importInput.current?.click()}>
+            Importer une config
           </button>
+          <input
+            ref={importInput}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) {
+                void importConfigFile(file);
+              }
+            }}
+          />
         </p>
         {inviteOpen ? <InvitePopup companyCode={ctx.company_code} onClose={() => setInviteOpen(false)} /> : null}
         <p className="ready-badges">

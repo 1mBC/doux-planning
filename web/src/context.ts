@@ -102,6 +102,18 @@ export type ContextPatch = {
   typical_week?: RestaurantContext["typical_week"];
 };
 
+export type ConfigEmployee = Omit<ContextEmployee, "invite_token">;
+
+export type RestaurantConfigExport = {
+  export_version: 1;
+  name: string;
+  services: ContextServiceId[];
+  ladders: RestaurantContext["ladders"];
+  employees: ConfigEmployee[];
+  types: ServiceType[];
+  typical_week: RestaurantContext["typical_week"];
+};
+
 export function emptyWellbeing(): Wellbeing {
   return {
     consecutive_rest: false,
@@ -277,7 +289,7 @@ function parseContextRole(value: unknown, path: string): ContextRole {
   };
 }
 
-function parseEmployee(value: unknown, path: string): ContextEmployee {
+function parseEmployeeFields(value: unknown, path: string): ConfigEmployee {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
@@ -292,6 +304,15 @@ function parseEmployee(value: unknown, path: string): ContextEmployee {
       parseUnavailability(item, `${path}.unavailabilities[${i}]`),
     ),
     wellbeing: parseWellbeing(requireRecord(value, "wellbeing", path), `${path}.wellbeing`),
+  };
+}
+
+function parseEmployee(value: unknown, path: string): ContextEmployee {
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  return {
+    ...parseEmployeeFields(value, path),
     invite_token: requireString(value, "invite_token", path),
   };
 }
@@ -419,6 +440,72 @@ export async function patchContext(body: ContextPatch): Promise<RestaurantContex
 
 export async function seedExampleContext(): Promise<RestaurantContext> {
   return parseRestaurantContext(await sendAuth("/v1/context/seed-example", { method: "POST" }, true));
+}
+
+export function parseConfigExport(value: unknown): RestaurantConfigExport {
+  if (!isRecord(value)) {
+    throw new PayloadError("réponse export invalide");
+  }
+  if (value.export_version !== 1) {
+    throw new PayloadError("export_version invalide");
+  }
+  const ladders = requireRecord(value, "ladders", "export");
+  const typical = requireRecord(value, "typical_week", "export");
+  if (!("salle" in typical) || !("cuisine" in typical)) {
+    throw new PayloadError("clé absente : export.typical_week");
+  }
+  return {
+    export_version: 1,
+    name: requireString(value, "name", "export"),
+    services: requireArray(value, "services", "export").map((item, i) => parseServiceId(item, `export.services[${i}]`)),
+    ladders: {
+      salle: parseLadder(ladders.salle, "export.ladders.salle"),
+      cuisine: parseLadder(ladders.cuisine, "export.ladders.cuisine"),
+    },
+    employees: requireArray(value, "employees", "export").map((item, i) =>
+      parseEmployeeFields(item, `export.employees[${i}]`),
+    ),
+    types: requireArray(value, "types", "export").map((item, i) => parseType(item, `export.types[${i}]`)),
+    typical_week: {
+      salle: parseWeek(typical.salle, "export.typical_week.salle"),
+      cuisine: parseWeek(typical.cuisine, "export.typical_week.cuisine"),
+    },
+  };
+}
+
+export function configExportFilename(name: string): string {
+  const trimmed = name.trim();
+  return trimmed ? `${trimmed}-config.json` : "config-resto.json";
+}
+
+export function downloadConfigExport(payload: RestaurantConfigExport): void {
+  const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = configExportFilename(payload.name);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportRestaurantConfig(): Promise<RestaurantConfigExport> {
+  return parseConfigExport(await sendAuth("/v1/context/export", { method: "GET" }, true));
+}
+
+export async function importRestaurantConfig(body: RestaurantConfigExport): Promise<RestaurantContext> {
+  return parseRestaurantContext(
+    await sendAuth(
+      "/v1/context/import",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      true,
+    ),
+  );
 }
 
 export function employeesForPatch(employees: ContextEmployee[]): ContextPatch["employees"] {
