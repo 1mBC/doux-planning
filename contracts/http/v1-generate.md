@@ -1,16 +1,15 @@
 # Generate live par équipe
 
 Freeze HTTP. Wrappe `generate_team` (`contracts/domain/team-generate.md`).  
-Jobs Maximal = `contracts/domain/generate-jobs.md` (gagne sur le 202 / poll).  
+Jobs Maximal = `contracts/domain/generate-jobs.md`.  
+**3 versions** + `generated_at` = `contracts/domain/generate-versions.md` (gagne sur la forme `published`).  
 Bearer **company**. Pas d’id resto dans le path.  
 `kind: employee` → 403 `Action réservée au restaurateur.`  
 Sans Bearer → 401 `Session invalide.`  
 Sans `DATABASE_URL` → 503 `Base indisponible.`
 
-Exemple public + sandbox joujou **inchangés**.  
-`minimal` / `optimized` : sync dans la requête. `maximal` : **202** + worker + `GET /v1/generate/jobs/{id}`. Tests sync = **`minimal`** ; tests job = tick stub (pas 600 s).
-
-Tranche 16 : chaque cycle publié porte aussi le `CycleRecap` Core (`contracts/domain/cycle-recaps.md`). Assignments + warnings inchangés.
+Exemple public + sandbox joujou **inchangés**. **Pas** de Core `engine.py`.  
+`minimal` / `optimized` : 200 sync. `maximal` : 202 + worker. Tests sync = `minimal` ; job = tick stub.
 
 ## Routes
 
@@ -26,12 +25,10 @@ GET  /v1/cycles                    Bearer company → 200 Cycles
 { "team": "salle"|"cuisine", "search_effort": "minimal"|"optimized"|"maximal" }
 ```
 
-`search_effort` omis → `optimized` (**200** sync).  
-`TeamNotReady` → 409 `Cette équipe n'est pas prête à calculer.` (aucun solve, aucun job).  
-Team / effort invalide → 400 `Champs invalides.`  
-`maximal` déjà `queued`/`running` pour cette company+team → 409 `Un calcul maximal est déjà en cours.`
+Omis → `optimized` (200). `TeamNotReady` → 409. Effort / team invalide → 400.  
+`maximal` déjà queued/running cette team → 409 `Un calcul maximal est déjà en cours.`
 
-`minimal` / `optimized` → **200** `GenerateResult` :
+200 :
 
 ```
 {
@@ -39,59 +36,40 @@ Team / effort invalide → 400 `Champs invalides.`
   "search_effort": "minimal",
   "published": {
     "salle": {
-      "assignments": [Shift],
-      "warnings": [Warning],
-      "stats": { ... },
-      "legal_cols": [...],
-      "legal_rows": [...],
-      "wish_cols": [...],
-      "wish_rows": [...]
+      "versions": {
+        "minimal": { assignments, warnings, stats, legal_*, wish_*, generated_at, search_effort },
+        "optimized": null,
+        "maximal": null
+      },
+      "latest": "minimal"
     },
     "cuisine": null
   }
 }
 ```
 
-`maximal` → **202** `GenerateJob` (pas de `published`) :
+Équipe sans aucun calcul : `null` (pas d’objet versions vide obligatoire — ou objet tout-null + `latest` null ; **un** des deux, Infra choisit et GET/POST **identiques**). Préférer l’objet `{ versions: {3× null}, latest: null }` dès le premier generate de l’autre équipe.
 
-```
-{ "job_id", "team", "search_effort": "maximal", "status": "queued", "estimated_seconds": 600 }
-```
-
-`Shift` / `Warning` = mêmes clés que l’exemple / sandbox.  
-Recap = wrap **`cycle_recap`**. Assignments du cycle salle = `team: "salle"` seulement.
+`maximal` → 202 `{ job_id, team, search_effort, status: queued, estimated_seconds: 600 }` (pas de `published`).
 
 ### `GET /v1/generate/jobs/{job_id}`
 
-Même resto. 200 :
-
-```
-{ "job_id", "team", "search_effort", "status", "estimated_seconds",
-  "error"?: string,
-  "published"?: <même published que GenerateResult> }
-```
-
-`status` : `queued` | `running` | `done` | `failed`.  
-`published` ssi `done`. `error` ssi `failed`.  
-Autre company / id inconnu → 404. Employee → 403.
+Comme aujourd’hui. `published` ssi `done` = **nouveau** format versions.
 
 ### `GET /v1/cycles`
 
-Même objet `published` (sans `team` / `search_effort` du dernier POST). Resto jamais généré : `{ "published": { "salle": null, "cuisine": null } }`.
+Même `published` (deux équipes, versions). Jamais généré : `{ "published": { "salle": null, "cuisine": null } }`.
 
 ## Persist
 
-JSONB `published_cycles` : assignments + warnings + recap.  
-Table `generate_jobs` (Alembic). Worker SKIP LOCKED. Succès job = même persist + `generate_logs` qu’un 200.  
-`reset_engine` / restart → même GET cycles. Regenerer une équipe remplace seulement cette clé.  
-Cycle déjà persisté **sans** recap : au GET, hydrater + `cycle_recap` (pas de 500).  
-`POST /v1/live/sandbox/{team}/publish` → même `published` (recap inclus). Joujou + exemple 92 inchangés.
+JSONB `published_cycles` : 3 slots + `latest`. Coerce ancien plat → `versions.optimized`.  
+Generate écrit **un** slot + `generated_at` maintenant + `latest`.  
+Worker logs stdout : `generate-versions.md`. `generate_logs` inchangé (un log par 200 / job done).
 
 ## UI
 
-Route `/planning` (company). **Trois** boutons si `ready[team]` : Minimal · Optimisé · Maximal.  
-Loader ≥ 1 s. Maximal = POST 202 puis poll GET job. Détail = brief UI.
+Sélecteur d’effort **sans** solve ; (Re)Calculer POST. Détail = brief UI.
 
 ## Hors tranche
 
-`/me/shifts`, CORS sauf proxy cassé, mail / push.
+`/me/shifts`, mail / push, Core limites de recherche.

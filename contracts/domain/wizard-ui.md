@@ -54,14 +54,13 @@ Pas de joker moteur. Pas de champ « qui part » persisté.
 **Dessin** : **une `<table>` par feuille** (nom du type). Lignes chrono (arrivées + départs). Plus de cartes `wave-line`.  
 Ajouter = arrivée **ou** départ. Retirer = poubelle. Persist / pire-cas inchangés.
 
-Colonnes (thead une fois) :
+Colonnes (thead une fois, libellés **fixes**) :
 
-| Type | Heure | N | Niveaux | STAFF minimal resultant |
-|---|---|---|---|---|
-| **Arrivée** ou **Sortie** | horloge + ±15 **petits** (même chrome stepper) | N arrivants / N partants (K) — stepper compact | chaque niveau de l’échelle + stepper = arrivants à ce min / **à garder** (0 = pas de contrainte) | sac / erreur (même calcul qu’avant, **nouveau titre seulement**) |
+| Type | Heure | Niveaux minimal requis (par arrivée \| après sortie) | STAFF minimal resultant |
+|---|---|---|---|
+| **Arrivée** ou **Sortie** | horloge + ±15 petits | chaque niveau + stepper | sac / erreur |
 
-`post_levels` persisté = le multiset « N × niveau » des compteurs arrivée (somme = N).  
-L’UI calcule `remaining_post_levels` ; l’utilisateur ne l’édite pas.
+**Pas** de colonne N / K. Arrivée : `post_levels` = concat des compteurs (somme = N, **invisible**). Sortie : K = (taille du sac avant) − somme(à garder) ; `remaining_post_levels` = sac après pire-cas, comme aujourd’hui.
 
 Plusieurs lignes. Ordre d’affichage = ordre d’application.
 
@@ -88,8 +87,8 @@ N_L > `count(L)` dans le sac → bloquer.
 
 ## Stepper (chrome)
 
-Label **à part** (pas collé). `[−]` / `[+]` **petits** (pas `.choice` nav). Compteur **centré**.  
-Même composant : rôles (Niveau), types (N + niveaux), **overlay sandbox**, ±15.
+Snippet **encadré** : libellé **gras** + `[−]` + compteur **centré** + `[+]`.  
+Même composant : rôles, types (niveaux), overlay sandbox, ±15.
 
 ## Rôles (style)
 

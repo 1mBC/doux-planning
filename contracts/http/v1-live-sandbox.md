@@ -16,6 +16,8 @@ Preview / commit / undo / history / score / impact / proposals = **mêmes shapes
 
 ```
 POST /v1/live/sandbox/{team}/enter     → 200 LiveState
+    body/query optionnel { "search_effort": "minimal"|"optimized"|"maximal" }
+    défaut = latest ; slot vide → 409 `Aucun cycle publié pour cette équipe.`
 GET  /v1/live/sandbox/{team}           → 200 LiveState  | 404 si pas de brouillon
 POST /v1/live/sandbox/{team}/preview   → 200 { proposals }
 POST /v1/live/sandbox/{team}/commit    → 200 LiveState
@@ -26,7 +28,7 @@ POST /v1/live/sandbox/{team}/publish   → 200 Cycles     (même `published` que
 
 `LiveState` = état joujou (`sandbox`, `restaurant` fiches de **cette** équipe, `planning.assignments` + `warnings`, `score`, `history`) **plus** `"team": "salle"|"cuisine"`.
 
-Discard : Core discard puis enter (brouillon = publié actuel). Publish : écrit `published_cycles[team]`, ferme le brouillon ; `GET /v1/cycles` à jour ; `GET` live → 404 jusqu’au prochain enter. L’autre équipe intacte.
+Discard : Core discard puis enter **le même** slot effort. Publish : réécrit `versions[effort]` (`generated_at` inchangé), `latest` inchangé sauf si ce slot est le seul, ferme le brouillon. `GET /v1/cycles` au format versions. L’autre équipe / les autres efforts intacts.
 
 ## Persist
 

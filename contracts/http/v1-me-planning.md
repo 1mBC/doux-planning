@@ -29,7 +29,7 @@ GET /v1/me/planning   Bearer employee → 200 EmployeePlanning
 
 `Shift` = mêmes clés que `GET /v1/cycles`.  
 `employees` = fiches **de son équipe** (noms pour la grille).  
-`assignments` = **toute** l’équipe publiée (`employee_board`) ; vide si pas de cycle.  
+`assignments` = **toute** l’équipe du cycle `versions[latest]` (`employee_board`, `contracts/domain/generate-versions.md`) ; vide si `latest` null.  
 `wishes` / `contract` / `unavailabilities` = Core, lecture seule.
 
 ## UI (cette tranche)
