@@ -125,3 +125,8 @@
 
 - [x] 21.1 Parse `published[team].versions` + `latest` + `generated_at` ; 3 chrome rows (team / effort select / white actions) ; Recalculer POST selected effort ; enter sandbox with that effort ; types drop N column (K = bag − keep) ; framed steppers ; bump `web/` to 0.23.0
 - [x] 21.2 Verify `npm run build` ; two generates (minimal then optimized) switch grid + distinct Paris timestamps ; Recalculer only from row 3 ; employee sees latest ; types without N ; framed steppers ; exemple 92 ; `v0.23.0`
+
+## 22. Admin recap + wizard polish
+
+- [x] 22.1 Admin Effort + Durée + hover cartes recap ; planning `duration_seconds` sous le timestamp ; rôles `<table>` + confirm delete ; copies wizard retirées ; invite `company_code` ; bump `web/` to 0.24.0
+- [x] 22.2 Verify `npm run build` ; admin hover riche + effort/durée ; planning durée ; rôles table + confirm ; copies disparues ; invite code ; exemple 92 ; `v0.24.0`

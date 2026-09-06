@@ -458,6 +458,27 @@ table.plan td.empty-slot {
   margin-bottom: 0;
 }
 
+.admin-warn-card {
+  padding: 6px 0;
+  border-bottom: 1px solid rgb(255 255 255 / 18%);
+}
+
+.admin-warn-card:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.admin-warn-card:first-child {
+  padding-top: 0;
+}
+
+.admin-warn-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-weight: 650;
+}
+
 .admin-table tbody tr:hover .admin-tip {
   display: block;
 }
@@ -686,6 +707,32 @@ table.type-sheet th {
   background: #f4f6f8;
 }
 
+table.roles-sheet {
+  width: 100%;
+  max-width: 42rem;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 10px 0;
+}
+
+table.roles-sheet th,
+table.roles-sheet td {
+  border-bottom: 1px solid #e4e7eb;
+  padding: 8px 6px;
+  vertical-align: middle;
+  text-align: left;
+}
+
+table.roles-sheet th {
+  font-size: 12px;
+  color: #333;
+  background: #f4f6f8;
+}
+
+table.roles-sheet input {
+  width: 100%;
+}
+
 .stepper {
   display: inline-flex;
   align-items: center;
@@ -765,7 +812,13 @@ table.type-sheet th {
 }
 
 .generated-at {
-  margin: 8px 0 14px;
+  margin: 8px 0 0;
+  color: #444;
+  font-variant-numeric: tabular-nums;
+}
+
+.generated-duration {
+  margin: 2px 0 14px;
   color: #444;
   font-variant-numeric: tabular-nums;
 }

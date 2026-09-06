@@ -36,6 +36,7 @@ import {
   GESTURE_HISTORY_FR,
   formatClock,
   formatGeneratedAt,
+  formatSolveDuration,
   formatDuration,
   formatHoursTotal,
   groupedEmployees,
@@ -600,6 +601,7 @@ export function PublishedPlanning() {
         </div>
       </div>
       <p className="generated-at">{cycle ? formatGeneratedAt(cycle.generated_at) : "—"}</p>
+      <p className="generated-duration">{cycle ? formatSolveDuration(cycle.duration_seconds) : "—"}</p>
 
       {calculating ? (
         <div className="calc-overlay" role="status" aria-live="polite">

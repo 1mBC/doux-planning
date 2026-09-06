@@ -1,6 +1,6 @@
 import { isRecord, PayloadError, requireArray, requireString } from "./api";
 import { sendAuth } from "./auth";
-import { parseWarning } from "./generate";
+import { parseWarning, type SearchEffort } from "./generate";
 import type { WarningItem } from "./types";
 
 export type AdminTeam = "salle" | "cuisine";
@@ -11,6 +11,8 @@ export type AdminGenerateEntry = {
   email: string;
   restaurant_name: string;
   team: AdminTeam;
+  search_effort: SearchEffort | null;
+  duration_seconds: number | null;
   warnings: WarningItem[];
 };
 
@@ -31,9 +33,32 @@ function parseTeam(value: unknown, path: string): AdminTeam {
   throw new PayloadError(`team inattendue : ${path}`);
 }
 
+function parseOptionalEffort(value: unknown, path: string): SearchEffort | null {
+  if (value === null) {
+    return null;
+  }
+  if (value === "minimal" || value === "optimized" || value === "maximal") {
+    return value;
+  }
+  throw new PayloadError(`search_effort inattendu : ${path}`);
+}
+
+function parseOptionalDuration(value: unknown, path: string): number | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new PayloadError(`clé invalide : ${path}`);
+  }
+  return value;
+}
+
 function parseEntry(value: unknown, path: string): AdminGenerateEntry {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
+  }
+  if (!("search_effort" in value) || !("duration_seconds" in value)) {
+    throw new PayloadError(`clé absente : ${path}`);
   }
   return {
     id: requireString(value, "id", path),
@@ -41,6 +66,8 @@ function parseEntry(value: unknown, path: string): AdminGenerateEntry {
     email: requireString(value, "email", path),
     restaurant_name: requireString(value, "restaurant_name", path),
     team: parseTeam(value.team, `${path}.team`),
+    search_effort: parseOptionalEffort(value.search_effort, `${path}.search_effort`),
+    duration_seconds: parseOptionalDuration(value.duration_seconds, `${path}.duration_seconds`),
     warnings: requireArray(value, "warnings", path).map((item, i) => parseWarning(item, `${path}.warnings[${i}]`)),
   };
 }
@@ -106,4 +133,17 @@ export function groupEntriesByParisDay(entries: AdminGenerateEntry[]): AdminDayG
 
 export function teamLabel(team: AdminTeam): string {
   return team === "salle" ? "Salle" : "Cuisine";
+}
+
+export function effortLabel(effort: SearchEffort | null): string {
+  if (effort === "minimal") {
+    return "Minimal";
+  }
+  if (effort === "optimized") {
+    return "Optimisé";
+  }
+  if (effort === "maximal") {
+    return "Maximal";
+  }
+  return "—";
 }

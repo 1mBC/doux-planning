@@ -202,7 +202,7 @@ A `kind: company` session on `/planning` SHALL show **Mode édition** only when 
 - **THEN** `POST /v1/sandbox/enter` still returns 200 and the snapshot still has 92 assignments
 
 ### Requirement: Chrome polish on recaps and wizard
-`/planning` company and `/exemple` SHALL use the same recap chrome: `contract_hours` pastille **Contrat**, `ok: false` cells orange + bold, wish table title **Souhaits bien-être**, engine `message` as-is. `/exemple` MUST NOT rewrite the snapshot. Services types SHALL use **one `<table>` per type sheet** (no `wave-line` cards) with columns Type (Arrivée | Sortie), Heure (clock + compact ±15 stepper), **Niveaux minimal requis (par arrivée | après sortie)**, and **STAFF minimal resultant** (bag / error only) — **no N column**. Roles, types levels, overlay sandbox, and ±15 SHALL share the same **framed** stepper chrome (bold label, centered value). Weekend-rest SHALL have its own `<th>` **Au moins un repos samedi ou dimanche** (checkbox not inside the Week-end cell). Company identity SHALL offer **Inviter mes employés** (display and copy the absolute `origin + /register?company_code={code}` + QR of that URL) and MUST hide invite tokens / URLs under fiches.
+`/planning` company and `/exemple` SHALL use the same recap chrome: `contract_hours` pastille **Contrat**, `ok: false` cells orange + bold, wish table title **Souhaits bien-être**, engine `message` as-is. `/exemple` MUST NOT rewrite the snapshot. Services types SHALL use **one `<table>` per type sheet** (no `wave-line` cards) with columns Type (Arrivée | Sortie), Heure (clock + compact ±15 stepper), **Niveaux minimal requis (par arrivée | après sortie)**, and **STAFF minimal resultant** (bag / error only) — **no N column**. Roles, types levels, overlay sandbox, and ±15 SHALL share the same **framed** stepper chrome (bold label, centered value). Weekend-rest SHALL have its own `<th>` **Au moins un repos samedi ou dimanche** (checkbox not inside the Week-end cell). Company identity SHALL offer **Inviter mes employés** (display and copy the `company_code` **and** the absolute `origin + /register?company_code={code}` + QR of that URL) and MUST hide invite tokens / URLs under fiches. Roles SHALL be a `<table>` (Nom / Niveau stepper / trash) ; deleting a role MUST confirm in French, list matching fiches, say they will need review / recalc, and advise renaming instead. Équipe MUST NOT show a subtitle or a text line of unavailabilities (chips only). Souhaits MUST NOT show a subtitle. Services types MUST NOT say « Sous-onglets = services offerts ». Semaine type MUST NOT say « Libellés de cycle… » nor « L’autre équipe est renvoyée… ».
 
 #### Scenario: Contract warning uses Contrat pill
 - **WHEN** a published cycle lists a `contract_hours` warning
@@ -214,7 +214,11 @@ A `kind: company` session on `/planning` SHALL show **Mode édition** only when 
 
 #### Scenario: Invite popup shows URL and QR
 - **WHEN** the restaurateur clicks **Inviter mes employés**
-- **THEN** a popup displays and copies the absolute `origin + /register?company_code={code}` and shows a QR of that same URL, without exposing per-fiche tokens
+- **THEN** a popup displays the `company_code` (copyable) and copies the absolute `origin + /register?company_code={code}` and shows a QR of that same URL, without exposing per-fiche tokens
+
+#### Scenario: Roles are a table with confirm delete
+- **WHEN** the restaurateur opens Rôles and clicks the trash on a role that fiches still use
+- **THEN** a French confirm lists those fiches, says they will need review / recalc, advises renaming, and only then removes the row without changing fiches until save
 
 #### Scenario: Types are a table per sheet
 - **WHEN** the restaurateur opens Services types
@@ -225,22 +229,22 @@ A `kind: company` session on `/planning` SHALL show **Mode édition** only when 
 - **THEN** the weekend-rest checkbox sits under its own header and not inside the Week-end cell
 
 ### Requirement: Admin generate table
-A session with `me.admin === true` SHALL see an **Admin** chrome link and MAY open `/admin`. That page SHALL `GET /v1/admin/generates` with Bearer and render `{ entries }` newest-first, grouped by calendar day in `Europe/Paris` (`created_at`) with a heading like `Dimanche 6 septembre 2026`. Days without a row MUST NOT appear. Each row SHALL show Paris `HH:mm`, email, restaurant name, and team (Salle / Cuisine). Hovering a row or its warning count SHALL show each `warnings[].message` as-is, one per line, or `aucun warning` when the array is empty. The page MUST NOT list warnings in a panel under the table. An empty `entries` list SHALL show « Aucun generate pour l’instant. ». If `me.admin` is not true (anonymous, employee, or company without admin), `/admin` SHALL show `Action réservée à l’admin.` and MUST NOT call `GET /v1/admin/generates`. The Admin link MUST NOT appear unless `me.admin` is true. The table MUST NOT appear on employee, `/exemple`, or `/planning`.
+A session with `me.admin === true` SHALL see an **Admin** chrome link and MAY open `/admin`. That page SHALL `GET /v1/admin/generates` with Bearer and render `{ entries }` newest-first, grouped by calendar day in `Europe/Paris` (`created_at`) with a heading like `Dimanche 6 septembre 2026`. Days without a row MUST NOT appear. Each row SHALL show Paris `HH:mm`, email, restaurant name, team (Salle / Cuisine), **effort** (Minimal / Optimisé / Maximal, dash if null), and **duration** (`Ns` / `N min`, dash if null). Hovering a row or its warning count SHALL show **one card per warning** with the same richness as the planning recap (severity, title, day + week A/B, `employee_name`, `message`; missing fields → dash), or `aucun warning` when the array is empty. The page MUST NOT list warnings in a panel under the table. An empty `entries` list SHALL show « Aucun generate pour l’instant. ». If `me.admin` is not true (anonymous, employee, or company without admin), `/admin` SHALL show `Action réservée à l’admin.` and MUST NOT call `GET /v1/admin/generates`. The Admin link MUST NOT appear unless `me.admin` is true. The table MUST NOT appear on employee, `/exemple`, or `/planning`.
 
 #### Scenario: Admin sees two day headers
 - **WHEN** an admin opens `/admin` and the payload has entries on two distinct Paris days
 - **THEN** the table shows exactly two day headings
 
-#### Scenario: Hover shows warning messages
+#### Scenario: Hover shows warning cards
 - **WHEN** the admin hovers a row whose `warnings` is not empty
-- **THEN** each warning `message` is shown as-is, one per line
+- **THEN** each warning is a card with severity, title, day + week, person, and `message` (not the message alone)
 
 #### Scenario: Non-admin does not fetch generates
 - **WHEN** a company without admin, a salarié, or an anonymous visitor opens `/admin`
 - **THEN** the reserved message is shown and the client does not GET `/v1/admin/generates`
 
 ### Requirement: Three generate efforts
-Company `/planning` SHALL show **Minimal**, **Optimisé**, and **Maximal** as a **selection** row (default `latest`). POST SHALL happen only from **(Re)Calculer le planning**. Minimal / Optimisé sync ; Maximal 202 + poll. Loader ≥ 1 s. Employee `/planning` and `/exemple` MUST NOT offer the selector. Recalculer is off in Mode édition.
+Company `/planning` SHALL show **Minimal**, **Optimisé**, and **Maximal** as a **selection** row (default `latest`). POST SHALL happen only from **(Re)Calculer le planning**. Minimal / Optimisé sync ; Maximal 202 + poll. Loader ≥ 1 s. Under the timestamp the client SHALL show the displayed slot’s `duration_seconds` (dash if absent). Employee `/planning` and `/exemple` MUST NOT offer the selector. Recalculer is off in Mode édition.
 
 #### Scenario: Selecting Minimal then Optimisé switches the grid
 - **WHEN** salle has both `versions.minimal` and `versions.optimized`
