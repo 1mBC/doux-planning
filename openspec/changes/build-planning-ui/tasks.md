@@ -98,5 +98,5 @@
 
 ## 16. Wizard polish (invite abs, types cards, we column)
 
-- [ ] 16.1 Invite popup displays and copies the absolute URL ; types as cards (no `wave-table`) ; `weekend_rest_day` in its own column ; bump `web/` to 0.18.0
-- [ ] 16.2 Verify `npm run build` ; invite `http`+origin + QR ; 2 arrivées + 1 départ en cartes, reload persisté ; case we dans sa colonne ; exemple 92 ; `v0.18.0`
+- [x] 16.1 Invite popup displays and copies the absolute URL ; types as cards (no `wave-table`) ; `weekend_rest_day` in its own column ; bump `web/` to 0.18.0
+- [x] 16.2 Verify `npm run build` ; invite `http`+origin + QR ; 2 arrivées + 1 départ en cartes, reload persisté ; case we dans sa colonne ; exemple 92 ; `v0.18.0`
