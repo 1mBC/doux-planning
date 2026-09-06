@@ -110,3 +110,8 @@
 
 - [x] 18.1 Company `/planning` menu **Exporter** (JSON / CSV / XLSX / JPEG) in `planning-actions` ; enabled iff published team and not editing ; client-side payload without tokens ; bump `web/` to 0.20.0
 - [x] 18.2 Verify `npm run build` ; salle published → JSON v1 `kind: planning` ; CSV/XLSX have name + grid ; JPEG has both weeks ; cuisine null off ; edit mode off ; exemple 92 ; `v0.20.0`
+
+## 19. Admin generate table
+
+- [x] 19.1 `parseMe` requires `admin` bool (employee → false) ; chrome **Admin** iff `me.admin` ; `/admin` fetches `{ entries }` or reserved message without GET ; day headers Paris + hover messages ; bump `web/` to 0.21.0
+- [x] 19.2 Verify `npm run build` ; admin link + 2 day headers + hover messages ; non-admin / employee 0 GET ; empty phrase ; exemple 92 ; `v0.21.0`

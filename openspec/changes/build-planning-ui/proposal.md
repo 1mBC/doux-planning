@@ -17,6 +17,7 @@ Le moteur et le contrat d’exemple existent (`GET /v1/examples/saint-cloud`), m
 - `kind: company` : menu **Exporter** (JSON / CSV / XLSX / JPEG) dans `planning-actions` selon `contracts/domain/export-planning.md`. Côté client, équipe courante, cycle déjà chargé. Actif ssi `published[team]` et pas en édition. Pas de nouvelle route. Pas de bouton salarié / `/exemple`.
 - `/exemple` lit le snapshot **rafraîchi** (`exemple-snapshot.md`) : 92 / 0 / 0 / 47 / 84 % / 10 / 12, **17** warnings FR, `wish_cols` live (pas `we1j` / `weA`). Chrome v0.16.0 inchangé.
 - `kind: company` : **Mode édition** sur `/planning` si `published[team]` existe — `POST /v1/live/sandbox/{team}/enter` (Bearer) selon `contracts/http/v1-live-sandbox.md`. Même overlays que le joujou (retune ±15 Valider, replace, swap, fill). Lecture sans discard. Publier → `POST .../publish` puis grille = `GET /v1/cycles`. Zéro appel `/v1/sandbox/*` depuis `/planning`. `/exemple` joujou inchangé (public).
+- `me.admin` (bool, employee → `false`) : lien **Admin** dans le chrome ssi `true`. Route `/admin` : admin → `GET /v1/admin/generates` table (en-têtes jour Paris, hover = `warnings[].message`) ; sinon message `Action réservée à l’admin.` sans fetch. Vide → « Aucun generate pour l’instant. » Pas de bouton salarié / `/exemple` / `/planning`.
 - UX en français. Les messages moteur anglais sont présentés, pas recalculés.
 - Ne pas archiver ni synchroniser. Ne pas modifier `src/doux_planning/`, `contracts/`, Compose, Alembic.
 
@@ -32,4 +33,4 @@ Le moteur et le contrat d’exemple existent (`GET /v1/examples/saint-cloud`), m
 
 ## Impact
 
-Uniquement `web/`. Proxy Vite `/v1` inchangé. API = uvicorn `master`. Version `0.20.0`. Hors slice : admin, rotate invite-token.
+Uniquement `web/`. Proxy Vite `/v1` inchangé. API = uvicorn `master`. Version `0.21.0`. Hors slice : rotate invite-token.

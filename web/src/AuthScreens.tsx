@@ -57,6 +57,11 @@ export function SessionChrome({
             <button type="button" className="choice" onClick={() => go("/planning")}>
               Planning
             </button>
+            {me.admin ? (
+              <button type="button" className="choice" onClick={() => go("/admin")}>
+                Admin
+              </button>
+            ) : null}
           </>
         ) : (
           <>
