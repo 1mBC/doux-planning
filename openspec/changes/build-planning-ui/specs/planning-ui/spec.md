@@ -30,8 +30,8 @@ The client SHALL render a 14-day cruise grid as two week sheets (days 0–6 week
 The client SHALL list every item in `planning.warnings` with its `severity`, and SHALL show the engine `message` (or an equivalent French presentation of the same `code` plus payload fields). Counts of issues on that list MUST match the array length. The client MUST NOT add, drop, merge, or re-severity warnings, and MUST NOT treat warning copy as a scoring rule.
 
 #### Scenario: Hour shortfalls appear in the warning list
-- **WHEN** the snapshot contains 14 `contract_hours` warnings and no `empty_post` warnings
-- **THEN** the warnings list includes those items and the client does not compute a different count from `stats`
+- **WHEN** the snapshot contains 17 warnings including `contract_hours` and `consecutive_rest_days`
+- **THEN** the warnings list length is 17 and the client does not compute a different count from `stats`
 
 #### Scenario: Engine English message is still the engine’s message
 - **WHEN** a warning `message` is English
@@ -53,7 +53,11 @@ The client SHALL render the legal person×rule table from `planning.legal_rows` 
 
 #### Scenario: Wish contract under-hours
 - **WHEN** a wish cell `contrat` has `ok: false` and text `30h · 29h / 39h`
-- **THEN** that text appears in the Contrat column; the client does not change `ok`
+- **THEN** that text appears in the Contrat column (orange + bold); the client does not change `ok`
+
+#### Scenario: Live wish columns on the public snapshot
+- **WHEN** `wish_cols` uses live keys (`contrat`, `indispo`, `consecutive_rest`, `max_evening`, `max_coupures`, …)
+- **THEN** those labels are shown and the client does not invent `we1j` / `weA` columns
 
 ### Requirement: French restaurateur chrome, read-only example
 All product chrome (titles, section labels, loading and error copy, severity names) SHALL be French. The example grid without a company session MUST remain reachable without login. A `kind: employee` session MUST NOT show Mode édition.

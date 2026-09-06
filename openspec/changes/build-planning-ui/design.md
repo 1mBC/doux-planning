@@ -133,11 +133,15 @@ Suivre `contracts/domain/wizard-ui.md`. Déblocage : services → rôles ; éche
 
 ### 15. One-line types + live recaps
 
-Services types : liste chronologique, une ligne, +/− par niveau d’échelle, colonne **STAFF après** (plus « sac »). `/planning` company lit le `CycleRecap` persisté. `/exemple` garde les vieilles colonnes snapshot.
+Services types : liste chronologique, une ligne, +/− par niveau d’échelle, colonne **STAFF après** (plus « sac »). `/planning` company lit le `CycleRecap` persisté.
 
 ### 16. Chrome polish (contrat, orange, invite)
 
-Suivre `cycle-recaps.md` § UI + `wizard-ui.md` (horloge collée, STAFF en en-tête, N lisible, rôles stepper, invite QR, plus de sous-texte we). `/exemple` même chrome, snapshot figé. Version `0.16.0`.
+Suivre `cycle-recaps.md` § UI + `wizard-ui.md` (horloge collée, STAFF en en-tête, N lisible, rôles stepper, invite QR, plus de sous-texte we). Version `0.16.0`.
+
+### 17. Refreshed exemple snapshot
+
+`/exemple` lit `GET /v1/examples/saint-cloud` tel quel (`exemple-snapshot.md`) : pastilles 92 / 0 / 0 / 47 / 84 % / 10 / 12, **17** warnings FR, `wish_cols` live (contrat / indispo / consecutive_rest / max_evening / max_coupures…). Diane `30h · 29h / 39h`. Théo 11h–16h. Pas de `we1j` / `weA` inventés. Chrome v0.16.0 inchangé. Version `0.17.0`.
 
 ## Risks / Trade-offs
 

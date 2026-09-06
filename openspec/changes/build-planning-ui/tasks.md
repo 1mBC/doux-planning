@@ -12,7 +12,7 @@
 
 - [x] 3.1 Show `planning.stats` counters (`assignments`, `empty`, `interdit`, `below_role`, `hours.percent` as « Heures vs contrat », `wellbeing.held` / `wellbeing.total` as « Souhaits bien-être ») and verify they equal the payload (92 / 0 / 0 / 47 / 84 % / 10 / 12) without displaying assigned/contracted, `stats.souhait`, or a semaines-à-l’heure ratio
 - [x] 3.2 Render week A and week B paper grids (role groups, person + midi/soir, début/fin/H, empty = repos, post level in parentheses when below role) from `assignments` + `employees`; verify Théo midi lundi semaine A is 11h–16h 5h and that no assignment is invented
-- [x] 3.3 List every `planning.warnings` item (French severity label, engine `message` kept) and verify the list length equals `warnings.length` (14 on the current snapshot)
+- [x] 3.3 List every `planning.warnings` item (French severity label, engine `message` kept) and verify the list length equals `warnings.length` (17 on the current snapshot)
 - [x] 3.4 Render the legal table from `legal.rules` + `legal_rows` (omit rules with no cells) and the wish table from `wish_cols` + `wish_rows`; verify cuisine 11 h/j is absent and Diane contrat text is the payload’s `30h · 29h / 39h`
 
 ## 4. Product polish
@@ -90,3 +90,8 @@
 - [x] 14.2 Types : horloge + ±15 collés, STAFF en en-tête seulement, N lisible ; rôles stepper ; plus de sous-texte we ; invite popup URL + QR
 - [x] 14.3 `/exemple` même chrome, snapshot inchangé ; bump `web/` to 0.16.0
 - [x] 14.4 Verify `npm run build` ; contrat / orange / titre / Calculer sous équipes ; types persistés ; rôles ; invite QR ; plus de jeton / sous-texte we ; exemple 92 ; `v0.16.0`
+
+## 15. Refreshed exemple snapshot (FR + wish live)
+
+- [x] 15.1 `/exemple` reads refreshed JSON as-is: pastilles 92 / 0 / 0 / 47 / 84 % / 10 / 12 ; 17 warnings FR ; `wish_cols` live (no `we1j` / `weA`) ; Diane `30h · 29h / 39h` orange ; Théo 11h–16h ; bump `web/` to 0.17.0
+- [x] 15.2 Verify `npm run build` ; `/exemple` sans session : 92, 17 alertes FR (« contrat », « pas deux repos »), 10/12, colonnes live, Diane orange, Théo 11h–16h ; `/planning` company inchangé hors parse ; `v0.17.0`
