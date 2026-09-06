@@ -135,11 +135,12 @@ def test_me_planning_published_grid_hides_live_draft():
         json={"team": "salle", "search_effort": "minimal"},
     )
     assert generated.status_code == 200
-    published = generated.json()["published"]["salle"]["assignments"]
+    published = generated.json()["published"]["salle"]["versions"]["minimal"]["assignments"]
     assert published
     cycles = client.get("/v1/cycles", headers=company_headers)
     assert cycles.status_code == 200
-    assert cycles.json()["published"]["salle"]["assignments"] == published
+    assert cycles.json()["published"]["salle"]["versions"]["minimal"]["assignments"] == published
+    assert cycles.json()["published"]["salle"]["latest"] == "minimal"
 
     employee = client.post(
         "/v1/auth/register",

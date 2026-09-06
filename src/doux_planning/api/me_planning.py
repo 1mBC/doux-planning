@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 from doux_planning.api.auth import require_database, require_employee_session
 from doux_planning.api.context import _load_company, _state_from_rows
-from doux_planning.api.generate import _shift_json
+from doux_planning.api.generate import _shift_json, latest_cycle_blob, normalize_team_published
 from doux_planning.api.live_sandbox import TEAMS, _published_from_json
 from doux_planning.api.wellbeing_codec import unavailability_to_json, wish_to_json
 from doux_planning.context import employee_board, week_label_scheme
@@ -17,7 +17,8 @@ from doux_planning.staff import Employee
 def _hydrate_published(state, company) -> None:
     raw = company.published_cycles or {}
     for team in TEAMS:
-        state.published_cycles[team] = _published_from_json(state, team, raw.get(team.value))
+        pack, _ = normalize_team_published(raw.get(team.value), state, team)
+        state.published_cycles[team] = _published_from_json(state, team, latest_cycle_blob(pack))
 
 
 def _employee_json(person: Employee) -> dict[str, Any]:

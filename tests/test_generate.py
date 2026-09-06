@@ -48,6 +48,16 @@ def _open_week(type_id: str | None) -> list[dict]:
     ]
 
 
+def _slot(team_blob: dict | None, effort: str | None = None) -> dict:
+    assert team_blob is not None
+    if "versions" in team_blob:
+        key = effort or team_blob["latest"]
+        cycle = team_blob["versions"][key]
+        assert cycle is not None
+        return cycle
+    return team_blob
+
+
 def _assert_live_recap(cycle: dict) -> None:
     assert cycle["stats"]["assignments"] == len(cycle["assignments"])
     assert cycle["legal_rows"]
@@ -160,8 +170,14 @@ def test_generate_persist_cycles_auth_and_example():
     assert body["search_effort"] == "minimal"
     salle = body["published"]["salle"]
     assert salle is not None
-    assert salle["assignments"]
-    assert all(shift["team"] == "salle" for shift in salle["assignments"])
+    assert salle["latest"] == "minimal"
+    assert salle["versions"]["optimized"] is None
+    assert salle["versions"]["maximal"] is None
+    cycle = _slot(salle, "minimal")
+    assert cycle["assignments"]
+    assert cycle["search_effort"] == "minimal"
+    assert cycle["generated_at"]
+    assert all(shift["team"] == "salle" for shift in cycle["assignments"])
     assert all(
         set(shift)
         >= {
@@ -175,11 +191,11 @@ def test_generate_persist_cycles_auth_and_example():
             "post_level",
             "duration_hours",
         }
-        for shift in salle["assignments"]
+        for shift in cycle["assignments"]
     )
     assert "legal_rows" not in body
     assert "stats" not in body
-    _assert_live_recap(salle)
+    _assert_live_recap(cycle)
     assert body["published"]["cuisine"] is None
 
     with patch("doux_planning.context.generate_cycle") as solve:
@@ -193,7 +209,7 @@ def test_generate_persist_cycles_auth_and_example():
     solve.assert_not_called()
     after_conflict = client.get("/v1/cycles", headers=headers)
     assert after_conflict.status_code == 200
-    assert after_conflict.json()["published"]["salle"]["assignments"]
+    assert _slot(after_conflict.json()["published"]["salle"], "minimal")["assignments"]
     assert after_conflict.json()["published"]["cuisine"] is None
 
     second = client.post(
@@ -202,9 +218,10 @@ def test_generate_persist_cycles_auth_and_example():
         json={"team": "salle", "search_effort": "minimal"},
     )
     assert second.status_code == 200
-    assert second.json()["published"]["salle"]["assignments"]
-    assert all(shift["team"] == "salle" for shift in second.json()["published"]["salle"]["assignments"])
-    _assert_live_recap(second.json()["published"]["salle"])
+    second_cycle = _slot(second.json()["published"]["salle"], "minimal")
+    assert second_cycle["assignments"]
+    assert all(shift["team"] == "salle" for shift in second_cycle["assignments"])
+    _assert_live_recap(second_cycle)
     assert second.json()["published"]["cuisine"] is None
 
     published = second.json()["published"]
@@ -217,8 +234,9 @@ def test_generate_persist_cycles_auth_and_example():
         company = session.get(Company, restaurant_id)
         assert company is not None
         salle_blob = company.published_cycles["salle"]
+        minimal = salle_blob["versions"]["minimal"]
         company.published_cycles = {
-            "salle": {"assignments": salle_blob["assignments"], "warnings": salle_blob["warnings"]},
+            "salle": {"assignments": minimal["assignments"], "warnings": minimal["warnings"]},
             "cuisine": None,
         }
         flag_modified(company, "published_cycles")
@@ -226,8 +244,11 @@ def test_generate_persist_cycles_auth_and_example():
     hydrated = client.get("/v1/cycles", headers=headers)
     assert hydrated.status_code == 200
     assert hydrated.json()["published"]["cuisine"] is None
-    _assert_live_recap(hydrated.json()["published"]["salle"])
-    assert hydrated.json()["published"]["salle"]["assignments"] == published["salle"]["assignments"]
+    coerced = hydrated.json()["published"]["salle"]
+    assert coerced["latest"] == "optimized"
+    assert coerced["versions"]["minimal"] is None
+    _assert_live_recap(_slot(coerced, "optimized"))
+    assert _slot(coerced, "optimized")["assignments"] == _slot(published["salle"], "minimal")["assignments"]
 
     invalid = client.post("/v1/generate", headers=headers, json={"team": "bar", "search_effort": "minimal"})
     assert invalid.status_code == 400
@@ -305,7 +326,7 @@ def _count_rows(model, **filters) -> int:
 
 
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
-def test_generate_maximal_job_tick_stub_and_auth():
+def test_generate_maximal_job_tick_stub_and_auth(capsys):
     from doux_planning.api.db import GenerateJob, GenerateLog
     from doux_planning.api.worker import tick_generate_job
 
@@ -331,7 +352,7 @@ def test_generate_maximal_job_tick_stub_and_auth():
         json={"team": "salle", "search_effort": "minimal"},
     )
     assert minimal.status_code == 200
-    assert minimal.json()["published"]["salle"]["assignments"]
+    assert _slot(minimal.json()["published"]["salle"], "minimal")["assignments"]
     assert _count_rows(GenerateLog) == logs_before + 1
 
     with patch("doux_planning.api.generate.generate_team") as solve:
@@ -377,12 +398,16 @@ def test_generate_maximal_job_tick_stub_and_auth():
 
     logs_before_tick = _count_rows(GenerateLog)
     processed = tick_generate_job(generate_team_fn=_stub_generate_team)
+    logged = capsys.readouterr().out
+    assert "generate start" in logged
+    assert "status=done" in logged
     assert processed == job_id
     done = client.get(f"/v1/generate/jobs/{job_id}", headers=headers)
     assert done.status_code == 200
     assert done.json()["status"] == "done"
     assert done.json()["published"]["salle"] is not None
-    assert "assignments" in done.json()["published"]["salle"]
+    assert done.json()["published"]["salle"]["latest"] == "maximal"
+    assert "assignments" in _slot(done.json()["published"]["salle"], "maximal")
     assert done.json()["published"]["cuisine"] is None
     assert _count_rows(GenerateLog) == logs_before_tick + 1
 
@@ -414,6 +439,105 @@ def test_generate_maximal_job_tick_stub_and_auth():
     missing = client.get("/v1/generate/jobs/inconnu", headers=headers)
     assert missing.status_code == 404
     assert client.get("/v1/generate/jobs/inconnu").status_code == 401
+
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_generate_versions_slots_me_planning_and_enter():
+    from doux_planning.api.db import Company, session_scope
+    from doux_planning.context import generate_team
+    from doux_planning.types import SearchEffort
+
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"ver-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    headers = _bearer(registered.json()["token"])
+    restaurant_id = registered.json()["me"]["restaurant_id"]
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id))
+    assert patched.status_code == 200
+    company_code = patched.json()["company_code"]
+
+    first = client.post("/v1/generate", headers=headers, json={"team": "salle", "search_effort": "minimal"})
+    assert first.status_code == 200
+    minimal_cycle = _slot(first.json()["published"]["salle"], "minimal")
+    assert first.json()["published"]["salle"]["latest"] == "minimal"
+
+    def _as_minimal(state, team, search):
+        return generate_team(state, team, SearchEffort.MINIMAL)
+
+    with patch("doux_planning.api.generate.generate_team", side_effect=_as_minimal):
+        second = client.post(
+            "/v1/generate",
+            headers=headers,
+            json={"team": "salle", "search_effort": "optimized"},
+        )
+    assert second.status_code == 200
+    salle = second.json()["published"]["salle"]
+    assert salle["latest"] == "optimized"
+    assert _slot(salle, "minimal")["assignments"] == minimal_cycle["assignments"]
+    assert _slot(salle, "minimal")["generated_at"] == minimal_cycle["generated_at"]
+    optimized_cycle = _slot(salle, "optimized")
+    assert optimized_cycle["search_effort"] == "optimized"
+    assert optimized_cycle["generated_at"]
+    assert optimized_cycle["generated_at"] != minimal_cycle["generated_at"]
+    assert salle["versions"]["maximal"] is None
+
+    employee = client.post(
+        "/v1/auth/register",
+        json={
+            "kind": "employee",
+            "email": f"emma-{secrets.token_hex(4)}@example.com",
+            "password": "password1",
+            "company_code": company_code,
+            "employee_id": fiche_id,
+        },
+    )
+    assert employee.status_code == 201
+    planning = client.get("/v1/me/planning", headers=_bearer(employee.json()["token"]))
+    assert planning.status_code == 200
+    assert planning.json()["assignments"] == optimized_cycle["assignments"]
+
+    entered_latest = client.post("/v1/live/sandbox/salle/enter", headers=headers)
+    assert entered_latest.status_code == 200
+    assert entered_latest.json()["planning"]["assignments"] == optimized_cycle["assignments"]
+
+    entered_min = client.post(
+        "/v1/live/sandbox/salle/enter",
+        headers=headers,
+        json={"search_effort": "minimal"},
+    )
+    assert entered_min.status_code == 200
+    assert entered_min.json()["planning"]["assignments"] == minimal_cycle["assignments"]
+
+    published = client.post("/v1/live/sandbox/salle/publish", headers=headers)
+    assert published.status_code == 200
+    after = published.json()["published"]["salle"]
+    assert after["latest"] == "optimized"
+    assert _slot(after, "optimized")["assignments"] == optimized_cycle["assignments"]
+    assert _slot(after, "optimized")["generated_at"] == optimized_cycle["generated_at"]
+    assert _slot(after, "minimal")["generated_at"] == minimal_cycle["generated_at"]
+
+    with session_scope() as session:
+        company = session.get(Company, restaurant_id)
+        assert company is not None
+        flat = _slot(first.json()["published"]["salle"], "minimal")
+        company.published_cycles = {
+            "salle": {"assignments": flat["assignments"], "warnings": flat["warnings"]},
+            "cuisine": None,
+        }
+        flag_modified(company, "published_cycles")
+    coerced = client.get("/v1/cycles", headers=headers)
+    assert coerced.status_code == 200
+    assert coerced.json()["published"]["salle"]["latest"] == "optimized"
+    assert "assignments" not in coerced.json()["published"]["salle"]
+    assert _slot(coerced.json()["published"]["salle"], "optimized")["assignments"] == flat["assignments"]
 
     example = client.get("/v1/examples/saint-cloud")
     assert example.status_code == 200

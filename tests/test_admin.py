@@ -181,7 +181,7 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
     assert first_entry["email"] == email
     assert first_entry["restaurant_name"] == "Chez Admin"
     assert first_entry["team"] == "salle"
-    assert first_entry["warnings"] == first.json()["published"]["salle"]["warnings"]
+    assert first_entry["warnings"] == first.json()["published"]["salle"]["versions"]["minimal"]["warnings"]
     assert "T" in first_entry["created_at"]
 
     cuisine = client.post(
@@ -207,7 +207,7 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
     assert entries[0]["created_at"] >= entries[1]["created_at"]
     assert entries[0]["id"] != first_entry["id"]
     assert entries[1]["id"] == first_entry["id"]
-    assert entries[0]["warnings"] == second.json()["published"]["salle"]["warnings"]
+    assert entries[0]["warnings"] == second.json()["published"]["salle"]["versions"]["minimal"]["warnings"]
 
     employee = client.post(
         "/v1/auth/register",

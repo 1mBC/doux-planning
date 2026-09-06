@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Body, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -149,10 +149,15 @@ def get_generate_job(job_id: str, authorization: str | None = Header(default=Non
 
 
 @app.post("/v1/live/sandbox/{team}/enter")
-def live_sandbox_enter(team: str, authorization: str | None = Header(default=None)) -> dict:
+def live_sandbox_enter(
+    team: str,
+    authorization: str | None = Header(default=None),
+    search_effort: str | None = None,
+    body: dict[str, Any] | None = Body(default=None),
+) -> dict:
     from doux_planning.api.live_sandbox import enter
 
-    return enter(authorization, team)
+    return enter(authorization, team, body=body, search_effort=search_effort)
 
 
 @app.get("/v1/live/sandbox/{team}")

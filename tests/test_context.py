@@ -431,7 +431,7 @@ def test_seed_example_smashes_context_clears_cycles_and_unlinks():
         json={"team": "salle", "search_effort": "minimal"},
     )
     assert generated.status_code == 200
-    assert generated.json()["published"]["salle"]["assignments"]
+    assert generated.json()["published"]["salle"]["versions"]["minimal"]["assignments"]
     company_code = patched.json()["company_code"]
     employee = client.post(
         "/v1/auth/register",
@@ -573,7 +573,7 @@ def test_context_export_import_strips_and_smashes():
         json={"team": "salle", "search_effort": "minimal"},
     )
     assert generated.status_code == 200
-    assert generated.json()["published"]["salle"]["assignments"]
+    assert generated.json()["published"]["salle"]["versions"]["minimal"]["assignments"]
     employee = client.post(
         "/v1/auth/register",
         json={
