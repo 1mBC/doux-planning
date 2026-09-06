@@ -718,6 +718,10 @@ button.trash {
   gap: 8px;
 }
 
+.seed-row input[type="file"] {
+  display: none;
+}
+
 .ready-badges {
   display: flex;
   flex-wrap: wrap;

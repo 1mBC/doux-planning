@@ -86,7 +86,7 @@ The client SHALL offer one login (email + password) via `POST /v1/auth/login` an
 - **THEN** the form is locked to Salarié, lists no fiches, and commits with `employee_token`
 
 ### Requirement: Session token and logout
-The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, and `GET /v1/me/planning` when a token exists, and MUST NOT be sent on example or `/v1/sandbox/*` requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context` and `/planning`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard, and SHALL open `/planning` via `GET /v1/me/planning`.
+The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, and `GET /v1/me/planning` when a token exists, and MUST NOT be sent on example or `/v1/sandbox/*` requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context` and `/planning`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard, and SHALL open `/planning` via `GET /v1/me/planning`.
 
 #### Scenario: Logout
 - **WHEN** the restaurateur clicks Déconnexion
@@ -125,6 +125,21 @@ A `kind: company` session on `/context` SHALL show **Intégrer l’exemple Saint
 #### Scenario: Second seed overwrites
 - **WHEN** the restaurateur confirms seed again
 - **THEN** the wizard again shows the example fiches (previous edits are gone)
+
+### Requirement: Export and import restaurant config
+A `kind: company` session on `/context` SHALL show **Exporter la config** and **Importer une config** on the same `seed-row` as **Intégrer l’exemple Saint-Cloud**. **Exporter** SHALL `GET /v1/context/export` with Bearer, parse the freeze (`export_version` MUST be `1` or throw; `invite_token` / `company_code` MUST NOT be required), and download JSON as `{name}-config.json` or `config-resto.json`. **Importer** SHALL accept a `.json` file, ask for a one-sentence French confirm (replaces name, roles, team, wishes, types, week; breaks linked employee accounts; does not paste a planning), then `POST /v1/context/import` with the parsed object. A 200 SHALL `adopt` the wizard via the same Context parse as GET. Dismissing the confirm MUST be a no-op (no POST). API `detail` SHALL be shown on error. The buttons MUST NOT appear for employees, on `/exemple`, `/planning`, or login. The client MUST NOT offer planning exports.
+
+#### Scenario: Company exports version-1 JSON without tokens
+- **WHEN** the restaurateur clicks **Exporter la config**
+- **THEN** a JSON file downloads with `export_version` 1 and no `invite_token`
+
+#### Scenario: Import plus confirm replaces the wizard
+- **WHEN** the restaurateur picks a valid export JSON and confirms
+- **THEN** the wizard shows the imported name, roles, team, wishes, types, and week, and a reload still has that context
+
+#### Scenario: Cancel import confirm is a no-op
+- **WHEN** the restaurateur picks a file then dismisses the confirm
+- **THEN** the client MUST NOT POST `/v1/context/import` and the wizard stays unchanged
 
 ### Requirement: Company published cycle
 A `kind: company` session SHALL reach `/planning` via « Planning ». The client SHALL `GET /v1/cycles` and `GET /v1/context` on load. Types MUST match `contracts/http/v1-generate.md` (and context) JSON; a missing key MUST throw. **Calculer** SHALL be enabled only when `ready[team]` from context is true, and SHALL `POST /v1/generate` with `{ team, search_effort: "minimal" }`. If `ready[team]` is false the button MUST be disabled and the client MUST NOT POST. API `detail` SHALL be shown on 409/400. When `published[team]` is not null the client SHALL parse `stats`, `legal_cols`, `legal_rows`, `wish_cols`, and `wish_rows` (a missing key MUST throw) and SHALL render a 14-day paper grid (A/B or Paire/Impaire from `week_labels`) from that team’s context fiches plus `assignments`, list every `warnings` item (engine `message` as-is, French severity), and — unless Mode édition is open — show stats pastilles plus **Règles légales** / **Souhaits bien-être** tables from those recap keys (`text` as-is; wish cell `null` = empty; cell `ok: false` orange + bold, including `contrat`). Warning `code === contract_hours` SHALL show pastille **Contrat**; other `severity: souhait` stay « Souhait ». **Calculer** and **Mode édition** SHALL sit under the Salle · Cuisine switch, not on the same row. Mode édition MUST hide the recaps (grid + warnings + history only). The client MUST NOT invent recap numbers or `we1j` / `weA` columns. Regenerating SHALL replace that team only. Reload SHALL use the same GET. When `published[team]` exists the client MAY offer Mode édition via the live sandbox routes. No planning exports.

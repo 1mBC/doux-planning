@@ -19,6 +19,7 @@ uvicorn  :8000  --  GET /v1/examples/saint-cloud   (public)
                  --  /v1/sandbox/*                 (public)
                  --  /v1/auth/*  /v1/me  /v1/invites/{code}
                  --  GET|PATCH /v1/context   (Bearer company)
+                 --  POST /v1/context/seed-example  GET /v1/context/export  POST /v1/context/import
                  --  POST /v1/generate  GET /v1/cycles  (Bearer company)
                  --  /v1/live/sandbox/{team}/*  (Bearer company)
                  --  GET /v1/me/planning         (Bearer employee)
@@ -38,6 +39,7 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 - Live sandbox Mode édition on `/planning` following `contracts/http/v1-live-sandbox.md` (shapes from `v1-sandbox-edit.md`).
 - Employee `/planning` following `contracts/http/v1-me-planning.md` (team grid, highlight, read-only contract panel).
 - Company `/context` seed button following `POST /v1/context/seed-example`.
+- Company `/context` export / import following `contracts/domain/export-config.md` § UI.
 
 **Non-Goals:**
 - `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit.
@@ -84,7 +86,7 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 - `/register` : bascule **Entreprise** / **Salarié**. Entreprise → `{ kind: company, email, password }` seulement. Salarié → code → `GET /v1/invites/{company_code}` → choisir une fiche (`id`, `name`, `role`, `team`) → `{ kind: employee, company_code, employee_id, email, password }` (pas de token).
 - QR : `/register?company_code=…&employee_token=…` — kind salarié verrouillé, pas de liste, POST avec `employee_token` (pas d’`employee_id`).
 - Password ≥ 8. Afficher `detail` tel quel. Pas de « mot de passe oublié ».
-- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
+- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
 - Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 n’empêche pas l’exemple.
 - Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`. Employee : lien **Planning** → `/planning`.
 - Sans session : login/register **et** `/exemple`. La grille d’exemple n’est pas derrière le login.
@@ -102,7 +104,7 @@ Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : **Se
 5. Services types (équipe × service offert) : sous-onglets par service ; **Ajouter un type** en bas. Vagues en **une ligne** chronologique (arrivée ou départ), horloge + ±15 sur la même ligne, +/− par niveau, en-tête **STAFF après cette arrivée / ce départ** (cellule = sac / erreur seulement), pire-cas → `remaining_post_levels`. PATCH `types` = liste complète.
 6. Semaine type : type ou Fermé, colonnes = services offerts. PATCH `typical_week` = `{ salle, cuisine }`. Libellés A/B ou Paire/Impaire selon `week_labels`.
 
-Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`. Bouton **Inviter mes employés** (popup : copier `/register?company_code={code}` + QR `origin` + path). Bouton **Intégrer l’exemple Saint-Cloud** à côté du code (tous les comptes company). Confirm FR puis `POST /v1/context/seed-example` (Bearer, pas de body). 200 = même parse que GET ; rester sur `/context`.  
+Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`. Bouton **Inviter mes employés** (popup : copier `origin + /register?company_code={code}` + QR identique). Bouton **Intégrer l’exemple Saint-Cloud** à côté du code (tous les comptes company). Confirm FR puis `POST /v1/context/seed-example` (Bearer, pas de body). 200 = même parse que GET ; rester sur `/context`. Même `seed-row` : **Exporter la config** / **Importer une config** (§19).  
 `ready.salle` / `ready.cuisine` = JSON seulement, badges « Prêt à calculer » / « Pas encore prêt ». Jeton / URL d’invite **masqués** sous les fiches.
 
 ### 9. Published cycle (company)
@@ -146,6 +148,10 @@ Suivre `cycle-recaps.md` § UI + `wizard-ui.md` (horloge collée, STAFF en en-t�
 ### 18. Wizard polish (invite abs, types cards, we column)
 
 Invite : afficher + copier `origin + /register?company_code={code}` (QR identique). Services types : cartes `wave-line`, libellés courts une fois, plus de `wave-table`. Souhaits : `<th>` **Au moins un repos samedi ou dimanche**, case hors cellule Week-end. Version `0.18.0`.
+
+### 19. Export / import restaurant config
+
+Suivre `export-config.md` § UI. **Exporter la config** : `GET /v1/context/export` Bearer → parse `export_version === 1` (throw sinon) → télécharger `{name}-config.json` ou `config-resto.json`. **Importer une config** : `.json` → confirm FR (remplace nom, rôles, équipe, souhaits, types, semaine ; casse les salariés liés ; pas de planning) → `POST /v1/context/import` → `adopt` comme le seed. Annuler le confirm = no-op. `detail` si erreur. Pas de bouton salarié / `/exemple` / `/planning` / login. Pas d’exports planning. Version `0.19.0`.
 
 ## Risks / Trade-offs
 

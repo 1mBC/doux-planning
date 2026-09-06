@@ -100,3 +100,8 @@
 
 - [x] 16.1 Invite popup displays and copies the absolute URL ; types as cards (no `wave-table`) ; `weekend_rest_day` in its own column ; bump `web/` to 0.18.0
 - [x] 16.2 Verify `npm run build` ; invite `http`+origin + QR ; 2 arrivées + 1 départ en cartes, reload persisté ; case we dans sa colonne ; exemple 92 ; `v0.18.0`
+
+## 17. Export / import restaurant config
+
+- [x] 17.1 Company `/context` seed-row: **Exporter la config** GET `/v1/context/export` download JSON v1 ; **Importer une config** `.json` + confirm FR → POST `/v1/context/import` `adopt` ; `export_version === 1` ; bump `web/` to 0.19.0
+- [x] 17.2 Verify `npm run build` ; export v1 sans token ; import + confirm wizard remplacé + reload ; annuler confirm = no-op ; exemple 92 ; `v0.19.0`
