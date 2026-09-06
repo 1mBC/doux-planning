@@ -95,3 +95,8 @@
 
 - [x] 15.1 `/exemple` reads refreshed JSON as-is: pastilles 92 / 0 / 0 / 47 / 84 % / 10 / 12 ; 17 warnings FR ; `wish_cols` live (no `we1j` / `weA`) ; Diane `30h · 29h / 39h` orange ; Théo 11h–16h ; bump `web/` to 0.17.0
 - [x] 15.2 Verify `npm run build` ; `/exemple` sans session : 92, 17 alertes FR (« contrat », « pas deux repos »), 10/12, colonnes live, Diane orange, Théo 11h–16h ; `/planning` company inchangé hors parse ; `v0.17.0`
+
+## 16. Wizard polish (invite abs, types cards, we column)
+
+- [x] 16.1 Invite popup displays and copies the absolute URL ; types as cards (no `wave-table`) ; `weekend_rest_day` in its own column ; bump `web/` to 0.18.0
+- [x] 16.2 Verify `npm run build` ; invite `http`+origin + QR ; 2 arrivées + 1 départ en cartes, reload persisté ; case we dans sa colonne ; exemple 92 ; `v0.18.0`
