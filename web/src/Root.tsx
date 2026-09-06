@@ -5,6 +5,7 @@ import { ApiHttpError } from "./sandbox";
 import { LoginScreen, RegisterScreen, SessionChrome, go } from "./AuthScreens";
 import { ContextWizard } from "./ContextWizard";
 import { EmployeePlanning } from "./EmployeePlanning";
+import { AdminDenied, AdminPage } from "./AdminPage";
 import { PublishedPlanning } from "./PublishedPlanning";
 import "./App.css";
 
@@ -63,7 +64,11 @@ export default function Root() {
       ? "register"
       : path === "/exemple"
         ? "exemple"
-        : path === "/context" && me?.kind === "company"
+        : path === "/admin"
+          ? me?.admin
+            ? "admin"
+            : "admin-denied"
+          : path === "/context" && me?.kind === "company"
           ? "context"
           : path === "/planning" && me?.kind === "company"
             ? "planning"
@@ -100,6 +105,8 @@ export default function Root() {
       {route === "login" ? <LoginScreen onSignedIn={setMe} /> : null}
       {route === "register" ? <RegisterScreen onSignedIn={setMe} /> : null}
       {route === "context" ? <ContextWizard /> : null}
+      {route === "admin" ? <AdminPage /> : null}
+      {route === "admin-denied" ? <AdminDenied /> : null}
       {route === "planning" ? <PublishedPlanning /> : null}
       {route === "employee" ? <EmployeePlanning /> : null}
       {route === "exemple" ? <App canEdit={canEdit} /> : null}

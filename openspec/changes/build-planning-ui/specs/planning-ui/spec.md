@@ -86,7 +86,7 @@ The client SHALL offer one login (email + password) via `POST /v1/auth/login` an
 - **THEN** the form is locked to Salarié, lists no fiches, and commits with `employee_token`
 
 ### Requirement: Session token and logout
-The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, and `GET /v1/me/planning` when a token exists, and MUST NOT be sent on example or `/v1/sandbox/*` requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context` and `/planning`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard, and SHALL open `/planning` via `GET /v1/me/planning`.
+The token SHALL live in `sessionStorage`. `Authorization: Bearer` SHALL be sent on register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`, and `GET /v1/admin/generates` when a token exists, and MUST NOT be sent on example or `/v1/sandbox/*` requests. Reload SHALL call `GET /v1/me` when a token exists; HTTP 401 SHALL forget the token and show login. **Déconnexion** SHALL `POST /v1/auth/logout` then forget the token. `kind: company` SHALL keep today’s grid + sandbox and MAY open `/context` and `/planning`. `kind: employee` SHALL hide Mode édition, MUST NOT open the context wizard, and SHALL open `/planning` via `GET /v1/me/planning`. `parseMe` MUST require `admin` as a boolean; `kind: employee` SHALL force `admin` false. The session chrome SHALL show **Admin** only when `me.admin` is true.
 
 #### Scenario: Logout
 - **WHEN** the restaurateur clicks Déconnexion
@@ -223,3 +223,18 @@ A `kind: company` session on `/planning` SHALL show **Mode édition** only when 
 #### Scenario: Weekend rest has its own column
 - **WHEN** the restaurateur opens Souhaits bien-être
 - **THEN** the weekend-rest checkbox sits under its own header and not inside the Week-end cell
+
+### Requirement: Admin generate table
+A session with `me.admin === true` SHALL see an **Admin** chrome link and MAY open `/admin`. That page SHALL `GET /v1/admin/generates` with Bearer and render `{ entries }` newest-first, grouped by calendar day in `Europe/Paris` (`created_at`) with a heading like `Dimanche 6 septembre 2026`. Days without a row MUST NOT appear. Each row SHALL show Paris `HH:mm`, email, restaurant name, and team (Salle / Cuisine). Hovering a row or its warning count SHALL show each `warnings[].message` as-is, one per line, or `aucun warning` when the array is empty. The page MUST NOT list warnings in a panel under the table. An empty `entries` list SHALL show « Aucun generate pour l’instant. ». If `me.admin` is not true (anonymous, employee, or company without admin), `/admin` SHALL show `Action réservée à l’admin.` and MUST NOT call `GET /v1/admin/generates`. The Admin link MUST NOT appear unless `me.admin` is true. The table MUST NOT appear on employee, `/exemple`, or `/planning`.
+
+#### Scenario: Admin sees two day headers
+- **WHEN** an admin opens `/admin` and the payload has entries on two distinct Paris days
+- **THEN** the table shows exactly two day headings
+
+#### Scenario: Hover shows warning messages
+- **WHEN** the admin hovers a row whose `warnings` is not empty
+- **THEN** each warning `message` is shown as-is, one per line
+
+#### Scenario: Non-admin does not fetch generates
+- **WHEN** a company without admin, a salarié, or an anonymous visitor opens `/admin`
+- **THEN** the reserved message is shown and the client does not GET `/v1/admin/generates`

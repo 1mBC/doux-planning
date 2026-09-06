@@ -10,6 +10,7 @@ export type Me = {
   email: string;
   restaurant_id: string;
   employee_id: string | null;
+  admin: boolean;
 };
 
 export type AuthSession = {
@@ -104,11 +105,16 @@ export function parseMe(value: unknown): Me {
   if (!("employee_id" in value)) {
     throw new PayloadError("clé absente : me.employee_id");
   }
+  const kind = parseKind(value.kind, "me.kind");
+  if (kind === "company" && typeof value.admin !== "boolean") {
+    throw new PayloadError("clé absente ou invalide : me.admin");
+  }
   return {
-    kind: parseKind(value.kind, "me.kind"),
+    kind,
     email: requireString(value, "email", "me"),
     restaurant_id: requireString(value, "restaurant_id", "me"),
     employee_id: parseNullableEmployeeId(value.employee_id, "me.employee_id"),
+    admin: kind === "company" ? value.admin === true : false,
   };
 }
 

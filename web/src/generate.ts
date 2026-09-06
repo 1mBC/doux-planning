@@ -87,7 +87,7 @@ function parseSeverity(value: unknown, path: string): WarningItem["severity"] {
   throw new PayloadError(`severity inattendue : ${path}`);
 }
 
-function parseWarning(value: unknown, path: string): WarningItem {
+export function parseWarning(value: unknown, path: string): WarningItem {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }

@@ -86,9 +86,9 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 - `/register` : bascule **Entreprise** / **Salarié**. Entreprise → `{ kind: company, email, password }` seulement. Salarié → code → `GET /v1/invites/{company_code}` → choisir une fiche (`id`, `name`, `role`, `team`) → `{ kind: employee, company_code, employee_id, email, password }` (pas de token).
 - QR : `/register?company_code=…&employee_token=…` — kind salarié verrouillé, pas de liste, POST avec `employee_token` (pas d’`employee_id`).
 - Password ≥ 8. Afficher `detail` tel quel. Pas de « mot de passe oublié ».
-- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
+- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`, `GET /v1/admin/generates`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
 - Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 n’empêche pas l’exemple.
-- Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`. Employee : lien **Planning** → `/planning`.
+- Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`. Employee : lien **Planning** → `/planning`. Lien **Admin** seulement si `me.admin`.
 - Sans session : login/register **et** `/exemple`. La grille d’exemple n’est pas derrière le login.
 - `kind: employee` : pas de Mode édition ; pas de wizard ; `/planning` = `GET /v1/me/planning` (pas Calculer / live). Login/register atterrit sur `/planning`.
 - `kind: company` : wizard `/context` + `/planning` + grille / sandbox exemple.
@@ -156,6 +156,10 @@ Suivre `export-config.md` § UI. **Exporter la config** : `GET /v1/context/expor
 ### 20. Export planning (client)
 
 Suivre `export-planning.md`. Menu **Exporter** dans `planning-actions` (JSON / CSV / XLSX / JPEG). Actif ssi `published[team]` non null et pas en Mode édition. Cuisine `null` → off. Source = cycle chargé + fiches de **cette** équipe, sans `invite_token`. Pas de nouvelle route. Chiffres = payload. Fichier `{slug}-{salle|cuisine}.{ext}` (`name` vide → `planning`). JPEG = les deux feuilles A/B. Pas de bouton salarié / `/exemple`. Version `0.20.0`.
+
+### 21. Admin generate table
+
+Suivre `admin.md` § UI + `v1-auth.md` `me.admin`. `parseMe` exige `admin: bool` ; employee → `false`. Lien **Admin** ssi `me.admin`. `/admin` admin → `GET /v1/admin/generates` ; sinon message `Action réservée à l’admin.` sans fetch. Table newest-first, en-tête jour `Europe/Paris` (`Dimanche 6 septembre 2026`), heure `HH:mm`, hover = `warnings[].message` (vide → `aucun warning`). Version `0.21.0`.
 
 ## Risks / Trade-offs
 

@@ -401,6 +401,61 @@ table.plan td.empty-slot {
   color: #9a7b12;
 }
 
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 18px;
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid #e3e6ea;
+  vertical-align: top;
+}
+
+.admin-table tbody tr {
+  position: relative;
+}
+
+.admin-pill {
+  display: inline-block;
+  min-width: 1.5rem;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef1f4;
+  font-weight: 650;
+  text-align: center;
+}
+
+.admin-tip {
+  display: none;
+  position: absolute;
+  right: 12px;
+  top: calc(100% - 2px);
+  z-index: 5;
+  max-width: 36rem;
+  padding: 8px 10px;
+  background: #1a1a1a;
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 18%);
+  white-space: pre-wrap;
+}
+
+.admin-tip p {
+  margin: 0 0 4px;
+}
+
+.admin-tip p:last-child {
+  margin-bottom: 0;
+}
+
+.admin-table tbody tr:hover .admin-tip {
+  display: block;
+}
+
 .session-bar {
   margin: 0 auto;
   padding: 12px 24px 0;
