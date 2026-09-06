@@ -127,6 +127,16 @@ Semaine = `week_label_scheme` des fiches du draft (`even`/`odd` → Paire/Impair
 
 Ne pas traduire les **autres** codes (contrat anglais OK). **Ne pas** réécrire `saint-cloud.json`.
 
+## UI (cette tranche)
+
+Chrome seulement — **pas** de 2ᵉ formule, **pas** de rewrite des `message` / `text`.
+
+- Warning `contract_hours` : pastille **Contrat** (pas « Souhait »). Les autres `severity: souhait` restent « Souhait ». `severity` API inchangée.
+- Tableaux légal + souhaits (`/planning` company **et** `/exemple`) : cellule `ok: false` → **orange + gras** (la **cellule**, pas seulement la ligne). Y compris la col `contrat`.
+- Titre du tableau wish : **Souhaits bien-être**.
+- Messages d’alerte **tels quels** (empty_post / max services déjà enrichis Core).
+- `/planning` company : **Calculer** / **Mode édition** **sous** le switch Salle · Cuisine (pas sur la même ligne). Pas d’exports.
+
 ## Tests
 
 - Resto salle généré `minimal` : `cycle_recap` a une ligne légale par fiche ; pas de col `max_daily_cuisine` ; `stats.assignments` = `len(assignments)`.
@@ -139,4 +149,4 @@ Ne pas traduire les **autres** codes (contrat anglais OK). **Ne pas** réécrire
 
 ## Hors freeze
 
-Label UI « Contrat », cases orange, invite / QR, style types, exports, admin, archive / sync.
+Export / import config resto, exports planning (JSON/CSV/XLSX/JPEG), admin, archive / sync.
