@@ -9,7 +9,13 @@ from sqlalchemy.orm.attributes import flag_modified
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_company_restaurant_id, require_database
 from doux_planning.api.context import _load_company, _state_from_rows
 from doux_planning.api.db import Company, session_scope
-from doux_planning.api.generate import _team_cycle_json
+from doux_planning.api.generate import (
+    EFFORTS,
+    _team_cycle_json,
+    latest_cycle_blob,
+    normalize_team_published,
+    overwrite_slot_keep_generated_at,
+)
 from doux_planning.api.sandbox import (
     GESTURES,
     _employee_json,
@@ -105,23 +111,38 @@ def _sandbox_from_json(state: RestaurantState, team: Team, blob: Any) -> Sandbox
     return sandbox
 
 
-def _hydrate(state: RestaurantState, company: Company) -> dict[Team, list[dict[str, Any]]]:
+def _hydrate(
+    state: RestaurantState, company: Company
+) -> tuple[dict[Team, list[dict[str, Any]]], dict[Team, str | None]]:
     published_raw = company.published_cycles or {}
     live_raw = company.live_sandboxes or {}
     recaps: dict[Team, list[dict[str, Any]]] = {}
+    efforts: dict[Team, str | None] = {}
     for team in TEAMS:
-        state.published_cycles[team] = _published_from_json(state, team, published_raw.get(team.value))
+        pack, _ = normalize_team_published(published_raw.get(team.value), state, team)
         blob = live_raw.get(team.value)
+        effort = None
+        if isinstance(blob, dict) and blob.get("search_effort") in EFFORTS:
+            effort = blob["search_effort"]
+        elif pack is not None:
+            effort = pack.get("latest")
+        cycle = pack["versions"].get(effort) if pack is not None and effort in EFFORTS else None
+        if cycle is None and pack is not None:
+            cycle = latest_cycle_blob(pack)
+        state.published_cycles[team] = _published_from_json(state, team, cycle)
         state.live_sandboxes[team] = _sandbox_from_json(state, team, blob)
         recaps[team] = list(blob.get("recaps") or []) if isinstance(blob, dict) else []
-    return recaps
+        efforts[team] = effort if isinstance(effort, str) else None
+    return recaps, efforts
 
 
-def _sandbox_blob(sandbox: Sandbox | None, recaps: list[dict[str, Any]]) -> dict[str, Any] | None:
+def _sandbox_blob(
+    sandbox: Sandbox | None, recaps: list[dict[str, Any]], search_effort: str | None
+) -> dict[str, Any] | None:
     if sandbox is None:
         return None
     result = sandbox.last_result
-    return {
+    payload: dict[str, Any] = {
         "assignments": [_shift_json(item) for item in sandbox.draft.assignments],
         "warnings": [_warning_json(item) for item in (result.warnings if result else ())],
         "history": [
@@ -136,39 +157,61 @@ def _sandbox_blob(sandbox: Sandbox | None, recaps: list[dict[str, Any]]) -> dict
         ],
         "recaps": list(recaps),
     }
+    if search_effort in EFFORTS:
+        payload["search_effort"] = search_effort
+    return payload
 
 
 def _persist(
     restaurant_id: str,
     state: RestaurantState,
     recaps: dict[Team, list[dict[str, Any]]],
+    efforts: dict[Team, str | None],
     *,
-    published: bool = False,
+    published_team: Team | None = None,
 ) -> None:
     with session_scope() as db:
         company = db.get(Company, restaurant_id)
         if company is None:
             raise HTTPException(status_code=401, detail="Session invalide.")
         company.live_sandboxes = {
-            "salle": _sandbox_blob(state.live_sandboxes.get(Team.SALLE), recaps[Team.SALLE]),
-            "cuisine": _sandbox_blob(state.live_sandboxes.get(Team.CUISINE), recaps[Team.CUISINE]),
+            "salle": _sandbox_blob(
+                state.live_sandboxes.get(Team.SALLE), recaps[Team.SALLE], efforts.get(Team.SALLE)
+            ),
+            "cuisine": _sandbox_blob(
+                state.live_sandboxes.get(Team.CUISINE), recaps[Team.CUISINE], efforts.get(Team.CUISINE)
+            ),
         }
         flag_modified(company, "live_sandboxes")
-        if published:
-            company.published_cycles = {
-                "salle": _team_cycle_json(state, Team.SALLE),
-                "cuisine": _team_cycle_json(state, Team.CUISINE),
-            }
+        if published_team is not None:
+            stored = company.published_cycles or {}
+            out: dict[str, Any] = {}
+            for team in TEAMS:
+                raw = stored.get(team.value)
+                if team == published_team:
+                    cycle = _team_cycle_json(state, team)
+                    effort = efforts.get(team)
+                    if cycle is not None and effort in EFFORTS:
+                        out[team.value] = overwrite_slot_keep_generated_at(raw, effort, cycle, state, team)
+                    else:
+                        pack, _ = normalize_team_published(raw, state, team)
+                        out[team.value] = pack
+                else:
+                    pack, _ = normalize_team_published(raw, state, team)
+                    out[team.value] = pack
+            company.published_cycles = out
             flag_modified(company, "published_cycles")
 
 
-def _load(authorization: str | None) -> tuple[str, RestaurantState, dict[Team, list[dict[str, Any]]]]:
+def _load(
+    authorization: str | None,
+) -> tuple[str, RestaurantState, dict[Team, list[dict[str, Any]]], dict[Team, str | None], Company]:
     require_database()
     restaurant_id = require_company_restaurant_id(authorization)
     company, fiches = _load_company(restaurant_id)
     state = _state_from_rows(company, fiches)
-    recaps = _hydrate(state, company)
-    return restaurant_id, state, recaps
+    recaps, efforts = _hydrate(state, company)
+    return restaurant_id, state, recaps, efforts, company
 
 
 def _store_for(state: RestaurantState) -> PlanningStore:
@@ -273,25 +316,47 @@ def _map_edit_error(exc: Exception) -> HTTPException:
     raise exc
 
 
-def enter(authorization: str | None, team_raw: str) -> dict[str, Any]:
-    restaurant_id, state, recaps = _load(authorization)
+def enter(
+    authorization: str | None,
+    team_raw: str,
+    body: dict[str, Any] | None = None,
+    search_effort: str | None = None,
+) -> dict[str, Any]:
+    restaurant_id, state, recaps, efforts, company = _load(authorization)
     team = _parse_team(team_raw)
+    requested = search_effort
+    if isinstance(body, dict) and body.get("search_effort") is not None:
+        requested = body.get("search_effort")
+    if requested is not None and requested not in EFFORTS:
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    pack, _ = normalize_team_published((company.published_cycles or {}).get(team.value), state, team)
+    if pack is None or pack.get("latest") not in EFFORTS:
+        raise HTTPException(status_code=409, detail=DETAIL_NO_CYCLE)
+    effort = requested or pack["latest"]
+    cycle = pack["versions"].get(effort)
+    if cycle is None:
+        raise HTTPException(status_code=409, detail=DETAIL_NO_CYCLE)
+    state.published_cycles[team] = _published_from_json(state, team, cycle)
+    if state.live_sandboxes.get(team) is not None and efforts.get(team) not in (None, effort):
+        discard_live_sandbox(state, team)
+        recaps[team] = []
     try:
         enter_live_sandbox(state, team)
     except NoPublishedCycle as exc:
         raise HTTPException(status_code=409, detail=DETAIL_NO_CYCLE) from exc
-    _persist(restaurant_id, state, recaps)
+    efforts[team] = effort
+    _persist(restaurant_id, state, recaps, efforts)
     return _live_state(state, team, recaps)
 
 
 def get_live(authorization: str | None, team_raw: str) -> dict[str, Any]:
-    _restaurant_id, state, recaps = _load(authorization)
+    _restaurant_id, state, recaps, _efforts, _company = _load(authorization)
     team = _parse_team(team_raw)
     return _live_state(state, team, recaps)
 
 
 def preview(authorization: str | None, team_raw: str, body: dict[str, Any]) -> dict[str, Any]:
-    restaurant_id, state, _recaps = _load(authorization)
+    restaurant_id, state, _recaps, _efforts, _company = _load(authorization)
     team = _parse_team(team_raw)
     _require_sandbox(state, team)
     store = _store_for(state)
@@ -306,7 +371,7 @@ def preview(authorization: str | None, team_raw: str, body: dict[str, Any]) -> d
 
 
 def commit(authorization: str | None, team_raw: str, body: dict[str, Any]) -> dict[str, Any]:
-    restaurant_id, state, recaps = _load(authorization)
+    restaurant_id, state, recaps, efforts, _company = _load(authorization)
     team = _parse_team(team_raw)
     _require_sandbox(state, team)
     store = _store_for(state)
@@ -325,12 +390,12 @@ def commit(authorization: str | None, team_raw: str, body: dict[str, Any]) -> di
         if mapped is not exc:
             raise mapped from exc
         raise
-    _persist(restaurant_id, state, recaps)
+    _persist(restaurant_id, state, recaps, efforts)
     return _live_state(state, team, recaps)
 
 
 def undo(authorization: str | None, team_raw: str) -> dict[str, Any]:
-    restaurant_id, state, recaps = _load(authorization)
+    restaurant_id, state, recaps, efforts, _company = _load(authorization)
     team = _parse_team(team_raw)
     _require_sandbox(state, team)
     store = _store_for(state)
@@ -343,26 +408,34 @@ def undo(authorization: str | None, team_raw: str) -> dict[str, Any]:
         raise
     if recaps[team]:
         recaps[team].pop()
-    _persist(restaurant_id, state, recaps)
+    _persist(restaurant_id, state, recaps, efforts)
     return _live_state(state, team, recaps)
 
 
 def discard(authorization: str | None, team_raw: str) -> dict[str, Any]:
-    restaurant_id, state, recaps = _load(authorization)
+    restaurant_id, state, recaps, efforts, company = _load(authorization)
     team = _parse_team(team_raw)
     _require_sandbox(state, team)
+    effort = efforts.get(team)
+    pack, _ = normalize_team_published((company.published_cycles or {}).get(team.value), state, team)
+    if effort not in EFFORTS and pack is not None:
+        effort = pack.get("latest")
+    cycle = pack["versions"].get(effort) if pack is not None and effort in EFFORTS else None
+    if cycle is not None:
+        state.published_cycles[team] = _published_from_json(state, team, cycle)
     discard_live_sandbox(state, team)
     try:
         enter_live_sandbox(state, team)
     except NoPublishedCycle as exc:
         raise HTTPException(status_code=409, detail=DETAIL_NO_CYCLE) from exc
     recaps[team] = []
-    _persist(restaurant_id, state, recaps)
+    efforts[team] = effort if effort in EFFORTS else efforts.get(team)
+    _persist(restaurant_id, state, recaps, efforts)
     return _live_state(state, team, recaps)
 
 
 def publish(authorization: str | None, team_raw: str) -> dict[str, Any]:
-    restaurant_id, state, recaps = _load(authorization)
+    restaurant_id, state, recaps, efforts, _company = _load(authorization)
     team = _parse_team(team_raw)
     _require_sandbox(state, team)
     try:
@@ -372,10 +445,18 @@ def publish(authorization: str | None, team_raw: str) -> dict[str, Any]:
     except RuntimeError as exc:
         raise HTTPException(status_code=404, detail=DETAIL_NO_SANDBOX) from exc
     recaps[team] = []
-    _persist(restaurant_id, state, recaps, published=True)
-    return {
-        "published": {
-            "salle": _team_cycle_json(state, Team.SALLE),
-            "cuisine": _team_cycle_json(state, Team.CUISINE),
-        }
-    }
+    _persist(restaurant_id, state, recaps, efforts, published_team=team)
+    stored = {}
+    with session_scope() as db:
+        row = db.get(Company, restaurant_id)
+        stored = _stored_or_empty(row)
+    return {"published": stored}
+
+
+def _stored_or_empty(company: Company | None) -> dict[str, Any]:
+    from doux_planning.api.generate import normalize_published, _stored_published
+
+    if company is None:
+        return {"salle": None, "cuisine": None}
+    published, _ = normalize_published(_stored_published(company.published_cycles))
+    return published

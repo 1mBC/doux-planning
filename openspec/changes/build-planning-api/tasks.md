@@ -43,3 +43,7 @@
 ## 7. Maximal generate jobs (hybrid C)
 
 - [x] 7.1 Alembic `generate_jobs` + Compose `worker` (`python -m doux_planning.api.worker`) + GET `/v1/generate/jobs/{id}`. `minimal` / `optimized` stay 200 sync + log. `maximal` → 202 queued, no `generate_team` in the web process. Worker SKIP LOCKED tick (stub in tests, 0 s) → `done` + persist `published_cycles` + `generate_logs`. Verify salle ready: POST `minimal` 200; POST `maximal` 202 + GET `queued`; tick stub → `done` + `published.salle` + 1 log; 2nd maximal while queued → 409 `Un calcul maximal est déjà en cours.`; cuisine not ready → 409 and 0 job; employee GET/POST job 403; other company 404; no Bearer 401; no DB 503; example stays 92. No 600 s wait. No Core / `web/` / `contracts/` edits
+
+## 8. Generate versions (3 slots)
+
+- [x] 8.1 Persist `published[team] = { versions, latest }` in JSONB (no Alembic). Each cycle has recap + `generated_at` + `search_effort`. Coerce flat stored cycle → `versions.optimized` / `latest: optimized`. POST writes one slot and `latest`. `GET /v1/me/planning` uses `versions[latest]`. Live enter `search_effort` (default latest); publish same slot keeps `generated_at`. Worker/uvicorn ISO stdout logs. Verify old flat JSONB → GET optimized; POST minimal then optimized → two slots, latest optimized, minimal intact; me/planning = latest; enter without effort = latest; enter `minimal`; publish minimal leaves optimized; worker tick logs start + done; example 92. No `engine.py`. No Core / `web/` / `contracts/` edits

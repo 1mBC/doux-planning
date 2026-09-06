@@ -106,6 +106,8 @@ Errors: `{ "error": { "code": "...", "message": "<French>" } }`. Existing exampl
 
 Worker process (`python -m doux_planning.api.worker`, Compose `worker`, Railway 2nd service, same image / `DATABASE_URL`): `SELECT … FOR UPDATE SKIP LOCKED` one `queued` → `running` → `generate_team(…, maximal)` → persist cycles like the 200 → `done` + `generate_logs`. Exception → `failed` + French `error`. Pytest calls one exported tick with `generate_team` stubbed (0 s). Do not wait 600 s. Alembic table `generate_jobs`. Do not write `example_snapshots` or Saint-Cloud files.
 
+`published_cycles` JSONB is three slots per team (`contracts/domain/generate-versions.md`): `{ versions: { minimal, optimized, maximal }, latest }`. Each cycle is assignments + warnings + Core recap + `generated_at` (ISO UTC) + `search_effort`. POST / job `done` writes **that** slot only, stamps `generated_at` now, and sets `latest` to the newest stamp (tie: maximal > optimized > minimal). A stored flat cycle (no `versions`) is coerced on read to `versions.optimized` with `generated_at` absent and `latest: optimized` (no Alembic). Never-generated team stays `null`. `GET /v1/me/planning` hydrates `versions[latest]`. Live `enter` accepts `search_effort` (body or query, default `latest`); empty slot → 409. `publish` rewrites that same slot and MUST keep `generated_at`. Worker and uvicorn emit one ISO stdout line per event (process start, job taken, generate start/end + duration, 202, done/failed). Do not edit `engine.py` / `SEARCH_*`.
+
 evaluate / swap / rank stay later. Live sandbox HTTP is this slice (`/v1/live/sandbox/{team}`).
 
 ### 7. Serialize `EngineResult` only

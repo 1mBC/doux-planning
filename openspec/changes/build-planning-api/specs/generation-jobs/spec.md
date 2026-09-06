@@ -5,11 +5,19 @@ Generates a published 14-day cycle **per team** over HTTP by wrapping Core `gene
 ## ADDED Requirements
 
 ### Requirement: Generate is hybrid C
-`POST /v1/generate` (Bearer company) SHALL accept `{ team: "salle"|"cuisine", search_effort?: "minimal"|"optimized"|"maximal" }`. Omitted `search_effort` MUST default to `optimized` and MUST stay a **200** in-request `generate_team` wrap. `minimal` / `optimized` MUST call Core `generate_team` in the web process and MUST NOT insert a `generate_jobs` row. The 200 body MUST be `{ team, search_effort, published }` where `published` has `salle` and `cuisine` keys, each `null` or `{ assignments, warnings, stats, legal_cols, legal_rows, wish_cols, wish_rows }`. Assignments and warnings MUST be serialized from that team’s `EngineResult`. Recap keys MUST be Core `cycle_recap` (no invented counts or cells, no `we1j`). A `null` cycle MUST omit recap keys. `maximal` MUST return HTTP 202 `{ job_id, team, search_effort: "maximal", status: "queued", estimated_seconds: 600 }` with no `published` and MUST NOT call `generate_team` in uvicorn. HTTP sync tests MUST use `minimal`. Job tests MUST tick an exported worker function with `generate_team` stubbed (0 s) and MUST NOT wait 600 s.
+`POST /v1/generate` (Bearer company) SHALL accept `{ team: "salle"|"cuisine", search_effort?: "minimal"|"optimized"|"maximal" }`. Omitted `search_effort` MUST default to `optimized` and MUST stay a **200** in-request `generate_team` wrap. `minimal` / `optimized` MUST call Core `generate_team` in the web process and MUST NOT insert a `generate_jobs` row. The 200 body MUST be `{ team, search_effort, published }` where `published` has `salle` and `cuisine` keys, each `null` or `{ versions: { minimal, optimized, maximal }, latest }` per `contracts/domain/generate-versions.md`. Each non-null version MUST be `{ assignments, warnings, stats, legal_cols, legal_rows, wish_cols, wish_rows, generated_at, search_effort }`. Assignments and warnings MUST be serialized from that team’s `EngineResult`. Recap keys MUST be Core `cycle_recap` (no invented counts or cells, no `we1j`). A never-generated team MUST stay `null`. POST MUST write only `versions[effort]` and recompute `latest`. `maximal` MUST return HTTP 202 `{ job_id, team, search_effort: "maximal", status: "queued", estimated_seconds: 600 }` with no `published` and MUST NOT call `generate_team` in uvicorn. HTTP sync tests MUST use `minimal`. Job tests MUST tick an exported worker function with `generate_team` stubbed (0 s) and MUST NOT wait 600 s.
 
 #### Scenario: Salle generate when ready
 - **WHEN** the live context is salle-ready and the restaurateur posts generate with `team` `salle` and `search_effort` `minimal`
-- **THEN** the response is HTTP 200, `published.salle.assignments` is non-empty, every assignment has `team` `salle`, `published.salle.stats.assignments` equals that length, `legal_rows` and `wish_cols` are present, `wish_cols` has no `we1j`, and `published.cuisine` is `null`
+- **THEN** the response is HTTP 200, `published.salle.versions.minimal.assignments` is non-empty, every assignment has `team` `salle`, that cycle’s `stats.assignments` equals that length, `legal_rows` and `wish_cols` are present, `wish_cols` has no `we1j`, `latest` is `minimal`, and `published.cuisine` is `null`
+
+#### Scenario: Flat stored cycle is coerced
+- **WHEN** JSONB still has a flat salle cycle (no `versions`)
+- **THEN** GET cycles returns `versions.optimized` equal to that cycle, `latest` `optimized`, and no flat assignments at the team root
+
+#### Scenario: Two efforts keep both slots
+- **WHEN** the restaurateur posts salle `minimal` then salle `optimized`
+- **THEN** both slots are present, `latest` is `optimized`, and the minimal cycle is unchanged
 
 #### Scenario: Cuisine not ready
 - **WHEN** only salle is ready and the restaurateur posts generate for `cuisine`

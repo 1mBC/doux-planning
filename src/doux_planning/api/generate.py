@@ -25,6 +25,153 @@ EFFORTS = ("minimal", "optimized", "maximal")
 ACTIVE_JOB_STATUSES = ("queued", "running")
 RECAP_KEYS = ("stats", "legal_cols", "legal_rows", "wish_cols", "wish_rows")
 MAXIMAL_ESTIMATED_SECONDS = 600
+EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3}
+
+
+def iso_log(event: str, **fields: Any) -> None:
+    stamp = datetime.now(timezone.utc).isoformat()
+    extras = " ".join(f"{key}={value}" for key, value in fields.items() if value is not None)
+    print(f"{stamp} {event}" + (f" {extras}" if extras else ""), flush=True)
+
+
+def _empty_versions() -> dict[str, Any]:
+    return {
+        "versions": {"minimal": None, "optimized": None, "maximal": None},
+        "latest": None,
+    }
+
+
+def compute_latest(versions: dict[str, Any]) -> str | None:
+    best: tuple[str, int, str] | None = None
+    for effort in EFFORTS:
+        cycle = versions.get(effort)
+        if not cycle:
+            continue
+        stamp = str(cycle.get("generated_at") or "")
+        candidate = (stamp, EFFORT_RANK[effort], effort)
+        if best is None or candidate > best:
+            best = candidate
+    return best[2] if best else None
+
+
+def _has_recap(blob: Any) -> bool:
+    return isinstance(blob, dict) and all(key in blob for key in RECAP_KEYS)
+
+
+def _ensure_cycle_recap(state: RestaurantState, team: Team, cycle: dict[str, Any]) -> dict[str, Any]:
+    if _has_recap(cycle):
+        return cycle
+    from doux_planning.api.live_sandbox import _published_from_json
+
+    state.published_cycles[team] = _published_from_json(state, team, cycle)
+    filled = _team_cycle_json(state, team)
+    if filled is None:
+        return cycle
+    if "generated_at" in cycle:
+        filled["generated_at"] = cycle["generated_at"]
+    if "search_effort" in cycle:
+        filled["search_effort"] = cycle["search_effort"]
+    return filled
+
+
+def normalize_team_published(
+    blob: Any,
+    state: RestaurantState | None = None,
+    team: Team | None = None,
+) -> tuple[dict[str, Any] | None, bool]:
+    if blob is None:
+        return None, False
+    if isinstance(blob, dict) and "versions" in blob:
+        raw_versions = blob.get("versions") or {}
+        out = _empty_versions()
+        dirty = set(raw_versions) != set(EFFORTS) or "latest" not in blob
+        for effort in EFFORTS:
+            cycle = raw_versions.get(effort)
+            if cycle is None:
+                continue
+            if state is not None and team is not None and not _has_recap(cycle):
+                cycle = _ensure_cycle_recap(state, team, cycle)
+                dirty = True
+            out["versions"][effort] = cycle
+        latest = blob.get("latest")
+        if latest not in EFFORTS:
+            latest = compute_latest(out["versions"])
+            dirty = True
+        out["latest"] = latest
+        return out, dirty
+    if isinstance(blob, dict) and "assignments" in blob:
+        cycle = dict(blob)
+        if state is not None and team is not None and not _has_recap(cycle):
+            cycle = _ensure_cycle_recap(state, team, cycle)
+        cycle.pop("generated_at", None)
+        cycle["search_effort"] = "optimized"
+        return {
+            "versions": {"minimal": None, "optimized": cycle, "maximal": None},
+            "latest": "optimized",
+        }, True
+    return None, False
+
+
+def put_generated_slot(
+    stored_blob: Any,
+    effort: str,
+    cycle: dict[str, Any],
+    generated_at: str,
+    state: RestaurantState | None = None,
+    team: Team | None = None,
+) -> dict[str, Any]:
+    pack, _ = normalize_team_published(stored_blob, state, team)
+    if pack is None:
+        pack = _empty_versions()
+    slot = dict(cycle)
+    slot["generated_at"] = generated_at
+    slot["search_effort"] = effort
+    pack["versions"][effort] = slot
+    pack["latest"] = compute_latest(pack["versions"])
+    return pack
+
+
+def overwrite_slot_keep_generated_at(
+    stored_blob: Any,
+    effort: str,
+    cycle: dict[str, Any],
+    state: RestaurantState | None = None,
+    team: Team | None = None,
+) -> dict[str, Any]:
+    pack, _ = normalize_team_published(stored_blob, state, team)
+    if pack is None:
+        pack = _empty_versions()
+    previous = pack["versions"].get(effort) or {}
+    slot = dict(cycle)
+    if "generated_at" in previous:
+        slot["generated_at"] = previous["generated_at"]
+    else:
+        slot.pop("generated_at", None)
+    slot["search_effort"] = effort
+    pack["versions"][effort] = slot
+    others = [item for item in EFFORTS if item != effort and pack["versions"].get(item)]
+    if not others:
+        pack["latest"] = effort
+    return pack
+
+
+def latest_cycle_blob(pack: dict[str, Any] | None) -> dict[str, Any] | None:
+    if pack is None or pack.get("latest") not in EFFORTS:
+        return None
+    return pack["versions"].get(pack["latest"])
+
+
+def normalize_published(
+    stored: dict[str, Any],
+    state: RestaurantState | None = None,
+) -> tuple[dict[str, Any], bool]:
+    dirty = False
+    published = {"salle": None, "cuisine": None}
+    for key, team in (("salle", Team.SALLE), ("cuisine", Team.CUISINE)):
+        pack, changed = normalize_team_published(stored.get(key), state, team)
+        published[key] = pack
+        dirty = dirty or changed
+    return published, dirty
 
 
 def _empty_published() -> dict[str, Any]:
@@ -118,19 +265,9 @@ def _team_cycle_json(state: RestaurantState, team: Team) -> dict[str, Any] | Non
     return _cycle_json(published, cycle_recap(state, team))
 
 
-def _has_recap(blob: Any) -> bool:
-    return isinstance(blob, dict) and all(key in blob for key in RECAP_KEYS)
-
-
 def _blob_with_recap(state: RestaurantState, team: Team, blob: Any) -> dict[str, Any] | None:
-    if blob is None:
-        return None
-    if _has_recap(blob):
-        return blob
-    from doux_planning.api.live_sandbox import _published_from_json
-
-    state.published_cycles[team] = _published_from_json(state, team, blob)
-    return _team_cycle_json(state, team)
+    pack, _ = normalize_team_published(blob, state, team)
+    return pack
 
 
 def _parse_generate(body: dict[str, Any]) -> tuple[Team, SearchEffort]:
@@ -159,14 +296,12 @@ def get_cycles(authorization: str | None) -> dict[str, Any]:
     restaurant_id = require_company_restaurant_id(authorization)
     company, fiches = _load_company(restaurant_id)
     stored = _stored_published(company.published_cycles)
-    if all(blob is None or _has_recap(blob) for blob in stored.values()):
-        return {"published": stored}
-    state = _state_from_rows(company, fiches)
-    published = {
-        "salle": _blob_with_recap(state, Team.SALLE, stored["salle"]),
-        "cuisine": _blob_with_recap(state, Team.CUISINE, stored["cuisine"]),
-    }
-    _persist_published(restaurant_id, published)
+    state = None
+    if any(blob is not None for blob in stored.values()):
+        state = _state_from_rows(company, fiches)
+    published, dirty = normalize_published(stored, state)
+    if dirty:
+        _persist_published(restaurant_id, published)
     return {"published": published}
 
 
@@ -174,19 +309,18 @@ def _published_after_generate(
     state: RestaurantState,
     team: Team,
     stored: dict[str, Any],
+    effort: str,
+    generated_at: str,
 ) -> dict[str, Any]:
-    return {
-        "salle": (
-            _team_cycle_json(state, Team.SALLE)
-            if team == Team.SALLE
-            else _blob_with_recap(state, Team.SALLE, stored["salle"])
-        ),
-        "cuisine": (
-            _team_cycle_json(state, Team.CUISINE)
-            if team == Team.CUISINE
-            else _blob_with_recap(state, Team.CUISINE, stored["cuisine"])
-        ),
-    }
+    cycle = _team_cycle_json(state, team)
+    published: dict[str, Any] = {}
+    for key, other in (("salle", Team.SALLE), ("cuisine", Team.CUISINE)):
+        if other == team:
+            published[key] = put_generated_slot(stored.get(key), effort, cycle or {}, generated_at, state, team)
+        else:
+            pack, _ = normalize_team_published(stored.get(key), state, other)
+            published[key] = pack
+    return published
 
 
 def _enqueue_maximal(restaurant_id: str, team: Team) -> str:
@@ -243,17 +377,15 @@ def get_generate_job(authorization: str | None, job_id: str) -> dict[str, Any]:
             raise HTTPException(status_code=404, detail=DETAIL_JOB_MISSING)
         status = job.status
         payload = _job_payload(job)
+    if status in ("done", "failed"):
+        iso_log("generate job", job_id=job_id, status=status)
     if status == "done":
         company, fiches = _load_company(restaurant_id)
         stored = _stored_published(company.published_cycles)
-        if all(blob is None or _has_recap(blob) for blob in stored.values()):
-            published = stored
-        else:
-            state = _state_from_rows(company, fiches)
-            published = {
-                "salle": _blob_with_recap(state, Team.SALLE, stored["salle"]),
-                "cuisine": _blob_with_recap(state, Team.CUISINE, stored["cuisine"]),
-            }
+        state = _state_from_rows(company, fiches) if any(stored.values()) else None
+        published, dirty = normalize_published(stored, state)
+        if dirty:
+            _persist_published(restaurant_id, published)
         payload["published"] = published
     return payload
 
@@ -269,6 +401,7 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
         if not team_ready(state, team):
             raise HTTPException(status_code=409, detail=DETAIL_NOT_READY)
         job_id = _enqueue_maximal(restaurant_id, team)
+        iso_log("generate 202", job_id=job_id, team=team.value)
         return JSONResponse(
             status_code=202,
             content={
@@ -283,14 +416,15 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
         generate_team(state, team, search)
     except TeamNotReady as exc:
         raise HTTPException(status_code=409, detail=DETAIL_NOT_READY) from exc
-    published = _published_after_generate(state, team, stored)
+    generated_at = datetime.now(timezone.utc).isoformat()
+    published = _published_after_generate(state, team, stored, search.value, generated_at)
     _persist_published(restaurant_id, published)
-    cycle = published[team.value] or {}
+    slot = ((published[team.value] or {}).get("versions") or {}).get(search.value) or {}
     _log_generate(
         restaurant_id,
         restaurant_name=company.name or "",
         team=team.value,
-        warnings=list(cycle.get("warnings") or []),
+        warnings=list(slot.get("warnings") or []),
     )
     return {
         "team": team.value,
@@ -309,14 +443,15 @@ def persist_maximal_result(
     stored = _stored_published(company.published_cycles)
     state = _state_from_rows(company, fiches)
     generate_fn(state, team, SearchEffort.MAXIMAL)
-    published = _published_after_generate(state, team, stored)
+    generated_at = datetime.now(timezone.utc).isoformat()
+    published = _published_after_generate(state, team, stored, SearchEffort.MAXIMAL.value, generated_at)
     _persist_published(restaurant_id, published)
-    cycle = published[team.value] or {}
+    slot = ((published[team.value] or {}).get("versions") or {}).get(SearchEffort.MAXIMAL.value) or {}
     _log_generate(
         restaurant_id,
         restaurant_name=company.name or "",
         team=team.value,
-        warnings=list(cycle.get("warnings") or []),
+        warnings=list(slot.get("warnings") or []),
     )
     return published
 

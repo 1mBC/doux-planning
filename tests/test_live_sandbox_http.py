@@ -127,7 +127,7 @@ def test_live_sandbox_enter_edit_publish_and_joujou():
         json={"team": "salle", "search_effort": "minimal"},
     )
     assert generated.status_code == 200
-    original = generated.json()["published"]["salle"]["assignments"]
+    original = generated.json()["published"]["salle"]["versions"]["minimal"]["assignments"]
     assert original
 
     missing = client.get("/v1/live/sandbox/salle", headers=headers)
@@ -187,11 +187,14 @@ def test_live_sandbox_enter_edit_publish_and_joujou():
 
     published = client.post("/v1/live/sandbox/salle/publish", headers=headers)
     assert published.status_code == 200
-    assert published.json()["published"]["salle"]["assignments"] == open_body["planning"]["assignments"]
+    assert (
+        published.json()["published"]["salle"]["versions"]["minimal"]["assignments"]
+        == open_body["planning"]["assignments"]
+    )
     assert published.json()["published"]["cuisine"] is None
     cycles = client.get("/v1/cycles", headers=headers)
     assert cycles.status_code == 200
-    assert cycles.json()["published"]["salle"]["assignments"] != original
+    assert cycles.json()["published"]["salle"]["versions"]["minimal"]["assignments"] != original
     assert cycles.json()["published"]["cuisine"] is None
     closed = client.get("/v1/live/sandbox/salle", headers=headers)
     assert closed.status_code == 404
