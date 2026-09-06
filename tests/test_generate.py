@@ -177,6 +177,8 @@ def test_generate_persist_cycles_auth_and_example():
     assert cycle["assignments"]
     assert cycle["search_effort"] == "minimal"
     assert cycle["generated_at"]
+    assert isinstance(cycle["duration_seconds"], (int, float))
+    assert cycle["duration_seconds"] >= 0
     assert all(shift["team"] == "salle" for shift in cycle["assignments"])
     assert all(
         set(shift)
@@ -408,6 +410,7 @@ def test_generate_maximal_job_tick_stub_and_auth(capsys):
     assert done.json()["published"]["salle"] is not None
     assert done.json()["published"]["salle"]["latest"] == "maximal"
     assert "assignments" in _slot(done.json()["published"]["salle"], "maximal")
+    assert _slot(done.json()["published"]["salle"], "maximal")["duration_seconds"] >= 0
     assert done.json()["published"]["cuisine"] is None
     assert _count_rows(GenerateLog) == logs_before_tick + 1
 
@@ -487,6 +490,8 @@ def test_generate_versions_slots_me_planning_and_enter():
     assert optimized_cycle["search_effort"] == "optimized"
     assert optimized_cycle["generated_at"]
     assert optimized_cycle["generated_at"] != minimal_cycle["generated_at"]
+    assert isinstance(optimized_cycle["duration_seconds"], (int, float))
+    assert optimized_cycle["duration_seconds"] >= 0
     assert salle["versions"]["maximal"] is None
 
     employee = client.post(
@@ -522,6 +527,7 @@ def test_generate_versions_slots_me_planning_and_enter():
     assert after["latest"] == "optimized"
     assert _slot(after, "optimized")["assignments"] == optimized_cycle["assignments"]
     assert _slot(after, "optimized")["generated_at"] == optimized_cycle["generated_at"]
+    assert _slot(after, "optimized")["duration_seconds"] == optimized_cycle["duration_seconds"]
     assert _slot(after, "minimal")["generated_at"] == minimal_cycle["generated_at"]
 
     with session_scope() as session:
@@ -538,6 +544,7 @@ def test_generate_versions_slots_me_planning_and_enter():
     assert coerced.json()["published"]["salle"]["latest"] == "optimized"
     assert "assignments" not in coerced.json()["published"]["salle"]
     assert _slot(coerced.json()["published"]["salle"], "optimized")["assignments"] == flat["assignments"]
+    assert "duration_seconds" not in _slot(coerced.json()["published"]["salle"], "optimized")
 
     example = client.get("/v1/examples/saint-cloud")
     assert example.status_code == 200

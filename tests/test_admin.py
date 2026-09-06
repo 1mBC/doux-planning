@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import secrets
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,27 @@ def _clear_generate_logs() -> None:
             db.delete(row)
 
 
+def _http_warning(item: dict) -> dict:
+    return {
+        "severity": item["severity"],
+        "code": item["code"],
+        "message": item["message"],
+        "employee_id": item["employee_id"],
+        "day_index": item["day_index"],
+    }
+
+
+def _assert_enriched_warnings(log_warnings: list, cycle_warnings: list, names: dict[str, str]) -> None:
+    assert len(log_warnings) == len(cycle_warnings)
+    for log_warning, cycle_warning in zip(log_warnings, cycle_warnings):
+        assert _http_warning(log_warning) == cycle_warning
+        employee_id = cycle_warning.get("employee_id")
+        if employee_id:
+            assert log_warning["employee_name"] == names.get(employee_id)
+        else:
+            assert log_warning["employee_name"] is None
+
+
 def test_admin_without_database_is_503(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     reset_engine()
@@ -174,6 +196,15 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
         json={"team": "salle", "search_effort": "minimal"},
     )
     assert first.status_code == 200
+    first_slot = first.json()["published"]["salle"]["versions"]["minimal"]
+    assert first_slot["search_effort"] == "minimal"
+    assert isinstance(first_slot["duration_seconds"], (int, float))
+    assert first_slot["duration_seconds"] >= 0
+    cycles = client.get("/v1/cycles", headers=headers)
+    assert cycles.status_code == 200
+    cycle_slot = cycles.json()["published"]["salle"]["versions"]["minimal"]
+    assert isinstance(cycle_slot["duration_seconds"], (int, float))
+    assert cycle_slot["duration_seconds"] >= 0
     after_one = client.get("/v1/admin/generates", headers=headers)
     assert after_one.status_code == 200
     assert len(after_one.json()["entries"]) == 1
@@ -181,7 +212,14 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
     assert first_entry["email"] == email
     assert first_entry["restaurant_name"] == "Chez Admin"
     assert first_entry["team"] == "salle"
-    assert first_entry["warnings"] == first.json()["published"]["salle"]["versions"]["minimal"]["warnings"]
+    assert first_entry["search_effort"] == "minimal"
+    assert isinstance(first_entry["duration_seconds"], (int, float))
+    assert first_entry["duration_seconds"] >= 0
+    _assert_enriched_warnings(
+        first_entry["warnings"],
+        first_slot["warnings"],
+        names={fiche_id: "Emma"},
+    )
     assert "T" in first_entry["created_at"]
 
     cuisine = client.post(
@@ -207,7 +245,34 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
     assert entries[0]["created_at"] >= entries[1]["created_at"]
     assert entries[0]["id"] != first_entry["id"]
     assert entries[1]["id"] == first_entry["id"]
-    assert entries[0]["warnings"] == second.json()["published"]["salle"]["versions"]["minimal"]["warnings"]
+    assert entries[0]["search_effort"] == "minimal"
+    assert isinstance(entries[0]["duration_seconds"], (int, float))
+    assert entries[0]["duration_seconds"] >= 0
+    _assert_enriched_warnings(
+        entries[0]["warnings"],
+        second.json()["published"]["salle"]["versions"]["minimal"]["warnings"],
+        names={fiche_id: "Emma"},
+    )
+
+    old_id = f"legacy-{secrets.token_hex(4)}"
+    with session_scope() as db:
+        db.add(
+            GenerateLog(
+                id=old_id,
+                created_at=datetime.now(timezone.utc) - timedelta(days=1),
+                email="legacy@example.com",
+                restaurant_name="Legacy",
+                team="salle",
+                search_effort=None,
+                duration_seconds=None,
+                warnings=[],
+            )
+        )
+    with_legacy = client.get("/v1/admin/generates", headers=headers)
+    assert with_legacy.status_code == 200
+    legacy_entry = next(item for item in with_legacy.json()["entries"] if item["id"] == old_id)
+    assert legacy_entry["search_effort"] is None
+    assert legacy_entry["duration_seconds"] is None
 
     employee = client.post(
         "/v1/auth/register",
