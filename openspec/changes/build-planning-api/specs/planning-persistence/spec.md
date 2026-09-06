@@ -16,7 +16,7 @@ The system SHALL persist the live company context in Postgres: identity (`name`,
 - **THEN** a subsequent `GET /v1/context` returns the same name, sections, and `ready` flags
 
 ### Requirement: Staff wellbeing persists as a Core object
-`staff_fiches.wellbeing` SHALL be stored as a JSON object matching Core `Wellbeing` (`consecutive_rest`, `weekend_rest_day`, `weekend`, `max_services`, `max_coupures_per_week`). On read the adapter MUST parse an object, treat `[]` or absent as `Wellbeing()`, treat a missing `weekend_rest_day` key as `false`, always emit the bool on GET, and reject legacy preference keys (including `at_least_one_weekend_rest_day`) or `every_morning` / `every_evening` with HTTP 400 `Champs invalides.` Unavailabilities MUST be `{ weekday, service_id }` with both fields required. The adapter MUST NOT import or serialize `WellbeingPreference`, key lists, or `every_*` flags. No aliases. No Alembic. No coerce-on-read of stored key lists.
+`staff_fiches.wellbeing` SHALL be stored as a JSON object matching Core `Wellbeing` (`consecutive_rest`, `weekend_rest_day`, `weekend`, `max_services`, `max_coupures_per_week`). On **write** (PATCH / import) the adapter MUST reject a wellbeing key list, a removed preference key (including `at_least_one_weekend_rest_day`), `every_morning` / `every_evening`, an unavailability without `service_id`, or top-level `max_*_per_week` with HTTP 400 `Champs invalides.` On **read** (GET context / export / generate / me/planning) the adapter MUST coerce stored Railway JSONB to that Core object per `contracts/domain/coerce-railway.md`: `null` / `{}` / `[]` → `Wellbeing()`; a key list or removed keys → the freeze mapping (unknown list keys ignored; `weekend` already set is kept); `every_morning` / `every_evening` → `{ weekday, service_id }` when that service is offered, else drop; `service_id` null / absent → one row per open company service; fiche `max_evenings_per_week` / `max_mornings_per_week` → `max_services` then omit those old fields. After coerce, if the stored JSONB differs from `wellbeing_to_json` / the new indispos, the adapter MUST UPDATE the fiche (heal). A second GET MUST match the first and MUST NOT emit a key list. An already-Core object MUST stay unchanged (`weekend_rest_day` absent → `false`). GET MUST always emit the bool. The adapter MUST NOT import or serialize `WellbeingPreference`. No aliases on write. No Alembic.
 
 #### Scenario: Weekend even persists and labels the restaurant
 - **WHEN** a restaurateur patches a fiche `wellbeing.weekend` `even`
@@ -26,9 +26,21 @@ The system SHALL persist the live company context in Postgres: identity (`name`,
 - **WHEN** a fiche is stored with wellbeing `[]` or the key omitted
 - **THEN** read reconstructs `Wellbeing()` and GET serializes the default object
 
-#### Scenario: Legacy wellbeing or incomplete unavailability is rejected
-- **WHEN** PATCH sends a wellbeing key list, a removed preference key, `every_morning` / `every_evening`, or an unavailability without `service_id`
+#### Scenario: Legacy wellbeing or incomplete unavailability is rejected on write
+- **WHEN** PATCH or import sends a wellbeing key list, a removed preference key, `every_morning` / `every_evening`, or an unavailability without `service_id`
 - **THEN** the response is HTTP 400 `Champs invalides.` and the stored fiche is unchanged
+
+#### Scenario: Stored Railway list is coerced and healed on GET
+- **WHEN** a fiche wellbeing JSONB is the list `two_consecutive_rest_days`, `weekend_off_every_two_weeks`, `at_least_one_weekend_rest_day`, `max_two_coupures_per_week`
+- **THEN** GET context returns the Core object (`consecutive_rest` true, `weekend` `every_two`, `weekend_rest_day` true, `max_coupures_per_week` 2), a second GET matches, and the stored JSONB is that object not a list
+
+#### Scenario: no_evening_service becomes a max_services cap
+- **WHEN** a stored fiche has the removed key `no_evening_service`
+- **THEN** GET context returns `max_services.evening` `0`
+
+#### Scenario: Legacy indispos expand from company services
+- **WHEN** a stored fiche has `every_morning` and a journée row `service_id` null for a restaurant offering midday and evening (and morning when that flag is kept)
+- **THEN** GET context returns `{ weekday, service_id: morning }` plus one row per open midday and evening service, with no `every_*`
 
 #### Scenario: Weekend rest day persists as a bool
 - **WHEN** a restaurateur patches `wellbeing.weekend_rest_day` `true` then the API engine is reset

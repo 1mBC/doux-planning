@@ -137,25 +137,21 @@ def _issue_session(db: Session, *, kind: str, account_id: str, restaurant_id: st
     return token
 
 
-def _fiche_to_employee(row: StaffFiche) -> Employee:
-    from doux_planning.api.wellbeing_codec import unavailability_from_json, wellbeing_from_json
+def _fiche_to_employee(row: StaffFiche, company_services: list[str] | None = None) -> Employee:
+    from doux_planning.api.wellbeing_codec import coerce_unavailabilities, coerce_wellbeing
     from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS
 
     team = Team(row.team)
     role = Role(name=row.role, level=getattr(row, "role_level", 1) or 1, team=team)
-    unavailabilities = tuple(
-        unavailability_from_json(item)
-        for item in (row.unavailabilities or [])
-        if isinstance(item, dict)
-    )
+    services = list(company_services or [])
     return Employee(
         id=row.id,
         name=row.name,
         role=role,
         team=team,
         contractual_hours_per_week=getattr(row, "contractual_hours_per_week", None) or 35,
-        unavailabilities=unavailabilities,
-        wellbeing=wellbeing_from_json(row.wellbeing),
+        unavailabilities=tuple(coerce_unavailabilities(row.unavailabilities, services)),
+        wellbeing=coerce_wellbeing(row.wellbeing),
         min_shift_hours=getattr(row, "min_shift_hours", None) or DEFAULT_MIN_SHIFT_HOURS,
         invite_token=row.invite_token,
     )
@@ -315,7 +311,7 @@ def _register_employee(
             if company is None:
                 raise InvalidInviteCode("Invalid invite code")
             fiches = list(db.scalars(select(StaffFiche).where(StaffFiche.company_id == company.id)))
-            employees = tuple(_fiche_to_employee(row) for row in fiches)
+            employees = tuple(_fiche_to_employee(row, company.services) for row in fiches)
             account, updated = redeem_invite(
                 _identity_from_company(company),
                 employees,
@@ -448,6 +444,8 @@ def rotate_invite_token(employee_id: str, authorization: str | None) -> dict[str
         fiche = db.get(StaffFiche, (session.restaurant_id, employee_id))
         if fiche is None:
             raise HTTPException(status_code=404, detail=DETAIL_FICHE_MISSING)
-        rotated = rotate_employee_invite_token(_fiche_to_employee(fiche))
+        company = db.get(Company, session.restaurant_id)
+        services = company.services if company is not None else []
+        rotated = rotate_employee_invite_token(_fiche_to_employee(fiche, services))
         fiche.invite_token = rotated.invite_token
         return {"employee_id": fiche.id, "employee_token": rotated.invite_token}
