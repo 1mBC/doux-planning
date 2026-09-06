@@ -125,7 +125,28 @@ Semaine = `week_label_scheme` des fiches du draft (`even`/`odd` → Paire/Impair
 `jours` = jours FR de **cette** semaine où la personne a ce service.  
 `max_coupures` : `{name} : {n} coupures / max {limit} (sem. {…})`.
 
-Ne pas traduire les **autres** codes (contrat anglais OK). **Ne pas** réécrire `saint-cloud.json`.
+## Warnings restants FR (file `warn-fr`)
+
+Toujours `evaluate`. `severity`, `code`, `day_index` **inchangés** (`weekend_every_two_weeks` peut rester sans `day_index`).  
+`contract_hours` reste `souhait`. Heures = même forme que `_hours_label` (`29h` / `11h30`). Jours / services / sem. = mêmes helpers que `empty_post`.
+
+| `code` | `message` |
+|---|---|
+| `contract_hours` | `{name} : {h}h / {weekly}h contrat (sem. {A\|B\|Paire\|Impaire})` |
+| `consecutive_rest_days` | `{name} : pas deux repos consécutifs (sem. {…})` |
+| `weekend_rest_day` | `{name} : pas de repos samedi ou dimanche (sem. {…})` |
+| `weekend_every_two_weeks` | `{name} : pas exactement un week-end off / 14 j.` |
+| `weekend_even_weeks` | `{name} : week-end pair non tenu` |
+| `weekend_odd_weeks` | `{name} : week-end impair non tenu` |
+| `unavailability` | `{name} : posé sur indispo ({jour FR} {service FR})` |
+| `max_daily_hours` | `{name} : {h}h / max {limit}h ({jour FR})` — `limit` = 11h30 salle / 11h cuisine |
+| `max_coupure` | `{name} : coupure > 5h ({jour FR})` |
+| `weekly_rest_days` | `{name} : {n} / 2 j. de repos (sem. {…})` — `n` = repos de cette semaine |
+| `max_weekly_hours` | `{name} : {h}h / max 48h (sem. {…})` |
+| `assigned_on_closure` | `{jour FR} · {service FR} : shift sur fermeture` |
+
+Déjà FR (ne pas retoucher) : `empty_post`, `max_mornings` / `_middays` / `_evenings`, `max_coupures`, `rest_between_days`.  
+Wish / legal **cells** inchangées. **Ne pas** réécrire `saint-cloud.json` dans cette tranche (file snapshot ensuite).
 
 ## UI (cette tranche)
 
@@ -145,8 +166,9 @@ Chrome seulement — **pas** de 2ᵉ formule, **pas** de rewrite des `message` /
 - `empty_post` : jour FR + sem. + service + horloges.
 - `max_evenings` : jours de la semaine + `max {limit}` dans le message.
 - Wish `max_evening` : texte `max {limit} · {nA} / {nB} posés`.
+- `contract_hours` / `consecutive_rest_days` / `unavailability` : message FR du tableau warn-fr (sous-chaîne).
 - Pas de `we1j` / `weA`. Hydrate / board / exemple public verts. **Ne pas** réécrire `saint-cloud.json`.
 
 ## Hors freeze
 
-Export / import config resto, exports planning (JSON/CSV/XLSX/JPEG), admin, archive / sync.
+Rafraîchir `saint-cloud.json`, export / import config resto, exports planning (JSON/CSV/XLSX/JPEG), admin, coerce Railway, archive / sync.
