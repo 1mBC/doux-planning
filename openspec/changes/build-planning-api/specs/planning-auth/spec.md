@@ -115,3 +115,18 @@ An employee session SHALL receive only that employee’s shifts from the last pu
 #### Scenario: Sandbox is hidden
 - **WHEN** the restaurateur has unpublished sandbox edits
 - **THEN** the employee planning response still matches the last published assignments for that employee
+
+### Requirement: Admin promote and generate log read
+`me` SHALL include `admin` (bool). Company `admin` MUST be the restaurateur `is_admin` flag. Employee `admin` MUST be false. `kind` MUST stay `"company"` or `"employee"` (never `"admin"`). At boot, `ADMIN_EMAIL` MUST promote an existing restaurateur with that lowercase email and MUST NOT insert a row when the email is missing or the env is empty. `GET /v1/admin/generates` SHALL require `admin` true and return `{ entries }` newest-first. A company or employee session with `admin` false MUST receive HTTP 403 `Action réservée à l’admin.`
+
+#### Scenario: Promote is idempotent
+- **WHEN** `ADMIN_EMAIL` matches an existing restaurateur and promote runs twice
+- **THEN** that account is the only row for the email and `me.admin` is true
+
+#### Scenario: Unknown admin email creates nothing
+- **WHEN** `ADMIN_EMAIL` does not match a restaurateur
+- **THEN** no account is inserted
+
+#### Scenario: Non-admin cannot list generates
+- **WHEN** a company session with `admin` false gets `/v1/admin/generates`
+- **THEN** the response is HTTP 403 French
