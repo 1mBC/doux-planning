@@ -43,11 +43,24 @@ export type PublishedCycle = {
   legal_rows: LegalRow[];
   wish_cols: WishCol[];
   wish_rows: WishRow[];
+  generated_at?: string;
+  search_effort?: SearchEffort;
+};
+
+export type TeamVersions = {
+  minimal: PublishedCycle | null;
+  optimized: PublishedCycle | null;
+  maximal: PublishedCycle | null;
+};
+
+export type TeamPublished = {
+  versions: TeamVersions;
+  latest: SearchEffort | null;
 };
 
 export type PublishedCycles = {
-  salle: PublishedCycle | null;
-  cuisine: PublishedCycle | null;
+  salle: TeamPublished | null;
+  cuisine: TeamPublished | null;
 };
 
 export type CyclesPayload = {
@@ -164,6 +177,20 @@ function parseLegalCol(value: unknown, path: string): LegalCol {
   };
 }
 
+function parseOptionalEffort(value: unknown, path: string): SearchEffort | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return parseEffort(value, path);
+}
+
+function parseLatest(value: unknown, path: string): SearchEffort | null {
+  if (value === null) {
+    return null;
+  }
+  return parseEffort(value, path);
+}
+
 function parseCycle(value: unknown, path: string): PublishedCycle | null {
   if (value === null) {
     return null;
@@ -171,7 +198,7 @@ function parseCycle(value: unknown, path: string): PublishedCycle | null {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
-  return {
+  const cycle: PublishedCycle = {
     assignments: requireArray(value, "assignments", path).map((item, i) =>
       parseCycleAssignment(item, `${path}.assignments[${i}]`),
     ),
@@ -181,6 +208,40 @@ function parseCycle(value: unknown, path: string): PublishedCycle | null {
     legal_rows: requireArray(value, "legal_rows", path).map((item, i) => parseLegalRow(item, `${path}.legal_rows[${i}]`)),
     wish_cols: requireArray(value, "wish_cols", path).map((item, i) => parseWishCol(item, `${path}.wish_cols[${i}]`)),
     wish_rows: requireArray(value, "wish_rows", path).map((item, i) => parseWishRow(item, `${path}.wish_rows[${i}]`)),
+  };
+  if ("generated_at" in value && value.generated_at !== undefined && value.generated_at !== null) {
+    if (typeof value.generated_at !== "string") {
+      throw new PayloadError(`clé invalide : ${path}.generated_at`);
+    }
+    cycle.generated_at = value.generated_at;
+  }
+  if ("search_effort" in value && value.search_effort !== undefined && value.search_effort !== null) {
+    cycle.search_effort = parseOptionalEffort(value.search_effort, `${path}.search_effort`);
+  }
+  return cycle;
+}
+
+function parseTeamPublished(value: unknown, path: string): TeamPublished | null {
+  if (value === null) {
+    return null;
+  }
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  const versions = requireRecord(value, "versions", path);
+  if (!("minimal" in versions) || !("optimized" in versions) || !("maximal" in versions)) {
+    throw new PayloadError(`clé absente : ${path}.versions`);
+  }
+  if (!("latest" in value)) {
+    throw new PayloadError(`clé absente : ${path}.latest`);
+  }
+  return {
+    versions: {
+      minimal: parseCycle(versions.minimal, `${path}.versions.minimal`),
+      optimized: parseCycle(versions.optimized, `${path}.versions.optimized`),
+      maximal: parseCycle(versions.maximal, `${path}.versions.maximal`),
+    },
+    latest: parseLatest(value.latest, `${path}.latest`),
   };
 }
 
@@ -193,9 +254,13 @@ function parsePublished(value: unknown, path: string): PublishedCycles {
     throw new PayloadError(`clé absente : ${path}.published`);
   }
   return {
-    salle: parseCycle(published.salle, `${path}.published.salle`),
-    cuisine: parseCycle(published.cuisine, `${path}.published.cuisine`),
+    salle: parseTeamPublished(published.salle, `${path}.published.salle`),
+    cuisine: parseTeamPublished(published.cuisine, `${path}.published.cuisine`),
   };
+}
+
+export function cycleOf(pack: TeamPublished | null, effort: SearchEffort): PublishedCycle | null {
+  return pack?.versions[effort] ?? null;
 }
 
 export function parseCyclesPayload(value: unknown): CyclesPayload {

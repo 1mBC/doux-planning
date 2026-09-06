@@ -215,8 +215,7 @@ export function ServiceTypesStep({
                 <tr>
                   <th>Type</th>
                   <th>Heure</th>
-                  <th>N</th>
-                  <th>Niveaux</th>
+                  <th>Niveaux minimal requis (par arrivée | après sortie)</th>
                   <th>STAFF minimal resultant</th>
                   <th />
                 </tr>
@@ -246,45 +245,23 @@ export function ServiceTypesStep({
                           />
                         </td>
                         <td>
-                          <span className="count-field">
-                            <span className="count-label">N</span>
-                            <Stepper
-                              value={arrival.post_levels.length}
-                              min={1}
-                              onChange={(n) => {
-                                const post_levels = arrival.post_levels.slice(0, n);
-                                while (post_levels.length < n) {
-                                  post_levels.push(defaultLevel(roles));
-                                }
-                                setDraft(row.id, {
-                                  ...draft,
-                                  arrivals: draft.arrivals.map((item, i) =>
-                                    i === line.index ? { ...item, post_levels } : item,
-                                  ),
-                                });
-                              }}
-                            />
-                          </span>
-                        </td>
-                        <td>
                           <div className="level-steppers">
                             {levels.map((level) => (
-                              <label key={level}>
-                                {level}
-                                <Stepper
-                                  value={counts[level] ?? 0}
-                                  min={0}
-                                  onChange={(next) => {
-                                    const updated = { ...counts, [level]: next };
-                                    setDraft(row.id, {
-                                      ...draft,
-                                      arrivals: draft.arrivals.map((item, i) =>
-                                        i === line.index ? { ...item, post_levels: countsToLevels(updated) } : item,
-                                      ),
-                                    });
-                                  }}
-                                />
-                              </label>
+                              <Stepper
+                                key={level}
+                                label={String(level)}
+                                value={counts[level] ?? 0}
+                                min={0}
+                                onChange={(next) => {
+                                  const updated = { ...counts, [level]: next };
+                                  setDraft(row.id, {
+                                    ...draft,
+                                    arrivals: draft.arrivals.map((item, i) =>
+                                      i === line.index ? { ...item, post_levels: countsToLevels(updated) } : item,
+                                    ),
+                                  });
+                                }}
+                              />
                             ))}
                           </div>
                         </td>
@@ -330,42 +307,24 @@ export function ServiceTypesStep({
                         />
                       </td>
                       <td>
-                        <span className="count-field">
-                          <span className="count-label">N</span>
-                          <Stepper
-                            value={departure.leaveCount}
-                            min={0}
-                            onChange={(leaveCount) =>
-                              setDraft(row.id, {
-                                ...draft,
-                                departures: draft.departures.map((item, i) =>
-                                  i === line.index ? { ...item, leaveCount } : item,
-                                ),
-                              })
-                            }
-                          />
-                        </span>
-                      </td>
-                      <td>
                         <div className="level-steppers">
                           {levels.map((level) => (
-                            <label key={level}>
-                              {level}
-                              <Stepper
-                                value={departure.remainByLevel[level] ?? 0}
-                                min={0}
-                                onChange={(next) =>
-                                  setDraft(row.id, {
-                                    ...draft,
-                                    departures: draft.departures.map((item, i) =>
-                                      i === line.index
-                                        ? { ...item, remainByLevel: { ...item.remainByLevel, [level]: next } }
-                                        : item,
-                                    ),
-                                  })
-                                }
-                              />
-                            </label>
+                            <Stepper
+                              key={level}
+                              label={String(level)}
+                              value={departure.remainByLevel[level] ?? 0}
+                              min={0}
+                              onChange={(next) =>
+                                setDraft(row.id, {
+                                  ...draft,
+                                  departures: draft.departures.map((item, i) =>
+                                    i === line.index
+                                      ? { ...item, remainByLevel: { ...item.remainByLevel, [level]: next } }
+                                      : item,
+                                  ),
+                                })
+                              }
+                            />
                           ))}
                         </div>
                       </td>

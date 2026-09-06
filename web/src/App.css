@@ -364,16 +364,20 @@ table.plan td.empty-slot {
   margin-bottom: 12px;
 }
 
-.stepper-field {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+.stepper-frame {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #c5cad3;
+  border-radius: 4px;
+  padding: 2px 6px 2px 8px;
+  background: #fff;
 }
 
 .stepper-label {
+  font-weight: 700;
   font-size: 12px;
-  color: #444;
+  color: #1a1a1a;
 }
 
 .retune-preview {
@@ -752,8 +756,23 @@ table.type-sheet th {
   color: #444;
 }
 
+.planning-row {
+  margin-top: 8px;
+}
+
 .planning-actions {
   margin-top: 8px;
+}
+
+.generated-at {
+  margin: 8px 0 14px;
+  color: #444;
+  font-variant-numeric: tabular-nums;
+}
+
+.choice.action {
+  background: #fff;
+  border-color: #cfd3d8;
 }
 
 .export-menu {

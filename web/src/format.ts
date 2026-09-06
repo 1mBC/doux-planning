@@ -24,6 +24,25 @@ export function weekLabelPair(scheme: WeekLabelScheme): string {
   return scheme === "parity" ? "Paire / Impaire" : "A / B";
 }
 
+export function formatGeneratedAt(iso: string | undefined): string {
+  if (!iso) {
+    return "—";
+  }
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) {
+    return "—";
+  }
+  return at.toLocaleString("fr-FR", {
+    timeZone: "Europe/Paris",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 export const WEEKDAYS_EN = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 
 export function weekdayFromDayIndex(dayIndex: number): string {

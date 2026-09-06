@@ -525,16 +525,14 @@ function RolesStep({
                 }
               />
             </label>
-            <label>
-              Niveau
-              <Stepper
-                value={row.level}
-                min={1}
-                onChange={(level) =>
-                  setRows((prev) => prev.map((item, i) => (i === index ? { ...item, level } : item)))
-                }
-              />
-            </label>
+            <Stepper
+              label="Niveau"
+              value={row.level}
+              min={1}
+              onChange={(level) =>
+                setRows((prev) => prev.map((item, i) => (i === index ? { ...item, level } : item)))
+              }
+            />
           </div>
         </article>
       ))}

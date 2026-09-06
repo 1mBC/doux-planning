@@ -142,11 +142,11 @@ A `kind: company` session on `/context` SHALL show **Exporter la config** and **
 - **THEN** the client MUST NOT POST `/v1/context/import` and the wizard stays unchanged
 
 ### Requirement: Company published cycle
-A `kind: company` session SHALL reach `/planning` via « Planning ». The client SHALL `GET /v1/cycles` and `GET /v1/context` on load. Types MUST match `contracts/http/v1-generate.md` (and context) JSON; a missing key MUST throw. **Minimal**, **Optimisé**, and **Maximal** SHALL be enabled only when `ready[team]` from context is true and Mode édition is closed. Minimal and Optimisé SHALL `POST /v1/generate` with `{ team, search_effort }` and wait for the 200 `GenerateResult`. Maximal SHALL `POST /v1/generate` with `{ team, search_effort: "maximal" }`, accept 202 `{ job_id, team, search_effort: "maximal", status: "queued", estimated_seconds: 600 }` without `published`, then poll `GET /v1/generate/jobs/{id}` about once per second until `done` (then `published`) or `failed` (show `error` / API `detail` in French). A loader overlay SHALL stay up at least 1 s and close when the 200 or the job `done` is in hand. If `ready[team]` is false the buttons MUST be disabled and the client MUST NOT POST. API `detail` SHALL be shown on 409/400. When `published[team]` is not null the client SHALL parse `stats`, `legal_cols`, `legal_rows`, `wish_cols`, and `wish_rows` (a missing key MUST throw) and SHALL render a 14-day paper grid (A/B or Paire/Impaire from `week_labels`) from that team’s context fiches plus `assignments`, list every `warnings` item (engine `message` as-is, French severity), and — unless Mode édition is open — show stats pastilles plus **Règles légales** / **Souhaits bien-être** tables from those recap keys (`text` as-is; wish cell `null` = empty; cell `ok: false` orange + bold, including `contrat`). Warning `code === contract_hours` SHALL show pastille **Contrat**; other `severity: souhait` stay « Souhait ». The three generate buttons and **Mode édition** SHALL sit under the Salle · Cuisine switch, not on the same row. Mode édition MUST hide the recaps (grid + warnings + history only) and MUST turn generate off. The client MUST NOT invent recap numbers or `we1j` / `weA` columns. Regenerating SHALL replace that team only. Reload SHALL use the same GET. When `published[team]` exists the client MAY offer Mode édition via the live sandbox routes. Planning export SHALL follow the Export published planning requirement.
+A `kind: company` session SHALL reach `/planning` via « Planning ». The client SHALL `GET /v1/cycles` and `GET /v1/context` on load. Types MUST match `contracts/http/v1-generate.md` + `generate-versions.md` JSON (`published[team].versions` + `latest` ; a missing key MUST throw). Chrome SHALL be **three rows** : Salle | Cuisine (blue = team) ; Minimal | Optimisé | Maximal (blue = **selection**, no POST, default `latest`) ; white actions **(Re)Calculer le planning**, **Entrer en mode édition**, **Quitter le mode édition**, **Publier**, **Exporter**. Recalculer SHALL POST the **selected** `search_effort` only when `ready[team]` is true and Mode édition is closed. Minimal / Optimisé wait for 200 ; Maximal accepts 202 then polls `GET /v1/generate/jobs/{id}` until `done` / `failed`. Loader overlay ≥ 1 s. An empty selected slot SHALL show « Pas encore calculé » and MUST NOT fall back to another version. Under row 3 the client SHALL show that cycle’s `generated_at` in `Europe/Paris` (absent → tiret). Clicking Minimal / Optimisé / Maximal MUST NOT POST. If `ready[team]` is false Recalculer MUST be disabled and the client MUST NOT POST. API `detail` SHALL be shown on 409/400. When the selected version is not null the client SHALL parse recap keys (throw if missing) and SHALL render the 14-day paper grid from that version’s `assignments`, list every `warnings` item, and — unless Mode édition is open — show stats pastilles plus legal / wish tables. Mode édition SHALL `POST /v1/live/sandbox/{team}/enter` with the selected `search_effort` and MUST hide the recaps. Export SHALL use the displayed version. The client MUST NOT invent recap numbers. Regenerating SHALL write only that team’s selected slot. Reload SHALL use GET. Employee `/planning` MUST NOT show the effort selector.
 
 #### Scenario: Salle calculated, cuisine not
-- **WHEN** salle is ready and the restaurateur clicks Minimal, while cuisine is not ready
-- **THEN** `published.salle` has assignments, recap pastilles + legal/wish tables, and any engine warnings on the salle grid, cuisine shows « Pas encore calculé », and the three generate buttons are disabled on cuisine
+- **WHEN** salle is ready and the restaurateur selects Minimal then clicks (Re)Calculer, while cuisine is not ready
+- **THEN** `published.salle.versions.minimal` has assignments and recaps, cuisine shows « Pas encore calculé », and Recalculer is disabled on cuisine
 
 #### Scenario: Edit mode hides recaps
 - **WHEN** Mode édition is open on a published team
@@ -202,7 +202,7 @@ A `kind: company` session on `/planning` SHALL show **Mode édition** only when 
 - **THEN** `POST /v1/sandbox/enter` still returns 200 and the snapshot still has 92 assignments
 
 ### Requirement: Chrome polish on recaps and wizard
-`/planning` company and `/exemple` SHALL use the same recap chrome: `contract_hours` pastille **Contrat**, `ok: false` cells orange + bold, wish table title **Souhaits bien-être**, engine `message` as-is. `/exemple` MUST NOT rewrite the snapshot. Services types SHALL use **one `<table>` per type sheet** (no `wave-line` cards) with columns Type (Arrivée | Sortie), Heure (clock + compact ±15 stepper), N, Niveaux, and **STAFF minimal resultant** (bag / error only). Roles, types N / levels, overlay sandbox, and ±15 SHALL share the same compact stepper chrome (label apart, small `[−]` / `[+]`, centered value, no `.choice` nav on ±). Weekend-rest SHALL have its own `<th>` **Au moins un repos samedi ou dimanche** (checkbox not inside the Week-end cell). Company identity SHALL offer **Inviter mes employés** (display and copy the absolute `origin + /register?company_code={code}` + QR of that URL) and MUST hide invite tokens / URLs under fiches.
+`/planning` company and `/exemple` SHALL use the same recap chrome: `contract_hours` pastille **Contrat**, `ok: false` cells orange + bold, wish table title **Souhaits bien-être**, engine `message` as-is. `/exemple` MUST NOT rewrite the snapshot. Services types SHALL use **one `<table>` per type sheet** (no `wave-line` cards) with columns Type (Arrivée | Sortie), Heure (clock + compact ±15 stepper), **Niveaux minimal requis (par arrivée | après sortie)**, and **STAFF minimal resultant** (bag / error only) — **no N column**. Roles, types levels, overlay sandbox, and ±15 SHALL share the same **framed** stepper chrome (bold label, centered value). Weekend-rest SHALL have its own `<th>` **Au moins un repos samedi ou dimanche** (checkbox not inside the Week-end cell). Company identity SHALL offer **Inviter mes employés** (display and copy the absolute `origin + /register?company_code={code}` + QR of that URL) and MUST hide invite tokens / URLs under fiches.
 
 #### Scenario: Contract warning uses Contrat pill
 - **WHEN** a published cycle lists a `contract_hours` warning
@@ -218,7 +218,7 @@ A `kind: company` session on `/planning` SHALL show **Mode édition** only when 
 
 #### Scenario: Types are a table per sheet
 - **WHEN** the restaurateur opens Services types
-- **THEN** each type is a `<table>` with Type · Heure · N · Niveaux · STAFF minimal resultant and no `wave-line` cards
+- **THEN** each type is a `<table>` with Type · Heure · Niveaux minimal requis · STAFF and no N column and no `wave-line` cards
 
 #### Scenario: Weekend rest has its own column
 - **WHEN** the restaurateur opens Souhaits bien-être
@@ -240,12 +240,20 @@ A session with `me.admin === true` SHALL see an **Admin** chrome link and MAY op
 - **THEN** the reserved message is shown and the client does not GET `/v1/admin/generates`
 
 ### Requirement: Three generate efforts
-Company `/planning` SHALL offer **Minimal**, **Optimisé**, and **Maximal** when `ready[team]` is true. Minimal and Optimisé SHALL POST sync `search_effort` and close the loader when the 200 arrives (overlay ≥ 1 s). Maximal SHALL POST 202 then poll `GET /v1/generate/jobs/{id}` about once per second until `done` or `failed`. Mode édition, employee `/planning`, and `/exemple` MUST NOT offer these buttons.
+Company `/planning` SHALL show **Minimal**, **Optimisé**, and **Maximal** as a **selection** row (default `latest`). POST SHALL happen only from **(Re)Calculer le planning**. Minimal / Optimisé sync ; Maximal 202 + poll. Loader ≥ 1 s. Employee `/planning` and `/exemple` MUST NOT offer the selector. Recalculer is off in Mode édition.
+
+#### Scenario: Selecting Minimal then Optimisé switches the grid
+- **WHEN** salle has both `versions.minimal` and `versions.optimized`
+- **THEN** clicking Minimal then Optimisé changes the displayed grid and `generated_at` without POSTing
+
+#### Scenario: Recalculer posts the selected effort
+- **WHEN** salle is ready, Optimisé is selected, and the restaurateur clicks (Re)Calculer le planning
+- **THEN** the client POSTs `{ team: "salle", search_effort: "optimized" }`
 
 #### Scenario: Maximal polls until the grid updates
-- **WHEN** salle is ready and the restaurateur clicks Maximal
-- **THEN** the client POSTs `{ team: "salle", search_effort: "maximal" }`, receives 202 without `published`, polls the job until `done`, and then shows the published grid
+- **WHEN** salle is ready, Maximal is selected, and the restaurateur clicks (Re)Calculer le planning
+- **THEN** the client POSTs `{ team: "salle", search_effort: "maximal" }`, receives 202 without `published`, polls the job until `done`, and then shows that version’s grid
 
 #### Scenario: Edit mode turns generate off
 - **WHEN** Mode édition is open
-- **THEN** Minimal, Optimisé, and Maximal are not offered
+- **THEN** Recalculer is disabled and clicking Minimal / Optimisé / Maximal does not POST
