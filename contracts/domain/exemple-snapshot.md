@@ -48,4 +48,4 @@ Ne pas inventer de colonnes. Ne pas réécrire le JSON. `/opsx-update` `build-pl
 
 ## Hors freeze
 
-Export config, exports planning, admin, coerce Railway, polish invite/types/we, archive / sync.
+Export / admin (déjà landed). Coerce Railway = `contracts/domain/coerce-railway.md`. Archive / sync.

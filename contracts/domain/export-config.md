@@ -65,4 +65,4 @@ Pas de bouton salarié / `/exemple` / `/planning` / login. Pas d’exports plann
 
 ## Hors freeze
 
-Export planning (JSON/CSV/XLSX/JPEG), admin, coerce Railway, archive / sync.
+Export planning / admin (déjà landed). Coerce Railway = `contracts/domain/coerce-railway.md`. Archive / sync.

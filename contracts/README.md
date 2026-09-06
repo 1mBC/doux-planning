@@ -33,7 +33,8 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 20 — UI polish | `domain/wizard-ui.md` ; brief `ui-polish.md` | **landed** `15869b5` (UI v0.18.0) |
 | 21 — export-config | `domain/export-config.md` ; briefs `infra-export-config.md`, `ui-export-config.md` | **landed** `9216c44` (UI v0.19.0) |
 | 22 — export-planning | `domain/export-planning.md` ; brief `ui-export-planning.md` | **landed** `a3af6be` (UI v0.20.0) |
-| 23 — admin | `domain/admin.md` ; briefs `infra-admin.md`, `ui-admin.md` | Infra **landed** `bafd260` ; UI brief |
+| 23 — admin | `domain/admin.md` ; briefs `infra-admin.md`, `ui-admin.md` | **landed** `db8d9e1` (UI v0.21.0) |
+| 24 — coerce-railway | `domain/coerce-railway.md` ; brief `infra-coerce-railway.md` | Infra brief |
 
 ## Ownership git (ne pas croiser)
 

@@ -51,4 +51,4 @@ SPA fallback `/admin` (Railway déjà `index.html` pour `/planning`, `/login`). 
 
 ## Hors freeze
 
-Coerce Railway (vieux JSON wellbeing à la lecture), archive / sync.
+Coerce Railway = `contracts/domain/coerce-railway.md`. Archive / sync.
