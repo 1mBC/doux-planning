@@ -105,3 +105,8 @@
 
 - [x] 17.1 Company `/context` seed-row: **Exporter la config** GET `/v1/context/export` download JSON v1 ; **Importer une config** `.json` + confirm FR → POST `/v1/context/import` `adopt` ; `export_version === 1` ; bump `web/` to 0.19.0
 - [x] 17.2 Verify `npm run build` ; export v1 sans token ; import + confirm wizard remplacé + reload ; annuler confirm = no-op ; exemple 92 ; `v0.19.0`
+
+## 18. Export planning (JSON / CSV / XLSX / JPEG)
+
+- [x] 18.1 Company `/planning` menu **Exporter** (JSON / CSV / XLSX / JPEG) in `planning-actions` ; enabled iff published team and not editing ; client-side payload without tokens ; bump `web/` to 0.20.0
+- [x] 18.2 Verify `npm run build` ; salle published → JSON v1 `kind: planning` ; CSV/XLSX have name + grid ; JPEG has both weeks ; cuisine null off ; edit mode off ; exemple 92 ; `v0.20.0`

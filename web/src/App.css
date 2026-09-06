@@ -678,6 +678,26 @@ table.wave-table td {
   margin-top: 8px;
 }
 
+.export-menu {
+  position: relative;
+}
+
+.export-menu-list {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 4px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 8rem;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #cfd3d8;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 8%);
+}
+
 .invite-popup {
   max-width: 420px;
 }

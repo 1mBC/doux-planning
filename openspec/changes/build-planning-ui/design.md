@@ -109,7 +109,7 @@ Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seul
 
 ### 9. Published cycle (company)
 
-Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Calculer** / **Mode édition** **sous** le switch d’équipe. **Calculer** actif seulement si `ready[team] === true`. POST `{ team, search_effort: "minimal" }`. Cycle non null : `stats` / `legal_cols` / `legal_rows` / `wish_cols` / `wish_rows` **requis** (throw si clé absente). Hors édition : pastilles + tableaux **Règles légales** / **Souhaits bien-être** (`text` tel quel, cellule `ok: false` orange + gras y compris `contrat`). Warning `contract_hours` : pastille **Contrat** (severity API inchangée). Mode édition : cacher ces recaps (grille + warnings + historique). Warnings : `message` tel quel. Cuisine `null` : « Pas encore calculé ». Mode édition live = §10. Pas d’exports.
+Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Calculer** / **Mode édition** **sous** le switch d’équipe. **Calculer** actif seulement si `ready[team] === true`. POST `{ team, search_effort: "minimal" }`. Cycle non null : `stats` / `legal_cols` / `legal_rows` / `wish_cols` / `wish_rows` **requis** (throw si clé absente). Hors édition : pastilles + tableaux **Règles légales** / **Souhaits bien-être** (`text` tel quel, cellule `ok: false` orange + gras y compris `contrat`). Warning `contract_hours` : pastille **Contrat** (severity API inchangée). Mode édition : cacher ces recaps (grille + warnings + historique). Warnings : `message` tel quel. Cuisine `null` : « Pas encore calculé ». Mode édition live = §10. Menu **Exporter** = §20.
 
 ### 10. Live sandbox on `/planning`
 
@@ -151,7 +151,11 @@ Invite : afficher + copier `origin + /register?company_code={code}` (QR identiqu
 
 ### 19. Export / import restaurant config
 
-Suivre `export-config.md` § UI. **Exporter la config** : `GET /v1/context/export` Bearer → parse `export_version === 1` (throw sinon) → télécharger `{name}-config.json` ou `config-resto.json`. **Importer une config** : `.json` → confirm FR (remplace nom, rôles, équipe, souhaits, types, semaine ; casse les salariés liés ; pas de planning) → `POST /v1/context/import` → `adopt` comme le seed. Annuler le confirm = no-op. `detail` si erreur. Pas de bouton salarié / `/exemple` / `/planning` / login. Pas d’exports planning. Version `0.19.0`.
+Suivre `export-config.md` § UI. **Exporter la config** : `GET /v1/context/export` Bearer → parse `export_version === 1` (throw sinon) → télécharger `{name}-config.json` ou `config-resto.json`. **Importer une config** : `.json` → confirm FR (remplace nom, rôles, équipe, souhaits, types, semaine ; casse les salariés liés ; pas de planning) → `POST /v1/context/import` → `adopt` comme le seed. Annuler le confirm = no-op. `detail` si erreur. Pas de bouton salarié / `/exemple` / `/planning` / login. Version `0.19.0`.
+
+### 20. Export planning (client)
+
+Suivre `export-planning.md`. Menu **Exporter** dans `planning-actions` (JSON / CSV / XLSX / JPEG). Actif ssi `published[team]` non null et pas en Mode édition. Cuisine `null` → off. Source = cycle chargé + fiches de **cette** équipe, sans `invite_token`. Pas de nouvelle route. Chiffres = payload. Fichier `{slug}-{salle|cuisine}.{ext}` (`name` vide → `planning`). JPEG = les deux feuilles A/B. Pas de bouton salarié / `/exemple`. Version `0.20.0`.
 
 ## Risks / Trade-offs
 

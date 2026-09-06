@@ -1,7 +1,7 @@
 {
   "name": "doux-planning-web",
   "private": true,
-  "version": "0.19.0",
+  "version": "0.20.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,8 @@
   "dependencies": {
     "qrcode": "^1.5.4",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/qrcode": "^1.5.6",
