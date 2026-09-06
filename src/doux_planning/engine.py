@@ -22,7 +22,10 @@ from doux_planning.types import (
     WeekendChoice,
     WEEKDAYS,
     WEEKDAY_FR,
+    SERVICE_FR,
     format_clock,
+    week_label_for_day,
+    week_label_scheme_from_weekends,
 )
 from doux_planning.warnings import Warning
 
@@ -162,11 +165,24 @@ def _is_evening(service_id: str, start_minutes: int) -> bool:
     return service_id == ServiceName.EVENING.value or start_minutes >= 18 * 60
 
 
+def _draft_week_scheme(draft: PlanningDraft) -> str:
+    return week_label_scheme_from_weekends(person.wellbeing.weekend for person in draft.employees)
+
+
+def _weekdays_with_service(by_day: dict[int, list[Shift]], week_start: int, service_id: str) -> str:
+    names: list[str] = []
+    for day in range(week_start, week_start + 7):
+        if any(item.service_id == service_id for item in by_day.get(day, [])):
+            names.append(WEEKDAY_FR[WEEKDAYS[day % 7]])
+    return ", ".join(names)
+
+
 def _coverage_warnings(draft: PlanningDraft) -> list[Warning]:
     warnings: list[Warning] = []
     by_day: dict[tuple[int, str, str, Team], list[Shift]] = {}
     for shift in draft.assignments:
         by_day.setdefault((shift.day_index, shift.weekday, shift.service_id, shift.team), []).append(shift)
+    scheme = _draft_week_scheme(draft)
 
     for day_index in range(draft.horizon_days):
         weekday = WEEKDAYS[day_index % 7]
@@ -207,13 +223,15 @@ def _coverage_warnings(draft: PlanningDraft) -> list[Warning]:
                         if higher:
                             remaining_required.remove(max(higher))
                     for leftover in remaining_required:
-                        start_h, start_m = divmod(slice_.start_minutes, 60)
-                        end_h, end_m = divmod(slice_.end_minutes, 60)
+                        jour = WEEKDAY_FR[weekday]
+                        week = week_label_for_day(day_index, scheme)
+                        service = SERVICE_FR.get(service_id, service_id)
+                        clocks = f"{format_clock(slice_.start_minutes)}–{format_clock(slice_.end_minutes)}"
                         warnings.append(
                             Warning(
                                 WarningSeverity.COUVERTURE,
                                 "empty_post",
-                                f"Unfilled level-{leftover} post {start_h:02d}:{start_m:02d}-{end_h:02d}:{end_m:02d}",
+                                f"{jour} · sem. {week} · {service} · {clocks} · niveau {leftover}",
                                 day_index=day_index,
                             )
                         )
@@ -496,16 +514,20 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
             ServiceName.MIDDAY.value: "max_middays",
             ServiceName.EVENING.value: "max_evenings",
         }
+        scheme = _draft_week_scheme(draft)
         for service_id, limit in wish.max_services.items():
             code = service_codes[service_id]
+            service_fr = SERVICE_FR.get(service_id, service_id)
             for week_start in range(0, draft.horizon_days, 7):
                 count = _service_count(by_day, week_start, service_id)
                 if count > limit:
+                    jours = _weekdays_with_service(by_day, week_start, service_id)
+                    week = week_label_for_day(week_start, scheme)
                     warnings.append(
                         Warning(
                             WarningSeverity.SOUHAIT,
                             code,
-                            f"{employee.name} has {count} {service_id} (max {limit})",
+                            f"{employee.name} : {count} {service_fr} / max {limit} ({jours} · sem. {week})",
                             employee_id=employee.id,
                             day_index=week_start,
                         )
@@ -516,11 +538,12 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
             for week_start in range(0, draft.horizon_days, 7):
                 coupures = _coupure_count_in_week(grouped.get(employee.id, ()), employee.id, week_start)
                 if coupures > max_coupures:
+                    week = week_label_for_day(week_start, scheme)
                     warnings.append(
                         Warning(
                             WarningSeverity.SOUHAIT,
                             "max_coupures",
-                            f"{employee.name} has more than {max_coupures} coupures",
+                            f"{employee.name} : {coupures} coupures / max {max_coupures} (sem. {week})",
                             employee_id=employee.id,
                             day_index=week_start,
                         )

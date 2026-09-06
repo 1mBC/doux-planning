@@ -68,8 +68,16 @@ def test_empty_plonge_is_couverture_warning():
 def test_chef_starting_late_leaves_morning_hole():
     assignments = [_shift("chef-a", 0, 11 * 60, 16 * 60, 4)]
     result = evaluate(_draft(assignments))
-    messages = " ".join(item.message for item in result.of_severity(WarningSeverity.COUVERTURE))
-    assert "10:00" in messages
+    hole = next(
+        item
+        for item in result.of_severity(WarningSeverity.COUVERTURE)
+        if item.code == "empty_post" and "niveau 4" in item.message and "10h" in item.message
+    )
+    assert hole.day_index == 0
+    assert "lundi" in hole.message
+    assert "sem. A" in hole.message
+    assert "déjeuner" in hole.message
+    assert "10h–11h" in hole.message
 
 
 def test_interdit_fixtures():

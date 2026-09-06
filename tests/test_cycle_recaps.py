@@ -3,9 +3,11 @@ from dataclasses import replace
 import pytest
 
 from doux_planning.context import NoPublishedCycle, cycle_recap, empty_restaurant, generate_team, upsert_employee
-from doux_planning.engine import evaluate
+from doux_planning.engine import PlanningDraft, evaluate
+from doux_planning.planning import PublishedCycle
 from doux_planning.staff import Wellbeing
-from doux_planning.types import SearchEffort, Team
+from doux_planning.structures import RestaurantHours
+from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity
 from tests.fixtures import employee
 from tests.test_engine import _draft, _shift
 from tests.test_team_generate import _complete_salle, _salle_fiche
@@ -59,3 +61,42 @@ def test_rest_between_warning_has_french_clocks():
     assert "mardi 8h" in warning.message
     assert "→" in warning.message
     assert "moins de 11 h de repos" in warning.message
+
+
+def test_empty_post_message_names_french_hole():
+    assignments = [_shift("chef-a", 0, 11 * 60, 16 * 60, 4)]
+    result = evaluate(_draft(assignments))
+    hole = next(
+        item
+        for item in result.of_severity(WarningSeverity.COUVERTURE)
+        if item.code == "empty_post" and "niveau 4" in item.message and "10h" in item.message
+    )
+    assert hole.day_index == 0
+    assert hole.message == "lundi · sem. A · déjeuner · 10h–11h · niveau 4"
+
+
+def test_wish_max_evening_shows_week_counts():
+    person = employee("Emma", "sous-chef", hours=39, employee_id="emma").with_wellbeing(
+        Wellbeing(max_services={ServiceName.EVENING.value: 2})
+    )
+    assignments = [
+        _shift("emma", 0, 19 * 60, 23 * 60, 3, service=ServiceName.EVENING.value),
+        _shift("emma", 7, 19 * 60, 23 * 60, 3, service=ServiceName.EVENING.value),
+        _shift("emma", 8, 19 * 60, 23 * 60, 3, service=ServiceName.EVENING.value),
+        _shift("emma", 9, 19 * 60, 23 * 60, 3, service=ServiceName.EVENING.value),
+    ]
+    draft = PlanningDraft(
+        employees=(person,),
+        structures=(),
+        hours=RestaurantHours.multi_service(ServiceName.EVENING.value),
+        assignments=tuple(assignments),
+    )
+    result = evaluate(draft)
+    state = empty_restaurant("resto-wish")
+    upsert_employee(state, person)
+    state.published_cycles[Team.CUISINE] = PublishedCycle(id="cuisine", draft=draft, result=result)
+    recap = cycle_recap(state, Team.CUISINE)
+    cell = recap.wish_rows[0].cells["max_evening"]
+    assert cell is not None
+    assert cell.ok is False
+    assert cell.text == "max 2 · 1 / 3 posés"
