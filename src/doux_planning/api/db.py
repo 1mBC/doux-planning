@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer, String, UniqueConstraint, create_engine
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer, String, UniqueConstraint, create_engine
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -100,6 +100,18 @@ class RestaurateurAccount(Base):
     email: Mapped[str] = mapped_column(ForeignKey("account_emails.email"), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     restaurant_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), unique=True, nullable=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class GenerateLog(Base):
+    __tablename__ = "generate_logs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False)
+    restaurant_name: Mapped[str] = mapped_column(String, nullable=False)
+    team: Mapped[str] = mapped_column(String, nullable=False)
+    warnings: Mapped[list] = mapped_column(JSONB, nullable=False)
 
 
 class EmployeeAccountRow(Base):

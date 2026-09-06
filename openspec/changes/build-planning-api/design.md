@@ -79,6 +79,9 @@ Restaurateur (company Bearer), this slice:
 - `POST /v1/generate` (sync `generate_team`)
 - `GET /v1/cycles`
 - `/v1/live/sandbox/{team}` enter / GET / preview / commit / undo / discard / publish
+- `GET /v1/admin/generates` (Bearer, `me.admin` true)
+
+Boot after seed: if `ADMIN_EMAIL` matches an existing restaurateur (lowercase), set `is_admin`. Skip when unset/empty or when no restaurateur row exists — never insert an account. `me` always includes `admin` (company from `is_admin`, employee always false). `kind` stays company|employee. Log generate only on HTTP 200 (`email`, `restaurant_name`, `team`, `warnings` of the team just solved). Alembic adds `restaurateur_accounts.is_admin` and `generate_logs`.
 
 Restaurateur:
 - `GET|PATCH /v1/restaurant` (hours, name, legal_context id)

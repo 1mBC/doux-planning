@@ -47,3 +47,14 @@ Generate and cycles SHALL require a company session. An employee session MUST re
 #### Scenario: Employee cannot generate
 - **WHEN** an employee session posts `/v1/generate`
 - **THEN** the request is rejected with HTTP 403 and no cycle is written
+
+### Requirement: Successful generate is logged
+A `POST /v1/generate` HTTP 200 SHALL insert one `generate_logs` row `{ email, restaurant_name, team, warnings }` for the team just solved. HTTP 409 `TeamNotReady` MUST NOT insert a row. `GET /v1/admin/generates` MUST return those rows newest-first.
+
+#### Scenario: Ready generate writes a log
+- **WHEN** salle is ready and generate returns 200
+- **THEN** one log row is stored with that team’s HTTP `warnings`
+
+#### Scenario: Not-ready generate writes nothing
+- **WHEN** generate returns HTTP 409
+- **THEN** `generate_logs` is unchanged

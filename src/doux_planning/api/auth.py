@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -44,6 +45,7 @@ DETAIL_INVALID_INVITE = "Code entreprise ou jeton invalide."
 DETAIL_BAD_CREDENTIALS = "Email ou mot de passe incorrect."
 DETAIL_SESSION = "Session invalide."
 DETAIL_FORBIDDEN = "Action réservée au restaurateur."
+DETAIL_ADMIN = "Action réservée à l’admin."
 DETAIL_EMPLOYEE_ONLY = "Action réservée au salarié."
 DETAIL_EMAIL_TAKEN = "Cet email est déjà utilisé."
 DETAIL_FICHE_LINKED = "Cette fiche a déjà un compte."
@@ -109,12 +111,15 @@ def _load_session(db: Session, token: str) -> AuthSession:
     return row
 
 
-def _me_payload(*, kind: str, email: str, restaurant_id: str, employee_id: str | None) -> dict[str, Any]:
+def _me_payload(
+    *, kind: str, email: str, restaurant_id: str, employee_id: str | None, admin: bool = False
+) -> dict[str, Any]:
     return {
         "kind": kind,
         "email": email,
         "restaurant_id": restaurant_id,
         "employee_id": employee_id,
+        "admin": bool(admin) if kind == "company" else False,
     }
 
 
@@ -165,6 +170,33 @@ def _identity_from_company(company: Company) -> RestaurantIdentity:
         name=company.name or "",
         legal_context_id=getattr(company, "legal_context_id", None) or "france",
     )
+
+
+def promote_admin_email() -> None:
+    raw = os.environ.get("ADMIN_EMAIL")
+    if not raw or not str(raw).strip():
+        return
+    if not database_url():
+        return
+    email = str(raw).strip().lower()
+    with session_scope() as db:
+        account = db.scalars(select(RestaurateurAccount).where(RestaurateurAccount.email == email)).first()
+        if account is None:
+            return
+        account.is_admin = True
+
+
+def require_admin(authorization: str | None) -> str:
+    require_database()
+    token = _bearer_token(authorization)
+    with session_scope() as db:
+        session = _load_session(db, token)
+        if session.kind != "company":
+            raise HTTPException(status_code=403, detail=DETAIL_ADMIN)
+        account = db.get(RestaurateurAccount, session.account_id)
+        if account is None or not account.is_admin:
+            raise HTTPException(status_code=403, detail=DETAIL_ADMIN)
+        return session.restaurant_id
 
 
 def require_company_restaurant_id(authorization: str | None) -> str:
@@ -348,6 +380,7 @@ def login(body: dict[str, Any]) -> dict[str, Any]:
             email=account.email,
             restaurant_id=account.restaurant_id,
             employee_id=employee_id,
+            admin=bool(getattr(account, "is_admin", False)) if restaurateur is not None else False,
         )
     return {"token": token, "me": me}
 
@@ -376,6 +409,7 @@ def me(authorization: str | None) -> dict[str, Any]:
                 email=account.email,
                 restaurant_id=session.restaurant_id,
                 employee_id=None,
+                admin=account.is_admin,
             )
         account = db.get(EmployeeAccountRow, session.account_id)
         if account is None:

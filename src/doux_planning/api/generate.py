@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import secrets
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm.attributes import flag_modified
 
-from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_company_restaurant_id, require_database
+from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_company_restaurant_id, require_database
 from doux_planning.api.context import _load_company, _state_from_rows
-from doux_planning.api.db import Company, session_scope
+from doux_planning.api.db import Company, GenerateLog, RestaurateurAccount, session_scope
 from doux_planning.context import CycleRecap, RecapCell, TeamNotReady, cycle_recap, generate_team
 from doux_planning.planning import PublishedCycle, RestaurantState
 from doux_planning.types import SearchEffort, Team
@@ -185,8 +188,53 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
         ),
     }
     _persist_published(restaurant_id, published)
+    cycle = published[team.value] or {}
+    _log_generate(
+        restaurant_id,
+        restaurant_name=company.name or "",
+        team=team.value,
+        warnings=list(cycle.get("warnings") or []),
+    )
     return {
         "team": team.value,
         "search_effort": search.value,
         "published": published,
     }
+
+
+def _log_generate(restaurant_id: str, *, restaurant_name: str, team: str, warnings: list[Any]) -> None:
+    with session_scope() as db:
+        account = db.scalars(
+            select(RestaurateurAccount).where(RestaurateurAccount.restaurant_id == restaurant_id)
+        ).first()
+        if account is None:
+            return
+        db.add(
+            GenerateLog(
+                id=secrets.token_urlsafe(12),
+                created_at=datetime.now(timezone.utc),
+                email=account.email,
+                restaurant_name=restaurant_name,
+                team=team,
+                warnings=warnings,
+            )
+        )
+
+
+def list_generate_logs(authorization: str | None) -> dict[str, Any]:
+    require_admin(authorization)
+    with session_scope() as db:
+        rows = db.scalars(select(GenerateLog).order_by(GenerateLog.created_at.desc(), GenerateLog.id.desc())).all()
+        return {
+            "entries": [
+                {
+                    "id": row.id,
+                    "created_at": row.created_at.isoformat(),
+                    "email": row.email,
+                    "restaurant_name": row.restaurant_name,
+                    "team": row.team,
+                    "warnings": list(row.warnings or []),
+                }
+                for row in rows
+            ]
+        }

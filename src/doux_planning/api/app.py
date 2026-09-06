@@ -16,9 +16,11 @@ from doux_planning.planning import EmptyHistoryError
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     if os.environ.get("DATABASE_URL"):
+        from doux_planning.api.auth import promote_admin_email
         from doux_planning.api.seed import seed_from_files
 
         seed_from_files()
+        promote_admin_email()
     yield
 
 
@@ -121,6 +123,13 @@ def get_cycles(authorization: str | None = Header(default=None)) -> dict:
     from doux_planning.api.generate import get_cycles as read_cycles
 
     return read_cycles(authorization)
+
+
+@app.get("/v1/admin/generates")
+def admin_generates(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.generate import list_generate_logs
+
+    return list_generate_logs(authorization)
 
 
 @app.post("/v1/generate")
