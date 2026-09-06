@@ -74,6 +74,16 @@ def week_label_for_day(day_index: int, scheme: str) -> str:
     return first if day_index < 7 else second
 
 
+def hours_label(value: float) -> str:
+    minutes = int(round(value * 60))
+    hours, mins = divmod(minutes, 60)
+    if mins == 0:
+        return f"{hours}h"
+    if mins == 30:
+        return f"{hours}h30"
+    return f"{hours}h{mins:02d}"
+
+
 def format_clock(minutes: int) -> str:
     total = ((minutes % 1440) + 1440) % 1440
     hours = total // 60

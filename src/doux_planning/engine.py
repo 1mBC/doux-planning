@@ -24,6 +24,7 @@ from doux_planning.types import (
     WEEKDAY_FR,
     SERVICE_FR,
     format_clock,
+    hours_label,
     week_label_for_day,
     week_label_scheme_from_weekends,
 )
@@ -196,7 +197,7 @@ def _coverage_warnings(draft: PlanningDraft) -> list[Warning]:
                         Warning(
                             WarningSeverity.COUVERTURE,
                             "assigned_on_closure",
-                            f"Assignment on closed {weekday} {service_id}",
+                            f"{WEEKDAY_FR[weekday]} · {SERVICE_FR.get(service_id, service_id)} : shift sur fermeture",
                             day_index=day_index,
                         )
                     )
@@ -252,6 +253,7 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
     grouped = _shifts_by_employee(draft)
     rest_needed = MIN_REST_BETWEEN_DAYS_HOURS * 60
     max_coupure = MAX_COUPURE_HOURS * 60
+    scheme = _draft_week_scheme(draft)
 
     for employee in draft.employees:
         shifts = grouped.get(employee.id, [])
@@ -269,7 +271,7 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
                     Warning(
                         WarningSeverity.INTERDIT,
                         "max_daily_hours",
-                        f"{employee.name} exceeds daily hours ({day_hours}h)",
+                        f"{employee.name} : {hours_label(day_hours)} / max {hours_label(max_daily)} ({WEEKDAY_FR[WEEKDAYS[day_index % 7]]})",
                         employee_id=employee.id,
                         day_index=day_index,
                     )
@@ -282,7 +284,7 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
                         Warning(
                             WarningSeverity.INTERDIT,
                             "max_coupure",
-                            f"{employee.name} coupure exceeds {MAX_COUPURE_HOURS}h",
+                            f"{employee.name} : coupure > 5h ({WEEKDAY_FR[WEEKDAYS[day_index % 7]]})",
                             employee_id=employee.id,
                             day_index=day_index,
                         )
@@ -296,7 +298,7 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
                     Warning(
                         WarningSeverity.INTERDIT,
                         "weekly_rest_days",
-                        f"{employee.name} has fewer than {REST_DAYS_PER_WEEK} rest days",
+                        f"{employee.name} : {rest_days} / 2 j. de repos (sem. {week_label_for_day(week_start, scheme)})",
                         employee_id=employee.id,
                         day_index=week_start,
                     )
@@ -309,7 +311,7 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
                     Warning(
                         WarningSeverity.INTERDIT,
                         "max_weekly_hours",
-                        f"{employee.name} exceeds {MAX_WEEKLY_HOURS}h ({week_hours}h)",
+                        f"{employee.name} : {hours_label(week_hours)} / max 48h (sem. {week_label_for_day(week_start, scheme)})",
                         employee_id=employee.id,
                         day_index=week_start,
                     )
@@ -364,7 +366,7 @@ def _unavailability_warnings(draft: PlanningDraft) -> list[Warning]:
                     Warning(
                         WarningSeverity.INTERDIT,
                         "unavailability",
-                        f"{employee.name} assigned while unavailable",
+                        f"{employee.name} : posé sur indispo ({WEEKDAY_FR[shift.weekday]} {SERVICE_FR.get(shift.service_id, shift.service_id)})",
                         employee_id=employee.id,
                         day_index=shift.day_index,
                     )
@@ -443,6 +445,7 @@ def _service_count(by_day: dict[int, list[Shift]], week_start: int, service_id: 
 def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
     warnings: list[Warning] = []
     grouped = _shifts_by_employee(draft)
+    scheme = _draft_week_scheme(draft)
     for employee in draft.employees:
         wish = employee.wellbeing
         shifts = grouped.get(employee.id, [])
@@ -459,7 +462,7 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
                         Warning(
                             WarningSeverity.SOUHAIT,
                             "consecutive_rest_days",
-                            f"{employee.name} missing two consecutive rest days",
+                            f"{employee.name} : pas deux repos consécutifs (sem. {week_label_for_day(week_start, scheme)})",
                             employee_id=employee.id,
                             day_index=week_start,
                         )
@@ -472,7 +475,7 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
                         Warning(
                             WarningSeverity.SOUHAIT,
                             "weekend_rest_day",
-                            f"{employee.name} should rest Saturday or Sunday",
+                            f"{employee.name} : pas de repos samedi ou dimanche (sem. {week_label_for_day(week_start, scheme)})",
                             employee_id=employee.id,
                             day_index=week_start,
                         )
@@ -486,7 +489,7 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
                     Warning(
                         WarningSeverity.SOUHAIT,
                         "weekend_every_two_weeks",
-                        f"{employee.name} should have exactly one weekend off in 14 days",
+                        f"{employee.name} : pas exactement un week-end off / 14 j.",
                         employee_id=employee.id,
                     )
                 )
@@ -495,7 +498,7 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
                     Warning(
                         WarningSeverity.SOUHAIT,
                         "weekend_even_weeks",
-                        f"{employee.name} should have the even weekend off",
+                        f"{employee.name} : week-end pair non tenu",
                         employee_id=employee.id,
                     )
                 )
@@ -504,7 +507,7 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
                     Warning(
                         WarningSeverity.SOUHAIT,
                         "weekend_odd_weeks",
-                        f"{employee.name} should have the odd weekend off",
+                        f"{employee.name} : week-end impair non tenu",
                         employee_id=employee.id,
                     )
                 )
@@ -514,7 +517,6 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
             ServiceName.MIDDAY.value: "max_middays",
             ServiceName.EVENING.value: "max_evenings",
         }
-        scheme = _draft_week_scheme(draft)
         for service_id, limit in wish.max_services.items():
             code = service_codes[service_id]
             service_fr = SERVICE_FR.get(service_id, service_id)
@@ -554,6 +556,7 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
 def _contract_hours_warnings(draft: PlanningDraft) -> list[Warning]:
     warnings: list[Warning] = []
     grouped = _shifts_by_employee(draft)
+    scheme = _draft_week_scheme(draft)
     for employee in draft.employees:
         for week_start in range(0, draft.horizon_days, 7):
             hours = sum(
@@ -566,7 +569,7 @@ def _contract_hours_warnings(draft: PlanningDraft) -> list[Warning]:
                     Warning(
                         WarningSeverity.SOUHAIT,
                         "contract_hours",
-                        f"{employee.name} has {hours}h vs {employee.contractual_hours_per_week}h contract",
+                        f"{employee.name} : {hours_label(hours)} / {hours_label(employee.contractual_hours_per_week)} contrat (sem. {week_label_for_day(week_start, scheme)})",
                         employee_id=employee.id,
                         day_index=week_start,
                     )
