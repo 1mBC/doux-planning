@@ -99,15 +99,15 @@ Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : **Se
 2. Rôles (équipe) : nom + niveau ≥ 1. PATCH `ladders` avec `substitution_explained: true`.
 3. Équipe : une ligne par salarié ; popup indispo jours × **services offerts**. PATCH `employees` = liste complète.
 4. Souhaits bien-être : `Wellbeing` (cases `consecutive_rest` + **`weekend_rest_day`** à côté de la radio `weekend`, chiffres `max_services` **offerts seulement**, `max_coupures_per_week`). Pas un prérequis de `ready`. Bool `weekend_rest_day` requis au parse.
-5. Services types (équipe × service offert) : sous-onglets par service ; **Ajouter un type** en bas. Vagues en **une ligne** chronologique (arrivée ou départ), +/− par niveau, **STAFF après**, pire-cas → `remaining_post_levels`. PATCH `types` = liste complète.
+5. Services types (équipe × service offert) : sous-onglets par service ; **Ajouter un type** en bas. Vagues en **une ligne** chronologique (arrivée ou départ), horloge + ±15 sur la même ligne, +/− par niveau, en-tête **STAFF après cette arrivée / ce départ** (cellule = sac / erreur seulement), pire-cas → `remaining_post_levels`. PATCH `types` = liste complète.
 6. Semaine type : type ou Fermé, colonnes = services offerts. PATCH `typical_week` = `{ salle, cuisine }`. Libellés A/B ou Paire/Impaire selon `week_labels`.
 
-Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`. Bouton **Intégrer l’exemple Saint-Cloud** à côté du code (tous les comptes company). Confirm FR puis `POST /v1/context/seed-example` (Bearer, pas de body). 200 = même parse que GET ; rester sur `/context`.  
-`ready.salle` / `ready.cuisine` = JSON seulement, badges « Prêt à calculer » / « Pas encore prêt ».
+Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`. Bouton **Inviter mes employés** (popup : copier `/register?company_code={code}` + QR `origin` + path). Bouton **Intégrer l’exemple Saint-Cloud** à côté du code (tous les comptes company). Confirm FR puis `POST /v1/context/seed-example` (Bearer, pas de body). 200 = même parse que GET ; rester sur `/context`.  
+`ready.salle` / `ready.cuisine` = JSON seulement, badges « Prêt à calculer » / « Pas encore prêt ». Jeton / URL d’invite **masqués** sous les fiches.
 
 ### 9. Published cycle (company)
 
-Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Calculer** actif seulement si `ready[team] === true`. POST `{ team, search_effort: "minimal" }`. Cycle non null : `stats` / `legal_cols` / `legal_rows` / `wish_cols` / `wish_rows` **requis** (throw si clé absente). Hors édition : pastilles (shifts, vides, interdit, sous-rôle, heures %, souhaits held/total) + tableaux **Règles légales** / **Souhaits** (`text` tel quel, cellule wish `null` = vide). Mode édition : cacher ces recaps (grille + warnings + historique). Warnings : `message` tel quel. Cuisine `null` : « Pas encore calculé ». Mode édition live = §10.
+Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Calculer** / **Mode édition** **sous** le switch d’équipe. **Calculer** actif seulement si `ready[team] === true`. POST `{ team, search_effort: "minimal" }`. Cycle non null : `stats` / `legal_cols` / `legal_rows` / `wish_cols` / `wish_rows` **requis** (throw si clé absente). Hors édition : pastilles + tableaux **Règles légales** / **Souhaits bien-être** (`text` tel quel, cellule `ok: false` orange + gras y compris `contrat`). Warning `contract_hours` : pastille **Contrat** (severity API inchangée). Mode édition : cacher ces recaps (grille + warnings + historique). Warnings : `message` tel quel. Cuisine `null` : « Pas encore calculé ». Mode édition live = §10. Pas d’exports.
 
 ### 10. Live sandbox on `/planning`
 
@@ -134,6 +134,10 @@ Suivre `contracts/domain/wizard-ui.md`. Déblocage : services → rôles ; éche
 ### 15. One-line types + live recaps
 
 Services types : liste chronologique, une ligne, +/− par niveau d’échelle, colonne **STAFF après** (plus « sac »). `/planning` company lit le `CycleRecap` persisté. `/exemple` garde les vieilles colonnes snapshot.
+
+### 16. Chrome polish (contrat, orange, invite)
+
+Suivre `cycle-recaps.md` § UI + `wizard-ui.md` (horloge collée, STAFF en en-tête, N lisible, rôles stepper, invite QR, plus de sous-texte we). `/exemple` même chrome, snapshot figé. Version `0.16.0`.
 
 ## Risks / Trade-offs
 

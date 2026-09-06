@@ -15,7 +15,7 @@ import {
   indexAssignments,
   legalColumns,
   personInk,
-  SEVERITY_FR,
+  warningSeverityLabel,
   warningTitle,
   weekdayFromDayIndex,
   weekHours,
@@ -211,7 +211,7 @@ function WarningsList({ warnings }: { warnings: WarningItem[] }) {
           const title = warningTitle(warning.code);
           return (
             <li key={`${warning.severity}-${warning.code}-${warning.employee_id}-${warning.day_index}-${index}`} className={`warn-${warning.severity}`}>
-              <span className="sev">{SEVERITY_FR[warning.severity]}</span>
+              <span className="sev">{warningSeverityLabel(warning)}</span>
               {title ? <span className="code">{title}</span> : null}
               <span className="msg">{warning.message}</span>
             </li>
@@ -493,23 +493,25 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
                 </tr>
               </thead>
               <tbody>
-                {planning.legal_rows.map((row) => {
-                  const bad = legalCols.some((col) => row.cells[col.id] && !row.cells[col.id]!.ok);
-                  return (
-                    <tr key={row.employee_id} className={bad ? "warn" : "ok"}>
-                      <td>{row.name}</td>
-                      {legalCols.map((col) => (
-                        <td key={col.id}>{row.cells[col.id]?.text ?? ""}</td>
-                      ))}
-                    </tr>
-                  );
-                })}
+                {planning.legal_rows.map((row) => (
+                  <tr key={row.employee_id}>
+                    <td>{row.name}</td>
+                    {legalCols.map((col) => {
+                      const cell = row.cells[col.id];
+                      return (
+                        <td key={col.id} className={cell && !cell.ok ? "cell-bad" : undefined}>
+                          {cell?.text ?? ""}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </section>
 
           <section>
-            <h2>Souhaits</h2>
+            <h2>Souhaits bien-être</h2>
             <p className="sub">Colonnes = types de souhait. Case vide = non émis.</p>
             <table className="matrix">
               <thead>
@@ -521,21 +523,19 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
                 </tr>
               </thead>
               <tbody>
-                {planning.wish_rows.map((row) => {
-                  const bad = planning.wish_cols.some((col) => {
-                    const cell = row.cells[col.key];
-                    return cell && !cell.ok && col.key !== "contrat";
-                  });
-                  return (
-                    <tr key={row.employee_id} className={bad ? "warn" : "ok"}>
-                      <td>{row.name}</td>
-                      {planning.wish_cols.map((col) => {
-                        const cell = row.cells[col.key];
-                        return <td key={col.key}>{cell ? cell.text : ""}</td>;
-                      })}
-                    </tr>
-                  );
-                })}
+                {planning.wish_rows.map((row) => (
+                  <tr key={row.employee_id}>
+                    <td>{row.name}</td>
+                    {planning.wish_cols.map((col) => {
+                      const cell = row.cells[col.key];
+                      return (
+                        <td key={col.key} className={cell && !cell.ok ? "cell-bad" : undefined}>
+                          {cell ? cell.text : ""}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </section>

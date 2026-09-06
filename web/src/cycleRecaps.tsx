@@ -53,17 +53,19 @@ export function LegalRecap({ cols, rows }: { cols: LegalCol[]; rows: PublishedCy
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
-            const bad = cols.some((col) => row.cells[col.id] && !row.cells[col.id]!.ok);
-            return (
-              <tr key={row.employee_id} className={bad ? "warn" : "ok"}>
-                <td>{row.name}</td>
-                {cols.map((col) => (
-                  <td key={col.id}>{row.cells[col.id]?.text ?? ""}</td>
-                ))}
-              </tr>
-            );
-          })}
+          {rows.map((row) => (
+            <tr key={row.employee_id}>
+              <td>{row.name}</td>
+              {cols.map((col) => {
+                const cell = row.cells[col.id];
+                return (
+                  <td key={col.id} className={cell && !cell.ok ? "cell-bad" : undefined}>
+                    {cell?.text ?? ""}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
     </section>
@@ -73,7 +75,7 @@ export function LegalRecap({ cols, rows }: { cols: LegalCol[]; rows: PublishedCy
 export function WishRecap({ cycle }: { cycle: PublishedCycle }) {
   return (
     <section>
-      <h2>Souhaits</h2>
+      <h2>Souhaits bien-être</h2>
       <p className="sub">Colonnes du cycle. Case vide = non émis.</p>
       <table className="matrix">
         <thead>
@@ -85,21 +87,19 @@ export function WishRecap({ cycle }: { cycle: PublishedCycle }) {
           </tr>
         </thead>
         <tbody>
-          {cycle.wish_rows.map((row) => {
-            const bad = cycle.wish_cols.some((col) => {
-              const cell = row.cells[col.key];
-              return cell && !cell.ok && col.key !== "contrat";
-            });
-            return (
-              <tr key={row.employee_id} className={bad ? "warn" : "ok"}>
-                <td>{row.name}</td>
-                {cycle.wish_cols.map((col) => {
-                  const cell = row.cells[col.key];
-                  return <td key={col.key}>{cell ? cell.text : ""}</td>;
-                })}
-              </tr>
-            );
-          })}
+          {cycle.wish_rows.map((row) => (
+            <tr key={row.employee_id}>
+              <td>{row.name}</td>
+              {cycle.wish_cols.map((col) => {
+                const cell = row.cells[col.key];
+                return (
+                  <td key={col.key} className={cell && !cell.ok ? "cell-bad" : undefined}>
+                    {cell ? cell.text : ""}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
     </section>

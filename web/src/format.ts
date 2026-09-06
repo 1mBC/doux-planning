@@ -152,6 +152,13 @@ export function warningTitle(code: string): string | undefined {
   return CODE_TITLE_FR[code];
 }
 
+export function warningSeverityLabel(warning: { code: string; severity: WarningItem["severity"] }): string {
+  if (warning.code === "contract_hours") {
+    return "Contrat";
+  }
+  return SEVERITY_FR[warning.severity];
+}
+
 export function assignmentKey(employeeId: string, dayIndex: number, serviceId: string): string {
   return `${employeeId}:${dayIndex}:${serviceId}`;
 }

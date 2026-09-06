@@ -83,3 +83,10 @@
 - [x] 13.2 Parse cycle `stats` / `legal_*` / `wish_*` (throw if missing); pastilles + 2 tables hors édition; hide in Mode édition; warning `message` as-is
 - [x] 13.3 `/exemple` snapshot unchanged; bump `web/` to 0.15.0
 - [x] 13.4 Verify `npm run build`; 2 arrivées + 1 départ on lines + STAFF + reload; Calculer recaps; edit hides them; 11 h clocks if present; exemple 92; `v0.15.0`
+
+## 14. Chrome polish (contrat, orange, invite)
+
+- [x] 14.1 Warning `contract_hours` → pastille Contrat ; cellules `ok: false` orange + gras ; titre **Souhaits bien-être** ; Calculer / Mode édition sous Salle · Cuisine
+- [x] 14.2 Types : horloge + ±15 collés, STAFF en en-tête seulement, N lisible ; rôles stepper ; plus de sous-texte we ; invite popup URL + QR
+- [x] 14.3 `/exemple` même chrome, snapshot inchangé ; bump `web/` to 0.16.0
+- [x] 14.4 Verify `npm run build` ; contrat / orange / titre / Calculer sous équipes ; types persistés ; rôles ; invite QR ; plus de jeton / sous-texte we ; exemple 92 ; `v0.16.0`

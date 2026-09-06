@@ -23,6 +23,8 @@ import {
 } from "./context";
 import { DAYS_FR_SHORT, weekLabelPair } from "./format";
 import { ServiceTypesStep } from "./ServiceTypesStep";
+import { Stepper } from "./Stepper";
+import { inviteQrDataUrl, inviteRegisterPath } from "./inviteQr";
 
 const STEPS = ["Services", "Rôles", "Équipe", "Souhaits bien-être", "Services types", "Semaine type"] as const;
 const TEAMS: { id: TeamId; label: string }[] = [
@@ -78,6 +80,7 @@ export function ContextWizard() {
   const [unlocked, setUnlocked] = useState<{ salle: number; cuisine: number }>({ salle: 0, cuisine: 0 });
   const [nameDraft, setNameDraft] = useState("");
   const [wizardEpoch, setWizardEpoch] = useState(0);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,10 +187,14 @@ export function ContextWizard() {
         <p className="sub">Droit du travail : {legalLabel(ctx.legal_context_id)}</p>
         <p className="seed-row">
           Code entreprise : <code>{ctx.company_code}</code>{" "}
+          <button type="button" className="choice" onClick={() => setInviteOpen(true)}>
+            Inviter mes employés
+          </button>{" "}
           <button type="button" className="choice" disabled={busy} onClick={() => void seedExample()}>
             {busy ? "Intégration…" : "Intégrer l’exemple Saint-Cloud"}
           </button>
         </p>
+        {inviteOpen ? <InvitePopup companyCode={ctx.company_code} onClose={() => setInviteOpen(false)} /> : null}
         <p className="ready-badges">
           <span className={ctx.ready.salle ? "badge-ready" : "badge-wait"}>
             Salle · {ctx.ready.salle ? "Prêt à calculer" : "Pas encore prêt"}
@@ -292,7 +299,6 @@ export function ContextWizard() {
           people={teamEmployees}
           all={ctx.employees}
           services={ctx.services}
-          companyCode={ctx.company_code}
           busy={busy}
           onSave={(people) =>
             void apply(
@@ -370,6 +376,54 @@ export function ContextWizard() {
   );
 }
 
+function InvitePopup({ companyCode, onClose }: { companyCode: string; onClose: () => void }) {
+  const path = inviteRegisterPath(companyCode);
+  const [qr, setQr] = useState("");
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void inviteQrDataUrl(companyCode).then((dataUrl) => {
+      if (!cancelled) {
+        setQr(dataUrl);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyCode]);
+
+  async function copy() {
+    await navigator.clipboard.writeText(path);
+    setCopied(true);
+  }
+
+  return (
+    <div className="overlay-backdrop" onClick={onClose}>
+      <div
+        className="overlay invite-popup"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-labelledby="invite-title"
+      >
+        <h3 id="invite-title">Inviter mes employés</h3>
+        <p className="sub">Ils s’inscrivent avec le code entreprise. Le jeton de chaque fiche reste masqué.</p>
+        <p>
+          <code>{path}</code>
+        </p>
+        <div className="auth-row">
+          <button type="button" className="choice active" onClick={() => void copy()}>
+            {copied ? "URL copiée" : "Copier l’URL"}
+          </button>
+          <button type="button" className="choice" onClick={onClose}>
+            Fermer
+          </button>
+        </div>
+        {qr ? <img className="invite-qr" src={qr} alt="QR d’inscription" /> : <p className="sub">QR…</p>}
+      </div>
+    </div>
+  );
+}
+
 function RolesStep({
   roles,
   busy,
@@ -385,29 +439,30 @@ function RolesStep({
       <h2>Rôles</h2>
       <p className="sub">Un niveau plus élevé peut tenir un poste inférieur.</p>
       {rows.map((row, index) => (
-        <div key={index} className="auth-row">
-          <input
-            placeholder="Nom du rôle"
-            value={row.name}
-            onChange={(event) =>
-              setRows((prev) => prev.map((item, i) => (i === index ? { ...item, name: event.target.value } : item)))
-            }
-          />
-          <input
-            type="number"
-            min={1}
-            value={row.level}
-            onChange={(event) =>
-              setRows((prev) =>
-                prev.map((item, i) =>
-                  i === index
-                    ? { ...item, level: Math.max(1, Math.floor(Number(event.target.value) || 1)) }
-                    : item,
-                ),
-              )
-            }
-          />
-        </div>
+        <article key={index} className="fiche-card equipe-row">
+          <div className="equipe-line">
+            <label>
+              Nom
+              <input
+                placeholder="Nom"
+                value={row.name}
+                onChange={(event) =>
+                  setRows((prev) => prev.map((item, i) => (i === index ? { ...item, name: event.target.value } : item)))
+                }
+              />
+            </label>
+            <label>
+              Niveau
+              <Stepper
+                value={row.level}
+                min={1}
+                onChange={(level) =>
+                  setRows((prev) => prev.map((item, i) => (i === index ? { ...item, level } : item)))
+                }
+              />
+            </label>
+          </div>
+        </article>
       ))}
       <button type="button" className="choice" onClick={() => setRows((prev) => [...prev, { name: "", level: 1 }])}>
         Ajouter un rôle
@@ -438,7 +493,6 @@ function EmployeesStep({
   people,
   all,
   services,
-  companyCode,
   busy,
   onSave,
 }: {
@@ -447,7 +501,6 @@ function EmployeesStep({
   people: ContextEmployee[];
   all: ContextEmployee[];
   services: ContextServiceId[];
-  companyCode: string;
   busy: boolean;
   onSave: (people: ContextEmployee[]) => void;
 }) {
@@ -572,16 +625,6 @@ function EmployeesStep({
               Ajouter une indispo
             </button>
           </div>
-          {person.invite_token ? (
-            <p className="sub">
-              Jeton : <code>{person.invite_token}</code>
-              <br />
-              URL :{" "}
-              <code>
-                /register?company_code={companyCode}&employee_token={person.invite_token}
-              </code>
-            </p>
-          ) : null}
         </article>
       ))}
       <button type="button" className="choice" disabled={!roles.length} onClick={add}>
@@ -790,7 +833,6 @@ function WishesStep({
                       />
                       Au moins un repos samedi ou dimanche
                     </label>
-                    <p className="sub">Chaque semaine ; un jour resto fermé compte.</p>
                   </div>
                 </td>
                 <td className="max-services">

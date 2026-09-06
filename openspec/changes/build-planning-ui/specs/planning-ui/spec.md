@@ -123,7 +123,7 @@ A `kind: company` session on `/context` SHALL show **Intégrer l’exemple Saint
 - **THEN** the wizard again shows the example fiches (previous edits are gone)
 
 ### Requirement: Company published cycle
-A `kind: company` session SHALL reach `/planning` via « Planning ». The client SHALL `GET /v1/cycles` and `GET /v1/context` on load. Types MUST match `contracts/http/v1-generate.md` (and context) JSON; a missing key MUST throw. **Calculer** SHALL be enabled only when `ready[team]` from context is true, and SHALL `POST /v1/generate` with `{ team, search_effort: "minimal" }`. If `ready[team]` is false the button MUST be disabled and the client MUST NOT POST. API `detail` SHALL be shown on 409/400. When `published[team]` is not null the client SHALL parse `stats`, `legal_cols`, `legal_rows`, `wish_cols`, and `wish_rows` (a missing key MUST throw) and SHALL render a 14-day paper grid (A/B or Paire/Impaire from `week_labels`) from that team’s context fiches plus `assignments`, list every `warnings` item (engine `message` as-is, French severity), and — unless Mode édition is open — show stats pastilles plus **Règles légales** / **Souhaits** tables from those recap keys (`text` as-is; wish cell `null` = empty). Mode édition MUST hide the recaps (grid + warnings + history only). The client MUST NOT invent recap numbers or `we1j` / `weA` columns. Regenerating SHALL replace that team only. Reload SHALL use the same GET. When `published[team]` exists the client MAY offer Mode édition via the live sandbox routes.
+A `kind: company` session SHALL reach `/planning` via « Planning ». The client SHALL `GET /v1/cycles` and `GET /v1/context` on load. Types MUST match `contracts/http/v1-generate.md` (and context) JSON; a missing key MUST throw. **Calculer** SHALL be enabled only when `ready[team]` from context is true, and SHALL `POST /v1/generate` with `{ team, search_effort: "minimal" }`. If `ready[team]` is false the button MUST be disabled and the client MUST NOT POST. API `detail` SHALL be shown on 409/400. When `published[team]` is not null the client SHALL parse `stats`, `legal_cols`, `legal_rows`, `wish_cols`, and `wish_rows` (a missing key MUST throw) and SHALL render a 14-day paper grid (A/B or Paire/Impaire from `week_labels`) from that team’s context fiches plus `assignments`, list every `warnings` item (engine `message` as-is, French severity), and — unless Mode édition is open — show stats pastilles plus **Règles légales** / **Souhaits bien-être** tables from those recap keys (`text` as-is; wish cell `null` = empty; cell `ok: false` orange + bold, including `contrat`). Warning `code === contract_hours` SHALL show pastille **Contrat**; other `severity: souhait` stay « Souhait ». **Calculer** and **Mode édition** SHALL sit under the Salle · Cuisine switch, not on the same row. Mode édition MUST hide the recaps (grid + warnings + history only). The client MUST NOT invent recap numbers or `we1j` / `weA` columns. Regenerating SHALL replace that team only. Reload SHALL use the same GET. When `published[team]` exists the client MAY offer Mode édition via the live sandbox routes. No planning exports.
 
 #### Scenario: Salle calculated, cuisine not
 - **WHEN** salle is ready and the restaurateur clicks Calculer, while cuisine is not ready
@@ -166,3 +166,18 @@ A `kind: company` session on `/planning` SHALL show **Mode édition** only when 
 #### Scenario: Example joujou stays public
 - **WHEN** nobody is logged in and they open Mode édition on `/exemple`
 - **THEN** `POST /v1/sandbox/enter` still returns 200 and the snapshot still has 92 assignments
+
+### Requirement: Chrome polish on recaps and wizard
+`/planning` company and `/exemple` SHALL use the same recap chrome: `contract_hours` pastille **Contrat**, `ok: false` cells orange + bold, wish table title **Souhaits bien-être**, engine `message` as-is. `/exemple` MUST NOT rewrite the snapshot. Services types SHALL keep clock and ±15 on one line, header **STAFF après cette arrivée / ce départ** (cells show bag / error only), and a labeled N counter. Roles SHALL use Nom + Niveau stepper. Weekend-rest checkbox MUST NOT show « Chaque semaine ; un jour resto fermé compte. ». Company identity SHALL offer **Inviter mes employés** (copy `/register?company_code={code}` + QR of `origin` + path) and MUST hide invite tokens / URLs under fiches.
+
+#### Scenario: Contract warning uses Contrat pill
+- **WHEN** a published cycle lists a `contract_hours` warning
+- **THEN** that row’s severity pastille is **Contrat** and other `souhait` warnings still say **Souhait**
+
+#### Scenario: Bad recap cells are orange
+- **WHEN** a legal or wish cell has `ok: false`
+- **THEN** that cell (not only the row’s first column) is orange and bold, including `contrat`
+
+#### Scenario: Invite popup shows URL and QR
+- **WHEN** the restaurateur clicks **Inviter mes employés**
+- **THEN** a popup copies `/register?company_code={code}` and shows a QR of the same path on the current origin, without exposing per-fiche tokens
