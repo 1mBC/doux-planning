@@ -759,3 +759,102 @@ def test_lower_personal_min_shift_fills_a_short_post():
     monday = [shift for shift in result.assignments if shift.day_index == 0]
     assert monday
     assert monday[0].duration_hours == 3.0
+
+
+def _first_message(result, code: str) -> str:
+    return next(item.message for item in result.warnings if item.code == code)
+
+
+def test_remaining_evaluate_messages_are_french():
+    chef = employee("ChefA", "chef", employee_id="chef-a")
+    long_day = evaluate(_draft([_shift("chef-a", 0, 8 * 60, 21 * 60, 4)], employees=(chef,)))
+    assert "max 11h" in _first_message(long_day, "max_daily_hours")
+    assert "lundi" in _first_message(long_day, "max_daily_hours")
+
+    no_rest = evaluate(
+        _draft([_shift("chef-a", day, 10 * 60, 16 * 60, 4) for day in range(7)], employees=(chef,))
+    )
+    assert "/ 2 j. de repos" in _first_message(no_rest, "weekly_rest_days")
+    assert "sem. A" in _first_message(no_rest, "weekly_rest_days")
+
+    coupure = evaluate(
+        PlanningDraft(
+            employees=(chef,),
+            structures=(kitchen_midday_structure(),),
+            hours=RestaurantHours.multi_service(
+                ServiceName.MORNING.value, ServiceName.MIDDAY.value, ServiceName.EVENING.value
+            ),
+            assignments=(
+                _shift("chef-a", 0, 8 * 60, 11 * 60, 4, service=ServiceName.MORNING.value),
+                _shift("chef-a", 0, 18 * 60, 22 * 60, 4, service=ServiceName.EVENING.value),
+            ),
+        )
+    )
+    assert "coupure > 5h" in _first_message(coupure, "max_coupure")
+    assert "lundi" in _first_message(coupure, "max_coupure")
+
+    long_week = evaluate(
+        _draft([_shift("chef-a", day, 8 * 60, 18 * 60, 4) for day in range(6)], employees=(chef,))
+    )
+    assert "/ max 48h" in _first_message(long_week, "max_weekly_hours")
+    assert "sem. A" in _first_message(long_week, "max_weekly_hours")
+
+    blocked = chef.with_unavailability(Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value))
+    indispo = evaluate(_draft([_shift("chef-a", 0, 10 * 60, 16 * 60, 4)], employees=(blocked,)))
+    assert "posé sur indispo" in _first_message(indispo, "unavailability")
+    assert "lundi déjeuner" in _first_message(indispo, "unavailability")
+
+    closed = evaluate(
+        PlanningDraft(
+            employees=(chef,),
+            structures=(kitchen_midday_structure(),),
+            hours=RestaurantHours.multi_service(ServiceName.MIDDAY.value, closed_weekdays={"sunday"}),
+            assignments=(_shift("chef-a", 6, 11 * 60, 15 * 60, 4),),
+        )
+    )
+    assert "shift sur fermeture" in _first_message(closed, "assigned_on_closure")
+    assert "dimanche · déjeuner" in _first_message(closed, "assigned_on_closure")
+
+    sam = employee("Sam", "commis", hours=20, employee_id="sam").with_wellbeing(Wellbeing(consecutive_rest=True))
+    souhait = evaluate(
+        _draft(
+            [
+                _shift("sam", 0, 11 * 60, 15 * 60, 2),
+                _shift("sam", 1, 11 * 60, 15 * 60, 2),
+                _shift("sam", 3, 11 * 60, 15 * 60, 2),
+                _shift("sam", 5, 11 * 60, 15 * 60, 2),
+            ],
+            employees=(sam,),
+        )
+    )
+    assert "pas deux repos consécutifs" in _first_message(souhait, "consecutive_rest_days")
+    assert "contrat" in _first_message(souhait, "contract_hours")
+    assert "sem. A" in _first_message(souhait, "contract_hours")
+    assert all(
+        item.severity is WarningSeverity.SOUHAIT
+        for item in souhait.warnings
+        if item.code == "contract_hours"
+    )
+
+    ada = employee("Ada", "commis", hours=20, employee_id="ada").with_wellbeing(
+        Wellbeing(weekend_rest_day=True, weekend=WeekendChoice.EVEN)
+    )
+    bea = employee("Bea", "commis", hours=20, employee_id="bea").with_wellbeing(Wellbeing(weekend=WeekendChoice.ODD))
+    cal = employee("Cal", "commis", hours=20, employee_id="cal").with_wellbeing(
+        Wellbeing(weekend=WeekendChoice.EVERY_TWO)
+    )
+    both_weekends = [_shift("ada", day, 11 * 60, 15 * 60, 2) for day in (5, 6, 12, 13)]
+    both_weekends += [_shift("bea", day, 11 * 60, 15 * 60, 2) for day in (5, 6, 12, 13)]
+    both_weekends += [_shift("cal", day, 11 * 60, 15 * 60, 2) for day in (5, 6, 12, 13)]
+    weekends = evaluate(
+        PlanningDraft(
+            employees=(ada, bea, cal),
+            structures=(kitchen_midday_structure(),),
+            hours=RestaurantHours.multi_service(ServiceName.MIDDAY.value),
+            assignments=tuple(both_weekends),
+        )
+    )
+    assert "pas de repos samedi ou dimanche" in _first_message(weekends, "weekend_rest_day")
+    assert "week-end pair non tenu" in _first_message(weekends, "weekend_even_weeks")
+    assert "week-end impair non tenu" in _first_message(weekends, "weekend_odd_weeks")
+    assert "pas exactement un week-end off / 14 j." in _first_message(weekends, "weekend_every_two_weeks")
