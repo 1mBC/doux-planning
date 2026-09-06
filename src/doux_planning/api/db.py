@@ -114,6 +114,19 @@ class GenerateLog(Base):
     warnings: Mapped[list] = mapped_column(JSONB, nullable=False)
 
 
+class GenerateJob(Base):
+    __tablename__ = "generate_jobs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    restaurant_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    team: Mapped[str] = mapped_column(String, nullable=False)
+    search_effort: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    estimated_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class EmployeeAccountRow(Base):
     __tablename__ = "employee_accounts"
     __table_args__ = (

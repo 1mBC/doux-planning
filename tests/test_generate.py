@@ -109,6 +109,15 @@ def test_generate_without_database_is_503(monkeypatch):
     )
     assert generate.status_code == 503
     assert generate.json()["detail"] == "Base indisponible."
+    job = client.get("/v1/generate/jobs/x", headers=headers)
+    assert job.status_code == 503
+    assert job.json()["detail"] == "Base indisponible."
+    maximal = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "maximal"},
+    )
+    assert maximal.status_code == 503
     example = client.get("/v1/examples/saint-cloud")
     assert example.status_code == 200
     assert example.json()["planning"]["stats"]["assignments"] == 92
@@ -263,3 +272,149 @@ def test_generate_persist_cycles_auth_and_example():
     assert client.get("/v1/me", headers=_bearer(login_token)).status_code == 200
     assert client.post("/v1/auth/logout", headers=_bearer(login_token)).status_code == 204
     assert client.get("/v1/me", headers=_bearer(login_token)).status_code == 401
+
+
+def _stub_generate_team(state, team, search):
+    from doux_planning.context import TeamNotReady, expand_typical_week, team_ready
+    from doux_planning.engine import EngineResult, PlanningDraft
+    from doux_planning.planning import PublishedCycle
+    from doux_planning.staff import default_legal_rules
+
+    if not team_ready(state, team):
+        raise TeamNotReady(team)
+    draft = PlanningDraft(
+        employees=tuple(person for person in state.employees if person.team == team),
+        structures=tuple(item for item in expand_typical_week(state) if item.team == team),
+        hours=state.hours,
+        legal_rules=default_legal_rules(),
+        search_effort=search,
+    )
+    result = EngineResult(assignments=(), warnings=())
+    state.published_cycles[team] = PublishedCycle(id=team.value, draft=draft.with_assignments(()), result=result)
+    return state
+
+
+def _count_rows(model, **filters) -> int:
+    from sqlalchemy import func, select
+
+    with session_scope() as session:
+        stmt = select(func.count()).select_from(model)
+        for key, value in filters.items():
+            stmt = stmt.where(getattr(model, key) == value)
+        return int(session.scalar(stmt) or 0)
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_generate_maximal_job_tick_stub_and_auth():
+    from doux_planning.api.db import GenerateJob, GenerateLog
+    from doux_planning.api.worker import tick_generate_job
+
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"job-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    token = registered.json()["token"]
+    restaurant_id = registered.json()["me"]["restaurant_id"]
+    headers = _bearer(token)
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id))
+    assert patched.status_code == 200
+    assert patched.json()["ready"]["salle"] is True
+    company_code = patched.json()["company_code"]
+
+    logs_before = _count_rows(GenerateLog)
+    minimal = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "minimal"},
+    )
+    assert minimal.status_code == 200
+    assert minimal.json()["published"]["salle"]["assignments"]
+    assert _count_rows(GenerateLog) == logs_before + 1
+
+    with patch("doux_planning.api.generate.generate_team") as solve:
+        maximal = client.post(
+            "/v1/generate",
+            headers=headers,
+            json={"team": "salle", "search_effort": "maximal"},
+        )
+    assert maximal.status_code == 202
+    solve.assert_not_called()
+    queued = maximal.json()
+    assert queued["team"] == "salle"
+    assert queued["search_effort"] == "maximal"
+    assert queued["status"] == "queued"
+    assert queued["estimated_seconds"] == 600
+    assert "published" not in queued
+    job_id = queued["job_id"]
+    assert job_id
+
+    polled = client.get(f"/v1/generate/jobs/{job_id}", headers=headers)
+    assert polled.status_code == 200
+    assert polled.json()["status"] == "queued"
+    assert polled.json()["estimated_seconds"] == 600
+    assert "published" not in polled.json()
+
+    again = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "maximal"},
+    )
+    assert again.status_code == 409
+    assert again.json()["detail"] == "Un calcul maximal est déjà en cours."
+    assert _count_rows(GenerateJob, restaurant_id=restaurant_id) == 1
+
+    cuisine = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "cuisine", "search_effort": "maximal"},
+    )
+    assert cuisine.status_code == 409
+    assert cuisine.json()["detail"] == "Cette équipe n'est pas prête à calculer."
+    assert _count_rows(GenerateJob, restaurant_id=restaurant_id, team="cuisine") == 0
+
+    logs_before_tick = _count_rows(GenerateLog)
+    processed = tick_generate_job(generate_team_fn=_stub_generate_team)
+    assert processed == job_id
+    done = client.get(f"/v1/generate/jobs/{job_id}", headers=headers)
+    assert done.status_code == 200
+    assert done.json()["status"] == "done"
+    assert done.json()["published"]["salle"] is not None
+    assert "assignments" in done.json()["published"]["salle"]
+    assert done.json()["published"]["cuisine"] is None
+    assert _count_rows(GenerateLog) == logs_before_tick + 1
+
+    employee = client.post(
+        "/v1/auth/register",
+        json={
+            "kind": "employee",
+            "email": f"emma-{secrets.token_hex(4)}@example.com",
+            "password": "password1",
+            "company_code": company_code,
+            "employee_id": fiche_id,
+        },
+    )
+    assert employee.status_code == 201
+    emp = _bearer(employee.json()["token"])
+    assert client.get(f"/v1/generate/jobs/{job_id}", headers=emp).status_code == 403
+    assert (
+        client.post("/v1/generate", headers=emp, json={"team": "salle", "search_effort": "maximal"}).status_code
+        == 403
+    )
+
+    other = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"other-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert other.status_code == 201
+    foreign = client.get(f"/v1/generate/jobs/{job_id}", headers=_bearer(other.json()["token"]))
+    assert foreign.status_code == 404
+    missing = client.get("/v1/generate/jobs/inconnu", headers=headers)
+    assert missing.status_code == 404
+    assert client.get("/v1/generate/jobs/inconnu").status_code == 401
+
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92

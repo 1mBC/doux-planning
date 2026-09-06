@@ -39,3 +39,7 @@
 ## 6. Admin promote and generate logs
 
 - [x] 6.1 Add Alembic `is_admin` on restaurateur accounts plus `generate_logs`. Promote `ADMIN_EMAIL` at boot (existing restaurateur only, idempotent, no insert). `me.admin` true/false. Log `POST /v1/generate` 200 only. `GET /v1/admin/generates` newest-first. Verify promote twice → one account `admin: true`; unknown email → no insert; generate 200 → +1 log and 409 → no log; GET empty then two generates newest-first; non-admin company / employee → 403; example stays 92. No `kind: admin`
+
+## 7. Maximal generate jobs (hybrid C)
+
+- [x] 7.1 Alembic `generate_jobs` + Compose `worker` (`python -m doux_planning.api.worker`) + GET `/v1/generate/jobs/{id}`. `minimal` / `optimized` stay 200 sync + log. `maximal` → 202 queued, no `generate_team` in the web process. Worker SKIP LOCKED tick (stub in tests, 0 s) → `done` + persist `published_cycles` + `generate_logs`. Verify salle ready: POST `minimal` 200; POST `maximal` 202 + GET `queued`; tick stub → `done` + `published.salle` + 1 log; 2nd maximal while queued → 409 `Un calcul maximal est déjà en cours.`; cuisine not ready → 409 and 0 job; employee GET/POST job 403; other company 404; no Bearer 401; no DB 503; example stays 92. No 600 s wait. No Core / `web/` / `contracts/` edits

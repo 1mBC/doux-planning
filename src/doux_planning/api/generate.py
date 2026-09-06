@@ -5,20 +5,26 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_company_restaurant_id, require_database
 from doux_planning.api.context import _load_company, _state_from_rows
-from doux_planning.api.db import Company, GenerateLog, RestaurateurAccount, session_scope
-from doux_planning.context import CycleRecap, RecapCell, TeamNotReady, cycle_recap, generate_team
+from doux_planning.api.db import Company, GenerateJob, GenerateLog, RestaurateurAccount, session_scope
+from doux_planning.context import CycleRecap, RecapCell, TeamNotReady, cycle_recap, generate_team, team_ready
 from doux_planning.planning import PublishedCycle, RestaurantState
 from doux_planning.types import SearchEffort, Team
 
 DETAIL_NOT_READY = "Cette équipe n'est pas prête à calculer."
+DETAIL_JOB_RUNNING = "Un calcul maximal est déjà en cours."
+DETAIL_JOB_MISSING = "Calcul introuvable."
 TEAMS = ("salle", "cuisine")
 EFFORTS = ("minimal", "optimized", "maximal")
+ACTIVE_JOB_STATUSES = ("queued", "running")
 RECAP_KEYS = ("stats", "legal_cols", "legal_rows", "wish_cols", "wish_rows")
+MAXIMAL_ESTIMATED_SECONDS = 600
 
 
 def _empty_published() -> dict[str, Any]:
@@ -164,18 +170,12 @@ def get_cycles(authorization: str | None) -> dict[str, Any]:
     return {"published": published}
 
 
-def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, Any]:
-    require_database()
-    restaurant_id = require_company_restaurant_id(authorization)
-    team, search = _parse_generate(body)
-    company, fiches = _load_company(restaurant_id)
-    stored = _stored_published(company.published_cycles)
-    state = _state_from_rows(company, fiches)
-    try:
-        generate_team(state, team, search)
-    except TeamNotReady as exc:
-        raise HTTPException(status_code=409, detail=DETAIL_NOT_READY) from exc
-    published = {
+def _published_after_generate(
+    state: RestaurantState,
+    team: Team,
+    stored: dict[str, Any],
+) -> dict[str, Any]:
+    return {
         "salle": (
             _team_cycle_json(state, Team.SALLE)
             if team == Team.SALLE
@@ -187,6 +187,103 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
             else _blob_with_recap(state, Team.CUISINE, stored["cuisine"])
         ),
     }
+
+
+def _enqueue_maximal(restaurant_id: str, team: Team) -> str:
+    job_id = secrets.token_urlsafe(12)
+    try:
+        with session_scope() as db:
+            existing = db.scalars(
+                select(GenerateJob).where(
+                    GenerateJob.restaurant_id == restaurant_id,
+                    GenerateJob.team == team.value,
+                    GenerateJob.status.in_(ACTIVE_JOB_STATUSES),
+                )
+            ).first()
+            if existing is not None:
+                raise HTTPException(status_code=409, detail=DETAIL_JOB_RUNNING)
+            db.add(
+                GenerateJob(
+                    id=job_id,
+                    restaurant_id=restaurant_id,
+                    team=team.value,
+                    search_effort=SearchEffort.MAXIMAL.value,
+                    status="queued",
+                    estimated_seconds=MAXIMAL_ESTIMATED_SECONDS,
+                    error=None,
+                    created_at=datetime.now(timezone.utc),
+                )
+            )
+    except IntegrityError as exc:
+        raise HTTPException(status_code=409, detail=DETAIL_JOB_RUNNING) from exc
+    return job_id
+
+
+def _job_payload(job: GenerateJob, published: dict[str, Any] | None = None) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "job_id": job.id,
+        "team": job.team,
+        "search_effort": job.search_effort,
+        "status": job.status,
+        "estimated_seconds": job.estimated_seconds,
+    }
+    if job.status == "failed" and job.error:
+        body["error"] = job.error
+    if job.status == "done" and published is not None:
+        body["published"] = published
+    return body
+
+
+def get_generate_job(authorization: str | None, job_id: str) -> dict[str, Any]:
+    require_database()
+    restaurant_id = require_company_restaurant_id(authorization)
+    with session_scope() as db:
+        job = db.get(GenerateJob, job_id)
+        if job is None or job.restaurant_id != restaurant_id:
+            raise HTTPException(status_code=404, detail=DETAIL_JOB_MISSING)
+        status = job.status
+        payload = _job_payload(job)
+    if status == "done":
+        company, fiches = _load_company(restaurant_id)
+        stored = _stored_published(company.published_cycles)
+        if all(blob is None or _has_recap(blob) for blob in stored.values()):
+            published = stored
+        else:
+            state = _state_from_rows(company, fiches)
+            published = {
+                "salle": _blob_with_recap(state, Team.SALLE, stored["salle"]),
+                "cuisine": _blob_with_recap(state, Team.CUISINE, stored["cuisine"]),
+            }
+        payload["published"] = published
+    return payload
+
+
+def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, Any] | JSONResponse:
+    require_database()
+    restaurant_id = require_company_restaurant_id(authorization)
+    team, search = _parse_generate(body)
+    company, fiches = _load_company(restaurant_id)
+    stored = _stored_published(company.published_cycles)
+    state = _state_from_rows(company, fiches)
+    if search == SearchEffort.MAXIMAL:
+        if not team_ready(state, team):
+            raise HTTPException(status_code=409, detail=DETAIL_NOT_READY)
+        job_id = _enqueue_maximal(restaurant_id, team)
+        return JSONResponse(
+            status_code=202,
+            content={
+                "job_id": job_id,
+                "team": team.value,
+                "search_effort": SearchEffort.MAXIMAL.value,
+                "status": "queued",
+                "estimated_seconds": MAXIMAL_ESTIMATED_SECONDS,
+            },
+        )
+    try:
+        generate_team(state, team, search)
+    except TeamNotReady as exc:
+        raise HTTPException(status_code=409, detail=DETAIL_NOT_READY) from exc
+    published = _published_after_generate(state, team, stored)
     _persist_published(restaurant_id, published)
     cycle = published[team.value] or {}
     _log_generate(
@@ -200,6 +297,28 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
         "search_effort": search.value,
         "published": published,
     }
+
+
+def persist_maximal_result(
+    restaurant_id: str,
+    team: Team,
+    *,
+    generate_fn: Any = generate_team,
+) -> dict[str, Any]:
+    company, fiches = _load_company(restaurant_id)
+    stored = _stored_published(company.published_cycles)
+    state = _state_from_rows(company, fiches)
+    generate_fn(state, team, SearchEffort.MAXIMAL)
+    published = _published_after_generate(state, team, stored)
+    _persist_published(restaurant_id, published)
+    cycle = published[team.value] or {}
+    _log_generate(
+        restaurant_id,
+        restaurant_name=company.name or "",
+        team=team.value,
+        warnings=list(cycle.get("warnings") or []),
+    )
+    return published
 
 
 def _log_generate(restaurant_id: str, *, restaurant_name: str, team: str, warnings: list[Any]) -> None:

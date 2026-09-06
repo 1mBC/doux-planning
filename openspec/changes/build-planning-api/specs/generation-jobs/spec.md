@@ -1,11 +1,11 @@
 ## Purpose
 
-Generates a published 14-day cycle **per team** over HTTP by wrapping Core `generate_team` synchronously, and persists the two independent published cycles for the live company.
+Generates a published 14-day cycle **per team** over HTTP by wrapping Core `generate_team`: `minimal` / `optimized` stay synchronous; `maximal` is a Postgres job claimed by a worker (`SKIP LOCKED`).
 
 ## ADDED Requirements
 
-### Requirement: Generate is a synchronous generate_team wrap
-`POST /v1/generate` (Bearer company) SHALL accept `{ team: "salle"|"cuisine", search_effort?: "minimal"|"optimized"|"maximal" }` and MUST call Core `generate_team` in the request. Omitted `search_effort` MUST default to `optimized`. HTTP tests in this slice MUST use `minimal` only. The 200 body MUST be `{ team, search_effort, published }` where `published` has `salle` and `cuisine` keys, each `null` or `{ assignments, warnings, stats, legal_cols, legal_rows, wish_cols, wish_rows }`. Assignments and warnings MUST be serialized from that team’s `EngineResult`. Recap keys MUST be Core `cycle_recap` (no invented counts or cells, no `we1j`). A `null` cycle MUST omit recap keys. The system MUST NOT enqueue a job, MUST NOT start a worker, and MUST NOT use `SKIP LOCKED`.
+### Requirement: Generate is hybrid C
+`POST /v1/generate` (Bearer company) SHALL accept `{ team: "salle"|"cuisine", search_effort?: "minimal"|"optimized"|"maximal" }`. Omitted `search_effort` MUST default to `optimized` and MUST stay a **200** in-request `generate_team` wrap. `minimal` / `optimized` MUST call Core `generate_team` in the web process and MUST NOT insert a `generate_jobs` row. The 200 body MUST be `{ team, search_effort, published }` where `published` has `salle` and `cuisine` keys, each `null` or `{ assignments, warnings, stats, legal_cols, legal_rows, wish_cols, wish_rows }`. Assignments and warnings MUST be serialized from that team’s `EngineResult`. Recap keys MUST be Core `cycle_recap` (no invented counts or cells, no `we1j`). A `null` cycle MUST omit recap keys. `maximal` MUST return HTTP 202 `{ job_id, team, search_effort: "maximal", status: "queued", estimated_seconds: 600 }` with no `published` and MUST NOT call `generate_team` in uvicorn. HTTP sync tests MUST use `minimal`. Job tests MUST tick an exported worker function with `generate_team` stubbed (0 s) and MUST NOT wait 600 s.
 
 #### Scenario: Salle generate when ready
 - **WHEN** the live context is salle-ready and the restaurateur posts generate with `team` `salle` and `search_effort` `minimal`
@@ -13,7 +13,11 @@ Generates a published 14-day cycle **per team** over HTTP by wrapping Core `gene
 
 #### Scenario: Cuisine not ready
 - **WHEN** only salle is ready and the restaurateur posts generate for `cuisine`
-- **THEN** the response is HTTP 409 with French `detail` `Cette équipe n'est pas prête à calculer.`, no solver run, and persisted cycles are unchanged
+- **THEN** the response is HTTP 409 with French `detail` `Cette équipe n'est pas prête à calculer.`, no solver run, no `generate_jobs` row, and persisted cycles are unchanged
+
+#### Scenario: Maximal enqueue
+- **WHEN** salle is ready and the restaurateur posts generate with `search_effort` `maximal`
+- **THEN** the response is HTTP 202, `status` is `queued`, `estimated_seconds` is 600, `published` is absent, and `generate_team` was not called in the request
 
 #### Scenario: Invalid team or effort
 - **WHEN** `team` or `search_effort` is missing or unknown
@@ -49,7 +53,7 @@ Generate and cycles SHALL require a company session. An employee session MUST re
 - **THEN** the request is rejected with HTTP 403 and no cycle is written
 
 ### Requirement: Successful generate is logged
-A `POST /v1/generate` HTTP 200 SHALL insert one `generate_logs` row `{ email, restaurant_name, team, warnings }` for the team just solved. HTTP 409 `TeamNotReady` MUST NOT insert a row. `GET /v1/admin/generates` MUST return those rows newest-first.
+A `POST /v1/generate` HTTP 200 SHALL insert one `generate_logs` row `{ email, restaurant_name, team, warnings }` for the team just solved. A worker job that reaches `done` MUST insert the same log. HTTP 409 `TeamNotReady` and a `failed` job MUST NOT insert a row. `GET /v1/admin/generates` MUST return those rows newest-first.
 
 #### Scenario: Ready generate writes a log
 - **WHEN** salle is ready and generate returns 200
@@ -58,3 +62,14 @@ A `POST /v1/generate` HTTP 200 SHALL insert one `generate_logs` row `{ email, re
 #### Scenario: Not-ready generate writes nothing
 - **WHEN** generate returns HTTP 409
 - **THEN** `generate_logs` is unchanged
+
+### Requirement: Maximal job poll and worker tick
+`GET /v1/generate/jobs/{job_id}` (Bearer company, same restaurant) SHALL return `{ job_id, team, search_effort, status, estimated_seconds }` with `status` `queued` | `running` | `done` | `failed`. `published` MUST appear only when `status` is `done` and MUST match `GenerateResult.published`. `error` MUST appear only when `failed`. Another company’s session or an unknown id MUST be HTTP 404. An employee session MUST be HTTP 403. The worker SHALL claim one `queued` row with `SELECT … FOR UPDATE SKIP LOCKED`, set `running`, call `generate_team(…, maximal)`, persist `published_cycles` like a 200, then set `done`. A second `maximal` for the same company+team while `queued` or `running` MUST be HTTP 409 `Un calcul maximal est déjà en cours.`
+
+#### Scenario: Tick stub completes a maximal job
+- **WHEN** a salle maximal job is `queued` and the test calls one worker tick with `generate_team` stubbed
+- **THEN** GET job is `done` with `published.salle` present and one new `generate_logs` row
+
+#### Scenario: Second maximal while queued
+- **WHEN** a salle maximal job is already `queued` and the restaurateur posts maximal salle again
+- **THEN** the response is HTTP 409 `Un calcul maximal est déjà en cours.`

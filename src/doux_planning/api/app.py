@@ -135,10 +135,17 @@ def admin_generates(authorization: str | None = Header(default=None)) -> dict:
 @app.post("/v1/generate")
 def post_generate(
     body: dict[str, Any], authorization: str | None = Header(default=None)
-) -> dict:
+):
     from doux_planning.api.generate import post_generate as write_generate
 
     return write_generate(authorization, body)
+
+
+@app.get("/v1/generate/jobs/{job_id}")
+def get_generate_job(job_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.generate import get_generate_job as read_job
+
+    return read_job(authorization, job_id)
 
 
 @app.post("/v1/live/sandbox/{team}/enter")
