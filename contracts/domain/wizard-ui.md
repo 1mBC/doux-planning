@@ -27,8 +27,8 @@ Service **non offert** : **invisible** partout (max souhaits, popup indispo, Ser
 
 ## Case `weekend_rest_day`
 
-Colonne **à part** de la radio week-end : **« Au moins un repos samedi ou dimanche »**.  
-**Pas** de sous-texte par ligne (retirer « Chaque semaine ; un jour resto fermé compte »).  
+Colonne **à part** de la radio week-end : un `<th>` **« Au moins un repos samedi ou dimanche »**, case **dans cette colonne seulement** (plus dans la cellule Week-end).  
+**Pas** de sous-texte par ligne.  
 JSON `wellbeing.weekend_rest_day` bool. **Cumulable** avec `weekend`.  
 GET `/v1/me/planning` : `kind: "weekend_rest_day"` → **même** libellé, tenu / non tenu.
 
@@ -51,9 +51,9 @@ departures[]:  { time_minutes, remaining_post_levels }  # sac APRÈS le départ
 
 Pas de joker moteur. Pas de champ « qui part » persisté.
 
-**Dessin (brief UI)** : **une liste chronologique** (arrivées et départs mélangés). Chaque événement = **une ligne**.  
+**Dessin (brief UI polish)** : **une liste chronologique** (arrivées et départs mélangés). Chaque événement = **une carte / ligne** (`wave-line` / `fiche-card`), **pas** un `<table>` tableur (plus de `wave-table` 5 colonnes + thead interminable).  
 Ajouter = choisir arrivée **ou** départ. Retirer = poubelle en bout de ligne.  
-Pas un `<table>` Excel : grille de lignes type tableau.
+Libellés courts **une fois** au-dessus de la liste (Heure · N · Niveaux · STAFF après). Persist / pire-cas inchangés.
 
 Colonnes :
 
@@ -97,9 +97,9 @@ Même langage visuel que l’équipe (ligne **Nom** + **Niveau**). Niveau en ste
 ## Invite employés
 
 Plus de **jeton** / **URL** sous chaque fiche.  
-À côté du code entreprise : bouton **« Inviter mes employés »** → popup : copier l’URL `/register?company_code={code}` **et** afficher le **QR** de la même URL (`origin` + path, pour que le scan marche).  
-Les `invite_token` restent dans l’API / les fiches — **masqués** seulement. Pas de nouvelle route, pas de rotate dans cette tranche.
+À côté du code entreprise : bouton **« Inviter mes employés »** → popup : **afficher et copier** l’URL **absolue** `origin + /register?company_code={code}` (même valeur que le QR). Path seul (`/register?…`) **interdit** au presse-papiers (inutile sur téléphone).  
+Les `invite_token` restent dans l’API / les fiches — **masqués** seulement. Pas de nouvelle route, pas de rotate.
 
 ## Hors freeze
 
-Recaps chrome (Contrat / cellules orange) = `cycle-recaps.md`. Export config, exports planning, admin, coerce Railway, archive / sync.
+Export config, exports planning, admin, coerce Railway, archive / sync.
