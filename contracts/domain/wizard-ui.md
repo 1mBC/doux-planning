@@ -37,7 +37,7 @@ Types TS : le bool est **requis** (Infra l’expose toujours). Ancienne clé lis
 ## Services types
 
 Onglet libellé **Services types** (plus « Types »).  
-Sous-onglets = services **offerts** seulement.  
+Sous-onglets = services **offerts** seulement (**pas** de phrase UI « Sous-onglets = services offerts »).  
 **Ajouter un type** en bas du sous-onglet courant (équipe × ce service). Plusieurs types par service OK.
 
 ### Vagues — l’UI calcule, le moteur ne change pas
@@ -90,16 +90,24 @@ N_L > `count(L)` dans le sac → bloquer.
 Snippet **encadré** : libellé **gras** + `[−]` + compteur **centré** + `[+]`.  
 Même composant : rôles, types (niveaux), overlay sandbox, ±15.
 
-## Rôles (style)
+## Rôles
 
-Même langage visuel que l’équipe (ligne **Nom** + **Niveau**). Niveau = stepper compact. Pas de nouvelle clé persistée.
+`<table>` **Nom** / **Niveau** (stepper) / poubelle. Pas de nouvelle clé persistée.
+
+Supprimer un rôle → **confirm FR** : lister les **fiches** qui ont ce rôle, dire qu’il faudra les revoir / recalculer, **conseiller de renommer** plutôt que supprimer. Si confirmé : retire la ligne (fiches inchangées jusqu’au save).
+
+## Copies à retirer (cette tranche)
+
+- **Équipe** : plus de phrase sous le titre ; plus de ligne texte d’indispos (chips seuls).
+- **Souhaits** : plus de phrase sous le titre.
+- **Semaine type** : plus « Libellés de cycle… » ni « L’autre équipe est renvoyée… ».
 
 ## Invite employés
 
 Plus de **jeton** / **URL** sous chaque fiche.  
-À côté du code entreprise : bouton **« Inviter mes employés »** → popup : **afficher et copier** l’URL **absolue** `origin + /register?company_code={code}` (même valeur que le QR). Path seul (`/register?…`) **interdit** au presse-papiers (inutile sur téléphone).  
+À côté du code entreprise : bouton **« Inviter mes employés »** → popup : **afficher + copier** le `company_code` **et** l’URL **absolue** `origin + /register?company_code={code}` (même valeur que le QR). Path seul (`/register?…`) **interdit** au presse-papiers (inutile sur téléphone).  
 Les `invite_token` restent dans l’API / les fiches — **masqués** seulement. Pas de nouvelle route, pas de rotate.
 
 ## Hors freeze
 
-Export planning soigné + 3 calculs = briefs UI / `generate-jobs.md`. Admin / coerce (déjà landed). Archive / sync.
+Supprimer un salarié / unlink / panneau compte (**annulé**). Archive / sync.

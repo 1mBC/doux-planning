@@ -18,7 +18,7 @@ Plus un seul cycle par équipe. Par équipe :
 }
 ```
 
-`Cycle` = assignments + warnings + recap **plus** `generated_at` ISO (UTC) + `search_effort`.  
+`Cycle` = assignments + warnings + recap **plus** `generated_at` ISO (UTC) + `search_effort` + `duration_seconds` (float, temps du solve ; absent sur les vieux slots).  
 `latest` = effort du `generated_at` le plus récent (égalité : maximal > optimized > minimal).
 
 Équipe jamais calculée : `versions` tout `null`, `latest` null.
@@ -29,7 +29,7 @@ Ancien `{ assignments, warnings, … }` **sans** `versions` → `versions.optimi
 
 ## HTTP
 
-`POST /v1/generate` écrit **seulement** `versions[effort]` de cette équipe + recalcule `latest`. L’autre effort / l’autre équipe **intacts**.  
+`POST /v1/generate` écrit **seulement** `versions[effort]` de cette équipe (recap + `generated_at` + `search_effort` + `duration_seconds`) + recalcule `latest`. L’autre effort / l’autre équipe **intacts**.  
 200 / job `done` : `published` = **les deux** équipes au nouveau format.
 
 `GET /v1/cycles` = ce `published`.
