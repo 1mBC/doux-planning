@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Overlay, FillOverlay } from "./Overlay";
 import {
   ApiHttpError,
@@ -18,6 +18,11 @@ import {
 } from "./liveSandbox";
 import { loadContext, CONTEXT_SERVICES, type ContextServiceId, type RestaurantContext, type TeamId } from "./context";
 import { CycleStats, LegalRecap, WishRecap } from "./cycleRecaps";
+import {
+  buildPlanningExport,
+  exportPublishedPlanning,
+  type PlanningExportFormat,
+} from "./exportPlanning";
 import { loadCycles, postGenerate, type CycleAssignment, type PublishedCycles } from "./generate";
 import {
   DAYS_FR,
@@ -297,6 +302,8 @@ export function PublishedPlanning() {
   const [busy, setBusy] = useState(false);
   const [live, setLive] = useState<LiveState | null>(null);
   const [overlay, setOverlay] = useState<OverlayTarget | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const sheetsRef = useRef<HTMLDivElement>(null);
   const editing = live !== null;
 
   useEffect(() => {
@@ -335,6 +342,7 @@ export function PublishedPlanning() {
   const services = ctx ? serviceRows(ctx, assignments) : [];
   const canCalculate = ctx?.ready[team] === true && !editing;
   const canEdit = cycle !== null && !editing;
+  const canExport = cycle !== null && !editing;
 
   async function calculate() {
     if (!canCalculate) {
@@ -417,6 +425,23 @@ export function PublishedPlanning() {
     }
   }
 
+  async function exportFormat(format: PlanningExportFormat) {
+    if (!ctx || !cycle || !canExport) {
+      return;
+    }
+    setExportOpen(false);
+    setBusy(true);
+    setError(null);
+    try {
+      const sheets = sheetsRef.current ? [...sheetsRef.current.querySelectorAll<HTMLElement>(":scope > .sheet")] : [];
+      await exportPublishedPlanning(buildPlanningExport(ctx, team, cycle), format, sheets);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function publish() {
     setBusy(true);
     setError(null);
@@ -469,6 +494,7 @@ export function PublishedPlanning() {
               setTeam(item.id);
               setLive(null);
               setOverlay(null);
+              setExportOpen(false);
             }}
           >
             {item.label}
@@ -494,6 +520,33 @@ export function PublishedPlanning() {
             </button>
           </>
         ) : null}
+        <div className="export-menu">
+          <button
+            type="button"
+            className="choice"
+            disabled={!canExport || busy}
+            aria-haspopup="menu"
+            aria-expanded={exportOpen && canExport}
+            onClick={() => setExportOpen((open) => !open)}
+          >
+            Exporter
+          </button>
+          {exportOpen && canExport ? (
+            <div className="export-menu-list" role="menu">
+              {(["json", "csv", "xlsx", "jpeg"] as const).map((format) => (
+                <button
+                  key={format}
+                  type="button"
+                  role="menuitem"
+                  className="choice"
+                  onClick={() => void exportFormat(format)}
+                >
+                  {format === "jpeg" ? "JPEG" : format.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {error ? (
@@ -505,30 +558,32 @@ export function PublishedPlanning() {
       {cycle || editing ? (
         <>
           {cycle && !editing ? <CycleStats stats={cycle.stats} /> : null}
-          <PublishedSheet
-            title={weekSheetTitle(ctx?.week_labels ?? "ab", 0)}
-            weekOffset={0}
-            employees={people}
-            assignments={assignments}
-            services={services}
-            byKey={byKey}
-            onOccupiedClick={
-              editing ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) }) : undefined
-            }
-            onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
-          />
-          <PublishedSheet
-            title={weekSheetTitle(ctx?.week_labels ?? "ab", 7)}
-            weekOffset={7}
-            employees={people}
-            assignments={assignments}
-            services={services}
-            byKey={byKey}
-            onOccupiedClick={
-              editing ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) }) : undefined
-            }
-            onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
-          />
+          <div ref={sheetsRef} className="export-sheets">
+            <PublishedSheet
+              title={weekSheetTitle(ctx?.week_labels ?? "ab", 0)}
+              weekOffset={0}
+              employees={people}
+              assignments={assignments}
+              services={services}
+              byKey={byKey}
+              onOccupiedClick={
+                editing ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) }) : undefined
+              }
+              onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
+            />
+            <PublishedSheet
+              title={weekSheetTitle(ctx?.week_labels ?? "ab", 7)}
+              weekOffset={7}
+              employees={people}
+              assignments={assignments}
+              services={services}
+              byKey={byKey}
+              onOccupiedClick={
+                editing ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) }) : undefined
+              }
+              onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
+            />
+          </div>
           <WarningsList warnings={warnings} />
           {cycle && !editing ? (
             <>
