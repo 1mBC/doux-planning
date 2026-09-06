@@ -31,7 +31,7 @@ Ne pas ajouter `legal_cols` (l’exemple UI lit `legal.rules`).
 - Diane `contrat` : `{ ok: false, text: "30h · 29h / 39h" }`
 - `warnings[].message` FR (freeze `cycle-recaps.md` warn-fr + déjà FR)
 
-`stats.wellbeing.held` / `total` et `warnings.length` = **sortie** evaluate + recap. Les **signaler** dans le SHA (ne pas éditer `contracts/http/v1-examples.md`).
+`stats.wellbeing` = `10` / `12`. `warnings.length` = `17`. (Core @ `609dd30`.)
 
 ## Tests
 

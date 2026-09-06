@@ -69,9 +69,10 @@ Clés obligatoires, dans cet ordre sémantique (l’ordre JSON n’est pas un co
 | `stats.hours.assigned` | `416` |
 | `stats.hours.contracted` | `494` |
 | `stats.hours.percent` | `84` |
-| `stats.wellbeing.held` / `total` | **fichier** après rewrite snapshot (Core signale) |
+| `stats.wellbeing.held` | `10` |
+| `stats.wellbeing.total` | `12` |
 | `assignments.length` | `92` |
-| `warnings.length` | **fichier** après rewrite snapshot (Core signale) |
+| `warnings.length` | `17` |
 
 `stats.souhait` n’existe plus. Les manques d’heures de contrat sont dans `stats.hours` (`percent` = heures posées / heures contrat sur 14 j., arrondi). Les souhaits de bien-être (hors colonne `contrat` de `wish_rows`) sont dans `stats.wellbeing`. Pas de compteur « semaines à l’heure ».
 
