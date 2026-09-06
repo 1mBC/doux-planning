@@ -143,6 +143,10 @@ Suivre `cycle-recaps.md` § UI + `wizard-ui.md` (horloge collée, STAFF en en-t�
 
 `/exemple` lit `GET /v1/examples/saint-cloud` tel quel (`exemple-snapshot.md`) : pastilles 92 / 0 / 0 / 47 / 84 % / 10 / 12, **17** warnings FR, `wish_cols` live (contrat / indispo / consecutive_rest / max_evening / max_coupures…). Diane `30h · 29h / 39h`. Théo 11h–16h. Pas de `we1j` / `weA` inventés. Chrome v0.16.0 inchangé. Version `0.17.0`.
 
+### 18. Wizard polish (invite abs, types cards, we column)
+
+Invite : afficher + copier `origin + /register?company_code={code}` (QR identique). Services types : cartes `wave-line`, libellés courts une fois, plus de `wave-table`. Souhaits : `<th>` **Au moins un repos samedi ou dimanche**, case hors cellule Week-end. Version `0.18.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

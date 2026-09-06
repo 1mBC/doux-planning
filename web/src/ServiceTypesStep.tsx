@@ -210,224 +210,194 @@ export function ServiceTypesStep({
                 )
               }
             />
-            <div className="scroll">
-              <table className="wave-table">
-                <thead>
-                  <tr>
-                    <th>Heure d’arrivée / de départ</th>
-                    <th>Nombre de personnes qui arrivent / qui partent</th>
-                    <th>Niveau minimal requis pour compléter le staff (arrivée) · à garder dans le staff (départ)</th>
-                    <th>STAFF après cette arrivée / ce départ</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line) => {
-                    if (line.kind === "arrival") {
-                      const arrival = draft.arrivals[line.index];
-                      const counts = levelsToCounts(arrival.post_levels);
-                      const staff = sim.afterArrival[line.index];
-                      return (
-                        <tr key={`a-${line.index}`} className="wave-row">
-                          <td>
-                            <div className="wave-clock">
-                              <strong>{formatClock(arrival.time_minutes)}</strong>
-                              <button
-                                type="button"
-                                className="choice"
-                                onClick={() =>
-                                  setDraft(row.id, {
-                                    ...draft,
-                                    arrivals: draft.arrivals.map((item, i) =>
-                                      i === line.index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
-                                    ),
-                                  })
-                                }
-                              >
-                                −15
-                              </button>
-                              <button
-                                type="button"
-                                className="choice"
-                                onClick={() =>
-                                  setDraft(row.id, {
-                                    ...draft,
-                                    arrivals: draft.arrivals.map((item, i) =>
-                                      i === line.index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
-                                    ),
-                                  })
-                                }
-                              >
-                                +15
-                              </button>
-                            </div>
-                          </td>
-                          <td>
-                            <span className="count-field">
-                              <span className="count-label">N</span>
-                              <Stepper
-                                value={arrival.post_levels.length}
-                                min={1}
-                                onChange={(n) => {
-                                  const post_levels = arrival.post_levels.slice(0, n);
-                                  while (post_levels.length < n) {
-                                    post_levels.push(defaultLevel(roles));
-                                  }
-                                  setDraft(row.id, {
-                                    ...draft,
-                                    arrivals: draft.arrivals.map((item, i) =>
-                                      i === line.index ? { ...item, post_levels } : item,
-                                    ),
-                                  });
-                                }}
-                              />
-                            </span>
-                          </td>
-                          <td>
-                            <div className="level-steppers">
-                              {levels.map((level) => (
-                                <label key={level}>
-                                  {level}
-                                  <Stepper
-                                    value={counts[level] ?? 0}
-                                    min={0}
-                                    onChange={(next) => {
-                                      const updated = { ...counts, [level]: next };
-                                      setDraft(row.id, {
-                                        ...draft,
-                                        arrivals: draft.arrivals.map((item, i) =>
-                                          i === line.index
-                                            ? { ...item, post_levels: countsToLevels(updated) }
-                                            : item,
-                                        ),
-                                      });
-                                    }}
-                                  />
-                                </label>
-                              ))}
-                            </div>
-                          </td>
-                          <td className={staff?.error ? "error" : "staff-after"}>
-                            {staff?.error ?? formatBag(staff?.bag ?? [])}
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="choice trash"
-                              aria-label="Supprimer la ligne"
-                              onClick={() =>
-                                setDraft(row.id, {
-                                  ...draft,
-                                  arrivals: draft.arrivals.filter((_, i) => i !== line.index),
-                                })
-                              }
-                            >
-                              🗑
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    }
-                    const departure = draft.departures[line.index];
-                    const staff = sim.afterDeparture[line.index];
-                    return (
-                      <tr key={`d-${line.index}`} className="wave-row">
-                        <td>
-                          <div className="wave-clock">
-                            <strong>{formatClock(departure.time_minutes)}</strong>
-                            <button
-                              type="button"
-                              className="choice"
-                              onClick={() =>
-                                setDraft(row.id, {
-                                  ...draft,
-                                  departures: draft.departures.map((item, i) =>
-                                    i === line.index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
-                                  ),
-                                })
-                              }
-                            >
-                              −15
-                            </button>
-                            <button
-                              type="button"
-                              className="choice"
-                              onClick={() =>
-                                setDraft(row.id, {
-                                  ...draft,
-                                  departures: draft.departures.map((item, i) =>
-                                    i === line.index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
-                                  ),
-                                })
-                              }
-                            >
-                              +15
-                            </button>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="count-field">
-                            <span className="count-label">N</span>
+            <p className="wave-legend">Heure · N · Niveaux · STAFF après</p>
+            <div className="wave-list">
+              {lines.map((line) => {
+                if (line.kind === "arrival") {
+                  const arrival = draft.arrivals[line.index];
+                  const counts = levelsToCounts(arrival.post_levels);
+                  const staff = sim.afterArrival[line.index];
+                  return (
+                    <div key={`a-${line.index}`} className="wave-line">
+                      <div className="wave-clock">
+                        <strong>{formatClock(arrival.time_minutes)}</strong>
+                        <button
+                          type="button"
+                          className="choice"
+                          onClick={() =>
+                            setDraft(row.id, {
+                              ...draft,
+                              arrivals: draft.arrivals.map((item, i) =>
+                                i === line.index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
+                              ),
+                            })
+                          }
+                        >
+                          −15
+                        </button>
+                        <button
+                          type="button"
+                          className="choice"
+                          onClick={() =>
+                            setDraft(row.id, {
+                              ...draft,
+                              arrivals: draft.arrivals.map((item, i) =>
+                                i === line.index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
+                              ),
+                            })
+                          }
+                        >
+                          +15
+                        </button>
+                      </div>
+                      <span className="count-field">
+                        <span className="count-label">N</span>
+                        <Stepper
+                          value={arrival.post_levels.length}
+                          min={1}
+                          onChange={(n) => {
+                            const post_levels = arrival.post_levels.slice(0, n);
+                            while (post_levels.length < n) {
+                              post_levels.push(defaultLevel(roles));
+                            }
+                            setDraft(row.id, {
+                              ...draft,
+                              arrivals: draft.arrivals.map((item, i) =>
+                                i === line.index ? { ...item, post_levels } : item,
+                              ),
+                            });
+                          }}
+                        />
+                      </span>
+                      <div className="level-steppers">
+                        {levels.map((level) => (
+                          <label key={level}>
+                            {level}
                             <Stepper
-                              value={departure.leaveCount}
+                              value={counts[level] ?? 0}
                               min={0}
-                              onChange={(leaveCount) =>
+                              onChange={(next) => {
+                                const updated = { ...counts, [level]: next };
                                 setDraft(row.id, {
                                   ...draft,
-                                  departures: draft.departures.map((item, i) =>
-                                    i === line.index ? { ...item, leaveCount } : item,
+                                  arrivals: draft.arrivals.map((item, i) =>
+                                    i === line.index ? { ...item, post_levels: countsToLevels(updated) } : item,
                                   ),
-                                })
-                              }
+                                });
+                              }}
                             />
-                          </span>
-                        </td>
-                        <td>
-                          <div className="level-steppers">
-                            {levels.map((level) => (
-                              <label key={level}>
-                                {level}
-                                <Stepper
-                                  value={departure.remainByLevel[level] ?? 0}
-                                  min={0}
-                                  onChange={(next) =>
-                                    setDraft(row.id, {
-                                      ...draft,
-                                      departures: draft.departures.map((item, i) =>
-                                        i === line.index
-                                          ? { ...item, remainByLevel: { ...item.remainByLevel, [level]: next } }
-                                          : item,
-                                      ),
-                                    })
-                                  }
-                                />
-                              </label>
-                            ))}
-                          </div>
-                        </td>
-                        <td className={staff?.error ? "error" : "staff-after"}>
-                          {staff?.error ?? formatBag(staff?.bag ?? [])}
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="choice trash"
-                            aria-label="Supprimer la ligne"
-                            onClick={() =>
+                          </label>
+                        ))}
+                      </div>
+                      <span className={staff?.error ? "error" : "staff-after"}>
+                        {staff?.error ?? formatBag(staff?.bag ?? [])}
+                      </span>
+                      <button
+                        type="button"
+                        className="choice trash"
+                        aria-label="Supprimer la ligne"
+                        onClick={() =>
+                          setDraft(row.id, {
+                            ...draft,
+                            arrivals: draft.arrivals.filter((_, i) => i !== line.index),
+                          })
+                        }
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  );
+                }
+                const departure = draft.departures[line.index];
+                const staff = sim.afterDeparture[line.index];
+                return (
+                  <div key={`d-${line.index}`} className="wave-line">
+                    <div className="wave-clock">
+                      <strong>{formatClock(departure.time_minutes)}</strong>
+                      <button
+                        type="button"
+                        className="choice"
+                        onClick={() =>
+                          setDraft(row.id, {
+                            ...draft,
+                            departures: draft.departures.map((item, i) =>
+                              i === line.index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
+                            ),
+                          })
+                        }
+                      >
+                        −15
+                      </button>
+                      <button
+                        type="button"
+                        className="choice"
+                        onClick={() =>
+                          setDraft(row.id, {
+                            ...draft,
+                            departures: draft.departures.map((item, i) =>
+                              i === line.index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
+                            ),
+                          })
+                        }
+                      >
+                        +15
+                      </button>
+                    </div>
+                    <span className="count-field">
+                      <span className="count-label">N</span>
+                      <Stepper
+                        value={departure.leaveCount}
+                        min={0}
+                        onChange={(leaveCount) =>
+                          setDraft(row.id, {
+                            ...draft,
+                            departures: draft.departures.map((item, i) =>
+                              i === line.index ? { ...item, leaveCount } : item,
+                            ),
+                          })
+                        }
+                      />
+                    </span>
+                    <div className="level-steppers">
+                      {levels.map((level) => (
+                        <label key={level}>
+                          {level}
+                          <Stepper
+                            value={departure.remainByLevel[level] ?? 0}
+                            min={0}
+                            onChange={(next) =>
                               setDraft(row.id, {
                                 ...draft,
-                                departures: draft.departures.filter((_, i) => i !== line.index),
+                                departures: draft.departures.map((item, i) =>
+                                  i === line.index
+                                    ? { ...item, remainByLevel: { ...item.remainByLevel, [level]: next } }
+                                    : item,
+                                ),
                               })
                             }
-                          >
-                            🗑
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <span className={staff?.error ? "error" : "staff-after"}>
+                      {staff?.error ?? formatBag(staff?.bag ?? [])}
+                    </span>
+                    <button
+                      type="button"
+                      className="choice trash"
+                      aria-label="Supprimer la ligne"
+                      onClick={() =>
+                        setDraft(row.id, {
+                          ...draft,
+                          departures: draft.departures.filter((_, i) => i !== line.index),
+                        })
+                      }
+                    >
+                      🗑
+                    </button>
+                  </div>
+                );
+              })}
             </div>
             <div className="auth-row">
               <button

@@ -24,7 +24,7 @@ import {
 import { DAYS_FR_SHORT, weekLabelPair } from "./format";
 import { ServiceTypesStep } from "./ServiceTypesStep";
 import { Stepper } from "./Stepper";
-import { inviteQrDataUrl, inviteRegisterPath } from "./inviteQr";
+import { inviteQrDataUrl, inviteRegisterUrl } from "./inviteQr";
 
 const STEPS = ["Services", "Rôles", "Équipe", "Souhaits bien-être", "Services types", "Semaine type"] as const;
 const TEAMS: { id: TeamId; label: string }[] = [
@@ -377,7 +377,7 @@ export function ContextWizard() {
 }
 
 function InvitePopup({ companyCode, onClose }: { companyCode: string; onClose: () => void }) {
-  const path = inviteRegisterPath(companyCode);
+  const url = inviteRegisterUrl(companyCode);
   const [qr, setQr] = useState("");
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -393,7 +393,16 @@ function InvitePopup({ companyCode, onClose }: { companyCode: string; onClose: (
   }, [companyCode]);
 
   async function copy() {
-    await navigator.clipboard.writeText(path);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const area = document.createElement("textarea");
+      area.value = url;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
     setCopied(true);
   }
 
@@ -408,7 +417,7 @@ function InvitePopup({ companyCode, onClose }: { companyCode: string; onClose: (
         <h3 id="invite-title">Inviter mes employés</h3>
         <p className="sub">Ils s’inscrivent avec le code entreprise. Le jeton de chaque fiche reste masqué.</p>
         <p>
-          <code>{path}</code>
+          <code>{url}</code>
         </p>
         <div className="auth-row">
           <button type="button" className="choice active" onClick={() => void copy()}>
@@ -785,6 +794,7 @@ function WishesStep({
               <th>Salarié</th>
               <th>Deux repos consécutifs par semaine</th>
               <th>Week-end</th>
+              <th>Au moins un repos samedi ou dimanche</th>
               <th>
                 Max{" "}
                 {CONTEXT_SERVICES.filter((item) => services.includes(item.id))
@@ -823,17 +833,18 @@ function WishesStep({
                         {option.label}
                       </button>
                     ))}
-                    <label className="auth-fiche weekend-rest-day">
-                      <input
-                        type="checkbox"
-                        checked={person.wellbeing.weekend_rest_day}
-                        onChange={(event) =>
-                          setWellbeing(index, { weekend_rest_day: event.target.checked })
-                        }
-                      />
-                      Au moins un repos samedi ou dimanche
-                    </label>
                   </div>
+                </td>
+                <td>
+                  <label className="auth-fiche weekend-rest-day">
+                    <input
+                      type="checkbox"
+                      checked={person.wellbeing.weekend_rest_day}
+                      onChange={(event) =>
+                        setWellbeing(index, { weekend_rest_day: event.target.checked })
+                      }
+                    />
+                  </label>
                 </td>
                 <td className="max-services">
                   {CONTEXT_SERVICES.filter((item) => services.includes(item.id)).map((item) => (

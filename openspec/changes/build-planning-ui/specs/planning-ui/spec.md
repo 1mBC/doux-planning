@@ -172,7 +172,7 @@ A `kind: company` session on `/planning` SHALL show **Mode édition** only when 
 - **THEN** `POST /v1/sandbox/enter` still returns 200 and the snapshot still has 92 assignments
 
 ### Requirement: Chrome polish on recaps and wizard
-`/planning` company and `/exemple` SHALL use the same recap chrome: `contract_hours` pastille **Contrat**, `ok: false` cells orange + bold, wish table title **Souhaits bien-être**, engine `message` as-is. `/exemple` MUST NOT rewrite the snapshot. Services types SHALL keep clock and ±15 on one line, header **STAFF après cette arrivée / ce départ** (cells show bag / error only), and a labeled N counter. Roles SHALL use Nom + Niveau stepper. Weekend-rest checkbox MUST NOT show « Chaque semaine ; un jour resto fermé compte. ». Company identity SHALL offer **Inviter mes employés** (copy `/register?company_code={code}` + QR of `origin` + path) and MUST hide invite tokens / URLs under fiches.
+`/planning` company and `/exemple` SHALL use the same recap chrome: `contract_hours` pastille **Contrat**, `ok: false` cells orange + bold, wish table title **Souhaits bien-être**, engine `message` as-is. `/exemple` MUST NOT rewrite the snapshot. Services types SHALL keep clock and ±15 on one line, show bag / error only for STAFF, and a labeled N counter, as **cards** (no `wave-table`). Roles SHALL use Nom + Niveau stepper. Weekend-rest SHALL have its own `<th>` **Au moins un repos samedi ou dimanche** (checkbox not inside the Week-end cell). Company identity SHALL offer **Inviter mes employés** (display and copy the absolute `origin + /register?company_code={code}` + QR of that URL) and MUST hide invite tokens / URLs under fiches.
 
 #### Scenario: Contract warning uses Contrat pill
 - **WHEN** a published cycle lists a `contract_hours` warning
@@ -184,4 +184,12 @@ A `kind: company` session on `/planning` SHALL show **Mode édition** only when 
 
 #### Scenario: Invite popup shows URL and QR
 - **WHEN** the restaurateur clicks **Inviter mes employés**
-- **THEN** a popup copies `/register?company_code={code}` and shows a QR of the same path on the current origin, without exposing per-fiche tokens
+- **THEN** a popup displays and copies the absolute `origin + /register?company_code={code}` and shows a QR of that same URL, without exposing per-fiche tokens
+
+#### Scenario: Types are cards not a spreadsheet
+- **WHEN** the restaurateur opens Services types
+- **THEN** events render as `wave-line` cards under short labels (Heure · N · Niveaux · STAFF après) and no `wave-table` is present
+
+#### Scenario: Weekend rest has its own column
+- **WHEN** the restaurateur opens Souhaits bien-être
+- **THEN** the weekend-rest checkbox sits under its own header and not inside the Week-end cell
