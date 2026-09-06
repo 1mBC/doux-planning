@@ -171,4 +171,4 @@ Chrome seulement — **pas** de 2ᵉ formule, **pas** de rewrite des `message` /
 
 ## Hors freeze
 
-Rewrite fichier `saint-cloud.json` = `exemple-snapshot.md`. Export / import config resto, exports planning, admin, coerce Railway, archive / sync.
+Rewrite fichier `saint-cloud.json` = `exemple-snapshot.md`. Export / admin (déjà landed). Coerce Railway = `contracts/domain/coerce-railway.md`. Archive / sync.

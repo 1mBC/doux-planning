@@ -19,4 +19,4 @@ Chiffres = payload, **pas** recalculés. Warnings `message` tel quel.
 
 ## Hors freeze
 
-Admin, coerce Railway, export config (déjà landed), archive / sync.
+Admin (déjà landed), coerce Railway = `contracts/domain/coerce-railway.md`, archive / sync.

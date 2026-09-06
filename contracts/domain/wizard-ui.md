@@ -102,4 +102,4 @@ Les `invite_token` restent dans l’API / les fiches — **masqués** seulement.
 
 ## Hors freeze
 
-Export config, exports planning, admin, coerce Railway, archive / sync.
+Export config / planning / admin (déjà landed). Coerce Railway = `contracts/domain/coerce-railway.md`. Archive / sync.
