@@ -3,7 +3,7 @@
 Freeze **domaine**. HTTP persist = brief Infra. UI pastilles / tableaux / types = brief UI.  
 Pas de second solve : lecture de `published_cycles[team].result` + fiches de l’équipe.
 
-L’exemple public Saint-Cloud (`data/examples/saint-cloud.json`) **reste le snapshot figé**. Ne pas le réécrire. Ses `wish_cols` (`we1j`, `weA`…) sont **mortes** pour le live.
+L’exemple public Saint-Cloud (`data/examples/saint-cloud.json`) : rewrite = `contracts/domain/exemple-snapshot.md` (evaluate + recap, **pas** de re-solve). Ses vieilles `wish_cols` (`we1j`, `weA`…) sont **mortes** pour le live.
 
 ## API
 
@@ -167,8 +167,8 @@ Chrome seulement — **pas** de 2ᵉ formule, **pas** de rewrite des `message` /
 - `max_evenings` : jours de la semaine + `max {limit}` dans le message.
 - Wish `max_evening` : texte `max {limit} · {nA} / {nB} posés`.
 - `contract_hours` / `consecutive_rest_days` / `unavailability` : message FR du tableau warn-fr (sous-chaîne).
-- Pas de `we1j` / `weA`. Hydrate / board / exemple public verts. **Ne pas** réécrire `saint-cloud.json`.
+- Pas de `we1j` / `weA` sur un recap **live**. Hydrate / board verts.
 
 ## Hors freeze
 
-Rafraîchir `saint-cloud.json`, export / import config resto, exports planning (JSON/CSV/XLSX/JPEG), admin, coerce Railway, archive / sync.
+Rewrite fichier `saint-cloud.json` = `exemple-snapshot.md`. Export / import config resto, exports planning, admin, coerce Railway, archive / sync.
