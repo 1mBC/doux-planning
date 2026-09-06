@@ -131,26 +131,22 @@ export function Overlay({
         </div>
         {gesture === "retune" ? (
           <div className="steppers">
-            <label className="stepper-field">
-              <span className="stepper-label">Début</span>
-              <Stepper
-                value={startMinutes}
-                step={STEP_MINUTES}
-                display={formatClock(startMinutes)}
-                disabled={loading || busy}
-                onChange={(next) => void stepHours("start", next - startMinutes)}
-              />
-            </label>
-            <label className="stepper-field">
-              <span className="stepper-label">Fin</span>
-              <Stepper
-                value={endMinutes}
-                step={STEP_MINUTES}
-                display={formatClock(endMinutes)}
-                disabled={loading || busy}
-                onChange={(next) => void stepHours("end", next - endMinutes)}
-              />
-            </label>
+            <Stepper
+              label="Début"
+              value={startMinutes}
+              step={STEP_MINUTES}
+              display={formatClock(startMinutes)}
+              disabled={loading || busy}
+              onChange={(next) => void stepHours("start", next - startMinutes)}
+            />
+            <Stepper
+              label="Fin"
+              value={endMinutes}
+              step={STEP_MINUTES}
+              display={formatClock(endMinutes)}
+              disabled={loading || busy}
+              onChange={(next) => void stepHours("end", next - endMinutes)}
+            />
           </div>
         ) : null}
         {loading ? <p className="sub">Chargement des propositions…</p> : null}
@@ -319,26 +315,22 @@ export function FillOverlay({
         </p>
         {start !== null && end !== null ? (
           <div className="steppers">
-            <label className="stepper-field">
-              <span className="stepper-label">Début</span>
-              <Stepper
-                value={start}
-                step={STEP_MINUTES}
-                display={formatClock(start)}
-                disabled={loading || busy}
-                onChange={(next) => void stepHours("start", next - start)}
-              />
-            </label>
-            <label className="stepper-field">
-              <span className="stepper-label">Fin</span>
-              <Stepper
-                value={end}
-                step={STEP_MINUTES}
-                display={formatClock(end)}
-                disabled={loading || busy}
-                onChange={(next) => void stepHours("end", next - end)}
-              />
-            </label>
+            <Stepper
+              label="Début"
+              value={start}
+              step={STEP_MINUTES}
+              display={formatClock(start)}
+              disabled={loading || busy}
+              onChange={(next) => void stepHours("start", next - start)}
+            />
+            <Stepper
+              label="Fin"
+              value={end}
+              step={STEP_MINUTES}
+              display={formatClock(end)}
+              disabled={loading || busy}
+              onChange={(next) => void stepHours("end", next - end)}
+            />
           </div>
         ) : null}
         {loading ? <p className="sub">Chargement des propositions…</p> : null}

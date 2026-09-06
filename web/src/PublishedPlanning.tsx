@@ -23,11 +23,19 @@ import {
   exportPublishedPlanning,
   type PlanningExportFormat,
 } from "./exportPlanning";
-import { loadCycles, postGenerate, type CycleAssignment, type PublishedCycles, type SearchEffort } from "./generate";
+import {
+  cycleOf,
+  loadCycles,
+  postGenerate,
+  type CycleAssignment,
+  type PublishedCycles,
+  type SearchEffort,
+} from "./generate";
 import {
   DAYS_FR,
   GESTURE_HISTORY_FR,
   formatClock,
+  formatGeneratedAt,
   formatDuration,
   formatHoursTotal,
   groupedEmployees,
@@ -298,6 +306,8 @@ export function PublishedPlanning() {
   const [ctx, setCtx] = useState<RestaurantContext | null>(null);
   const [published, setPublished] = useState<PublishedCycles | null>(null);
   const [team, setTeam] = useState<TeamId>("salle");
+  const [effort, setEffort] = useState<SearchEffort>("minimal");
+  const hydratedEffort = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [calculating, setCalculating] = useState<SearchEffort | null>(null);
@@ -316,6 +326,10 @@ export function PublishedPlanning() {
         }
         setCtx(nextCtx);
         setPublished(cycles.published);
+        if (!hydratedEffort.current) {
+          setEffort(cycles.published.salle?.latest ?? "minimal");
+          hydratedEffort.current = true;
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -327,7 +341,8 @@ export function PublishedPlanning() {
     };
   }, []);
 
-  const cycle = published?.[team] ?? null;
+  const pack = published?.[team] ?? null;
+  const cycle = cycleOf(pack, effort);
   const people = useMemo(
     () =>
       editing
@@ -345,7 +360,7 @@ export function PublishedPlanning() {
   const canEdit = cycle !== null && !editing && calculating === null;
   const canExport = cycle !== null && !editing && calculating === null;
 
-  async function calculate(effort: SearchEffort) {
+  async function calculate() {
     if (!canCalculate) {
       return;
     }
@@ -375,7 +390,7 @@ export function PublishedPlanning() {
     setBusy(true);
     setError(null);
     try {
-      setLive(await enterLiveSandbox(team));
+      setLive(await enterLiveSandbox(team, effort));
     } catch (err) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {
@@ -492,7 +507,7 @@ export function PublishedPlanning() {
         </p>
       ) : null}
 
-      <div className="auth-switch">
+      <div className="auth-switch planning-row">
         {TEAMS.map((item) => (
           <button
             key={item.id}
@@ -500,6 +515,7 @@ export function PublishedPlanning() {
             className={team === item.id ? "choice active" : "choice"}
             onClick={() => {
               setTeam(item.id);
+              setEffort(published?.[item.id]?.latest ?? "minimal");
               setLive(null);
               setOverlay(null);
               setExportOpen(false);
@@ -509,45 +525,56 @@ export function PublishedPlanning() {
           </button>
         ))}
       </div>
-      <div className="auth-switch planning-actions">
-        {!editing
-          ? (
-            [
-              { id: "minimal" as const, label: "Minimal" },
-              { id: "optimized" as const, label: "Optimisé" },
-              { id: "maximal" as const, label: "Maximal" },
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className="choice active"
-                disabled={!canCalculate || busy}
-                onClick={() => void calculate(item.id)}
-              >
-                {item.label}
-              </button>
-            ))
-          )
-          : null}
+      <div className="auth-switch planning-row">
+        {(
+          [
+            { id: "minimal" as const, label: "Minimal" },
+            { id: "optimized" as const, label: "Optimisé" },
+            { id: "maximal" as const, label: "Maximal" },
+          ]
+        ).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={effort === item.id ? "choice active" : "choice"}
+            disabled={editing || calculating !== null}
+            onClick={() => {
+              setEffort(item.id);
+              setExportOpen(false);
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="auth-switch planning-actions planning-row">
+        <button
+          type="button"
+          className="choice action"
+          disabled={!canCalculate || busy}
+          onClick={() => void calculate()}
+        >
+          (Re)Calculer le planning
+        </button>
         {canEdit ? (
-          <button type="button" className="choice active" disabled={busy} onClick={() => void startEdit()}>
-            {busy ? "Ouverture…" : "Mode édition"}
+          <button type="button" className="choice action" disabled={busy} onClick={() => void startEdit()}>
+            Entrer en mode édition
           </button>
         ) : null}
         {editing ? (
           <>
-            <button type="button" className="choice" onClick={leaveEdit}>
-              Lecture
+            <button type="button" className="choice action" onClick={leaveEdit}>
+              Quitter le mode édition
             </button>
-            <button type="button" className="choice active" disabled={busy} onClick={() => void publish()}>
-              {busy ? "Publication…" : "Publier"}
+            <button type="button" className="choice action" disabled={busy} onClick={() => void publish()}>
+              Publier
             </button>
           </>
         ) : null}
         <div className="export-menu">
           <button
             type="button"
-            className="choice"
+            className="choice action"
             disabled={!canExport || busy}
             aria-haspopup="menu"
             aria-expanded={exportOpen && canExport}
@@ -562,7 +589,7 @@ export function PublishedPlanning() {
                   key={format}
                   type="button"
                   role="menuitem"
-                  className="choice"
+                  className="choice action"
                   onClick={() => void exportFormat(format)}
                 >
                   {format === "jpeg" ? "JPEG" : format.toUpperCase()}
@@ -572,6 +599,7 @@ export function PublishedPlanning() {
           ) : null}
         </div>
       </div>
+      <p className="generated-at">{cycle ? formatGeneratedAt(cycle.generated_at) : "—"}</p>
 
       {calculating ? (
         <div className="calc-overlay" role="status" aria-live="polite">

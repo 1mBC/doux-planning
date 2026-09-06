@@ -125,11 +125,9 @@ export function simulateWaves(arrivals: ArrivalDraft[], departures: DepartureDra
       afterArrival[event.index] = { bag: [...bag], error: null };
       continue;
     }
-    const result = computeWorstCaseRemaining(
-      bag,
-      departures[event.index].leaveCount,
-      departures[event.index].remainByLevel,
-    );
+    const keep = Object.values(departures[event.index].remainByLevel).reduce((sum, n) => sum + n, 0);
+    const leaveCount = Math.max(0, bag.length - keep);
+    const result = computeWorstCaseRemaining(bag, leaveCount, departures[event.index].remainByLevel);
     if (result.error) {
       blocked = result.error;
       afterDeparture[event.index] = { bag: [], error: result.error };

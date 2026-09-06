@@ -109,11 +109,11 @@ Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seul
 
 ### 9. Published cycle (company)
 
-Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Minimal** · **Optimisé** · **Maximal** / **Mode édition** **sous** le switch d’équipe. Les trois boutons actifs seulement si `ready[team] === true` et pas en édition. Minimal / Optimisé = POST sync `{ team, search_effort }`. Maximal = POST 202 `{ job_id, … }` puis poll `GET /v1/generate/jobs/{id}` ~1 s jusqu’à `done` (alors `published`) / `failed` (`error` / `detail` FR). Loader overlay ≥ 1 s, fermé quand le 200 ou le job `done` est là. Cycle non null : `stats` / `legal_cols` / `legal_rows` / `wish_cols` / `wish_rows` **requis** (throw si clé absente). Hors édition : pastilles + tableaux **Règles légales** / **Souhaits bien-être** (`text` tel quel, cellule `ok: false` orange + gras y compris `contrat`). Warning `contract_hours` : pastille **Contrat** (severity API inchangée). Mode édition : cacher ces recaps (grille + warnings + historique) et **calcul off**. Warnings : `message` tel quel. Cuisine `null` : « Pas encore calculé ». Mode édition live = §10. Menu **Exporter** = §20. Trois calculs = §22.
+Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Chrome **3 rangées** : (1) Salle | Cuisine (bleu = équipe) ; (2) Minimal | Optimisé | Maximal (bleu = **sélection**, pas de POST, défaut = `latest`) ; (3) actions **blanches** (Re)Calculer / Entrer en mode édition / Quitter / Publier / Exporter. Recalculer = POST de l’effort sélectionné. Slot vide → « Pas encore calculé » (pas l’autre version). Sous la rangée 3 : `generated_at` Europe/Paris, absent → tiret. Parse `published[team].versions` + `latest` (`generated_at` / `search_effort` sur le cycle). Minimal / Optimisé = POST sync. Maximal = POST 202 puis poll. Loader ≥ 1 s. Mode édition : enter avec l’effort sélectionné ; cacher les recaps. Export = version affichée. Cuisine / slot vide : « Pas encore calculé ». Salarié : pas de sélecteur. Menu **Exporter** = §20. Versions chrome = §23.
 
 ### 10. Live sandbox on `/planning`
 
-Mode édition seulement si `published[team]` existe. POST `/v1/live/sandbox/{team}/enter` (Bearer). Cuisine sans cycle : pas de bouton (409 API). Overlays = joujou (injecter le client live, ne pas appeler `/v1/sandbox/*`). Lecture quitte l’UI sans discard. Reload / ré-enter = GET/enter live (cran conservé). Publier → Cycles, sortir d’édition, l’autre équipe intacte. Tout annuler = discard live.
+Mode édition seulement si le **slot sélectionné** existe. POST `/v1/live/sandbox/{team}/enter` (Bearer) avec `{ search_effort }` (défaut API = `latest`). Slot vide → 409, pas de bouton. Overlays = joujou (injecter le client live, ne pas appeler `/v1/sandbox/*`). Lecture quitte l’UI sans discard. Reload / ré-enter = GET/enter live (cran conservé). Publier → Cycles (réécrit ce slot, `generated_at` inchangé), sortir d’édition, l’autre équipe / les autres efforts intacts. Tout annuler = discard live.
 
 Hors slice : rotate invite-token, edit contraintes salarié.
 
@@ -172,6 +172,17 @@ Suivre `wizard-ui.md` (stepper / table), `export-planning.md`, `generate-jobs.md
 - Trois boutons **Minimal** · **Optimisé** · **Maximal** si `ready[team]`. Loader ≥ 1 s. Maximal = 202 + poll. Mode édition : calcul off. Pas salarié / `/exemple`.
 
 Version `0.22.0`.
+
+### 23. Planning chrome (versions, steppers cadrés, types sans N)
+
+Suivre `generate-versions.md`, `wizard-ui.md` (stepper / colonnes), `v1-generate.md` — les suivre, ne pas les modifier.
+
+- 3 rangées company : équipe · sélection d’effort · actions blanches. Défaut = `latest`. Recalculer POST seulement depuis la rangée 3. Horodatage `generated_at` Paris.
+- Stepper **encadré**, libellé **gras**, chiffre **centré** (rôles, types niveaux, overlay, ±15).
+- Types : plus de colonne N. Titre **Niveaux minimal requis (par arrivée | après sortie)**. K = sac avant − somme(à garder). Persist inchangée.
+- Salarié : `me/planning` latest, pas de sélecteur.
+
+Version `0.23.0`.
 
 ## Risks / Trade-offs
 

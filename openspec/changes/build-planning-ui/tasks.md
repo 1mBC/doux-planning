@@ -120,3 +120,8 @@
 
 - [x] 20.1 Compact stepper chrome everywhere (roles, types N/levels, overlay, ±15) ; types = one `<table>` per sheet (Type · Heure · N · Niveaux · STAFF minimal resultant) ; JPEG 2× + quality ≥ 0.95 ; XLSX 2 week sheets + dated title + one row per offered service ; three generate buttons (Minimal / Optimisé sync, Maximal 202 + poll, loader ≥ 1 s) ; bump `web/` to 0.22.0
 - [x] 20.2 Verify `npm run build` ; compact centered steppers on roles + types + overlay ; types table + Type + STAFF column ; company 3 buttons, Minimal recalc loader ≥ 1 s, Maximal 202 + poll → grid ; XLSX 2 sheets + dated title + service rows ; sharper JPEG ; exemple 92 ; admin unchanged ; `v0.22.0`
+
+## 21. Planning chrome (versions, steppers, types sans N)
+
+- [x] 21.1 Parse `published[team].versions` + `latest` + `generated_at` ; 3 chrome rows (team / effort select / white actions) ; Recalculer POST selected effort ; enter sandbox with that effort ; types drop N column (K = bag − keep) ; framed steppers ; bump `web/` to 0.23.0
+- [x] 21.2 Verify `npm run build` ; two generates (minimal then optimized) switch grid + distinct Paris timestamps ; Recalculer only from row 3 ; employee sees latest ; types without N ; framed steppers ; exemple 92 ; `v0.23.0`
