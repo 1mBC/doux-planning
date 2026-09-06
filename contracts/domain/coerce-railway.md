@@ -1,6 +1,6 @@
 # Coerce Railway (vieux JSON wellbeing à la lecture)
 
-Freeze **Infra**. **Pas** d’Alembic. **Pas** de Core (`hydrate.py` / `staff.py` restent stricts).  
+Freeze **Infra** (landed `coerce-railway/infra`). **Pas** d’Alembic. **Pas** de Core (`hydrate.py` / `staff.py` restent stricts).  
 Railway a des `staff_fiches` écrites **avant** l’objet `Wellbeing`. Aujourd’hui `GET /v1/context` / generate / `/v1/me/planning` **400** sur ces lignes. On **lit** l’ancien JSONB → objet Core, puis on **réécrit** la ligne (heal).
 
 PATCH / import **restent** 400 `Champs invalides.` sur une forme legacy (on n’accepte plus l’ancien côté client).
@@ -56,4 +56,4 @@ Exemple public / `saint-cloud.json` : **pas** de coerce (fichier déjà nouvel o
 
 ## Hors freeze
 
-Archive / sync. UI (admin déjà landé). Core hydrate.
+Archive / sync. File nuit close. Core hydrate.
