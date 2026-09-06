@@ -1,20 +1,23 @@
 # Generate live par équipe
 
 Freeze HTTP. Wrappe `generate_team` (`contracts/domain/team-generate.md`).  
+Jobs Maximal = `contracts/domain/generate-jobs.md` (gagne sur le 202 / poll).  
 Bearer **company**. Pas d’id resto dans le path.  
 `kind: employee` → 403 `Action réservée au restaurateur.`  
 Sans Bearer → 401 `Session invalide.`  
 Sans `DATABASE_URL` → 503 `Base indisponible.`
 
-Exemple public + sandbox joujou **inchangés**. Pas de jobs / worker / `SKIP LOCKED` dans cette tranche. Sync : `POST` appelle `generate_team` et rend le cycle persisté. Tests = **`minimal`** seulement.
+Exemple public + sandbox joujou **inchangés**.  
+`minimal` / `optimized` : sync dans la requête. `maximal` : **202** + worker + `GET /v1/generate/jobs/{id}`. Tests sync = **`minimal`** ; tests job = tick stub (pas 600 s).
 
-Tranche 16 : chaque cycle publié porte aussi le `CycleRecap` Core (`contracts/domain/cycle-recaps.md`) — **persist HTTP = brief Infra**. Assignments + warnings inchangés. Warning `rest_between_days` : `message` enrichi (deux horloges) déjà dans `EngineResult`.
+Tranche 16 : chaque cycle publié porte aussi le `CycleRecap` Core (`contracts/domain/cycle-recaps.md`). Assignments + warnings inchangés.
 
 ## Routes
 
 ```
-POST /v1/generate     Bearer company → 200 GenerateResult
-GET  /v1/cycles       Bearer company → 200 Cycles
+POST /v1/generate                  Bearer company → 200 GenerateResult | 202 GenerateJob
+GET  /v1/generate/jobs/{job_id}    Bearer company → 200 GenerateJob
+GET  /v1/cycles                    Bearer company → 200 Cycles
 ```
 
 ### `POST /v1/generate`
@@ -23,11 +26,12 @@ GET  /v1/cycles       Bearer company → 200 Cycles
 { "team": "salle"|"cuisine", "search_effort": "minimal"|"optimized"|"maximal" }
 ```
 
-`search_effort` omis → `optimized`.  
-`TeamNotReady` → 409 `Cette équipe n'est pas prête à calculer.` (aucun solve).  
-Team / effort invalide → 400 `Champs invalides.`
+`search_effort` omis → `optimized` (**200** sync).  
+`TeamNotReady` → 409 `Cette équipe n'est pas prête à calculer.` (aucun solve, aucun job).  
+Team / effort invalide → 400 `Champs invalides.`  
+`maximal` déjà `queued`/`running` pour cette company+team → 409 `Un calcul maximal est déjà en cours.`
 
-200 = `GenerateResult` :
+`minimal` / `optimized` → **200** `GenerateResult` :
 
 ```
 {
@@ -48,10 +52,28 @@ Team / effort invalide → 400 `Champs invalides.`
 }
 ```
 
+`maximal` → **202** `GenerateJob` (pas de `published`) :
+
+```
+{ "job_id", "team", "search_effort": "maximal", "status": "queued", "estimated_seconds": 600 }
+```
+
 `Shift` / `Warning` = mêmes clés que l’exemple / sandbox.  
-Recap = wrap **`cycle_recap`** (`stats`, `legal_cols`, `legal_rows`, `wish_cols`, `wish_rows`) — **pas** de chiffres inventés dans `api/`.  
-Assignments du cycle salle = `team: "salle"` seulement. L’autre clé reste le cycle déjà persisté (ou `null`), **avec** son recap s’il en a un.  
-Cycle `null` : pas de clés recap. Cycle non null : les 5 clés recap **requises**.
+Recap = wrap **`cycle_recap`**. Assignments du cycle salle = `team: "salle"` seulement.
+
+### `GET /v1/generate/jobs/{job_id}`
+
+Même resto. 200 :
+
+```
+{ "job_id", "team", "search_effort", "status", "estimated_seconds",
+  "error"?: string,
+  "published"?: <même published que GenerateResult> }
+```
+
+`status` : `queued` | `running` | `done` | `failed`.  
+`published` ssi `done`. `error` ssi `failed`.  
+Autre company / id inconnu → 404. Employee → 403.
 
 ### `GET /v1/cycles`
 
@@ -59,17 +81,17 @@ Même objet `published` (sans `team` / `search_effort` du dernier POST). Resto j
 
 ## Persist
 
-JSONB `published_cycles` : assignments + warnings + recap. Pas d’Alembic. Pas `example_snapshots` / `saint-cloud.json`.  
-`reset_engine` / restart → même GET. Regenerer une équipe remplace seulement cette clé.  
+JSONB `published_cycles` : assignments + warnings + recap.  
+Table `generate_jobs` (Alembic). Worker SKIP LOCKED. Succès job = même persist + `generate_logs` qu’un 200.  
+`reset_engine` / restart → même GET cycles. Regenerer une équipe remplace seulement cette clé.  
 Cycle déjà persisté **sans** recap : au GET, hydrater + `cycle_recap` (pas de 500).  
 `POST /v1/live/sandbox/{team}/publish` → même `published` (recap inclus). Joujou + exemple 92 inchangés.
 
-## UI (cette tranche)
+## UI
 
-Route `/planning` (company). **Calculer** si `ready[team]` ; POST `search_effort: "minimal"`.  
-Hors édition : pastilles `stats` + tableaux `legal_*` / `wish_*` (payload, pas inventés) + warnings (`message` tel quel).  
-Mode édition : **cacher** recaps (comme `/exemple`). `/exemple` snapshot inchangé (`we1j` etc. restent).
+Route `/planning` (company). **Trois** boutons si `ready[team]` : Minimal · Optimisé · Maximal.  
+Loader ≥ 1 s. Maximal = POST 202 puis poll GET job. Détail = brief UI.
 
 ## Hors tranche
 
-Worker, jobs, `/me/shifts`, CORS sauf proxy cassé.
+`/me/shifts`, CORS sauf proxy cassé, mail / push.

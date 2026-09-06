@@ -51,18 +51,14 @@ departures[]:  { time_minutes, remaining_post_levels }  # sac APRÈS le départ
 
 Pas de joker moteur. Pas de champ « qui part » persisté.
 
-**Dessin (brief UI polish)** : **une liste chronologique** (arrivées et départs mélangés). Chaque événement = **une carte / ligne** (`wave-line` / `fiche-card`), **pas** un `<table>` tableur (plus de `wave-table` 5 colonnes + thead interminable).  
-Ajouter = choisir arrivée **ou** départ. Retirer = poubelle en bout de ligne.  
-Libellés courts **une fois** au-dessus de la liste (Heure · N · Niveaux · STAFF après). Persist / pire-cas inchangés.
+**Dessin** : **une `<table>` par feuille** (nom du type). Lignes chrono (arrivées + départs). Plus de cartes `wave-line`.  
+Ajouter = arrivée **ou** départ. Retirer = poubelle. Persist / pire-cas inchangés.
 
-Colonnes :
+Colonnes (thead une fois) :
 
-| | Arrivée | Départ |
-|---|---|---|
-| Heure | horloge **et** ±15 **sur la même ligne** | idem |
-| Nombre | N arrivants — compteur lisible (pas un stepper nu) | N partants (K) — même compteur |
-| Niveaux | **chaque** niveau de l’échelle + compteur **+/−** = combien à ce min | **chaque** niveau + compteur **+/−** = combien **à garder** (0 = pas de contrainte) |
-| Dernière | en-tête **STAFF après cette arrivée / ce départ** (une fois). Cellule = sac / erreur, **sans** répéter « STAFF après : » | idem |
+| Type | Heure | N | Niveaux | STAFF minimal resultant |
+|---|---|---|---|---|
+| **Arrivée** ou **Sortie** | horloge + ±15 **petits** (même chrome stepper) | N arrivants / N partants (K) — stepper compact | chaque niveau de l’échelle + stepper = arrivants à ce min / **à garder** (0 = pas de contrainte) | sac / erreur (même calcul qu’avant, **nouveau titre seulement**) |
 
 `post_levels` persisté = le multiset « N × niveau » des compteurs arrivée (somme = N).  
 L’UI calcule `remaining_post_levels` ; l’utilisateur ne l’édite pas.
@@ -90,9 +86,14 @@ Exemples (K = 1) :
 K > nombre de personnes non réservées → bloquer l’enregistrement (phrase FR).  
 N_L > `count(L)` dans le sac → bloquer.
 
+## Stepper (chrome)
+
+Label **à part** (pas collé). `[−]` / `[+]` **petits** (pas `.choice` nav). Compteur **centré**.  
+Même composant : rôles (Niveau), types (N + niveaux), **overlay sandbox**, ±15.
+
 ## Rôles (style)
 
-Même langage visuel que l’équipe (ligne **Nom** + **Niveau**). Niveau en stepper **+/−**, pas un number input nu. Pas de nouvelle clé persistée.
+Même langage visuel que l’équipe (ligne **Nom** + **Niveau**). Niveau = stepper compact. Pas de nouvelle clé persistée.
 
 ## Invite employés
 
@@ -102,4 +103,4 @@ Les `invite_token` restent dans l’API / les fiches — **masqués** seulement.
 
 ## Hors freeze
 
-Export config / planning / admin (déjà landed). Coerce Railway = `contracts/domain/coerce-railway.md`. Archive / sync.
+Export planning soigné + 3 calculs = briefs UI / `generate-jobs.md`. Admin / coerce (déjà landed). Archive / sync.

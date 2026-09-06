@@ -13,8 +13,10 @@ Render écarté : free web **dort** (premier clic après un landing = « c’est
 
 ```
 navigateur  →  https://<railway-domain>/
-                 ├── /v1/*     FastAPI (auth, context, generate, live, me/planning, exemple, sandbox joujou)
+                 ├── /v1/*     FastAPI (auth, context, generate, jobs, live, me/planning, exemple, sandbox)
                  └── /*        SPA (web/dist) + fallback index.html (/planning, /login, /admin, …)
+
+2ᵉ service **worker** (même image, **pas** de domaine public) : boucle jobs Maximal (`contracts/domain/generate-jobs.md`). Même `DATABASE_URL`.
 ```
 
 Même origine : le front continue d’appeler `/v1` (déjà le cas). Pas de CORS. Pas de second service front.
@@ -34,7 +36,8 @@ Pas d’autre secret en v1 (auth actuelle = email/mdp en base).
 ## Image
 
 Multi-stage : `npm run build` dans `web/` → copier `dist` dans l’image Python.  
-`CMD` : `alembic upgrade head` puis uvicorn `0.0.0.0:$PORT`.  
+`CMD` web : `alembic upgrade head` puis uvicorn `0.0.0.0:$PORT`.  
+Worker : même image, start = `python -m doux_planning.api.worker` (ou la commande Infra documentée). **Pas** d’Alembic dans le worker (le web l’a déjà fait).  
 Si `dist` absent (dev API seule) : les routes `/v1` restent OK, pas de 500.
 
 ## Ce que Bastien fait à la main (une fois)
@@ -42,5 +45,7 @@ Si `dist` absent (dev API seule) : les routes `/v1` restent OK, pas de 500.
 1. Compte Railway, projet lié au repo `1mBC/doux-planning`, branche **`master`**.
 2. Plugin Postgres. Vérifier `DATABASE_URL` sur le service web.
 3. Generate domain. Premier deploy après merge du slice Infra.
+4. Variable `ADMIN_EMAIL` (déjà collée) : restart / redeploy pour promote.
+5. **2ᵉ service worker** (même repo / image, start worker, `DATABASE_URL` partagé, pas de domaine public) — une fois, pour Maximal.
 
 Pas de token à coller dans le repo. Pas de CI GitHub obligatoire.
