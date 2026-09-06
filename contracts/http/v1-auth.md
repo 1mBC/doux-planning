@@ -27,12 +27,13 @@ Les vieilles routes OpenSpec `/v1/auth/restaurateur/*` et `/v1/auth/employee/*` 
 Corps session (register + login) :
 
 ```
-{ "token": "<opaque>", "me": { "kind": "company"|"employee", "email": "...", "restaurant_id": "...", "employee_id": null|"..." } }
+{ "token": "<opaque>", "me": { "kind": "company"|"employee", "email": "...", "restaurant_id": "...", "employee_id": null|"...", "admin": false } }
 ```
 
 `GET /v1/me` = l’objet `me` (sans `token`).  
 `kind: company` → `employee_id` est `null`.  
-`kind: employee` → `employee_id` = id de fiche.
+`kind: employee` → `employee_id` = id de fiche.  
+`admin` : bool (**promote** `ADMIN_EMAIL`, `contracts/domain/admin.md`). Jamais `kind: "admin"`.
 
 ## Routes
 

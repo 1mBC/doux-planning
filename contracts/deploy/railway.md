@@ -27,6 +27,7 @@ Local inchangé : Compose Postgres + uvicorn hôte + Vite proxy. Ne pas imposer 
 |---|---|---|
 | `DATABASE_URL` | Railway (plugin) | SQLAlchemy `postgresql+psycopg://…` ; adapter si Railway donne `postgres://` |
 | `PORT` | Railway | uvicorn écoute `$PORT` (défaut 8000 en local / image) |
+| `ADMIN_EMAIL` | Railway (service web) | Promote idempotent du restaurateur existant (`contracts/domain/admin.md`). Prod : `bastien.caujolle@gmail.com`. Ne crée **pas** de compte. |
 
 Pas d’autre secret en v1 (auth actuelle = email/mdp en base).
 
