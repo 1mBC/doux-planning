@@ -26,7 +26,7 @@ import {
   type WeekendChoice,
   type Wellbeing,
 } from "./context";
-import { DAYS_FR_SHORT, weekLabelPair } from "./format";
+import { DAYS_FR_SHORT } from "./format";
 import { ServiceTypesStep } from "./ServiceTypesStep";
 import { Stepper } from "./Stepper";
 import { inviteQrDataUrl, inviteRegisterUrl } from "./inviteQr";
@@ -342,6 +342,7 @@ export function ContextWizard() {
         <RolesStep
           key={`${wizardEpoch}-${team}-roles`}
           roles={ladder?.roles ?? []}
+          people={teamEmployees}
           busy={busy}
           onSave={(roles) =>
             void apply(
@@ -362,7 +363,6 @@ export function ContextWizard() {
           team={team}
           roles={ladder?.roles ?? []}
           people={teamEmployees}
-          all={ctx.employees}
           services={ctx.services}
           busy={busy}
           onSave={(people) =>
@@ -381,9 +381,7 @@ export function ContextWizard() {
       {step === 3 ? (
         <WishesStep
           key={`${wizardEpoch}-${team}-souhaits`}
-          team={team}
           people={teamEmployees}
-          all={ctx.employees}
           services={ctx.services}
           busy={busy}
           onSave={(people) =>
@@ -424,8 +422,6 @@ export function ContextWizard() {
           services={ctx.services}
           types={teamTypes}
           cells={ctx.typical_week[team] ?? emptyWeek(ctx.services)}
-          other={team === "salle" ? ctx.typical_week.cuisine : ctx.typical_week.salle}
-          weekLabels={ctx.week_labels}
           busy={busy}
           onSave={(cells) =>
             void apply({
@@ -441,10 +437,23 @@ export function ContextWizard() {
   );
 }
 
+async function copyText(value: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = value;
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+}
+
 function InvitePopup({ companyCode, onClose }: { companyCode: string; onClose: () => void }) {
   const url = inviteRegisterUrl(companyCode);
   const [qr, setQr] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"code" | "url" | null>(null);
   useEffect(() => {
     let cancelled = false;
     void inviteQrDataUrl(companyCode).then((dataUrl) => {
@@ -457,20 +466,6 @@ function InvitePopup({ companyCode, onClose }: { companyCode: string; onClose: (
     };
   }, [companyCode]);
 
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      const area = document.createElement("textarea");
-      area.value = url;
-      document.body.appendChild(area);
-      area.select();
-      document.execCommand("copy");
-      area.remove();
-    }
-    setCopied(true);
-  }
-
   return (
     <div className="overlay-backdrop" onClick={onClose}>
       <div
@@ -482,11 +477,29 @@ function InvitePopup({ companyCode, onClose }: { companyCode: string; onClose: (
         <h3 id="invite-title">Inviter mes employés</h3>
         <p className="sub">Ils s’inscrivent avec le code entreprise. Le jeton de chaque fiche reste masqué.</p>
         <p>
+          Code entreprise : <code>{companyCode}</code>
+        </p>
+        <p>
           <code>{url}</code>
         </p>
         <div className="auth-row">
-          <button type="button" className="choice active" onClick={() => void copy()}>
-            {copied ? "URL copiée" : "Copier l’URL"}
+          <button
+            type="button"
+            className="choice"
+            onClick={() => {
+              void copyText(companyCode).then(() => setCopied("code"));
+            }}
+          >
+            {copied === "code" ? "Code copié" : "Copier le code"}
+          </button>
+          <button
+            type="button"
+            className="choice active"
+            onClick={() => {
+              void copyText(url).then(() => setCopied("url"));
+            }}
+          >
+            {copied === "url" ? "URL copiée" : "Copier l’URL"}
           </button>
           <button type="button" className="choice" onClick={onClose}>
             Fermer
@@ -500,49 +513,89 @@ function InvitePopup({ companyCode, onClose }: { companyCode: string; onClose: (
 
 function RolesStep({
   roles,
+  people,
   busy,
   onSave,
 }: {
   roles: RoleRow[];
+  people: ContextEmployee[];
   busy: boolean;
   onSave: (roles: RoleRow[]) => void;
 }) {
   const [rows, setRows] = useState<RoleRow[]>(roles.length ? roles : [{ name: "", level: 1 }]);
+
+  function removeRole(index: number) {
+    const row = rows[index];
+    const holders = people.filter((person) => person.role.name === row.name);
+    const names = holders.map((person) => person.name.trim()).filter(Boolean);
+    const listed = names.length ? names.join(", ") : "aucune";
+    const ok = window.confirm(
+      `Supprimer le rôle « ${row.name.trim() || "sans nom"} » ?\n\n` +
+        `Fiches concernées : ${listed}.\n\n` +
+        `Il faudra revoir ces fiches et recalculer le planning.\n\n` +
+        `Mieux vaut renommer le rôle plutôt que le supprimer.`,
+    );
+    if (!ok) {
+      return;
+    }
+    setRows((prev) => prev.filter((_, i) => i !== index));
+  }
+
   return (
     <section>
       <h2>Rôles</h2>
       <p className="sub">Un niveau plus élevé peut tenir un poste inférieur.</p>
-      {rows.map((row, index) => (
-        <article key={index} className="fiche-card equipe-row">
-          <div className="equipe-line">
-            <label>
-              Nom
-              <input
-                placeholder="Nom"
-                value={row.name}
-                onChange={(event) =>
-                  setRows((prev) => prev.map((item, i) => (i === index ? { ...item, name: event.target.value } : item)))
-                }
-              />
-            </label>
-            <Stepper
-              label="Niveau"
-              value={row.level}
-              min={1}
-              onChange={(level) =>
-                setRows((prev) => prev.map((item, i) => (i === index ? { ...item, level } : item)))
-              }
-            />
-          </div>
-        </article>
-      ))}
+      <table className="roles-sheet">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Niveau</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={index}>
+              <td>
+                <input
+                  placeholder="Nom"
+                  value={row.name}
+                  onChange={(event) =>
+                    setRows((prev) => prev.map((item, i) => (i === index ? { ...item, name: event.target.value } : item)))
+                  }
+                />
+              </td>
+              <td>
+                <Stepper
+                  label="Niveau"
+                  value={row.level}
+                  min={1}
+                  onChange={(level) =>
+                    setRows((prev) => prev.map((item, i) => (i === index ? { ...item, level } : item)))
+                  }
+                />
+              </td>
+              <td>
+                <button
+                  type="button"
+                  className="choice trash"
+                  aria-label="Supprimer le rôle"
+                  onClick={() => removeRole(index)}
+                >
+                  🗑
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       <button type="button" className="choice" onClick={() => setRows((prev) => [...prev, { name: "", level: 1 }])}>
         Ajouter un rôle
       </button>
       <button
         type="button"
         className="choice active"
-        disabled={busy || rows.some((row) => !row.name.trim())}
+        disabled={busy || rows.length === 0 || rows.some((row) => !row.name.trim())}
         onClick={() => onSave(rows.map((row) => ({ name: row.name.trim(), level: row.level })))}
       >
         Enregistrer et continuer
@@ -563,7 +616,6 @@ function EmployeesStep({
   team,
   roles,
   people,
-  all,
   services,
   busy,
   onSave,
@@ -571,7 +623,6 @@ function EmployeesStep({
   team: TeamId;
   roles: RoleRow[];
   people: ContextEmployee[];
-  all: ContextEmployee[];
   services: ContextServiceId[];
   busy: boolean;
   onSave: (people: ContextEmployee[]) => void;
@@ -601,9 +652,6 @@ function EmployeesStep({
   return (
     <section>
       <h2>Équipe</h2>
-      <p className="sub">
-        Liste complète envoyée (l’autre équipe est conservée : {all.filter((p) => p.team !== team).length} salarié(s)).
-      </p>
       {rows.map((person, index) => (
         <article key={person.id} className="fiche-card equipe-row">
           <div className="equipe-line">
@@ -669,11 +717,6 @@ function EmployeesStep({
               />
             </label>
           </div>
-          <p className="unavail-summary">
-            {person.unavailabilities.length === 0
-              ? "Aucune indispo"
-              : person.unavailabilities.map((row) => formatUnavailSlot(row)).join(", ")}
-          </p>
           <div className="unavail-chips">
             {person.unavailabilities.map((row, slotIndex) => (
               <button
@@ -823,16 +866,12 @@ function digitValue(raw: string): number | undefined {
 }
 
 function WishesStep({
-  team,
   people,
-  all,
   services,
   busy,
   onSave,
 }: {
-  team: TeamId;
   people: ContextEmployee[];
-  all: ContextEmployee[];
   services: ContextServiceId[];
   busy: boolean;
   onSave: (people: ContextEmployee[]) => void;
@@ -846,10 +885,6 @@ function WishesStep({
   return (
     <section>
       <h2>Souhaits bien-être</h2>
-      <p className="sub">
-        Pas un prérequis pour calculer. L’autre équipe est conservée ({all.filter((p) => p.team !== team).length}{" "}
-        salarié(s)).
-      </p>
       <div className="scroll">
         <table className="wishes-edit">
           <thead>
@@ -993,8 +1028,6 @@ function WeekStep({
   services,
   types,
   cells,
-  other,
-  weekLabels,
   busy,
   onSave,
 }: {
@@ -1002,8 +1035,6 @@ function WeekStep({
   services: ContextServiceId[];
   types: ServiceType[];
   cells: TypicalWeekCell[];
-  other: TypicalWeekCell[] | null;
-  weekLabels: "ab" | "parity";
   busy: boolean;
   onSave: (cells: TypicalWeekCell[]) => void;
 }) {
@@ -1031,7 +1062,6 @@ function WeekStep({
   return (
     <section>
       <h2>Semaine type · {team}</h2>
-      <p className="sub">Libellés de cycle : {weekLabelPair(weekLabels)}</p>
       <div className="scroll">
         <table className="matrix">
           <thead>
@@ -1071,7 +1101,6 @@ function WeekStep({
           </tbody>
         </table>
       </div>
-      <p className="sub">L’autre équipe est renvoyée telle quelle ({other ? `${other.length} cases` : "null"}).</p>
       <button type="button" className="choice active" disabled={busy} onClick={() => onSave(rows)}>
         Enregistrer la semaine
       </button>

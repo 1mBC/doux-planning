@@ -1,18 +1,42 @@
 import { useEffect, useState } from "react";
 import {
+  effortLabel,
   groupEntriesByParisDay,
   loadAdminGenerates,
   parisClock,
   teamLabel,
   type AdminGenerateEntry,
 } from "./admin";
+import { formatSolveDuration, warningSeverityLabel, warningTitle, warningWhen } from "./format";
 import { ApiHttpError } from "./sandbox";
+import type { WarningItem } from "./types";
 
-function warningTip(entry: AdminGenerateEntry): string {
+function WarningCard({ warning }: { warning: WarningItem }) {
+  const title = warningTitle(warning.code);
+  return (
+    <article className="admin-warn-card">
+      <p className="admin-warn-meta">
+        <span className="sev">{warningSeverityLabel(warning)}</span>
+        {title ? <span className="code">{title}</span> : <span className="code">—</span>}
+      </p>
+      <p>{warningWhen(warning.day_index)}</p>
+      <p>{warning.employee_name?.trim() ? warning.employee_name : "—"}</p>
+      <p className="msg">{warning.message || "—"}</p>
+    </article>
+  );
+}
+
+function WarningTip({ entry }: { entry: AdminGenerateEntry }) {
   if (entry.warnings.length === 0) {
-    return "aucun warning";
+    return <p>aucun warning</p>;
   }
-  return entry.warnings.map((item) => item.message).join("\n");
+  return (
+    <>
+      {entry.warnings.map((warning, index) => (
+        <WarningCard key={`${entry.id}-w-${index}`} warning={warning} />
+      ))}
+    </>
+  );
 }
 
 export function AdminDenied() {
@@ -88,6 +112,8 @@ export function AdminPage() {
                 <th>Email</th>
                 <th>Restaurant</th>
                 <th>Équipe</th>
+                <th>Effort</th>
+                <th>Durée</th>
                 <th>Warnings</th>
               </tr>
             </thead>
@@ -98,14 +124,12 @@ export function AdminPage() {
                   <td>{entry.email}</td>
                   <td>{entry.restaurant_name || "—"}</td>
                   <td>{teamLabel(entry.team)}</td>
+                  <td>{effortLabel(entry.search_effort)}</td>
+                  <td>{formatSolveDuration(entry.duration_seconds)}</td>
                   <td>
                     <span className="admin-pill">{entry.warnings.length}</span>
                     <div className="admin-tip" role="tooltip">
-                      {warningTip(entry)
-                        .split("\n")
-                        .map((line, index) => (
-                          <p key={`${entry.id}-w-${index}`}>{line}</p>
-                        ))}
+                      <WarningTip entry={entry} />
                     </div>
                   </td>
                 </tr>

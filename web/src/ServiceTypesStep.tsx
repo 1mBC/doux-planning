@@ -182,7 +182,7 @@ export function ServiceTypesStep({
   return (
     <section>
       <h2>Services types</h2>
-      <p className="sub">Une ligne par événement, dans l’ordre du temps. Sous-onglets = services offerts.</p>
+      <p className="sub">Une ligne par événement, dans l’ordre du temps.</p>
       <div className="auth-switch">
         {services.map((id) => (
           <button

@@ -184,6 +184,18 @@ Suivre `generate-versions.md`, `wizard-ui.md` (stepper / colonnes), `v1-generate
 
 Version `0.23.0`.
 
+### 24. Admin recap + wizard polish
+
+Suivre `admin.md` § UI + `wizard-ui.md` — les suivre, ne pas les modifier.
+
+- Admin : colonnes **Effort** (Minimal / Optimisé / Maximal, tiret si null) + **Durée** (`Ns` / `N min`, tiret si null). Hover = **une carte par warning** (gravité, libellé, jour + semaine A/B, `employee_name`, `message`). Vide → `aucun warning`.
+- Planning : sous le timestamp, `duration_seconds` du slot affiché (tiret si absent).
+- Rôles : `<table>` Nom / Niveau (stepper) / poubelle. Confirm FR liste les fiches, dit de revoir / recalculer, conseille de renommer. Confirmé = retire la ligne (fiches inchangées jusqu’au save).
+- Copies retirées (Équipe sous-titre + ligne texte d’indispos ; Souhaits sous-titre ; « Sous-onglets = services offerts » ; Semaine type « Libellés… » / « L’autre équipe… »).
+- Invite : afficher + copier `company_code` en plus de l’URL / QR.
+
+Version `0.24.0`. Pas de delete salarié.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

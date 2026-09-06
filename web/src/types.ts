@@ -52,6 +52,7 @@ export type WarningItem = {
   message: string;
   employee_id: string | null;
   day_index: number | null;
+  employee_name?: string | null;
 };
 
 export type PlanningHoursStats = {

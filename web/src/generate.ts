@@ -45,6 +45,7 @@ export type PublishedCycle = {
   wish_rows: WishRow[];
   generated_at?: string;
   search_effort?: SearchEffort;
+  duration_seconds?: number;
 };
 
 export type TeamVersions = {
@@ -141,13 +142,20 @@ export function parseWarning(value: unknown, path: string): WarningItem {
   if (dayIndex !== null && typeof dayIndex !== "number") {
     throw new PayloadError(`clé invalide : ${path}.day_index`);
   }
-  return {
+  const warning: WarningItem = {
     severity: parseSeverity(value.severity, `${path}.severity`),
     code: requireString(value, "code", path),
     message: requireString(value, "message", path),
     employee_id: employeeId,
     day_index: dayIndex,
   };
+  if ("employee_name" in value && value.employee_name !== undefined) {
+    if (value.employee_name !== null && typeof value.employee_name !== "string") {
+      throw new PayloadError(`clé invalide : ${path}.employee_name`);
+    }
+    warning.employee_name = value.employee_name;
+  }
+  return warning;
 }
 
 export function parseCycleAssignment(value: unknown, path: string): CycleAssignment {
@@ -217,6 +225,12 @@ function parseCycle(value: unknown, path: string): PublishedCycle | null {
   }
   if ("search_effort" in value && value.search_effort !== undefined && value.search_effort !== null) {
     cycle.search_effort = parseOptionalEffort(value.search_effort, `${path}.search_effort`);
+  }
+  if ("duration_seconds" in value && value.duration_seconds !== undefined && value.duration_seconds !== null) {
+    if (typeof value.duration_seconds !== "number" || !Number.isFinite(value.duration_seconds)) {
+      throw new PayloadError(`clé invalide : ${path}.duration_seconds`);
+    }
+    cycle.duration_seconds = value.duration_seconds;
   }
   return cycle;
 }

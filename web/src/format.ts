@@ -24,6 +24,26 @@ export function weekLabelPair(scheme: WeekLabelScheme): string {
   return scheme === "parity" ? "Paire / Impaire" : "A / B";
 }
 
+export function formatSolveDuration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
+    return "—";
+  }
+  if (seconds < 60) {
+    const rounded = seconds < 10 ? Math.round(seconds * 10) / 10 : Math.round(seconds);
+    return `${String(rounded).replace(".", ",")}s`;
+  }
+  return `${Math.round(seconds / 60)} min`;
+}
+
+export function warningWhen(dayIndex: number | null | undefined): string {
+  if (dayIndex === null || dayIndex === undefined || !Number.isFinite(dayIndex)) {
+    return "—";
+  }
+  const day = DAYS_FR[(((dayIndex % 7) + 7) % 7)];
+  const week = dayIndex >= 7 ? "semaine B" : "semaine A";
+  return `${day} · ${week}`;
+}
+
 export function formatGeneratedAt(iso: string | undefined): string {
   if (!iso) {
     return "—";
