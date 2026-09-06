@@ -35,6 +35,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 22 — export-planning | `domain/export-planning.md` ; brief `ui-export-planning.md` | **landed** `a3af6be` (UI v0.20.0) |
 | 23 — admin | `domain/admin.md` ; briefs `infra-admin.md`, `ui-admin.md` | **landed** `db8d9e1` (UI v0.21.0) |
 | 24 — coerce-railway | `domain/coerce-railway.md` ; brief `infra-coerce-railway.md` | **landed** `e5b13a3` |
+| 25 — generate-jobs + polish UI | `domain/generate-jobs.md`, `http/v1-generate.md`, `domain/export-planning.md`, `domain/wizard-ui.md` ; briefs `infra-generate-jobs.md`, `ui-planning-polish.md` | Infra brief puis UI |
 
 ## Ownership git (ne pas croiser)
 
