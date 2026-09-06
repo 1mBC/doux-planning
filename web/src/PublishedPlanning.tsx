@@ -27,7 +27,7 @@ import {
   formatHoursTotal,
   groupedEmployees,
   personInk,
-  SEVERITY_FR,
+  warningSeverityLabel,
   warningTitle,
   weekdayFromDayIndex,
   weekSheetTitle,
@@ -278,7 +278,7 @@ function WarningsList({ warnings }: { warnings: WarningItem[] }) {
               key={`${warning.severity}-${warning.code}-${warning.employee_id}-${warning.day_index}-${index}`}
               className={`warn-${warning.severity}`}
             >
-              <span className="sev">{SEVERITY_FR[warning.severity]}</span>
+              <span className="sev">{warningSeverityLabel(warning)}</span>
               {title ? <span className="code">{title}</span> : null}
               <span className="msg">{warning.message}</span>
             </li>
@@ -474,6 +474,8 @@ export function PublishedPlanning() {
             {item.label}
           </button>
         ))}
+      </div>
+      <div className="auth-switch planning-actions">
         <button type="button" className="choice active" disabled={!canCalculate || busy} onClick={() => void calculate()}>
           {busy ? "Calcul…" : "Calculer"}
         </button>

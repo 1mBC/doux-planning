@@ -8,6 +8,7 @@ import {
   type TeamId,
 } from "./context";
 import { formatClock } from "./format";
+import { Stepper } from "./Stepper";
 import {
   countsToLevels,
   formatBag,
@@ -87,28 +88,6 @@ function timeline(arrivals: ArrivalDraft[], departures: DepartureDraft[]): Line[
     return a.kind === "arrival" ? -1 : 1;
   });
   return lines;
-}
-
-function Stepper({
-  value,
-  min = 0,
-  onChange,
-}: {
-  value: number;
-  min?: number;
-  onChange: (next: number) => void;
-}) {
-  return (
-    <span className="stepper">
-      <button type="button" className="choice" onClick={() => onChange(Math.max(min, value - 1))}>
-        −
-      </button>
-      <span>{value}</span>
-      <button type="button" className="choice" onClick={() => onChange(value + 1)}>
-        +
-      </button>
-    </span>
-  );
 }
 
 export function ServiceTypesStep({
@@ -238,7 +217,7 @@ export function ServiceTypesStep({
                     <th>Heure d’arrivée / de départ</th>
                     <th>Nombre de personnes qui arrivent / qui partent</th>
                     <th>Niveau minimal requis pour compléter le staff (arrivée) · à garder dans le staff (départ)</th>
-                    <th>STAFF après</th>
+                    <th>STAFF après cette arrivée / ce départ</th>
                     <th />
                   </tr>
                 </thead>
@@ -251,53 +230,58 @@ export function ServiceTypesStep({
                       return (
                         <tr key={`a-${line.index}`} className="wave-row">
                           <td>
-                            {formatClock(arrival.time_minutes)}{" "}
-                            <button
-                              type="button"
-                              className="choice"
-                              onClick={() =>
-                                setDraft(row.id, {
-                                  ...draft,
-                                  arrivals: draft.arrivals.map((item, i) =>
-                                    i === line.index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
-                                  ),
-                                })
-                              }
-                            >
-                              −15
-                            </button>
-                            <button
-                              type="button"
-                              className="choice"
-                              onClick={() =>
-                                setDraft(row.id, {
-                                  ...draft,
-                                  arrivals: draft.arrivals.map((item, i) =>
-                                    i === line.index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
-                                  ),
-                                })
-                              }
-                            >
-                              +15
-                            </button>
+                            <div className="wave-clock">
+                              <strong>{formatClock(arrival.time_minutes)}</strong>
+                              <button
+                                type="button"
+                                className="choice"
+                                onClick={() =>
+                                  setDraft(row.id, {
+                                    ...draft,
+                                    arrivals: draft.arrivals.map((item, i) =>
+                                      i === line.index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
+                                    ),
+                                  })
+                                }
+                              >
+                                −15
+                              </button>
+                              <button
+                                type="button"
+                                className="choice"
+                                onClick={() =>
+                                  setDraft(row.id, {
+                                    ...draft,
+                                    arrivals: draft.arrivals.map((item, i) =>
+                                      i === line.index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
+                                    ),
+                                  })
+                                }
+                              >
+                                +15
+                              </button>
+                            </div>
                           </td>
                           <td>
-                            <Stepper
-                              value={arrival.post_levels.length}
-                              min={1}
-                              onChange={(n) => {
-                                const post_levels = arrival.post_levels.slice(0, n);
-                                while (post_levels.length < n) {
-                                  post_levels.push(defaultLevel(roles));
-                                }
-                                setDraft(row.id, {
-                                  ...draft,
-                                  arrivals: draft.arrivals.map((item, i) =>
-                                    i === line.index ? { ...item, post_levels } : item,
-                                  ),
-                                });
-                              }}
-                            />
+                            <span className="count-field">
+                              <span className="count-label">N</span>
+                              <Stepper
+                                value={arrival.post_levels.length}
+                                min={1}
+                                onChange={(n) => {
+                                  const post_levels = arrival.post_levels.slice(0, n);
+                                  while (post_levels.length < n) {
+                                    post_levels.push(defaultLevel(roles));
+                                  }
+                                  setDraft(row.id, {
+                                    ...draft,
+                                    arrivals: draft.arrivals.map((item, i) =>
+                                      i === line.index ? { ...item, post_levels } : item,
+                                    ),
+                                  });
+                                }}
+                              />
+                            </span>
                           </td>
                           <td>
                             <div className="level-steppers">
@@ -323,7 +307,9 @@ export function ServiceTypesStep({
                               ))}
                             </div>
                           </td>
-                          <td className="staff-after">{staff?.error ?? `STAFF après : ${formatBag(staff?.bag ?? [])}`}</td>
+                          <td className={staff?.error ? "error" : "staff-after"}>
+                            {staff?.error ?? formatBag(staff?.bag ?? [])}
+                          </td>
                           <td>
                             <button
                               type="button"
@@ -347,49 +333,54 @@ export function ServiceTypesStep({
                     return (
                       <tr key={`d-${line.index}`} className="wave-row">
                         <td>
-                          {formatClock(departure.time_minutes)}{" "}
-                          <button
-                            type="button"
-                            className="choice"
-                            onClick={() =>
-                              setDraft(row.id, {
-                                ...draft,
-                                departures: draft.departures.map((item, i) =>
-                                  i === line.index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
-                                ),
-                              })
-                            }
-                          >
-                            −15
-                          </button>
-                          <button
-                            type="button"
-                            className="choice"
-                            onClick={() =>
-                              setDraft(row.id, {
-                                ...draft,
-                                departures: draft.departures.map((item, i) =>
-                                  i === line.index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
-                                ),
-                              })
-                            }
-                          >
-                            +15
-                          </button>
+                          <div className="wave-clock">
+                            <strong>{formatClock(departure.time_minutes)}</strong>
+                            <button
+                              type="button"
+                              className="choice"
+                              onClick={() =>
+                                setDraft(row.id, {
+                                  ...draft,
+                                  departures: draft.departures.map((item, i) =>
+                                    i === line.index ? { ...item, time_minutes: item.time_minutes - 15 } : item,
+                                  ),
+                                })
+                              }
+                            >
+                              −15
+                            </button>
+                            <button
+                              type="button"
+                              className="choice"
+                              onClick={() =>
+                                setDraft(row.id, {
+                                  ...draft,
+                                  departures: draft.departures.map((item, i) =>
+                                    i === line.index ? { ...item, time_minutes: item.time_minutes + 15 } : item,
+                                  ),
+                                })
+                              }
+                            >
+                              +15
+                            </button>
+                          </div>
                         </td>
                         <td>
-                          <Stepper
-                            value={departure.leaveCount}
-                            min={0}
-                            onChange={(leaveCount) =>
-                              setDraft(row.id, {
-                                ...draft,
-                                departures: draft.departures.map((item, i) =>
-                                  i === line.index ? { ...item, leaveCount } : item,
-                                ),
-                              })
-                            }
-                          />
+                          <span className="count-field">
+                            <span className="count-label">N</span>
+                            <Stepper
+                              value={departure.leaveCount}
+                              min={0}
+                              onChange={(leaveCount) =>
+                                setDraft(row.id, {
+                                  ...draft,
+                                  departures: draft.departures.map((item, i) =>
+                                    i === line.index ? { ...item, leaveCount } : item,
+                                  ),
+                                })
+                              }
+                            />
+                          </span>
                         </td>
                         <td>
                           <div className="level-steppers">
@@ -415,7 +406,7 @@ export function ServiceTypesStep({
                           </div>
                         </td>
                         <td className={staff?.error ? "error" : "staff-after"}>
-                          {staff?.error ?? `STAFF après : ${formatBag(staff?.bag ?? [])}`}
+                          {staff?.error ?? formatBag(staff?.bag ?? [])}
                         </td>
                         <td>
                           <button

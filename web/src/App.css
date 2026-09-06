@@ -239,6 +239,12 @@ table.matrix tr.warn td:first-child {
   border-left: 3px solid #9a6700;
 }
 
+table.matrix td.cell-bad {
+  color: #c05600;
+  font-weight: 700;
+  background: #fff4e5;
+}
+
 code {
   font-size: 12px;
 }
@@ -633,6 +639,39 @@ table.wave-table td {
 
 .staff-after {
   white-space: nowrap;
+}
+
+.wave-clock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.count-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count-label {
+  font-weight: 650;
+  color: #444;
+}
+
+.planning-actions {
+  margin-top: 8px;
+}
+
+.invite-popup {
+  max-width: 420px;
+}
+
+.invite-qr {
+  display: block;
+  width: 192px;
+  height: 192px;
+  margin: 12px 0 0;
 }
 
 button.trash {
