@@ -5,7 +5,7 @@ Generates a published 14-day cycle **per team** over HTTP by wrapping Core `gene
 ## ADDED Requirements
 
 ### Requirement: Generate is hybrid C
-`POST /v1/generate` (Bearer company) SHALL accept `{ team: "salle"|"cuisine", search_effort?: "minimal"|"optimized"|"maximal" }`. Omitted `search_effort` MUST default to `optimized` and MUST stay a **200** in-request `generate_team` wrap. `minimal` / `optimized` MUST call Core `generate_team` in the web process and MUST NOT insert a `generate_jobs` row. The 200 body MUST be `{ team, search_effort, published }` where `published` has `salle` and `cuisine` keys, each `null` or `{ versions: { minimal, optimized, maximal }, latest }` per `contracts/domain/generate-versions.md`. Each non-null version MUST be `{ assignments, warnings, stats, legal_cols, legal_rows, wish_cols, wish_rows, generated_at, search_effort }`. Assignments and warnings MUST be serialized from that team’s `EngineResult`. Recap keys MUST be Core `cycle_recap` (no invented counts or cells, no `we1j`). A never-generated team MUST stay `null`. POST MUST write only `versions[effort]` and recompute `latest`. `maximal` MUST return HTTP 202 `{ job_id, team, search_effort: "maximal", status: "queued", estimated_seconds: 600 }` with no `published` and MUST NOT call `generate_team` in uvicorn. HTTP sync tests MUST use `minimal`. Job tests MUST tick an exported worker function with `generate_team` stubbed (0 s) and MUST NOT wait 600 s.
+`POST /v1/generate` (Bearer company) SHALL accept `{ team: "salle"|"cuisine", search_effort?: "minimal"|"optimized"|"maximal" }`. Omitted `search_effort` MUST default to `optimized` and MUST stay a **200** in-request `generate_team` wrap. `minimal` / `optimized` MUST call Core `generate_team` in the web process and MUST NOT insert a `generate_jobs` row. The 200 body MUST be `{ team, search_effort, published }` where `published` has `salle` and `cuisine` keys, each `null` or `{ versions: { minimal, optimized, maximal }, latest }` per `contracts/domain/generate-versions.md`. Each non-null **new** version MUST be `{ assignments, warnings, stats, legal_cols, legal_rows, wish_cols, wish_rows, generated_at, search_effort, duration_seconds }` where `duration_seconds` is the float wall-clock of `generate_team` (≥ 0). Old slots MUST omit `duration_seconds` (do not invent). Assignments and warnings MUST be serialized from that team’s `EngineResult`. Recap keys MUST be Core `cycle_recap` (no invented counts or cells, no `we1j`). A never-generated team MUST stay `null`. POST MUST write only `versions[effort]` and recompute `latest`. `maximal` MUST return HTTP 202 `{ job_id, team, search_effort: "maximal", status: "queued", estimated_seconds: 600 }` with no `published` and MUST NOT call `generate_team` in uvicorn. HTTP sync tests MUST use `minimal`. Job tests MUST tick an exported worker function with `generate_team` stubbed (0 s) and MUST NOT wait 600 s.
 
 #### Scenario: Salle generate when ready
 - **WHEN** the live context is salle-ready and the restaurateur posts generate with `team` `salle` and `search_effort` `minimal`
@@ -61,11 +61,15 @@ Generate and cycles SHALL require a company session. An employee session MUST re
 - **THEN** the request is rejected with HTTP 403 and no cycle is written
 
 ### Requirement: Successful generate is logged
-A `POST /v1/generate` HTTP 200 SHALL insert one `generate_logs` row `{ email, restaurant_name, team, warnings }` for the team just solved. A worker job that reaches `done` MUST insert the same log. HTTP 409 `TeamNotReady` and a `failed` job MUST NOT insert a row. `GET /v1/admin/generates` MUST return those rows newest-first.
+A `POST /v1/generate` HTTP 200 SHALL insert one `generate_logs` row `{ email, restaurant_name, team, search_effort, duration_seconds, warnings }` for the team just solved. `search_effort` MUST be the POST / job effort. `duration_seconds` MUST be the wall-clock of `generate_team` (float, ≥ 0). Each warning MUST be the HTTP warning shape plus `employee_name` (fiche name at log time, `null` if no employee id or no fiche). A worker job that reaches `done` MUST insert the same log. HTTP 409 `TeamNotReady` and a `failed` job MUST NOT insert a row. `GET /v1/admin/generates` MUST return those rows newest-first and MUST emit `search_effort` and `duration_seconds` on every entry (`null` when the stored columns are null).
 
 #### Scenario: Ready generate writes a log
-- **WHEN** salle is ready and generate returns 200
-- **THEN** one log row is stored with that team’s HTTP `warnings`
+- **WHEN** salle is ready and generate returns 200 with `search_effort` `minimal`
+- **THEN** one log row is stored with `search_effort` `minimal`, `duration_seconds` ≥ 0, and that team’s HTTP `warnings` plus `employee_name` per item
+
+#### Scenario: Old log row is null-safe
+- **WHEN** a stored `generate_logs` row has null `search_effort` and `duration_seconds`
+- **THEN** GET `/v1/admin/generates` returns those keys as `null`
 
 #### Scenario: Not-ready generate writes nothing
 - **WHEN** generate returns HTTP 409

@@ -47,3 +47,7 @@
 ## 8. Generate versions (3 slots)
 
 - [x] 8.1 Persist `published[team] = { versions, latest }` in JSONB (no Alembic). Each cycle has recap + `generated_at` + `search_effort`. Coerce flat stored cycle → `versions.optimized` / `latest: optimized`. POST writes one slot and `latest`. `GET /v1/me/planning` uses `versions[latest]`. Live enter `search_effort` (default latest); publish same slot keeps `generated_at`. Worker/uvicorn ISO stdout logs. Verify old flat JSONB → GET optimized; POST minimal then optimized → two slots, latest optimized, minimal intact; me/planning = latest; enter without effort = latest; enter `minimal`; publish minimal leaves optimized; worker tick logs start + done; example 92. No `engine.py`. No Core / `web/` / `contracts/` edits
+
+## 9. Admin recap (effort, duration, warning names)
+
+- [x] 9.1 Alembic nullable `generate_logs.search_effort` + `generate_logs.duration_seconds`. Time `generate_team` (sync + worker persist). Log 200 / job done with those keys and each warning + `employee_name` (fiche now, else null). GET `/v1/admin/generates` emits the keys (old rows null). New cycle slots write `duration_seconds` next to `generated_at`; old slots omit the key. Verify POST `minimal` → log `search_effort: minimal`, `duration_seconds` ≥ 0, warning `employee_name` if id; GET admin same keys; old row without columns → null; GET cycles new slot has `duration_seconds`; example 92. No JSONB Alembic. No Core / `web/` / `contracts/` / delete salarié / unlink

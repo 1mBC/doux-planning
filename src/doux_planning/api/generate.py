@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -71,6 +72,8 @@ def _ensure_cycle_recap(state: RestaurantState, team: Team, cycle: dict[str, Any
         filled["generated_at"] = cycle["generated_at"]
     if "search_effort" in cycle:
         filled["search_effort"] = cycle["search_effort"]
+    if "duration_seconds" in cycle:
+        filled["duration_seconds"] = cycle["duration_seconds"]
     return filled
 
 
@@ -117,6 +120,7 @@ def put_generated_slot(
     effort: str,
     cycle: dict[str, Any],
     generated_at: str,
+    duration_seconds: float,
     state: RestaurantState | None = None,
     team: Team | None = None,
 ) -> dict[str, Any]:
@@ -126,6 +130,7 @@ def put_generated_slot(
     slot = dict(cycle)
     slot["generated_at"] = generated_at
     slot["search_effort"] = effort
+    slot["duration_seconds"] = duration_seconds
     pack["versions"][effort] = slot
     pack["latest"] = compute_latest(pack["versions"])
     return pack
@@ -147,6 +152,10 @@ def overwrite_slot_keep_generated_at(
         slot["generated_at"] = previous["generated_at"]
     else:
         slot.pop("generated_at", None)
+    if "duration_seconds" in previous:
+        slot["duration_seconds"] = previous["duration_seconds"]
+    else:
+        slot.pop("duration_seconds", None)
     slot["search_effort"] = effort
     pack["versions"][effort] = slot
     others = [item for item in EFFORTS if item != effort and pack["versions"].get(item)]
@@ -311,12 +320,21 @@ def _published_after_generate(
     stored: dict[str, Any],
     effort: str,
     generated_at: str,
+    duration_seconds: float,
 ) -> dict[str, Any]:
     cycle = _team_cycle_json(state, team)
     published: dict[str, Any] = {}
     for key, other in (("salle", Team.SALLE), ("cuisine", Team.CUISINE)):
         if other == team:
-            published[key] = put_generated_slot(stored.get(key), effort, cycle or {}, generated_at, state, team)
+            published[key] = put_generated_slot(
+                stored.get(key),
+                effort,
+                cycle or {},
+                generated_at,
+                duration_seconds,
+                state,
+                team,
+            )
         else:
             pack, _ = normalize_team_published(stored.get(key), state, other)
             published[key] = pack
@@ -412,19 +430,24 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
                 "estimated_seconds": MAXIMAL_ESTIMATED_SECONDS,
             },
         )
+    started = time.perf_counter()
     try:
         generate_team(state, team, search)
     except TeamNotReady as exc:
         raise HTTPException(status_code=409, detail=DETAIL_NOT_READY) from exc
+    duration_seconds = max(0.0, time.perf_counter() - started)
     generated_at = datetime.now(timezone.utc).isoformat()
-    published = _published_after_generate(state, team, stored, search.value, generated_at)
+    published = _published_after_generate(state, team, stored, search.value, generated_at, duration_seconds)
     _persist_published(restaurant_id, published)
     slot = ((published[team.value] or {}).get("versions") or {}).get(search.value) or {}
     _log_generate(
         restaurant_id,
         restaurant_name=company.name or "",
         team=team.value,
+        search_effort=search.value,
+        duration_seconds=duration_seconds,
         warnings=list(slot.get("warnings") or []),
+        employees=state.employees,
     )
     return {
         "team": team.value,
@@ -442,21 +465,69 @@ def persist_maximal_result(
     company, fiches = _load_company(restaurant_id)
     stored = _stored_published(company.published_cycles)
     state = _state_from_rows(company, fiches)
+    started = time.perf_counter()
     generate_fn(state, team, SearchEffort.MAXIMAL)
+    duration_seconds = max(0.0, time.perf_counter() - started)
     generated_at = datetime.now(timezone.utc).isoformat()
-    published = _published_after_generate(state, team, stored, SearchEffort.MAXIMAL.value, generated_at)
+    published = _published_after_generate(
+        state,
+        team,
+        stored,
+        SearchEffort.MAXIMAL.value,
+        generated_at,
+        duration_seconds,
+    )
     _persist_published(restaurant_id, published)
     slot = ((published[team.value] or {}).get("versions") or {}).get(SearchEffort.MAXIMAL.value) or {}
     _log_generate(
         restaurant_id,
         restaurant_name=company.name or "",
         team=team.value,
+        search_effort=SearchEffort.MAXIMAL.value,
+        duration_seconds=duration_seconds,
         warnings=list(slot.get("warnings") or []),
+        employees=state.employees,
     )
     return published
 
 
-def _log_generate(restaurant_id: str, *, restaurant_name: str, team: str, warnings: list[Any]) -> None:
+def _employee_name_at_log(employees: Any, employee_id: str | None) -> str | None:
+    if not employee_id:
+        return None
+    for person in employees or []:
+        if getattr(person, "id", None) == employee_id:
+            return getattr(person, "name", None)
+    return None
+
+
+def _log_warnings(warnings: list[Any], employees: Any) -> list[dict[str, Any]]:
+    logged: list[dict[str, Any]] = []
+    for warning in warnings:
+        if isinstance(warning, dict):
+            item = {
+                "severity": warning.get("severity"),
+                "code": warning.get("code"),
+                "message": warning.get("message"),
+                "employee_id": warning.get("employee_id"),
+                "day_index": warning.get("day_index"),
+            }
+        else:
+            item = _warning_json(warning)
+        item["employee_name"] = _employee_name_at_log(employees, item.get("employee_id"))
+        logged.append(item)
+    return logged
+
+
+def _log_generate(
+    restaurant_id: str,
+    *,
+    restaurant_name: str,
+    team: str,
+    search_effort: str,
+    duration_seconds: float,
+    warnings: list[Any],
+    employees: Any,
+) -> None:
     with session_scope() as db:
         account = db.scalars(
             select(RestaurateurAccount).where(RestaurateurAccount.restaurant_id == restaurant_id)
@@ -470,7 +541,9 @@ def _log_generate(restaurant_id: str, *, restaurant_name: str, team: str, warnin
                 email=account.email,
                 restaurant_name=restaurant_name,
                 team=team,
-                warnings=warnings,
+                search_effort=search_effort,
+                duration_seconds=duration_seconds,
+                warnings=_log_warnings(warnings, employees),
             )
         )
 
@@ -487,6 +560,8 @@ def list_generate_logs(authorization: str | None) -> dict[str, Any]:
                     "email": row.email,
                     "restaurant_name": row.restaurant_name,
                     "team": row.team,
+                    "search_effort": row.search_effort,
+                    "duration_seconds": row.duration_seconds,
                     "warnings": list(row.warnings or []),
                 }
                 for row in rows

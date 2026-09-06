@@ -111,6 +111,8 @@ class GenerateLog(Base):
     email: Mapped[str] = mapped_column(String, nullable=False)
     restaurant_name: Mapped[str] = mapped_column(String, nullable=False)
     team: Mapped[str] = mapped_column(String, nullable=False)
+    search_effort: Mapped[str | None] = mapped_column(String, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     warnings: Mapped[list] = mapped_column(JSONB, nullable=False)
 
 

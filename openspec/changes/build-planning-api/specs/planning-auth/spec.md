@@ -117,7 +117,7 @@ An employee session SHALL receive only that employee’s shifts from the last pu
 - **THEN** the employee planning response still matches the last published assignments for that employee
 
 ### Requirement: Admin promote and generate log read
-`me` SHALL include `admin` (bool). Company `admin` MUST be the restaurateur `is_admin` flag. Employee `admin` MUST be false. `kind` MUST stay `"company"` or `"employee"` (never `"admin"`). At boot, `ADMIN_EMAIL` MUST promote an existing restaurateur with that lowercase email and MUST NOT insert a row when the email is missing or the env is empty. `GET /v1/admin/generates` SHALL require `admin` true and return `{ entries }` newest-first. A company or employee session with `admin` false MUST receive HTTP 403 `Action réservée à l’admin.`
+`me` SHALL include `admin` (bool). Company `admin` MUST be the restaurateur `is_admin` flag. Employee `admin` MUST be false. `kind` MUST stay `"company"` or `"employee"` (never `"admin"`). At boot, `ADMIN_EMAIL` MUST promote an existing restaurateur with that lowercase email and MUST NOT insert a row when the email is missing or the env is empty. `GET /v1/admin/generates` SHALL require `admin` true and return `{ entries }` newest-first. Each entry MUST include `id`, `created_at`, `email`, `restaurant_name`, `team`, `search_effort`, `duration_seconds`, and `warnings` (HTTP warning plus `employee_name`). Old rows MUST emit `search_effort` and `duration_seconds` as `null`. A company or employee session with `admin` false MUST receive HTTP 403 `Action réservée à l’admin.`
 
 #### Scenario: Promote is idempotent
 - **WHEN** `ADMIN_EMAIL` matches an existing restaurateur and promote runs twice
