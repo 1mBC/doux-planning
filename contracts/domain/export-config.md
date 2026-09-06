@@ -53,6 +53,16 @@ POST import sur company vide → GET prêt selon le JSON ; tokens ≠ ids.
 Company avec fiche liée + cycle publié → import 200, cycles nuls, linked vide, ancien salarié 401.  
 `export_version: 2` → 400. Exemple public **92** inchangé. Auth verts.
 
+## UI `/context`
+
+Bandeau identité, **même ligne** que « Intégrer l’exemple Saint-Cloud » :
+
+- **Exporter la config** → `GET /v1/context/export` Bearer → télécharger le JSON (`export_version: 1`). Nom de fichier : `config-resto.json` (ou `{name}-config.json` si name non vide).
+- **Importer une config** → choisir un `.json` → **confirm FR** (une phrase : ça remplace nom, rôles, équipe, souhaits, types, semaine ; casse les comptes salariés liés ; ne colle pas de planning) → `POST /v1/context/import` body = objet parsé. 200 = même parse que GET, recharger le wizard. `detail` si erreur.
+
+Types TS = forme freeze (`export_version` requis === 1 ; pas de `invite_token` / `company_code` exigés). Clé manquante → throw.  
+Pas de bouton salarié / `/exemple` / `/planning` / login. Pas d’exports planning.
+
 ## Hors freeze
 
-Boutons UI, export planning (JSON/CSV/XLSX/JPEG), admin, coerce Railway, archive / sync.
+Export planning (JSON/CSV/XLSX/JPEG), admin, coerce Railway, archive / sync.

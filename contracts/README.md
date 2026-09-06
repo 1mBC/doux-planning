@@ -31,7 +31,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 18 — warn-fr | `domain/cycle-recaps.md` ; briefs `core-warn-fr.md`, `infra-warn-fr.md` | **landed** `3e910dc` |
 | 19 — exemple-snapshot | `domain/exemple-snapshot.md` ; briefs `core-exemple-snapshot.md`, `infra-exemple-snapshot.md`, `ui-exemple-snapshot.md` | **landed** `7e4547a` (UI v0.17.0) |
 | 20 — UI polish | `domain/wizard-ui.md` ; brief `ui-polish.md` | **landed** `15869b5` (UI v0.18.0) |
-| 21 — export-config | `domain/export-config.md` ; brief `infra-export-config.md` | Infra brief |
+| 21 — export-config | `domain/export-config.md` ; briefs `infra-export-config.md`, `ui-export-config.md` | Infra landed `f12299e` ; UI brief |
 
 ## Ownership git (ne pas croiser)
 
