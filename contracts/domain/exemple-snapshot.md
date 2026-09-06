@@ -40,6 +40,12 @@ Ne pas ajouter `legal_cols` (l’exemple UI lit `legal.rules`).
 - Hydrate + seed exemple verts (restaurant inchangé → seed identique).
 - Pytest domaine / engine / recap / board / hydrate verts. Pas `api/` / `web/`.
 
+## UI `/exemple`
+
+Chrome déjà v0.16.0 (pastille Contrat, cellules orange, titre Souhaits bien-être, `message` tel quel).  
+Cette tranche : **lire le snapshot rafraîchi**. Pastilles = `stats` fichier : **92 / 0 / 0 / 47 / 84 % / 10 / 12**. Liste alertes = **17** messages FR. `wish_cols` live (plus `we1j` / `weA`). Diane `30h · 29h / 39h`. Théo 11h–16h.  
+Ne pas inventer de colonnes. Ne pas réécrire le JSON. `/opsx-update` `build-planning-ui` : pin OpenSpec « 14 warnings » → **17**.
+
 ## Hors freeze
 
-Seed HTTP, dual-read Postgres (`example_snapshots`), pins UI 10/12 / 17, exports, admin, archive / sync.
+Export config, exports planning, admin, coerce Railway, polish invite/types/we, archive / sync.
