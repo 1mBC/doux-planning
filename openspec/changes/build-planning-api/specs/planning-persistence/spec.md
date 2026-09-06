@@ -92,3 +92,10 @@ A `kind: company` register SHALL insert a new live company row (empty name, Core
 #### Scenario: Seed unlinks employees and drops their sessions
 - **WHEN** a company has a linked employee and a published cycle then seeds
 - **THEN** linked ids are empty, cycles are null, and the old employee Bearer is HTTP 401
+
+### Requirement: Import persists a smashed portable config
+`POST /v1/context/import` SHALL persist the imported sections onto the session company the same way seed smash does: keep `companies.id`, `invite_code`, and `legal_context_id`; write the JSON `name`; replace services, ladders, types, typical week, hours (derived), and fiches with new Core tokens; set `linked_employee_ids` empty and cycles / live sandboxes to null; delete employee accounts and sessions for that company. It MUST NOT write `example_snapshots` or `data/examples/saint-cloud.json`.
+
+#### Scenario: Import on an empty company
+- **WHEN** a company registers then posts a valid `export_version` `1` body
+- **THEN** GET context matches the imported sections (ready according to that JSON) and every fiche token differs from its id

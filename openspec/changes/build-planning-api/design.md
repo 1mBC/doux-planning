@@ -56,6 +56,8 @@ HTTP wellbeing wrap (Core already owns the model): persist `staff_fiches.wellbei
 
 HTTP example seed: `POST /v1/context/seed-example` loads the live company, wraps Core `seed_example_context` (file `restaurant` section only — never `hydrate_delivered_cycle` / `generate_cycle`), persists services, `hours` JSONB, ladders, types, typical week, and example fiches with Core `invite_token`s, then returns the same `Context` body as GET. Smash includes already-linked fiches (no 409). Clear `published_cycles`, `live_sandboxes`, and `linked_employee_ids`. Delete employee accounts and their sessions for **this** company (so an old employee Bearer is 401). Keep `companies.id`, `name`, `invite_code`, `legal_context_id`. Employee Bearer → 403. Without `DATABASE_URL` → 503. Public example stays 92.
 
+Config export/import (`contracts/domain/export-config.md`): `GET /v1/context/export` serializes the live context now as `{ export_version: 1, name, services, ladders, employees, types, typical_week }` with `invite_token` stripped from every fiche and no `company_code`. `POST /v1/context/import` accepts that shape, ignores forbidden keys (`company_code`, `invite_token`, `ready`, `week_labels`, `legal_context_id`), and smashes like seed (reuse `_persist_state(..., smash_live=True)`). Apply name/services/ladders/employees/types/typical_week via the same Core mutators as PATCH; hours stay derived. Mint new Core tokens (do not reuse JSON tokens). `export_version` other than integer `1` → 400 `Champs invalides.` No Alembic, no `generate_cycle`.
+
 ### 5. Route map (restaurant id never in the path)
 
 Public:
@@ -72,6 +74,7 @@ Session:
 Restaurateur (company Bearer), this slice:
 - `GET|PATCH /v1/context`
 - `POST /v1/context/seed-example` (wrap `seed_example_context`; smash live context; no body)
+- `GET /v1/context/export` / `POST /v1/context/import` (portable config JSON `export_version: 1`; import smash like seed)
 - `POST /v1/staff/{id}/invite-token`
 - `POST /v1/generate` (sync `generate_team`)
 - `GET /v1/cycles`

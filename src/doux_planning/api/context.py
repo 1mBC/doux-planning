@@ -57,6 +57,7 @@ from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS, Team, WEEKDAYS
 TEAMS = (Team.SALLE, Team.CUISINE)
 SERVICE_IDS = frozenset({"morning", "midday", "evening"})
 FORBIDDEN_PATCH = frozenset({"legal_context_id", "company_code", "ready", "week_labels"})
+EXPORT_SECTIONS = ("name", "services", "ladders", "employees", "types", "typical_week")
 
 
 def _invalid() -> HTTPException:
@@ -344,6 +345,24 @@ def serialize_context(state: RestaurantState) -> dict[str, Any]:
     }
 
 
+def serialize_export(state: RestaurantState) -> dict[str, Any]:
+    context = serialize_context(state)
+    employees = []
+    for person in context["employees"]:
+        row = dict(person)
+        row.pop("invite_token", None)
+        employees.append(row)
+    return {
+        "export_version": 1,
+        "name": context["name"],
+        "services": context["services"],
+        "ladders": context["ladders"],
+        "employees": employees,
+        "types": context["types"],
+        "typical_week": context["typical_week"],
+    }
+
+
 def _purge_company_employees(db: Session, restaurant_id: str) -> None:
     accounts = list(db.scalars(select(EmployeeAccountRow).where(EmployeeAccountRow.restaurant_id == restaurant_id)))
     emails = [row.email for row in accounts]
@@ -456,6 +475,40 @@ def seed_example(authorization: str | None) -> dict[str, Any]:
     except (ValueError, KeyError, TypeError, OSError) as exc:
         raise _invalid() from exc
     state.identity = replace(state.identity, linked_employee_ids=frozenset())
+    _persist_state(restaurant_id, state, smash_live=True)
+    company, fiches = _load_company(restaurant_id)
+    return serialize_context(_state_from_rows(company, fiches))
+
+
+def export_context(authorization: str | None) -> dict[str, Any]:
+    require_database()
+    restaurant_id = require_company_restaurant_id(authorization)
+    company, fiches = _load_company(restaurant_id)
+    return serialize_export(_state_from_rows(company, fiches))
+
+
+def import_context(authorization: str | None, body: dict[str, Any]) -> dict[str, Any]:
+    require_database()
+    if not isinstance(body, dict):
+        raise _invalid()
+    version = body.get("export_version")
+    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
+        raise _invalid()
+    if any(key not in body for key in EXPORT_SECTIONS):
+        raise _invalid()
+    restaurant_id = require_company_restaurant_id(authorization)
+    company, fiches = _load_company(restaurant_id)
+    current = _state_from_rows(company, fiches)
+    state = empty_restaurant(restaurant_id)
+    state.identity = replace(current.identity, linked_employee_ids=frozenset())
+    patch = {key: body[key] for key in EXPORT_SECTIONS}
+    company.linked_employee_ids = []
+    try:
+        _apply_patch(state, company, patch)
+    except HTTPException:
+        raise
+    except (ValueError, KeyError, TypeError):
+        raise _invalid() from None
     _persist_state(restaurant_id, state, smash_live=True)
     company, fiches = _load_company(restaurant_id)
     return serialize_context(_state_from_rows(company, fiches))
