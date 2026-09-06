@@ -98,11 +98,13 @@ Employee:
 
 Errors: `{ "error": { "code": "...", "message": "<French>" } }`. Existing example 404 may keep FastAPI `detail` only if tests already assert it; prefer the structured shape for new routes and align the example route if it does not break the UI (UI only needs 200 body keys).
 
-### 6. Generate is sync `generate_team` (no jobs in this slice)
+### 6. Generate is hybrid C (`contracts/domain/generate-jobs.md`)
 
-`POST /v1/generate` `{ team, search_effort? }` (Bearer company) loads the live context, wraps Core `generate_team`, persists `published_cycles` JSONB on the company (`salle` / `cuisine` independently), and returns 200 `{ team, search_effort, published }`. Omitted effort is `optimized`. `TeamNotReady` → 409 `Cette équipe n'est pas prête à calculer.` with no solver call. `GET /v1/cycles` returns the persisted `{ published }` (both null until generated). Tests use `minimal` only.
+`POST /v1/generate` `{ team, search_effort? }` (Bearer company). Omitted effort is `optimized`. `minimal` / `optimized` stay in-request: wrap Core `generate_team`, persist `published_cycles`, return 200 `{ team, search_effort, published }` and one `generate_logs` row. `maximal` MUST NOT call `generate_team` in uvicorn: insert `generate_jobs` (`queued`) and return 202 `{ job_id, team, search_effort: maximal, status: queued, estimated_seconds: 600 }` (no `published`). `TeamNotReady` → 409 `Cette équipe n'est pas prête à calculer.` with no job and no solver. A second `maximal` for the same company+team while `queued`/`running` → 409 `Un calcul maximal est déjà en cours.` The other team stays free.
 
-Do **not** add a `jobs` table, Compose worker, or `SKIP LOCKED` in this slice. The old async-job design is deferred. Do not write `example_snapshots` or Saint-Cloud files.
+`GET /v1/generate/jobs/{job_id}` (Bearer company, same restaurant): `{ job_id, team, search_effort, status, estimated_seconds }`; `published` only when `done`; `error` only when `failed`. Other company / unknown id → 404. Employee → 403. No session → 401. No `DATABASE_URL` → 503.
+
+Worker process (`python -m doux_planning.api.worker`, Compose `worker`, Railway 2nd service, same image / `DATABASE_URL`): `SELECT … FOR UPDATE SKIP LOCKED` one `queued` → `running` → `generate_team(…, maximal)` → persist cycles like the 200 → `done` + `generate_logs`. Exception → `failed` + French `error`. Pytest calls one exported tick with `generate_team` stubbed (0 s). Do not wait 600 s. Alembic table `generate_jobs`. Do not write `example_snapshots` or Saint-Cloud files.
 
 evaluate / swap / rank stay later. Live sandbox HTTP is this slice (`/v1/live/sandbox/{team}`).
 
