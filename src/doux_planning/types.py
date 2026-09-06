@@ -45,6 +45,11 @@ WEEKDAY_FR = {
     "saturday": "samedi",
     "sunday": "dimanche",
 }
+SERVICE_FR = {
+    ServiceName.MORNING.value: "petit-déjeuner",
+    ServiceName.MIDDAY.value: "déjeuner",
+    ServiceName.EVENING.value: "dîner",
+}
 QUANTUM_MINUTES = 15
 CYCLE_DAYS = 14
 MIN_REST_BETWEEN_DAYS_HOURS = 11
@@ -54,6 +59,19 @@ MAX_DAILY_HOURS_CUISINE = 11.0
 MAX_DAILY_HOURS_SALLE = 11.5
 MAX_WEEKLY_HOURS = 48.0
 DEFAULT_MIN_SHIFT_HOURS = 4.0
+
+
+def week_label_scheme_from_weekends(weekends) -> str:
+    for weekend in weekends:
+        value = weekend.value if isinstance(weekend, WeekendChoice) else weekend
+        if value in {WeekendChoice.EVEN.value, WeekendChoice.ODD.value}:
+            return "parity"
+    return "ab"
+
+
+def week_label_for_day(day_index: int, scheme: str) -> str:
+    first, second = ("Paire", "Impaire") if scheme == "parity" else ("A", "B")
+    return first if day_index < 7 else second
 
 
 def format_clock(minutes: int) -> str:

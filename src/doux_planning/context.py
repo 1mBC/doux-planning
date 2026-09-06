@@ -4,7 +4,17 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
-from doux_planning.engine import PlanningDraft, Shift, _below_role_count, evaluate, generate_cycle
+from doux_planning.engine import (
+    PlanningDraft,
+    Shift,
+    _adjacent_rest_pairs,
+    _below_role_count,
+    _closed_days,
+    _coupure_count_in_week,
+    _service_count,
+    evaluate,
+    generate_cycle,
+)
 from doux_planning.hydrate import _employee, _hours, _structure, data_dir
 from doux_planning.invites import RestaurantIdentity, UnknownEmployee
 from doux_planning.planning import CONTRACT_HOUR_TOLERANCE, PublishedCycle, RestaurantState, Sandbox
@@ -16,7 +26,18 @@ from doux_planning.structures import (
     TypicalWeek,
     TypicalWeekCell,
 )
-from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WEEKDAYS, WeekendChoice
+from doux_planning.types import (
+    SERVICE_FR,
+    WEEKDAY_FR,
+    WEEKDAYS,
+    SearchEffort,
+    ServiceName,
+    Team,
+    WarningSeverity,
+    WeekendChoice,
+    week_label_for_day,
+    week_label_scheme_from_weekends,
+)
 
 COMPANY_SERVICE_IDS = frozenset(
     {ServiceName.MORNING.value, ServiceName.MIDDAY.value, ServiceName.EVENING.value}
@@ -402,10 +423,7 @@ def employee_board(state: RestaurantState, employee_id: str) -> EmployeeBoard:
 
 
 def week_label_scheme(state: RestaurantState) -> str:
-    for person in state.employees:
-        if person.wellbeing.weekend in {WeekendChoice.EVEN, WeekendChoice.ODD}:
-            return "parity"
-    return "ab"
+    return week_label_scheme_from_weekends(person.wellbeing.weekend for person in state.employees)
 
 
 WISH_COL_LABELS = {
@@ -450,8 +468,9 @@ def cycle_recap(state: RestaurantState, team: Team) -> CycleRecap:
     )
     wish_keys = _wish_col_keys(staff)
     wish_cols = tuple(WishCol(key=key, label=WISH_COL_LABELS[key]) for key in wish_keys)
+    scheme = week_label_scheme_from_weekends(person.wellbeing.weekend for person in draft.employees)
     wish_rows = tuple(
-        _wish_row(person, wishes, assignments, warnings, wish_keys)
+        _wish_row(person, wishes, assignments, warnings, wish_keys, draft.hours, scheme)
         for person, wishes in zip(staff, wish_lists)
     )
     return CycleRecap(
@@ -603,7 +622,56 @@ def _wish_text(ok: bool, extra: str | None = None) -> str:
     return f"{base} · {extra}" if extra else base
 
 
-def _wish_row(person, wishes, assignments, warnings, keys: Sequence[str]) -> RecapRow:
+def _max_measure(limit: int, count_a: int, count_b: int, held: bool) -> str:
+    measure = f"max {limit} · {count_a} / {count_b} posés"
+    return f"OK · {measure}" if held else measure
+
+
+def _first_warning_week(warnings, employee_id: str, code: str, scheme: str) -> str:
+    for item in warnings:
+        if item.employee_id == employee_id and item.code == code and item.day_index is not None:
+            return week_label_for_day(item.day_index, scheme)
+    return week_label_for_day(0, scheme)
+
+
+def _indispo_text(person, assignments, warnings) -> str:
+    ok = not _has_interdit(warnings, person.id, "unavailability")
+    if ok:
+        return f"OK · {len(person.unavailabilities)} créneaux"
+    for shift in sorted(assignments, key=lambda item: (item.day_index, item.start_minutes)):
+        if shift.employee_id != person.id:
+            continue
+        for pattern in person.unavailabilities:
+            if pattern.blocks(shift.weekday, shift.service_id):
+                service = SERVICE_FR.get(shift.service_id, shift.service_id)
+                return f"Non tenu · {WEEKDAY_FR[shift.weekday]} {service}"
+    return "Non tenu"
+
+
+def _adjacent_rest_span(by_day, hours) -> str | None:
+    for week_start in (0, 7):
+        closed = _closed_days(hours, week_start) if hours is not None else set()
+        offs = {day for day in range(week_start, week_start + 7) if day not in by_day} | closed
+        for left, right in _adjacent_rest_pairs(week_start):
+            if left in offs and right in offs:
+                return f"{WEEKDAY_FR[WEEKDAYS[left % 7]]}–{WEEKDAY_FR[WEEKDAYS[right % 7]]}"
+    return None
+
+
+def _weekend_off_short(by_day, hours) -> str:
+    for week_start in (0, 7):
+        closed = _closed_days(hours, week_start) if hours is not None else set()
+        saturday, sunday = week_start + 5, week_start + 6
+        sat_off = saturday not in by_day or saturday in closed
+        sun_off = sunday not in by_day or sunday in closed
+        if sat_off:
+            return "sam"
+        if sun_off:
+            return "dim"
+    return "sam"
+
+
+def _wish_row(person, wishes, assignments, warnings, keys: Sequence[str], hours, scheme: str) -> RecapRow:
     by_kind = {wish.kind: wish for wish in wishes}
     by_service = {wish.service_id: wish for wish in wishes if wish.kind == "max_services"}
     by_day = _shifts_by_day(assignments, person.id)
@@ -623,7 +691,7 @@ def _wish_row(person, wishes, assignments, warnings, keys: Sequence[str]) -> Rec
                 continue
             cells[key] = RecapCell(
                 ok=not _has_interdit(warnings, person.id, "unavailability"),
-                text=_wish_text(not _has_interdit(warnings, person.id, "unavailability")),
+                text=_indispo_text(person, assignments, warnings),
             )
             continue
         if key == "max_morning":
@@ -636,6 +704,44 @@ def _wish_row(person, wishes, assignments, warnings, keys: Sequence[str]) -> Rec
             wish = by_kind.get(key)
         if wish is None:
             cells[key] = None
+            continue
+        if key in {"max_morning", "max_midday", "max_evening"}:
+            service_id = wish.service_id or ""
+            cells[key] = RecapCell(
+                ok=wish.held,
+                text=_max_measure(
+                    wish.limit or 0,
+                    _service_count(by_day, 0, service_id),
+                    _service_count(by_day, 7, service_id),
+                    wish.held,
+                ),
+            )
+            continue
+        if key == "max_coupures":
+            cells[key] = RecapCell(
+                ok=wish.held,
+                text=_max_measure(
+                    wish.limit or 0,
+                    _coupure_count_in_week(assignments, person.id, 0),
+                    _coupure_count_in_week(assignments, person.id, 7),
+                    wish.held,
+                ),
+            )
+            continue
+        if key == "consecutive_rest":
+            if wish.held:
+                span = _adjacent_rest_span(by_day, hours)
+                extra = f"tenu · {span}" if span else "tenu"
+            else:
+                extra = f"sem. {_first_warning_week(warnings, person.id, 'consecutive_rest_days', scheme)}"
+            cells[key] = RecapCell(ok=wish.held, text=_wish_text(wish.held, extra))
+            continue
+        if key == "weekend_rest_day":
+            if wish.held:
+                extra = _weekend_off_short(by_day, hours)
+            else:
+                extra = f"sem. {_first_warning_week(warnings, person.id, 'weekend_rest_day', scheme)}"
+            cells[key] = RecapCell(ok=wish.held, text=_wish_text(wish.held, extra))
             continue
         extra = WEEKEND_FR.get(person.wellbeing.weekend) if key == "weekend" else None
         cells[key] = RecapCell(ok=wish.held, text=_wish_text(wish.held, extra))
