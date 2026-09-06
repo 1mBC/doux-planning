@@ -14,7 +14,7 @@ Render écarté : free web **dort** (premier clic après un landing = « c’est
 ```
 navigateur  →  https://<railway-domain>/
                  ├── /v1/*     FastAPI (auth, context, generate, live, me/planning, exemple, sandbox joujou)
-                 └── /*        SPA (web/dist) + fallback index.html (/planning, /login, …)
+                 └── /*        SPA (web/dist) + fallback index.html (/planning, /login, /admin, …)
 ```
 
 Même origine : le front continue d’appeler `/v1` (déjà le cas). Pas de CORS. Pas de second service front.
