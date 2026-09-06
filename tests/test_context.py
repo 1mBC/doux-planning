@@ -636,3 +636,148 @@ def test_context_export_import_strips_and_smashes():
     logged = client.post("/v1/auth/login", json={"email": empty.json()["me"]["email"], "password": password})
     assert logged.status_code == 200
     assert client.get("/v1/me", headers=_bearer(logged.json()["token"])).status_code == 200
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_context_coerce_legacy_wellbeing_on_read():
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from doux_planning.api.db import StaffFiche, session_scope
+
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"coerce-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    token = registered.json()["token"]
+    headers = _bearer(token)
+    restaurant_id = registered.json()["me"]["restaurant_id"]
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    seeded = _salle_patch(fiche_id)
+    seeded["services"] = ["morning", "midday", "evening"]
+    patched = client.patch("/v1/context", headers=headers, json=seeded)
+    assert patched.status_code == 200
+
+    legacy_list = [
+        "two_consecutive_rest_days",
+        "weekend_off_every_two_weeks",
+        "at_least_one_weekend_rest_day",
+        "max_two_coupures_per_week",
+    ]
+    legacy_indispos = [
+        {"weekday": "monday", "every_morning": True},
+        {"weekday": "tuesday", "service_id": None},
+    ]
+    with session_scope() as session:
+        fiche = session.get(StaffFiche, (restaurant_id, fiche_id))
+        assert fiche is not None
+        fiche.wellbeing = legacy_list
+        fiche.unavailabilities = legacy_indispos
+        flag_modified(fiche, "wellbeing")
+        flag_modified(fiche, "unavailabilities")
+
+    first = client.get("/v1/context", headers=headers)
+    assert first.status_code == 200
+    wellbeing = first.json()["employees"][0]["wellbeing"]
+    assert wellbeing == {
+        "consecutive_rest": True,
+        "weekend_rest_day": True,
+        "weekend": "every_two",
+        "max_services": {},
+        "max_coupures_per_week": 2,
+    }
+    unavails = first.json()["employees"][0]["unavailabilities"]
+    assert {"weekday": "monday", "service_id": "morning"} in unavails
+    assert {"weekday": "tuesday", "service_id": "midday"} in unavails
+    assert {"weekday": "tuesday", "service_id": "evening"} in unavails
+    assert all("every_morning" not in row and row.get("service_id") for row in unavails)
+    exported = client.get("/v1/context/export", headers=headers)
+    assert exported.status_code == 200
+    assert exported.json()["employees"][0]["wellbeing"] == wellbeing
+    assert isinstance(exported.json()["employees"][0]["wellbeing"], dict)
+
+    second = client.get("/v1/context", headers=headers)
+    assert second.status_code == 200
+    assert second.json()["employees"][0]["wellbeing"] == wellbeing
+    assert second.json()["employees"][0]["unavailabilities"] == unavails
+
+    with session_scope() as session:
+        healed = session.get(StaffFiche, (restaurant_id, fiche_id))
+        assert isinstance(healed.wellbeing, dict)
+        assert healed.wellbeing == wellbeing
+        assert not any("every_morning" in row for row in healed.unavailabilities)
+
+    with session_scope() as session:
+        fiche = session.get(StaffFiche, (restaurant_id, fiche_id))
+        fiche.wellbeing = ["no_evening_service"]
+        flag_modified(fiche, "wellbeing")
+
+    evening = client.get("/v1/context", headers=headers)
+    assert evening.status_code == 200
+    assert evening.json()["employees"][0]["wellbeing"]["max_services"] == {"evening": 0}
+
+    list_patch = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"employees": [{**_fiche_payload(fiche_id, weekend=None), "wellbeing": legacy_list}]},
+    )
+    assert list_patch.status_code == 400
+    assert list_patch.json()["detail"] == "Champs invalides."
+    removed_patch = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={
+            "employees": [
+                {
+                    **_fiche_payload(fiche_id, weekend=None),
+                    "wellbeing": {"at_least_one_weekend_rest_day": True},
+                }
+            ]
+        },
+    )
+    assert removed_patch.status_code == 400
+    assert removed_patch.json()["detail"] == "Champs invalides."
+    every_patch = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={
+            "employees": [
+                _fiche_payload(
+                    fiche_id,
+                    weekend=None,
+                    unavailabilities=[{"weekday": "monday", "every_morning": True}],
+                )
+            ]
+        },
+    )
+    assert every_patch.status_code == 400
+    assert every_patch.json()["detail"] == "Champs invalides."
+
+    core = {
+        "consecutive_rest": True,
+        "weekend_rest_day": False,
+        "weekend": "even",
+        "max_services": {"evening": 1},
+        "max_coupures_per_week": 2,
+    }
+    core_fiche = _fiche_payload(fiche_id, weekend="even")
+    core_fiche["wellbeing"] = core
+    core_patch = client.patch("/v1/context", headers=headers, json={"employees": [core_fiche]})
+    assert core_patch.status_code == 200
+    assert core_patch.json()["employees"][0]["wellbeing"] == core
+    core_get = client.get("/v1/context", headers=headers)
+    assert core_get.status_code == 200
+    assert core_get.json()["employees"][0]["wellbeing"] == core
+
+    portable = client.get("/v1/context/export", headers=headers).json()
+    portable["employees"][0]["wellbeing"] = legacy_list
+    imported = client.post("/v1/context/import", headers=headers, json=portable)
+    assert imported.status_code == 400
+    assert imported.json()["detail"] == "Champs invalides."
+    assert client.get("/v1/context", headers=headers).json()["employees"][0]["wellbeing"] == core
+
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92
+    assert example.json()["planning"]["stats"]["wellbeing"] == {"held": 10, "total": 12}

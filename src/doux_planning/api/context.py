@@ -24,6 +24,8 @@ from doux_planning.api.db import (
     session_scope,
 )
 from doux_planning.api.wellbeing_codec import (
+    coerce_unavailabilities,
+    coerce_wellbeing,
     unavailability_from_json,
     unavailability_to_json,
     wellbeing_from_json,
@@ -70,6 +72,22 @@ def _load_company(restaurant_id: str) -> tuple[Company, list[StaffFiche]]:
         if company is None:
             raise HTTPException(status_code=401, detail="Session invalide.")
         fiches = list(db.scalars(select(StaffFiche).where(StaffFiche.company_id == company.id)))
+        services = list(company.services or [])
+        for row in fiches:
+            try:
+                wellbeing_json = wellbeing_to_json(coerce_wellbeing(row.wellbeing))
+                unavail_json = [
+                    unavailability_to_json(item)
+                    for item in coerce_unavailabilities(row.unavailabilities, services)
+                ]
+            except (ValueError, KeyError, TypeError):
+                continue
+            if row.wellbeing != wellbeing_json or list(row.unavailabilities or []) != unavail_json:
+                row.wellbeing = wellbeing_json
+                row.unavailabilities = unavail_json
+                flag_modified(row, "wellbeing")
+                flag_modified(row, "unavailabilities")
+        db.flush()
         db.expunge(company)
         for row in fiches:
             db.expunge(row)
@@ -95,7 +113,7 @@ def _state_from_rows(company: Company, fiches: list[StaffFiche]) -> RestaurantSt
             if payload:
                 set_role_ladder(state, _ladder_from_json(team, payload))
         for row in fiches:
-            upsert_employee(state, _fiche_to_employee(row))
+            upsert_employee(state, _fiche_to_employee(row, company.services))
         for item in company.types or []:
             upsert_service_type(state, _type_from_json(item))
         week = _week_from_json(company.typical_week or {})

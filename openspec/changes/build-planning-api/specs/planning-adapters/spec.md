@@ -72,7 +72,7 @@ Authenticated restaurateur routes SHALL allow reading and updating staff, struct
 - **THEN** `assignments` matches the published salle cycle (every teammate’s shifts), `employee_id` is that account, `contract` is present, and each wish has `kind` (not `key`)
 
 ### Requirement: Context exposes Core wellbeing and week labels
-`GET /v1/context` (Bearer company) MUST include `week_labels` from Core `week_label_scheme` (`"ab"` or `"parity"`) and serialize each employee `wellbeing` as the Core object plus `unavailabilities` `{ weekday, service_id }`. PATCH MUST accept that same employee shape and MUST reject `week_labels` as a written field (HTTP 400 `Champs invalides.`). `weekend` `even` or `odd` on any fiche MUST yield `"parity"`; `every_two` alone MUST yield `"ab"`.
+`GET /v1/context` (Bearer company) MUST include `week_labels` from Core `week_label_scheme` (`"ab"` or `"parity"`) and serialize each employee `wellbeing` as the Core object plus `unavailabilities` `{ weekday, service_id }`. GET / export / generate / me/planning MUST coerce stored Railway wellbeing JSONB to that Core shape before serializing and MUST NOT emit a key list or `every_*`. PATCH MUST accept that same employee shape, MUST reject `week_labels` as a written field, and MUST reject legacy wellbeing / indispo shapes with HTTP 400 `Champs invalides.` `weekend` `even` or `odd` on any fiche MUST yield `"parity"`; `every_two` alone MUST yield `"ab"`.
 
 #### Scenario: Even weekend switches restaurant labels to parity
 - **WHEN** a restaurateur patches one fiche `wellbeing.weekend` `even` then gets `/v1/context`
