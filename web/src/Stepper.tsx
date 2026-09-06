@@ -1,19 +1,38 @@
 export function Stepper({
   value,
-  min = 0,
+  min,
+  step = 1,
+  display,
+  disabled,
   onChange,
 }: {
   value: number;
   min?: number;
+  step?: number;
+  display?: string;
+  disabled?: boolean;
   onChange: (next: number) => void;
 }) {
+  const atMin = min !== undefined && value <= min;
   return (
     <span className="stepper">
-      <button type="button" className="choice" onClick={() => onChange(Math.max(min, value - 1))}>
+      <button
+        type="button"
+        className="stepper-btn"
+        disabled={disabled || atMin}
+        aria-label="Moins"
+        onClick={() => onChange(min !== undefined ? Math.max(min, value - step) : value - step)}
+      >
         −
       </button>
-      <span>{value}</span>
-      <button type="button" className="choice" onClick={() => onChange(value + 1)}>
+      <span className="stepper-value">{display ?? value}</span>
+      <button
+        type="button"
+        className="stepper-btn"
+        disabled={disabled}
+        aria-label="Plus"
+        onClick={() => onChange(value + step)}
+      >
         +
       </button>
     </span>

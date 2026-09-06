@@ -23,7 +23,7 @@ import {
   exportPublishedPlanning,
   type PlanningExportFormat,
 } from "./exportPlanning";
-import { loadCycles, postGenerate, type CycleAssignment, type PublishedCycles } from "./generate";
+import { loadCycles, postGenerate, type CycleAssignment, type PublishedCycles, type SearchEffort } from "./generate";
 import {
   DAYS_FR,
   GESTURE_HISTORY_FR,
@@ -300,6 +300,7 @@ export function PublishedPlanning() {
   const [team, setTeam] = useState<TeamId>("salle");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [calculating, setCalculating] = useState<SearchEffort | null>(null);
   const [live, setLive] = useState<LiveState | null>(null);
   const [overlay, setOverlay] = useState<OverlayTarget | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -340,23 +341,30 @@ export function PublishedPlanning() {
   const warnings = editing ? live.planning.warnings : (cycle?.warnings ?? []);
   const byKey = useMemo(() => indexCycle(assignments), [assignments]);
   const services = ctx ? serviceRows(ctx, assignments) : [];
-  const canCalculate = ctx?.ready[team] === true && !editing;
-  const canEdit = cycle !== null && !editing;
-  const canExport = cycle !== null && !editing;
+  const canCalculate = ctx?.ready[team] === true && !editing && calculating === null;
+  const canEdit = cycle !== null && !editing && calculating === null;
+  const canExport = cycle !== null && !editing && calculating === null;
 
-  async function calculate() {
+  async function calculate(effort: SearchEffort) {
     if (!canCalculate) {
       return;
     }
-    setBusy(true);
+    const started = Date.now();
+    setCalculating(effort);
     setError(null);
     try {
-      const result = await postGenerate(team);
+      const result = await postGenerate(team, effort);
       setPublished(result.published);
     } catch (err) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {
-      setBusy(false);
+      const wait = Math.max(0, 1000 - (Date.now() - started));
+      if (wait > 0) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, wait);
+        });
+      }
+      setCalculating(null);
     }
   }
 
@@ -434,7 +442,7 @@ export function PublishedPlanning() {
     setError(null);
     try {
       const sheets = sheetsRef.current ? [...sheetsRef.current.querySelectorAll<HTMLElement>(":scope > .sheet")] : [];
-      await exportPublishedPlanning(buildPlanningExport(ctx, team, cycle), format, sheets);
+      await exportPublishedPlanning(buildPlanningExport(ctx, team, cycle), format, sheets, ctx.services);
     } catch (err) {
       setError(err instanceof Error ? err.message : "erreur inattendue");
     } finally {
@@ -502,9 +510,25 @@ export function PublishedPlanning() {
         ))}
       </div>
       <div className="auth-switch planning-actions">
-        <button type="button" className="choice active" disabled={!canCalculate || busy} onClick={() => void calculate()}>
-          {busy ? "Calcul…" : "Calculer"}
-        </button>
+        {!editing
+          ? (
+            [
+              { id: "minimal" as const, label: "Minimal" },
+              { id: "optimized" as const, label: "Optimisé" },
+              { id: "maximal" as const, label: "Maximal" },
+            ].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="choice active"
+                disabled={!canCalculate || busy}
+                onClick={() => void calculate(item.id)}
+              >
+                {item.label}
+              </button>
+            ))
+          )
+          : null}
         {canEdit ? (
           <button type="button" className="choice active" disabled={busy} onClick={() => void startEdit()}>
             {busy ? "Ouverture…" : "Mode édition"}
@@ -548,6 +572,12 @@ export function PublishedPlanning() {
           ) : null}
         </div>
       </div>
+
+      {calculating ? (
+        <div className="calc-overlay" role="status" aria-live="polite">
+          <p>Calcul en cours…</p>
+        </div>
+      ) : null}
 
       {error ? (
         <p className="error" role="alert">

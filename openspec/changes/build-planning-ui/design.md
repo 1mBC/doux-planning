@@ -20,7 +20,7 @@ uvicorn  :8000  --  GET /v1/examples/saint-cloud   (public)
                  --  /v1/auth/*  /v1/me  /v1/invites/{code}
                  --  GET|PATCH /v1/context   (Bearer company)
                  --  POST /v1/context/seed-example  GET /v1/context/export  POST /v1/context/import
-                 --  POST /v1/generate  GET /v1/cycles  (Bearer company)
+                 --  POST /v1/generate  GET /v1/generate/jobs/{id}  GET /v1/cycles  (Bearer company)
                  --  /v1/live/sandbox/{team}/*  (Bearer company)
                  --  GET /v1/me/planning         (Bearer employee)
                          ^
@@ -42,7 +42,7 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 - Company `/context` export / import following `contracts/domain/export-config.md` § UI.
 
 **Non-Goals:**
-- `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit.
+- Changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit.
 - Merging `recaps/infra` / `recaps/core`, new FastAPI routes, a second scoring path, react-router.
 - Pixel-identical clone of the GitHub Pages HTML.
 - Translating engine messages into a new diagnosis.
@@ -86,7 +86,7 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 - `/register` : bascule **Entreprise** / **Salarié**. Entreprise → `{ kind: company, email, password }` seulement. Salarié → code → `GET /v1/invites/{company_code}` → choisir une fiche (`id`, `name`, `role`, `team`) → `{ kind: employee, company_code, employee_id, email, password }` (pas de token).
 - QR : `/register?company_code=…&employee_token=…` — kind salarié verrouillé, pas de liste, POST avec `employee_token` (pas d’`employee_id`).
 - Password ≥ 8. Afficher `detail` tel quel. Pas de « mot de passe oublié ».
-- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`, `GET /v1/admin/generates`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
+- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/generate/jobs/{id}`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`, `GET /v1/admin/generates`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
 - Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 n’empêche pas l’exemple.
 - Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`. Employee : lien **Planning** → `/planning`. Lien **Admin** seulement si `me.admin`.
 - Sans session : login/register **et** `/exemple`. La grille d’exemple n’est pas derrière le login.
@@ -101,7 +101,7 @@ Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : **Se
 2. Rôles (équipe) : nom + niveau ≥ 1. PATCH `ladders` avec `substitution_explained: true`.
 3. Équipe : une ligne par salarié ; popup indispo jours × **services offerts**. PATCH `employees` = liste complète.
 4. Souhaits bien-être : `Wellbeing` (cases `consecutive_rest` + **`weekend_rest_day`** à côté de la radio `weekend`, chiffres `max_services` **offerts seulement**, `max_coupures_per_week`). Pas un prérequis de `ready`. Bool `weekend_rest_day` requis au parse.
-5. Services types (équipe × service offert) : sous-onglets par service ; **Ajouter un type** en bas. Vagues en **une ligne** chronologique (arrivée ou départ), horloge + ±15 sur la même ligne, +/− par niveau, en-tête **STAFF après cette arrivée / ce départ** (cellule = sac / erreur seulement), pire-cas → `remaining_post_levels`. PATCH `types` = liste complète.
+5. Services types (équipe × service offert) : sous-onglets par service ; **Ajouter un type** en bas. **Une `<table>` par feuille** (plus de cartes `wave-line`). Colonnes Type (Arrivée | Sortie) · Heure (horloge + ±15 stepper compact) · N · Niveaux · **STAFF minimal resultant** (sac / erreur, même calcul) · poubelle. Persist / pire-cas inchangés. PATCH `types` = liste complète.
 6. Semaine type : type ou Fermé, colonnes = services offerts. PATCH `typical_week` = `{ salle, cuisine }`. Libellés A/B ou Paire/Impaire selon `week_labels`.
 
 Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`. Bouton **Inviter mes employés** (popup : copier `origin + /register?company_code={code}` + QR identique). Bouton **Intégrer l’exemple Saint-Cloud** à côté du code (tous les comptes company). Confirm FR puis `POST /v1/context/seed-example` (Bearer, pas de body). 200 = même parse que GET ; rester sur `/context`. Même `seed-row` : **Exporter la config** / **Importer une config** (§19).  
@@ -109,13 +109,13 @@ Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seul
 
 ### 9. Published cycle (company)
 
-Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Calculer** / **Mode édition** **sous** le switch d’équipe. **Calculer** actif seulement si `ready[team] === true`. POST `{ team, search_effort: "minimal" }`. Cycle non null : `stats` / `legal_cols` / `legal_rows` / `wish_cols` / `wish_rows` **requis** (throw si clé absente). Hors édition : pastilles + tableaux **Règles légales** / **Souhaits bien-être** (`text` tel quel, cellule `ok: false` orange + gras y compris `contrat`). Warning `contract_hours` : pastille **Contrat** (severity API inchangée). Mode édition : cacher ces recaps (grille + warnings + historique). Warnings : `message` tel quel. Cuisine `null` : « Pas encore calculé ». Mode édition live = §10. Menu **Exporter** = §20.
+Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Minimal** · **Optimisé** · **Maximal** / **Mode édition** **sous** le switch d’équipe. Les trois boutons actifs seulement si `ready[team] === true` et pas en édition. Minimal / Optimisé = POST sync `{ team, search_effort }`. Maximal = POST 202 `{ job_id, … }` puis poll `GET /v1/generate/jobs/{id}` ~1 s jusqu’à `done` (alors `published`) / `failed` (`error` / `detail` FR). Loader overlay ≥ 1 s, fermé quand le 200 ou le job `done` est là. Cycle non null : `stats` / `legal_cols` / `legal_rows` / `wish_cols` / `wish_rows` **requis** (throw si clé absente). Hors édition : pastilles + tableaux **Règles légales** / **Souhaits bien-être** (`text` tel quel, cellule `ok: false` orange + gras y compris `contrat`). Warning `contract_hours` : pastille **Contrat** (severity API inchangée). Mode édition : cacher ces recaps (grille + warnings + historique) et **calcul off**. Warnings : `message` tel quel. Cuisine `null` : « Pas encore calculé ». Mode édition live = §10. Menu **Exporter** = §20. Trois calculs = §22.
 
 ### 10. Live sandbox on `/planning`
 
 Mode édition seulement si `published[team]` existe. POST `/v1/live/sandbox/{team}/enter` (Bearer). Cuisine sans cycle : pas de bouton (409 API). Overlays = joujou (injecter le client live, ne pas appeler `/v1/sandbox/*`). Lecture quitte l’UI sans discard. Reload / ré-enter = GET/enter live (cran conservé). Publier → Cycles, sortir d’édition, l’autre équipe intacte. Tout annuler = discard live.
 
-Hors slice : rotate invite-token, `optimized` 30 s, edit contraintes salarié.
+Hors slice : rotate invite-token, edit contraintes salarié.
 
 ### 11. Employee board
 
@@ -155,11 +155,23 @@ Suivre `export-config.md` § UI. **Exporter la config** : `GET /v1/context/expor
 
 ### 20. Export planning (client)
 
-Suivre `export-planning.md`. Menu **Exporter** dans `planning-actions` (JSON / CSV / XLSX / JPEG). Actif ssi `published[team]` non null et pas en Mode édition. Cuisine `null` → off. Source = cycle chargé + fiches de **cette** équipe, sans `invite_token`. Pas de nouvelle route. Chiffres = payload. Fichier `{slug}-{salle|cuisine}.{ext}` (`name` vide → `planning`). JPEG = les deux feuilles A/B. Pas de bouton salarié / `/exemple`. Version `0.20.0`.
+Suivre `export-planning.md`. Menu **Exporter** dans `planning-actions` (JSON / CSV / XLSX / JPEG). Actif ssi `published[team]` non null et pas en Mode édition. Cuisine `null` → off. Source = cycle chargé + fiches de **cette** équipe, sans `invite_token`. Pas de nouvelle route. Chiffres = payload. Fichier `{slug}-{salle|cuisine}.{ext}` (`name` vide → `planning`). JSON / CSV inchangés. XLSX = 2 feuilles Semaine A / B (ou Paire / Impaire), titre **Planning validé en date du :** + horodatage local, une ligne par personne × service offert. JPEG = les deux feuilles, 2× CSS pixels, qualité ≥ 0.95. Pas de bouton salarié / `/exemple`. Version `0.20.0` ; polish = §22.
 
 ### 21. Admin generate table
 
 Suivre `admin.md` § UI + `v1-auth.md` `me.admin`. `parseMe` exige `admin: bool` ; employee → `false`. Lien **Admin** ssi `me.admin`. `/admin` admin → `GET /v1/admin/generates` ; sinon message `Action réservée à l’admin.` sans fetch. Table newest-first, en-tête jour `Europe/Paris` (`Dimanche 6 septembre 2026`), heure `HH:mm`, hover = `warnings[].message` (vide → `aucun warning`). Version `0.21.0`.
+
+### 22. Planning polish (steppers, types table, exports, three generate)
+
+Suivre `wizard-ui.md` (stepper / table), `export-planning.md`, `generate-jobs.md` + `v1-generate.md` — les suivre, ne pas les modifier.
+
+- Stepper compact **partout** (rôles Niveau, types N + niveaux, overlay sandbox, ±15) : label à part, `[−]` petit, chiffre **centré**, `[+]`. Plus de `.choice` nav sur les ±.
+- Services types : **une `<table>` par feuille**, colonnes Type · Heure · N · Niveaux · **STAFF minimal resultant** · poubelle. Persist / pire-cas / sous-onglets inchangés.
+- JPEG : `devicePixelRatio` ≥ 2, police lisible, qualité ≥ 0.95, toujours les 2 semaines.
+- XLSX : 2 feuilles (pas un dump CSV), titre daté, Lun–Dim × DEBUT / FIN / NB HEURES, une ligne par service offert (PDJ / DJ / Dîner), un peu de couleur.
+- Trois boutons **Minimal** · **Optimisé** · **Maximal** si `ready[team]`. Loader ≥ 1 s. Maximal = 202 + poll. Mode édition : calcul off. Pas salarié / `/exemple`.
+
+Version `0.22.0`.
 
 ## Risks / Trade-offs
 
@@ -173,4 +185,4 @@ Greenfield `web/`. Rollback = delete `web/` (and revert CORS if it was added). E
 
 ## Open Questions
 
-None that block this slice. `optimized` waits.
+None that block this slice.
