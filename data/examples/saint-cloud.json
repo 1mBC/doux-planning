@@ -1444,119 +1444,119 @@
       {
         "severity": "souhait",
         "code": "consecutive_rest_days",
-        "message": "THEO missing two consecutive rest days",
+        "message": "THEO : pas deux repos consécutifs (sem. A)",
         "employee_id": "theo",
         "day_index": 0
       },
       {
         "severity": "souhait",
         "code": "consecutive_rest_days",
-        "message": "THEO missing two consecutive rest days",
+        "message": "THEO : pas deux repos consécutifs (sem. B)",
         "employee_id": "theo",
         "day_index": 7
       },
       {
         "severity": "souhait",
         "code": "consecutive_rest_days",
-        "message": "VLAD missing two consecutive rest days",
+        "message": "VLAD : pas deux repos consécutifs (sem. B)",
         "employee_id": "vlad",
         "day_index": 7
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "DIANE has 29.0h vs 39.0h contract",
+        "message": "DIANE : 29h / 39h contrat (sem. A)",
         "employee_id": "diane",
         "day_index": 0
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "DIANE has 30.0h vs 39.0h contract",
+        "message": "DIANE : 30h / 39h contrat (sem. B)",
         "employee_id": "diane",
         "day_index": 7
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "THEO has 34.0h vs 39.0h contract",
+        "message": "THEO : 34h / 39h contrat (sem. A)",
         "employee_id": "theo",
         "day_index": 0
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "THEO has 33.0h vs 39.0h contract",
+        "message": "THEO : 33h / 39h contrat (sem. B)",
         "employee_id": "theo",
         "day_index": 7
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "EMMA has 32.0h vs 39.0h contract",
+        "message": "EMMA : 32h / 39h contrat (sem. A)",
         "employee_id": "emma",
         "day_index": 0
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "EMMA has 32.0h vs 39.0h contract",
+        "message": "EMMA : 32h / 39h contrat (sem. B)",
         "employee_id": "emma",
         "day_index": 7
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "ROBIN has 22.0h vs 25.0h contract",
+        "message": "ROBIN : 22h / 25h contrat (sem. B)",
         "employee_id": "robin",
         "day_index": 7
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "AURORE has 24.0h vs 30.0h contract",
+        "message": "AURORE : 24h / 30h contrat (sem. A)",
         "employee_id": "aurore",
         "day_index": 0
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "AURORE has 28.0h vs 30.0h contract",
+        "message": "AURORE : 28h / 30h contrat (sem. B)",
         "employee_id": "aurore",
         "day_index": 7
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "MIMO has 21.5h vs 25.0h contract",
+        "message": "MIMO : 21h30 / 25h contrat (sem. A)",
         "employee_id": "mimo",
         "day_index": 0
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "MIMO has 21.5h vs 25.0h contract",
+        "message": "MIMO : 21h30 / 25h contrat (sem. B)",
         "employee_id": "mimo",
         "day_index": 7
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "LUCIE has 13.0h vs 15.0h contract",
+        "message": "LUCIE : 13h / 15h contrat (sem. B)",
         "employee_id": "lucie",
         "day_index": 7
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "VLAD has 28.0h vs 35.0h contract",
+        "message": "VLAD : 28h / 35h contrat (sem. A)",
         "employee_id": "vlad",
         "day_index": 0
       },
       {
         "severity": "souhait",
         "code": "contract_hours",
-        "message": "VLAD has 28.5h vs 35.0h contract",
+        "message": "VLAD : 28h30 / 35h contrat (sem. B)",
         "employee_id": "vlad",
         "day_index": 7
       }
@@ -1591,15 +1591,15 @@
           },
           "max_coupure": {
             "ok": true,
-            "text": "OK · max 4h"
+            "text": "OK · max 4h30"
           },
           "max_daily_salle": {
             "ok": true,
-            "text": "OK · max 10h"
+            "text": "OK · max 9h30"
           },
           "max_weekly_hours": {
             "ok": true,
-            "text": "OK · 30h / 29h"
+            "text": "OK · 29h / 30h"
           }
         }
       },
@@ -1613,11 +1613,11 @@
           },
           "weekly_rest_days": {
             "ok": true,
-            "text": "OK · 3 / 3 j."
+            "text": "OK · 3 / 2 j."
           },
           "max_coupure": {
             "ok": true,
-            "text": "OK · max 3h30"
+            "text": "OK · max 4h30"
           },
           "max_daily_salle": {
             "ok": true,
@@ -1625,7 +1625,7 @@
           },
           "max_weekly_hours": {
             "ok": true,
-            "text": "OK · 31,5h / 31h"
+            "text": "OK · 34h / 33h"
           }
         }
       },
@@ -1639,11 +1639,11 @@
           },
           "weekly_rest_days": {
             "ok": true,
-            "text": "OK · 3 / 3 j."
+            "text": "OK · 3 / 2 j."
           },
           "max_coupure": {
             "ok": true,
-            "text": "OK · max 3h30"
+            "text": "OK · max 2h"
           },
           "max_daily_salle": {
             "ok": true,
@@ -1651,7 +1651,7 @@
           },
           "max_weekly_hours": {
             "ok": true,
-            "text": "OK · 29h / 32h"
+            "text": "OK · 32h / 32h"
           }
         }
       },
@@ -1661,23 +1661,23 @@
         "cells": {
           "rest_between_days": {
             "ok": true,
-            "text": "OK · min 18h"
+            "text": "OK · min 11h"
           },
           "weekly_rest_days": {
             "ok": true,
-            "text": "OK · 2 / 3 j."
+            "text": "OK · 2 / 2 j."
           },
           "max_coupure": {
             "ok": true,
-            "text": "OK · max 3h30"
+            "text": "OK · max 0h"
           },
           "max_daily_salle": {
             "ok": true,
-            "text": "OK · max 9h"
+            "text": "OK · max 6h"
           },
           "max_weekly_hours": {
             "ok": true,
-            "text": "OK · 24h / 25h"
+            "text": "OK · 24h30 / 22h"
           }
         }
       },
@@ -1695,15 +1695,15 @@
           },
           "max_coupure": {
             "ok": true,
-            "text": "OK · max 5h"
+            "text": "OK · max 4h30"
           },
           "max_daily_salle": {
             "ok": true,
-            "text": "OK · max 8,5h"
+            "text": "OK · max 8h"
           },
           "max_weekly_hours": {
             "ok": true,
-            "text": "OK · 28h / 28,5h"
+            "text": "OK · 24h / 28h"
           }
         }
       },
@@ -1713,11 +1713,11 @@
         "cells": {
           "rest_between_days": {
             "ok": true,
-            "text": "OK · min 12h"
+            "text": "OK · min 11h"
           },
           "weekly_rest_days": {
             "ok": true,
-            "text": "OK · 3 / 3 j."
+            "text": "OK · 3 / 2 j."
           },
           "max_coupure": {
             "ok": true,
@@ -1725,11 +1725,11 @@
           },
           "max_daily_salle": {
             "ok": true,
-            "text": "OK · max 8,5h"
+            "text": "OK · max 8h30"
           },
           "max_weekly_hours": {
             "ok": true,
-            "text": "OK · 21,5h / 21,5h"
+            "text": "OK · 21h30 / 21h30"
           }
         }
       },
@@ -1743,11 +1743,11 @@
           },
           "weekly_rest_days": {
             "ok": true,
-            "text": "OK · 4 / 4 j."
+            "text": "OK · 4 / 2 j."
           },
           "max_coupure": {
             "ok": true,
-            "text": "OK · pas de double service"
+            "text": "OK · max 0h"
           },
           "max_daily_salle": {
             "ok": true,
@@ -1755,7 +1755,7 @@
           },
           "max_weekly_hours": {
             "ok": true,
-            "text": "OK · 15h / 12h"
+            "text": "OK · 15h / 13h"
           }
         }
       },
@@ -1769,19 +1769,19 @@
           },
           "weekly_rest_days": {
             "ok": true,
-            "text": "OK · 3 / 3 j."
+            "text": "OK · 3 / 2 j."
           },
           "max_coupure": {
             "ok": true,
-            "text": "OK · max 4h30"
+            "text": "OK · max 5h"
           },
           "max_daily_salle": {
             "ok": true,
-            "text": "OK · max 8,5h"
+            "text": "OK · max 8h30"
           },
           "max_weekly_hours": {
             "ok": true,
-            "text": "OK · 29h / 29h"
+            "text": "OK · 28h / 28h30"
           }
         }
       }
@@ -1796,28 +1796,16 @@
         "label": "Indispos"
       },
       {
-        "key": "coupures",
-        "label": "Coupures"
+        "key": "consecutive_rest",
+        "label": "Deux repos consécutifs par semaine"
       },
       {
-        "key": "soirs",
-        "label": "Soirs / sem"
+        "key": "max_evening",
+        "label": "Max dîner"
       },
       {
-        "key": "repos2",
-        "label": "2 repos lun–ven"
-      },
-      {
-        "key": "we1j",
-        "label": "≥ 1 j. WE"
-      },
-      {
-        "key": "weA",
-        "label": "WE A off"
-      },
-      {
-        "key": "weB",
-        "label": "WE B off"
+        "key": "max_coupures",
+        "label": "Nbre de coupures max"
       }
     ],
     "wish_rows": [
@@ -1830,20 +1818,14 @@
             "text": "30h · 29h / 39h"
           },
           "indispo": null,
-          "coupures": {
+          "consecutive_rest": null,
+          "max_evening": {
             "ok": true,
-            "text": "OK · 2"
+            "text": "OK · max 2 · 2 / 2 posés"
           },
-          "soirs": {
+          "max_coupures": {
             "ok": true,
-            "text": "OK · 2"
-          },
-          "repos2": null,
-          "we1j": null,
-          "weA": null,
-          "weB": {
-            "ok": true,
-            "text": "OK"
+            "text": "OK · max 2 · 2 / 2 posés"
           }
         }
       },
@@ -1853,21 +1835,18 @@
         "cells": {
           "contrat": {
             "ok": false,
-            "text": "31,5h · 31h / 39h"
+            "text": "34h · 33h / 39h"
           },
           "indispo": null,
-          "coupures": {
-            "ok": true,
-            "text": "OK · 2"
+          "consecutive_rest": {
+            "ok": false,
+            "text": "Non tenu · sem. A"
           },
-          "soirs": null,
-          "repos2": {
+          "max_evening": null,
+          "max_coupures": {
             "ok": true,
-            "text": "OK · Mer–Jeu"
-          },
-          "we1j": null,
-          "weA": null,
-          "weB": null
+            "text": "OK · max 3 · 3 / 3 posés"
+          }
         }
       },
       {
@@ -1876,21 +1855,18 @@
         "cells": {
           "contrat": {
             "ok": false,
-            "text": "29h · 32h / 39h"
+            "text": "32h · 32h / 39h"
           },
           "indispo": {
             "ok": true,
-            "text": "OK · Lun–Mar"
+            "text": "OK · 4 créneaux"
           },
-          "coupures": {
+          "consecutive_rest": null,
+          "max_evening": null,
+          "max_coupures": {
             "ok": true,
-            "text": "OK · 2"
-          },
-          "soirs": null,
-          "repos2": null,
-          "we1j": null,
-          "weA": null,
-          "weB": null
+            "text": "OK · max 2 · 2 / 2 posés"
+          }
         }
       },
       {
@@ -1899,24 +1875,18 @@
         "cells": {
           "contrat": {
             "ok": false,
-            "text": "24h · 25h / 25h"
+            "text": "24h30 · 22h / 25h"
           },
           "indispo": {
             "ok": true,
-            "text": "OK · Matins sem."
+            "text": "OK · 5 créneaux"
           },
-          "coupures": {
+          "consecutive_rest": null,
+          "max_evening": null,
+          "max_coupures": {
             "ok": true,
-            "text": "OK · 0 / 1"
-          },
-          "soirs": null,
-          "repos2": null,
-          "we1j": {
-            "ok": true,
-            "text": "OK · Dim"
-          },
-          "weA": null,
-          "weB": null
+            "text": "OK · max 2 · 0 / 0 posés"
+          }
         }
       },
       {
@@ -1925,21 +1895,15 @@
         "cells": {
           "contrat": {
             "ok": false,
-            "text": "28h · 28,5h / 30h"
+            "text": "24h · 28h / 30h"
           },
           "indispo": null,
-          "coupures": {
+          "consecutive_rest": null,
+          "max_evening": null,
+          "max_coupures": {
             "ok": true,
-            "text": "OK · 2"
-          },
-          "soirs": null,
-          "repos2": null,
-          "we1j": null,
-          "weA": {
-            "ok": true,
-            "text": "OK"
-          },
-          "weB": null
+            "text": "OK · max 2 · 1 / 2 posés"
+          }
         }
       },
       {
@@ -1948,24 +1912,21 @@
         "cells": {
           "contrat": {
             "ok": false,
-            "text": "21,5h · 21,5h / 25h"
+            "text": "21h30 · 21h30 / 25h"
           },
           "indispo": {
             "ok": true,
-            "text": "OK · Matins sem. sauf jeu"
+            "text": "OK · 4 créneaux"
           },
-          "coupures": {
+          "consecutive_rest": {
             "ok": true,
-            "text": "OK · 1"
+            "text": "OK · tenu · dimanche–lundi"
           },
-          "soirs": null,
-          "repos2": {
+          "max_evening": null,
+          "max_coupures": {
             "ok": true,
-            "text": "A Lun–Mar · B Mar–Mer"
-          },
-          "we1j": null,
-          "weA": null,
-          "weB": null
+            "text": "OK · max 2 · 1 / 1 posés"
+          }
         }
       },
       {
@@ -1974,24 +1935,18 @@
         "cells": {
           "contrat": {
             "ok": false,
-            "text": "15h · 12h / 15h"
+            "text": "15h · 13h / 15h"
           },
           "indispo": {
             "ok": true,
-            "text": "OK · Matins sem."
+            "text": "OK · 5 créneaux"
           },
-          "coupures": {
+          "consecutive_rest": null,
+          "max_evening": null,
+          "max_coupures": {
             "ok": true,
-            "text": "OK · 0"
-          },
-          "soirs": null,
-          "repos2": null,
-          "we1j": {
-            "ok": true,
-            "text": "OK · Dim–Sam"
-          },
-          "weA": null,
-          "weB": null
+            "text": "OK · max 2 · 0 / 0 posés"
+          }
         }
       },
       {
@@ -2000,24 +1955,18 @@
         "cells": {
           "contrat": {
             "ok": false,
-            "text": "29h · 29h / 35h"
+            "text": "28h · 28h30 / 35h"
           },
           "indispo": null,
-          "coupures": {
-            "ok": true,
-            "text": "OK · 3"
+          "consecutive_rest": {
+            "ok": false,
+            "text": "Non tenu · sem. B"
           },
-          "soirs": null,
-          "repos2": {
+          "max_evening": null,
+          "max_coupures": {
             "ok": true,
-            "text": "OK · Jeu–Ven"
-          },
-          "we1j": {
-            "ok": true,
-            "text": "OK · Dim"
-          },
-          "weA": null,
-          "weB": null
+            "text": "OK · max 3 · 3 / 3 posés"
+          }
         }
       }
     ]

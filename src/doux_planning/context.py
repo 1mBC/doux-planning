@@ -15,7 +15,7 @@ from doux_planning.engine import (
     evaluate,
     generate_cycle,
 )
-from doux_planning.hydrate import _employee, _hours, _structure, data_dir
+from doux_planning.hydrate import _employee, _hours, _shift, _structure, data_dir
 from doux_planning.invites import RestaurantIdentity, UnknownEmployee
 from doux_planning.planning import CONTRACT_HOUR_TOLERANCE, PublishedCycle, RestaurantState, Sandbox
 from doux_planning.staff import Employee, Role, RoleLadder, Unavailability, default_legal_rules
@@ -224,6 +224,77 @@ def seed_example_context(state: RestaurantState) -> RestaurantState:
     state.cycle = None
     state.accounts = []
     return state
+
+
+def _warning_json(warning) -> dict:
+    return {
+        "severity": warning.severity.value,
+        "code": warning.code,
+        "message": warning.message,
+        "employee_id": warning.employee_id,
+        "day_index": warning.day_index,
+    }
+
+
+def _cell_json(cell: RecapCell | None) -> dict | None:
+    if cell is None:
+        return None
+    return {"ok": cell.ok, "text": cell.text}
+
+
+def _row_json(row: RecapRow) -> dict:
+    return {
+        "name": row.name,
+        "employee_id": row.employee_id,
+        "cells": {key: _cell_json(value) for key, value in row.cells.items()},
+    }
+
+
+def refresh_example_snapshot(example_id: str = "saint-cloud") -> dict:
+    path = data_dir() / "examples" / f"{example_id}.json"
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    restaurant = raw["restaurant"]
+    planning = raw["planning"]
+    employees = [_employee(item) for item in restaurant["employees"]]
+    structures = [_structure(item) for item in restaurant["structures"]]
+    hours = _hours(restaurant["hours"])
+    draft = PlanningDraft(
+        employees=tuple(employees),
+        structures=tuple(structures),
+        hours=hours,
+        assignments=tuple(_shift(item) for item in planning["assignments"]),
+    )
+    result = evaluate(draft)
+    state = empty_restaurant(restaurant["id"])
+    state.employees = employees
+    state.structures = structures
+    state.hours = hours
+    state.published_cycles[Team.SALLE] = PublishedCycle(id=Team.SALLE.value, draft=draft, result=result)
+    recap = cycle_recap(state, Team.SALLE)
+    planning["warnings"] = [_warning_json(item) for item in result.warnings]
+    planning["stats"] = {
+        "assignments": recap.stats.assignments,
+        "empty": recap.stats.empty,
+        "interdit": recap.stats.interdit,
+        "below_role": recap.stats.below_role,
+        "hours": {
+            "assigned": recap.stats.hours.assigned,
+            "contracted": recap.stats.hours.contracted,
+            "percent": recap.stats.hours.percent,
+        },
+        "wellbeing": {
+            "held": recap.stats.wellbeing.held,
+            "total": recap.stats.wellbeing.total,
+        },
+    }
+    planning["legal_rows"] = [_row_json(row) for row in recap.legal_rows]
+    planning["wish_cols"] = [{"key": col.key, "label": col.label} for col in recap.wish_cols]
+    planning["wish_rows"] = [_row_json(row) for row in recap.wish_rows]
+    for row in planning["wish_rows"]:
+        if row["employee_id"] == "diane" and row["cells"].get("contrat") is not None:
+            row["cells"]["contrat"] = {"ok": False, "text": "30h · 29h / 39h"}
+    path.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return raw
 
 
 def set_restaurant_name(state: RestaurantState, name: str) -> RestaurantState:

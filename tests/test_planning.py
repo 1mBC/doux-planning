@@ -263,6 +263,12 @@ def _assert_saint_cloud_contract(body: dict) -> None:
     assert theo["duration_hours"] == 5.0
     diane = next(row for row in planning["wish_rows"] if row["employee_id"] == "diane")
     assert diane["cells"]["contrat"] == {"ok": False, "text": "30h · 29h / 39h"}
+    assert {col["key"] for col in planning["wish_cols"]}.isdisjoint({"we1j", "weA", "weB", "soirs", "repos2", "coupures"})
+    assert any(item["code"] == "contract_hours" and "contrat" in item["message"] for item in planning["warnings"])
+    assert any(
+        item["code"] == "consecutive_rest_days" and "pas deux repos" in item["message"]
+        for item in planning["warnings"]
+    )
 
 
 def test_saint_cloud_example_separates_france_legal():

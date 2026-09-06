@@ -1,5 +1,8 @@
+import json
+
 from doux_planning.context import empty_restaurant, seed_example_context, team_ready, week_label_scheme
 from doux_planning.engine import EngineResult, PlanningDraft
+from doux_planning.hydrate import data_dir
 from doux_planning.planning import PublishedCycle
 from doux_planning.structures import RestaurantHours
 from doux_planning.types import ServiceName, Team
@@ -49,3 +52,26 @@ def test_seed_again_clears_published_and_keeps_example_fiches():
     assert {person.id: person.invite_token for person in seeded.employees} != first_tokens
     assert team_ready(seeded, Team.SALLE)
     assert not team_ready(seeded, Team.CUISINE)
+
+
+def test_saint_cloud_snapshot_has_live_french_recap():
+    planning = json.loads((data_dir() / "examples" / "saint-cloud.json").read_text(encoding="utf-8"))["planning"]
+    assert len(planning["assignments"]) == 92
+    assert planning["stats"]["assignments"] == 92
+    theo = next(
+        item
+        for item in planning["assignments"]
+        if item["employee_id"] == "theo" and item["day_index"] == 0 and item["service_id"] == "midday"
+    )
+    assert theo["start_minutes"] == 660
+    assert theo["end_minutes"] == 960
+    assert theo["duration_hours"] == 5.0
+    diane = next(row for row in planning["wish_rows"] if row["employee_id"] == "diane")
+    assert diane["cells"]["contrat"] == {"ok": False, "text": "30h · 29h / 39h"}
+    assert {col["key"] for col in planning["wish_cols"]}.isdisjoint({"we1j", "weA", "weB", "soirs", "repos2", "coupures"})
+    assert "legal_cols" not in planning
+    assert any(item["code"] == "contract_hours" and "contrat" in item["message"] for item in planning["warnings"])
+    assert any(
+        item["code"] == "consecutive_rest_days" and "pas deux repos" in item["message"]
+        for item in planning["warnings"]
+    )
