@@ -101,6 +101,21 @@ Authenticated restaurateur routes SHALL allow reading and updating staff, struct
 - **WHEN** an employee session posts `/v1/context/seed-example`
 - **THEN** the response is HTTP 403 French
 
+### Requirement: Context export and import
+`GET /v1/context/export` (Bearer company) SHALL return `{ export_version: 1, name, services, ladders, employees, types, typical_week }` generated from the live context. The body MUST NOT include `company_code` or `invite_token`. `POST /v1/context/import` SHALL accept that shape, ignore forbidden keys (`company_code`, `invite_token`, `ready`, `week_labels`, `legal_context_id`), smash like `POST /v1/context/seed-example` (clear cycles / live sandboxes / linked ids, delete this company’s employee accounts), apply the JSON `name`, mint new Core `invite_token`s, and return the same `Context` body as GET. `export_version` other than `1` MUST be HTTP 400 `Champs invalides.` Employee Bearer MUST be 403. Missing Bearer MUST be 401. Without `DATABASE_URL` MUST be 503. The public example MUST stay 92. The adapter MUST NOT call `generate_cycle`.
+
+#### Scenario: Export strips secrets
+- **WHEN** a company session gets `/v1/context/export`
+- **THEN** `export_version` is `1` and the JSON has no `company_code` or `invite_token`
+
+#### Scenario: Import smashes a linked company
+- **WHEN** a company with a linked employee and a published cycle posts a valid export body
+- **THEN** the response is HTTP 200, cycles are null, linked ids are empty, and the old employee Bearer is HTTP 401
+
+#### Scenario: Unknown export version is rejected
+- **WHEN** the restaurateur posts import with `export_version` `2`
+- **THEN** the response is HTTP 400 `Champs invalides.`
+
 ### Requirement: Product errors are French
 Protected and public API error bodies SHALL present a French `message` suitable to show in the product. OpenSpec requirements remain in English.
 

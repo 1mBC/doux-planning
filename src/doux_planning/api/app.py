@@ -100,6 +100,22 @@ def seed_example_context_route(authorization: str | None = Header(default=None))
     return seed_example(authorization)
 
 
+@app.get("/v1/context/export")
+def export_context_route(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.context import export_context
+
+    return export_context(authorization)
+
+
+@app.post("/v1/context/import")
+def import_context_route(
+    body: dict[str, Any], authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.context import import_context
+
+    return import_context(authorization, body)
+
+
 @app.get("/v1/cycles")
 def get_cycles(authorization: str | None = Header(default=None)) -> dict:
     from doux_planning.api.generate import get_cycles as read_cycles

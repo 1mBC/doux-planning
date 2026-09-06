@@ -91,6 +91,12 @@ def test_context_without_database_is_503(monkeypatch):
     assert example.status_code == 200
     assert example.json()["planning"]["stats"]["assignments"] == 92
     assert client.post("/v1/sandbox/enter").status_code == 200
+    export = client.get("/v1/context/export", headers=_bearer("x"))
+    assert export.status_code == 503
+    assert export.json()["detail"] == "Base indisponible."
+    imported = client.post("/v1/context/import", headers=_bearer("x"), json={"export_version": 1})
+    assert imported.status_code == 503
+    assert imported.json()["detail"] == "Base indisponible."
 
 
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
@@ -475,5 +481,158 @@ def test_seed_example_smashes_context_clears_cycles_and_unlinks():
     assert example.status_code == 200
     assert example.json()["planning"]["stats"]["assignments"] == 92
     logged = client.post("/v1/auth/login", json={"email": email, "password": password})
+    assert logged.status_code == 200
+    assert client.get("/v1/me", headers=_bearer(logged.json()["token"])).status_code == 200
+
+
+def _collect_keys(value) -> set[str]:
+    keys: set[str] = set()
+    if isinstance(value, dict):
+        keys.update(value)
+        for item in value.values():
+            keys.update(_collect_keys(item))
+    elif isinstance(value, list):
+        for item in value:
+            keys.update(_collect_keys(item))
+    return keys
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_context_export_import_strips_and_smashes():
+    client = _client()
+    password = "password1"
+    source = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"exp-{secrets.token_hex(4)}@example.com", "password": password},
+    )
+    assert source.status_code == 201
+    source_headers = _bearer(source.json()["token"])
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    patched = client.patch("/v1/context", headers=source_headers, json=_salle_patch(fiche_id, "Chez Export"))
+    assert patched.status_code == 200
+    assert patched.json()["ready"]["salle"] is True
+    source_code = patched.json()["company_code"]
+    source_tokens = {person["id"]: person["invite_token"] for person in patched.json()["employees"]}
+
+    exported = client.get("/v1/context/export", headers=source_headers)
+    assert exported.status_code == 200
+    payload = exported.json()
+    assert payload["export_version"] == 1
+    assert payload["name"] == "Chez Export"
+    assert payload["services"] == ["midday"]
+    assert set(payload) == {
+        "export_version",
+        "name",
+        "services",
+        "ladders",
+        "employees",
+        "types",
+        "typical_week",
+    }
+    assert _collect_keys(payload).isdisjoint({"company_code", "invite_token"})
+    assert all("invite_token" not in person for person in payload["employees"])
+
+    empty = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"imp-{secrets.token_hex(4)}@example.com", "password": password},
+    )
+    assert empty.status_code == 201
+    empty_headers = _bearer(empty.json()["token"])
+    target_before = client.get("/v1/context", headers=empty_headers)
+    assert target_before.status_code == 200
+    assert target_before.json()["ready"]["salle"] is False
+    kept_code = target_before.json()["company_code"]
+
+    tainted = dict(payload)
+    tainted["company_code"] = source_code
+    tainted["legal_context_id"] = "elsewhere"
+    tainted["ready"] = {"salle": False, "cuisine": True}
+    tainted["week_labels"] = "parity"
+    tainted["invite_token"] = "stolen"
+    tainted["employees"] = [{**person, "invite_token": "stolen-fiche"} for person in payload["employees"]]
+
+    imported = client.post("/v1/context/import", headers=empty_headers, json=tainted)
+    assert imported.status_code == 200
+    body = imported.json()
+    assert body == client.get("/v1/context", headers=empty_headers).json()
+    assert body["name"] == "Chez Export"
+    assert body["ready"]["salle"] is True
+    assert body["ready"]["cuisine"] is False
+    assert body["company_code"] == kept_code
+    assert body["company_code"] != source_code
+    assert body["legal_context_id"] == "france"
+    imported_tokens = {person["id"]: person["invite_token"] for person in body["employees"]}
+    assert fiche_id in imported_tokens
+    assert all(token and token != person_id for person_id, token in imported_tokens.items())
+    assert imported_tokens != source_tokens
+    assert "stolen-fiche" not in imported_tokens.values()
+
+    generated = client.post(
+        "/v1/generate",
+        headers=empty_headers,
+        json={"team": "salle", "search_effort": "minimal"},
+    )
+    assert generated.status_code == 200
+    assert generated.json()["published"]["salle"]["assignments"]
+    employee = client.post(
+        "/v1/auth/register",
+        json={
+            "kind": "employee",
+            "email": f"emma-{secrets.token_hex(4)}@example.com",
+            "password": password,
+            "company_code": kept_code,
+            "employee_id": fiche_id,
+        },
+    )
+    assert employee.status_code == 201
+    emp_token = employee.json()["token"]
+    assert client.get("/v1/me", headers=_bearer(emp_token)).status_code == 200
+
+    smash = client.post("/v1/context/import", headers=empty_headers, json=payload)
+    assert smash.status_code == 200
+    assert smash.json()["name"] == "Chez Export"
+    assert smash.json()["ready"]["salle"] is True
+    assert smash.json()["company_code"] == kept_code
+    smash_tokens = {person["id"]: person["invite_token"] for person in smash.json()["employees"]}
+    assert smash_tokens != imported_tokens
+    assert client.get("/v1/cycles", headers=empty_headers).json() == {
+        "published": {"salle": None, "cuisine": None}
+    }
+    assert client.get("/v1/me", headers=_bearer(emp_token)).status_code == 401
+
+    bad_version = dict(payload)
+    bad_version["export_version"] = 2
+    rejected = client.post("/v1/context/import", headers=empty_headers, json=bad_version)
+    assert rejected.status_code == 400
+    assert rejected.json()["detail"] == "Champs invalides."
+
+    forbidden = client.post("/v1/context/import", headers=_bearer(employee.json()["token"]), json=payload)
+    assert forbidden.status_code == 401
+    still_linked = client.post(
+        "/v1/auth/register",
+        json={
+            "kind": "employee",
+            "email": f"emma2-{secrets.token_hex(4)}@example.com",
+            "password": password,
+            "company_code": kept_code,
+            "employee_id": fiche_id,
+        },
+    )
+    assert still_linked.status_code == 201
+    employee_import = client.post(
+        "/v1/context/import",
+        headers=_bearer(still_linked.json()["token"]),
+        json=payload,
+    )
+    assert employee_import.status_code == 403
+    assert employee_import.json()["detail"] == "Action réservée au restaurateur."
+    assert client.get("/v1/context/export", headers=_bearer(still_linked.json()["token"])).status_code == 403
+    assert client.get("/v1/context/export").status_code == 401
+    assert client.post("/v1/context/import", json=payload).status_code == 401
+
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92
+    logged = client.post("/v1/auth/login", json={"email": empty.json()["me"]["email"], "password": password})
     assert logged.status_code == 200
     assert client.get("/v1/me", headers=_bearer(logged.json()["token"])).status_code == 200
