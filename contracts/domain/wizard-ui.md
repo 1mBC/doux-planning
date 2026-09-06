@@ -28,7 +28,7 @@ Service **non offert** : **invisible** partout (max souhaits, popup indispo, Ser
 ## Case `weekend_rest_day`
 
 Colonne **à part** de la radio week-end : **« Au moins un repos samedi ou dimanche »**.  
-Sous-texte possible : chaque semaine ; un jour resto fermé compte.  
+**Pas** de sous-texte par ligne (retirer « Chaque semaine ; un jour resto fermé compte »).  
 JSON `wellbeing.weekend_rest_day` bool. **Cumulable** avec `weekend`.  
 GET `/v1/me/planning` : `kind: "weekend_rest_day"` → **même** libellé, tenu / non tenu.
 
@@ -59,10 +59,10 @@ Colonnes :
 
 | | Arrivée | Départ |
 |---|---|---|
-| Heure | heure d’arrivée (±15) | heure de départ (±15) |
-| Nombre | personnes qui arrivent (somme des compteurs) | personnes qui partent (K) |
+| Heure | horloge **et** ±15 **sur la même ligne** | idem |
+| Nombre | N arrivants — compteur lisible (pas un stepper nu) | N partants (K) — même compteur |
 | Niveaux | **chaque** niveau de l’échelle + compteur **+/−** = combien à ce min | **chaque** niveau + compteur **+/−** = combien **à garder** (0 = pas de contrainte) |
-| Dernière | **STAFF après** (plus « sac ») | **STAFF après** |
+| Dernière | en-tête **STAFF après cette arrivée / ce départ** (une fois). Cellule = sac / erreur, **sans** répéter « STAFF après : » | idem |
 
 `post_levels` persisté = le multiset « N × niveau » des compteurs arrivée (somme = N).  
 L’UI calcule `remaining_post_levels` ; l’utilisateur ne l’édite pas.
@@ -90,6 +90,16 @@ Exemples (K = 1) :
 K > nombre de personnes non réservées → bloquer l’enregistrement (phrase FR).  
 N_L > `count(L)` dans le sac → bloquer.
 
+## Rôles (style)
+
+Même langage visuel que l’équipe (ligne **Nom** + **Niveau**). Niveau en stepper **+/−**, pas un number input nu. Pas de nouvelle clé persistée.
+
+## Invite employés
+
+Plus de **jeton** / **URL** sous chaque fiche.  
+À côté du code entreprise : bouton **« Inviter mes employés »** → popup : copier l’URL `/register?company_code={code}` **et** afficher le **QR** de la même URL (`origin` + path, pour que le scan marche).  
+Les `invite_token` restent dans l’API / les fiches — **masqués** seulement. Pas de nouvelle route, pas de rotate dans cette tranche.
+
 ## Hors freeze
 
-Recaps planning live = `cycle-recaps.md`. Formules moteur, coerce Railway, archive / sync.
+Recaps chrome (Contrat / cellules orange) = `cycle-recaps.md`. Export config, exports planning, admin, coerce Railway, archive / sync.
