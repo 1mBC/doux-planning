@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from ortools.sat.python import cp_model
@@ -45,6 +47,9 @@ SEARCH_SECONDS = {
     SearchEffort.OPTIMIZED: 30.0,
     SearchEffort.MAXIMAL: REST_ENUMERATION_SECONDS,
 }
+
+# Worker heartbeat reads this while generate_cycle runs (unique rest calendars filled).
+SEARCH_PROGRESS: dict[str, int] = {"calendars": 0}
 
 
 @dataclass(frozen=True)
@@ -1133,13 +1138,20 @@ class _RestCollector(cp_model.CpSolverSolutionCallback):
         work: dict[tuple[str, int], cp_model.IntVar],
         employees: tuple[Employee, ...],
         limit: int | None = None,
+        deadline: float | None = None,
+        on_unique: Callable[[dict[str, set[int]]], None] | None = None,
+        store: bool = True,
     ):
         super().__init__()
         self._work = work
         self._employees = employees
         self._limit = limit
+        self._deadline = deadline
+        self._on_unique = on_unique
+        self._store = store
         self.patterns: list[dict[str, set[int]]] = []
         self._seen: set[tuple] = set()
+        self.unique_count = 0
 
     def on_solution_callback(self) -> None:
         fingerprint = []
@@ -1156,8 +1168,15 @@ class _RestCollector(cp_model.CpSolverSolutionCallback):
         if key in self._seen:
             return
         self._seen.add(key)
-        self.patterns.append(off)
-        if self._limit is not None and len(self.patterns) >= self._limit:
+        self.unique_count += 1
+        if self._store:
+            self.patterns.append(off)
+        if self._on_unique is not None:
+            self._on_unique(off)
+        if self._limit is not None and self.unique_count >= self._limit:
+            self.StopSearch()
+            return
+        if self._deadline is not None and time.perf_counter() >= self._deadline:
             self.StopSearch()
 
 
@@ -1324,19 +1343,48 @@ def _collect_rest_solutions(
     *,
     limit: int | None,
     seconds: float,
-) -> list[dict[str, set[int]]]:
+    deadline: float | None = None,
+    on_unique: Callable[[dict[str, set[int]]], None] | None = None,
+    store: bool = True,
+) -> _RestCollector:
     solver = cp_model.CpSolver()
     solver.parameters.num_search_workers = 1
-    solver.parameters.max_time_in_seconds = seconds
+    cap = deadline if deadline is not None else time.perf_counter() + seconds
+    solver.parameters.max_time_in_seconds = max(0.01, cap - time.perf_counter())
+    collector = _RestCollector(
+        work,
+        draft.employees,
+        limit=limit,
+        deadline=cap,
+        on_unique=on_unique,
+        store=store,
+    )
     if limit == 1:
         status = solver.Solve(model)
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            return [_off_from_solver(solver, work, draft)]
-        return []
-    collector = _RestCollector(work, draft.employees, limit=limit)
+            off = _off_from_solver(solver, work, draft)
+            collector.unique_count = 1
+            if store:
+                collector.patterns = [off]
+            if on_unique is not None:
+                on_unique(off)
+        return collector
     solver.parameters.enumerate_all_solutions = True
     solver.Solve(model, collector)
-    return collector.patterns
+    return collector
+
+
+def _slack_or_fallback(draft: PlanningDraft, seconds: float) -> dict[str, set[int]]:
+    slack, slack_work, unders = _build_rest_model(draft, hard_coverage=False)
+    if unders:
+        slack.Minimize(sum(unders))
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = max(0.01, seconds)
+    solver.parameters.num_search_workers = 1
+    status = solver.Solve(slack)
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return _fallback_rest_days(draft)
+    return _off_from_solver(solver, slack_work, draft)
 
 
 def _enumerate_rest_days(
@@ -1346,19 +1394,10 @@ def _enumerate_rest_days(
     limit = SEARCH_CALENDAR_LIMITS[search]
     seconds = SEARCH_SECONDS[search]
     hard, work, _unders = _build_rest_model(draft, hard_coverage=True)
-    covering = _collect_rest_solutions(hard, work, draft, limit=limit, seconds=seconds)
-    if covering:
-        return covering
-    slack, slack_work, unders = _build_rest_model(draft, hard_coverage=False)
-    if unders:
-        slack.Minimize(sum(unders))
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = seconds
-    solver.parameters.num_search_workers = 1
-    status = solver.Solve(slack)
-    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return [_fallback_rest_days(draft)]
-    return [_off_from_solver(solver, slack_work, draft)]
+    collector = _collect_rest_solutions(hard, work, draft, limit=limit, seconds=seconds)
+    if collector.unique_count:
+        return collector.patterns
+    return [_slack_or_fallback(draft, seconds)]
 
 
 def _plan_rest_days(draft: PlanningDraft, seed: int = 0) -> dict[str, set[int]]:
@@ -1681,15 +1720,36 @@ def generate_cycle(draft: PlanningDraft, search: SearchEffort | None = None) -> 
     if SEQUENTIAL_WEEK_SOLVE:
         raise RuntimeError("Sequential week-A-then-week-B generation is not used")
     effort = search if search is not None else draft.search_effort
+    limit = SEARCH_CALENDAR_LIMITS[effort]
+    seconds = SEARCH_SECONDS[effort]
+    deadline = time.perf_counter() + seconds
     best: EngineResult | None = None
     best_key: tuple | None = None
     roster = list(draft.employees)
-    for off_days in _enumerate_rest_days(draft, effort):
+    SEARCH_PROGRESS["calendars"] = 0
+
+    def consider(off_days: dict[str, set[int]]) -> None:
+        nonlocal best, best_key
         assignments = _fill_assignments(draft, off_days, roster)
         result = evaluate(draft.with_assignments(assignments))
         key = _attempt_key(draft, result)
         if best_key is None or key < best_key:
             best = result
             best_key = key
+        SEARCH_PROGRESS["calendars"] = SEARCH_PROGRESS.get("calendars", 0) + 1
+
+    hard, work, _unders = _build_rest_model(draft, hard_coverage=True)
+    collector = _collect_rest_solutions(
+        hard,
+        work,
+        draft,
+        limit=limit,
+        seconds=seconds,
+        deadline=deadline,
+        on_unique=consider,
+        store=False,
+    )
+    if collector.unique_count == 0:
+        consider(_slack_or_fallback(draft, max(0.01, deadline - time.perf_counter())))
     assert best is not None
     return best

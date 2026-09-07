@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -32,7 +33,9 @@ EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3}
 def iso_log(event: str, **fields: Any) -> None:
     stamp = datetime.now(timezone.utc).isoformat()
     extras = " ".join(f"{key}={value}" for key, value in fields.items() if value is not None)
-    print(f"{stamp} {event}" + (f" {extras}" if extras else ""), flush=True)
+    line = f"{stamp} {event}" + (f" {extras}" if extras else "")
+    print(line, flush=True)
+    print(line, file=sys.stderr, flush=True)
 
 
 def _empty_versions() -> dict[str, Any]:
