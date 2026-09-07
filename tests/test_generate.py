@@ -549,3 +549,68 @@ def test_generate_versions_slots_me_planning_and_enter():
     example = client.get("/v1/examples/saint-cloud")
     assert example.status_code == 200
     assert example.json()["planning"]["stats"]["assignments"] == 92
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_worker_requeues_stale_running_and_logs_progress(capsys, monkeypatch):
+    import time
+    from datetime import datetime, timezone
+
+    from doux_planning.api.db import GenerateJob
+    from doux_planning.api.worker import reclaim_stale_running_jobs, tick_generate_job
+
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"stale-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    restaurant_id = registered.json()["me"]["restaurant_id"]
+    job_id = f"stale-{secrets.token_hex(4)}"
+    with session_scope() as session:
+        session.add(
+            GenerateJob(
+                id=job_id,
+                restaurant_id=restaurant_id,
+                team="salle",
+                search_effort="maximal",
+                status="running",
+                estimated_seconds=600,
+                error=None,
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+    assert reclaim_stale_running_jobs() == 1
+    with session_scope() as session:
+        row = session.get(GenerateJob, job_id)
+        assert row is not None
+        assert row.status == "queued"
+    logged = capsys.readouterr()
+    assert "job requeued" in logged.out
+    assert "stale_running" in logged.out
+
+    monkeypatch.setattr("doux_planning.api.worker.PROGRESS_EVERY_S", 0.05)
+
+    def slow_generate(state, team, search):
+        time.sleep(0.18)
+        return _stub_generate_team(state, team, search)
+
+    token = registered.json()["token"]
+    headers = _bearer(token)
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id))
+    assert patched.status_code == 200
+    processed = tick_generate_job(generate_team_fn=_stub_generate_team)
+    assert processed == job_id
+    maximal = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "maximal"},
+    )
+    assert maximal.status_code == 202
+    capsys.readouterr()
+    tick_generate_job(generate_team_fn=slow_generate)
+    progress = capsys.readouterr().out
+    assert "generate start" in progress
+    assert "generate progress" in progress
+    assert "generate end" in progress

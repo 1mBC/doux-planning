@@ -21,6 +21,8 @@ Plus un seul cycle par équipe. Par équipe :
 `Cycle` = assignments + warnings + recap **plus** `generated_at` ISO (UTC) + `search_effort` + `duration_seconds` (float, temps du solve ; absent sur les vieux slots).  
 `latest` = effort du `generated_at` le plus récent (égalité : maximal > optimized > minimal).
 
+Maximal : **tous** les calendriers de repos trouvables **et remplis** dans `SEARCH_SECONDS` (600 s wall-clock, keep-best au fil de l’eau). Ce n’est **pas** 600 s d’énumération SAT puis un fill illimité.
+
 Équipe jamais calculée : `versions` tout `null`, `latest` null.
 
 ### Coerce lecture (vieux JSONB)
@@ -39,13 +41,14 @@ Ancien `{ assignments, warnings, … }` **sans** `versions` → `versions.optimi
 Sandbox live : `enter` body/query `search_effort` (défaut `latest`). Slot vide → 409 `Aucun cycle publié pour cette équipe.`  
 `publish` réécrit **ce** slot (même effort). `generated_at` **inchangé** (c’est la livraison **calcul**, pas l’édition).
 
-## Worker logs (stdout Railway)
+## Worker logs (stdout + stderr Railway)
 
-Une ligne claire, horodatée ISO, par événement :
+Une ligne claire, horodatée ISO, **flush immédiat** (`PYTHONUNBUFFERED=1`) :
 
-- process start
+- process start (`pid`, `rss_mb`)
+- jobs `running` orphelins → `queued` (`job requeued reason=stale_running`) — crash / OOM
 - job pris (`job_id`, team, restaurant_id)
-- generate start / end (durée s, statut done|failed)
+- generate start / **progress ~10 s** (`elapsed_s`, `calendars` remplis, `rss_mb`) / end (durée s, statut done|failed, calendars, rss)
 - `error` si failed
 
 Côté **web** (uvicorn) : POST maximal 202 (`job_id`) ; GET job `done`/`failed`.

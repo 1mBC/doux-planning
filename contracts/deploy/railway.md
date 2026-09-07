@@ -37,7 +37,7 @@ Pas d’autre secret en v1 (auth actuelle = email/mdp en base).
 
 Multi-stage : `npm run build` dans `web/` → copier `dist` dans l’image Python.  
 `CMD` web : `alembic upgrade head` puis uvicorn `0.0.0.0:$PORT`.  
-Worker : même image, start = `python -m doux_planning.api.worker` (ou la commande Infra documentée). **Pas** d’Alembic dans le worker (le web l’a déjà fait).  
+Worker : même image, start = `python -u -m doux_planning.api.worker`. **Pas** d’Alembic dans le worker (le web l’a déjà fait). `PYTHONUNBUFFERED=1` (déjà dans l’image).  
 Si `dist` absent (dev API seule) : les routes `/v1` restent OK, pas de 500.
 
 ## Ce que Bastien fait à la main (une fois)
