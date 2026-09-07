@@ -38,7 +38,7 @@ Bearer company, **même** resto. Autre company / id inconnu → 404. Employee �
 `status` : `queued` | `running` | `done` | `failed`.  
 `published` **seulement** si `done` (recap inclus, comme un 200 sync).  
 `error` **seulement** si `failed` (FR).  
-`estimated_seconds` = 600 (borne moteur, pas un chrono live).
+`estimated_seconds` = 600 (borne **wall-clock** de `generate_team`, fill inclus, pas un chrono live).
 
 ## Worker
 

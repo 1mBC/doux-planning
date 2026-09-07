@@ -4,7 +4,9 @@ from doux_planning.engine import (
     GENERATION_HORIZON_DAYS,
     MINIMAL_CALENDARS,
     OPTIMIZED_CALENDAR_MULTIPLIER,
+    REST_ENUMERATION_SECONDS,
     SEARCH_CALENDAR_LIMITS,
+    SEARCH_SECONDS,
     SEQUENTIAL_WEEK_SOLVE,
     EngineResult,
     PlanningDraft,
@@ -858,3 +860,25 @@ def test_remaining_evaluate_messages_are_french():
     assert "week-end pair non tenu" in _first_message(weekends, "weekend_even_weeks")
     assert "week-end impair non tenu" in _first_message(weekends, "weekend_odd_weeks")
     assert "pas exactement un week-end off / 14 j." in _first_message(weekends, "weekend_every_two_weeks")
+
+
+def test_maximal_honors_search_seconds_including_fill():
+    import time as time_mod
+
+    from doux_planning.hydrate import load_delivered_cycle
+
+    delivered = load_delivered_cycle("saint-cloud")
+    draft = PlanningDraft(
+        employees=tuple(item for item in delivered.employees if item.team == Team.SALLE),
+        structures=tuple(item for item in delivered.structures if item.team == Team.SALLE),
+        hours=delivered.hours,
+    )
+    SEARCH_SECONDS[SearchEffort.MAXIMAL] = 0.4
+    try:
+        started = time_mod.perf_counter()
+        result = generate_cycle(draft, SearchEffort.MAXIMAL)
+        elapsed = time_mod.perf_counter() - started
+    finally:
+        SEARCH_SECONDS[SearchEffort.MAXIMAL] = REST_ENUMERATION_SECONDS
+    assert result.assignments
+    assert elapsed < 2.5
