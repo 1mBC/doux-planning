@@ -176,14 +176,22 @@ def test_cycle_score_asymmetric_occupation_and_resumes():
     draft = _score_monday_draft(exact, assignments)
     score = cycle_score(draft, evaluate(draft))
     assert score.notes.contrat == 10.0
+    assert score.notes.roles == 10.0
     assert score.resumes.couverture is not None
     assert "postes tenus" in score.resumes.couverture
     assert score.resumes.contrat is not None
+    assert "occupées" in score.resumes.contrat
     assert "contrat" in score.resumes.contrat
+    assert score.resumes.contrat == "8h occupées / 8h contrat"
     assert "indispos tenues" not in score.resumes.contrat
+    assert "\n" not in score.resumes.contrat
     assert score.resumes.wellbeing is None
     assert score.resumes.legal is not None
     assert score.resumes.roles is not None
+    assert "affectés" in score.resumes.roles
+    assert "sous-rôle" in score.resumes.roles
+    assert score.resumes.roles == "2 affectés · 0 poste en sous-rôle / 2"
+    assert not score.resumes.roles.startswith("écart")
     assert (score.resumes.couverture is None) == (score.notes.couverture is None)
     assert (score.resumes.legal is None) == (score.notes.legal is None)
     assert (score.resumes.contrat is None) == (score.notes.contrat is None)
@@ -192,9 +200,16 @@ def test_cycle_score_asymmetric_occupation_and_resumes():
 
     blocked = exact.with_unavailability(Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value))
     broken = cycle_score(_score_monday_draft(blocked, assignments), evaluate(_score_monday_draft(blocked, assignments)))
+    assert broken.notes.roles == 10.0
     assert broken.resumes.contrat is not None
+    assert "occupées" in broken.resumes.contrat
     assert "contrat" in broken.resumes.contrat
     assert "indispos tenues" in broken.resumes.contrat
+    assert "\n" in broken.resumes.contrat
+    hours_line, indispo_line = broken.resumes.contrat.split("\n")
+    assert "occupées" in hours_line
+    assert "contrat" in hours_line
+    assert "indispos tenues" in indispo_line
 
 
 def test_saint_cloud_example_has_cycle_score_without_rewrite():

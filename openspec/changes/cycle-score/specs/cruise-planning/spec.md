@@ -32,12 +32,20 @@ The system SHALL compute `cycle_score(draft, result)` as five notes 0–10 with 
 - **THEN** `roles` is 10.0
 
 ### Requirement: Cycle score French resumes
-The system SHALL emit `CycleScore.resumes` with the same five keys as `notes`. Each resume MUST be `null` if and only if the matching note is `null`. Forms MUST be: couverture `{tenus} / {requis} postes tenus`; legal `{ok} / {n} règles tenues`; contrat present parts joined by ` · ` (`{h_posées} / {h_contrat} contrat` with `_hours_label` on `stats.hours.assigned` and `stats.hours.contracted`, and/or `{ok} / {n} indispos tenues`); wellbeing `{held} / {total} souhaits tenus`; roles `écart {ecarts} / {plafond}`. There MUST be no `resumes.global`.
+The system SHALL emit `CycleScore.resumes` with the same five keys as `notes`. Each resume MUST be `null` if and only if the matching note is `null`. Forms MUST be: couverture `{tenus} / {requis} postes tenus`; legal `{ok} / {n} règles tenues`; contrat present parts each on its own line (`\n`, not ` · `) as `{h_posées} occupées / {h_contrat} contrat` with `_hours_label` on `stats.hours.assigned` and `stats.hours.contracted`, and/or `{ok} / {n} indispos tenues`; wellbeing `{held} / {total} souhaits tenus`; roles `{N} affectés · {k} poste en sous-rôle / {N}` with `N = stats.assignments` and `k = stats.below_role`. The roles resume MUST NOT use the `écart / plafond` note formula. There MUST be no `resumes.global`.
 
 #### Scenario: Coverage resume names held posts
 - **WHEN** `notes.couverture` is not null
 - **THEN** `resumes.couverture` contains `postes tenus`
 
-#### Scenario: Occupation resume names present parts
-- **WHEN** `notes.contrat` is not null
-- **THEN** `resumes.contrat` contains `contrat` and/or `indispos tenues` according to which subnotes are present
+#### Scenario: Occupation resume names occupied hours
+- **WHEN** the hours subnote is present
+- **THEN** `resumes.contrat` contains `occupées` and `contrat`
+
+#### Scenario: Occupation resume splits indispo onto the next line
+- **WHEN** both hours and indispo subnotes are present
+- **THEN** `resumes.contrat` joins them with a newline, not ` · `
+
+#### Scenario: Roles resume names assignments and below-role
+- **WHEN** `notes.roles` is not null
+- **THEN** `resumes.roles` contains `affectés` and `sous-rôle` and does not start with `écart`
