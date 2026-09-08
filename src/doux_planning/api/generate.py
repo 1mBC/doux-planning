@@ -26,6 +26,7 @@ TEAMS = ("salle", "cuisine")
 EFFORTS = ("minimal", "optimized", "maximal")
 ACTIVE_JOB_STATUSES = ("queued", "running")
 RECAP_KEYS = ("stats", "legal_cols", "legal_rows", "wish_cols", "wish_rows", "score")
+SCORE_AXES = ("couverture", "legal", "contrat", "wellbeing", "roles")
 MAXIMAL_ESTIMATED_SECONDS = 600
 EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3}
 
@@ -59,7 +60,10 @@ def compute_latest(versions: dict[str, Any]) -> str | None:
 
 
 def _has_recap(blob: Any) -> bool:
-    return isinstance(blob, dict) and all(key in blob for key in RECAP_KEYS)
+    if not (isinstance(blob, dict) and all(key in blob for key in RECAP_KEYS)):
+        return False
+    score = blob.get("score")
+    return isinstance(score, dict) and "resumes" in score
 
 
 def _ensure_cycle_recap(state: RestaurantState, team: Team, cycle: dict[str, Any]) -> dict[str, Any]:
@@ -233,16 +237,14 @@ def _row_json(row: Any) -> dict[str, Any]:
     }
 
 
+def _score_axes_json(axes: Any) -> dict[str, Any]:
+    return {key: getattr(axes, key) for key in SCORE_AXES}
+
+
 def _cycle_score_json(score: Any) -> dict[str, Any]:
-    notes = score.notes
     return {
-        "notes": {
-            "couverture": notes.couverture,
-            "legal": notes.legal,
-            "contrat": notes.contrat,
-            "wellbeing": notes.wellbeing,
-            "roles": notes.roles,
-        },
+        "notes": _score_axes_json(score.notes),
+        "resumes": _score_axes_json(score.resumes),
         "global": score.global_score,
         "weights": dict(score.weights),
     }

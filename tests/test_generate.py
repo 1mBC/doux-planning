@@ -69,8 +69,11 @@ def _assert_live_recap(cycle: dict) -> None:
     assert "weA" not in wish_keys
     assert "weB" not in wish_keys
     score = cycle["score"]
-    assert set(score["notes"]) == {"couverture", "legal", "contrat", "wellbeing", "roles"}
+    axes = {"couverture", "legal", "contrat", "wellbeing", "roles"}
+    assert set(score["notes"]) == axes
+    assert set(score["resumes"]) == axes
     assert "global" in score
+    assert "global" not in score["resumes"]
     assert score["weights"] == {
         "couverture": 3.0,
         "legal": 3.0,
@@ -283,6 +286,27 @@ def test_generate_persist_cycles_auth_and_example():
     without_score = client.get("/v1/cycles", headers=headers)
     assert without_score.status_code == 200
     _assert_live_recap(_slot(without_score.json()["published"]["salle"], "optimized"))
+
+    with session_scope() as session:
+        company = session.get(Company, restaurant_id)
+        assert company is not None
+        pack = company.published_cycles["salle"]
+        slot = dict(pack["versions"]["optimized"])
+        score = dict(slot["score"])
+        score.pop("resumes", None)
+        slot["score"] = score
+        company.published_cycles = {
+            "salle": {
+                "versions": {"minimal": None, "optimized": slot, "maximal": None},
+                "latest": "optimized",
+            },
+            "cuisine": None,
+        }
+        flag_modified(company, "published_cycles")
+    reset_engine()
+    without_resumes = client.get("/v1/cycles", headers=headers)
+    assert without_resumes.status_code == 200
+    _assert_live_recap(_slot(without_resumes.json()["published"]["salle"], "optimized"))
 
     invalid = client.post("/v1/generate", headers=headers, json={"team": "bar", "search_effort": "minimal"})
     assert invalid.status_code == 400
