@@ -7,11 +7,12 @@ from collections.abc import Callable
 
 from sqlalchemy import select
 
-from doux_planning.api.db import GenerateJob, session_scope
+from doux_planning.api.db import BenchJob, GenerateJob, session_scope
 from doux_planning.api.generate import DETAIL_NOT_READY, iso_log, persist_maximal_result
+from doux_planning.bench import UnknownBenchDataset, run_bench
 from doux_planning.context import TeamNotReady, generate_team
 from doux_planning.engine import SEARCH_PROGRESS
-from doux_planning.types import Team
+from doux_planning.types import SearchEffort, Team
 
 GenerateFn = Callable[..., object]
 DETAIL_JOB_FAILED = "Le calcul a échoué."
@@ -113,11 +114,71 @@ def tick_generate_job(*, generate_team_fn: GenerateFn | None = None) -> str | No
     return job_id
 
 
+def _set_bench_job(job_id: str, status: str, *, error: str | None = None, run_id: str | None = None) -> None:
+    with session_scope() as db:
+        job = db.get(BenchJob, job_id)
+        if job is None:
+            return
+        job.status = status
+        job.error = error
+        if run_id is not None:
+            job.run_id = run_id
+
+
+def reclaim_stale_bench_jobs() -> int:
+    n = 0
+    with session_scope() as db:
+        jobs = list(db.scalars(select(BenchJob).where(BenchJob.status == "running")))
+        for job in jobs:
+            job.status = "queued"
+            job.error = None
+            n += 1
+            iso_log("bench job requeued", job_id=job.id, reason="stale_running")
+    return n
+
+
+def tick_bench_job(*, run_bench_fn: GenerateFn | None = None) -> str | None:
+    from doux_planning.api.bench import DETAIL_BENCH_FAILED, persist_bench_outcome
+
+    run_fn = run_bench_fn or run_bench
+    with session_scope() as db:
+        job = db.scalars(
+            select(BenchJob)
+            .where(BenchJob.status == "queued")
+            .order_by(BenchJob.created_at.asc())
+            .with_for_update(skip_locked=True)
+            .limit(1)
+        ).first()
+        if job is None:
+            return None
+        job.status = "running"
+        job_id = job.id
+        category = job.category
+        dataset_id = job.dataset_id
+        effort = job.search_effort
+    iso_log("bench job taken", job_id=job_id, category=category, dataset_id=dataset_id)
+    try:
+        outcome = run_fn(category, dataset_id, SearchEffort(effort))
+        row = persist_bench_outcome(outcome)
+    except UnknownBenchDataset:
+        iso_log("bench job end", job_id=job_id, status="failed", error=DETAIL_BENCH_FAILED)
+        _set_bench_job(job_id, "failed", error=DETAIL_BENCH_FAILED)
+        return job_id
+    except Exception:
+        iso_log("bench job end", job_id=job_id, status="failed", error=DETAIL_BENCH_FAILED)
+        _set_bench_job(job_id, "failed", error=DETAIL_BENCH_FAILED)
+        return job_id
+    iso_log("bench job end", job_id=job_id, status="done", run_id=row.id)
+    _set_bench_job(job_id, "done", run_id=row.id)
+    return job_id
+
+
 def run_worker_loop(*, idle_seconds: float = 1.0) -> None:
     iso_log("worker start", pid=os.getpid(), rss_mb=_rss_mb())
     reclaim_stale_running_jobs()
+    reclaim_stale_bench_jobs()
     while True:
-        if tick_generate_job() is None:
+        if tick_generate_job() is None and tick_bench_job() is None:
             time.sleep(idle_seconds)
 
 

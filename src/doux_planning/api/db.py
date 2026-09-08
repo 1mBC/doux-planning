@@ -129,6 +129,36 @@ class GenerateJob(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class BenchJob(Base):
+    __tablename__ = "bench_jobs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    category: Mapped[str] = mapped_column(String, nullable=False)
+    dataset_id: Mapped[str] = mapped_column(String, nullable=False)
+    search_effort: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BenchRun(Base):
+    __tablename__ = "bench_runs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    app_version: Mapped[str] = mapped_column(String, nullable=False)
+    category: Mapped[str] = mapped_column(String, nullable=False)
+    dataset_id: Mapped[str] = mapped_column(String, nullable=False)
+    search_effort: Mapped[str] = mapped_column(String, nullable=False)
+    duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    score: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    expected_score: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    deltas: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    assignments: Mapped[list] = mapped_column(JSONB, nullable=False)
+    warnings: Mapped[list] = mapped_column(JSONB, nullable=False)
+
+
 class EmployeeAccountRow(Base):
     __tablename__ = "employee_accounts"
     __table_args__ = (

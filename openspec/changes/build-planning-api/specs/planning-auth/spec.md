@@ -130,3 +130,18 @@ An employee session SHALL receive only that employee’s shifts from the last pu
 #### Scenario: Non-admin cannot list generates
 - **WHEN** a company session with `admin` false gets `/v1/admin/generates`
 - **THEN** the response is HTTP 403 French
+
+### Requirement: Admin bench runs and jobs
+Admin bench routes SHALL require `admin` true (`contracts/domain/bench.md`). `POST /v1/admin/bench/run` with `scope` `dataset` and `search_effort` `minimal` or `optimized` MUST be HTTP 200 `{ runs }` and MUST insert one `bench_runs` row (`app_version` = trimmed `data/bench/VERSION`). `all`, `category`, or `maximal` MUST be HTTP 202 `{ job_ids, status: queued }` with one `bench_jobs` row per dataset and MUST NOT call `run_bench` in the request. The worker SHALL claim `bench_jobs` independently of `generate_jobs` (no HTTP 409 cross-lock). A `done` job MUST insert one `bench_runs` row. Bench MUST NOT write `published_cycles` or `generate_logs`. A company or employee session with `admin` false MUST receive HTTP 403 `Action réservée à l’admin.`
+
+#### Scenario: Dataset minimal persists a run
+- **WHEN** an admin posts bench run `scope` `dataset` `search_effort` `minimal` for a known jeu
+- **THEN** the response is HTTP 200 with one `RunSummary` and GET runs includes that row
+
+#### Scenario: All maximal enqueues one job per jeu
+- **WHEN** an admin posts bench run `scope` `all` `search_effort` `maximal`
+- **THEN** the response is HTTP 202 with four `job_ids` and worker ticks (stubbed `run_bench`) insert four `bench_runs`
+
+#### Scenario: Non-admin cannot run bench
+- **WHEN** a company session with `admin` false posts `/v1/admin/bench/run`
+- **THEN** the response is HTTP 403 French

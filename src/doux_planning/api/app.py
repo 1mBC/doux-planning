@@ -132,6 +132,57 @@ def admin_generates(authorization: str | None = Header(default=None)) -> dict:
     return list_generate_logs(authorization)
 
 
+@app.get("/v1/admin/bench/datasets")
+def admin_bench_datasets(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import list_datasets
+
+    return list_datasets(authorization)
+
+
+@app.get("/v1/admin/bench/runs")
+def admin_bench_runs(
+    authorization: str | None = Header(default=None),
+    category: str | None = None,
+    dataset_id: str | None = None,
+) -> dict:
+    from doux_planning.api.bench import list_runs
+
+    return list_runs(authorization, category=category, dataset_id=dataset_id)
+
+
+@app.post("/v1/admin/bench/run")
+def admin_bench_run(body: dict[str, Any], authorization: str | None = Header(default=None)):
+    from doux_planning.api.bench import post_run
+
+    return post_run(authorization, body)
+
+
+@app.get("/v1/admin/bench/jobs/{job_id}")
+def admin_bench_job(job_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import get_job
+
+    return get_job(authorization, job_id)
+
+
+@app.get("/v1/admin/bench/runs/{run_id}")
+def admin_bench_run_get(run_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import get_run
+
+    return get_run(authorization, run_id)
+
+
+@app.get("/v1/admin/bench/compare/{category}/{dataset_id}/{search_effort}")
+def admin_bench_compare(
+    category: str,
+    dataset_id: str,
+    search_effort: str,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    from doux_planning.api.bench import compare
+
+    return compare(authorization, category, dataset_id, search_effort)
+
+
 @app.post("/v1/generate")
 def post_generate(
     body: dict[str, Any], authorization: str | None = Header(default=None)
@@ -328,7 +379,7 @@ def web_dist() -> Path | None:
     return None
 
 
-SPA_PATHS = ("/planning", "/login", "/register", "/context", "/exemple")
+SPA_PATHS = ("/planning", "/login", "/register", "/context", "/exemple", "/admin", "/admin/bench")
 
 
 def _mount_spa(application: FastAPI) -> None:
@@ -345,6 +396,12 @@ def _mount_spa(application: FastAPI) -> None:
     application.add_api_route("/", _index, methods=["GET"], include_in_schema=False)
     for spa_path in SPA_PATHS:
         application.add_api_route(spa_path, _index, methods=["GET"], include_in_schema=False)
+    application.add_api_route(
+        "/admin/bench/{category}/{dataset_id}/{search_effort}",
+        _index,
+        methods=["GET"],
+        include_in_schema=False,
+    )
 
 
 _mount_spa(app)
