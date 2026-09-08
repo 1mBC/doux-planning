@@ -11,6 +11,8 @@ from doux_planning.engine import (
     _below_role_count,
     _closed_days,
     _coupure_count_in_week,
+    _overqualification,
+    _required_post_count,
     _service_count,
     evaluate,
     generate_cycle,
@@ -142,6 +144,31 @@ class RecapRow:
     cells: dict[str, RecapCell | None]
 
 
+SCORE_WEIGHTS = {
+    "couverture": 3.0,
+    "legal": 3.0,
+    "contrat": 2.0,
+    "wellbeing": 1.5,
+    "roles": 0.5,
+}
+
+
+@dataclass(frozen=True)
+class ScoreNotes:
+    couverture: float | None
+    legal: float | None
+    contrat: float | None
+    wellbeing: float | None
+    roles: float | None
+
+
+@dataclass(frozen=True)
+class CycleScore:
+    notes: ScoreNotes
+    weights: dict[str, float]
+    global_score: float | None
+
+
 @dataclass(frozen=True)
 class CycleRecap:
     stats: RecapStats
@@ -149,6 +176,7 @@ class CycleRecap:
     legal_rows: tuple[RecapRow, ...]
     wish_cols: tuple[WishCol, ...]
     wish_rows: tuple[RecapRow, ...]
+    score: CycleScore
 
 
 def empty_restaurant(restaurant_id: str) -> RestaurantState:
@@ -544,22 +572,24 @@ def cycle_recap(state: RestaurantState, team: Team) -> CycleRecap:
         _wish_row(person, wishes, assignments, warnings, wish_keys, draft.hours, scheme)
         for person, wishes in zip(staff, wish_lists)
     )
-    return CycleRecap(
-        stats=RecapStats(
-            assignments=len(assignments),
-            empty=sum(1 for item in warnings if item.code == "empty_post"),
-            interdit=sum(1 for item in warnings if item.severity == WarningSeverity.INTERDIT),
-            below_role=_below_role_count(draft, assignments),
-            hours=RecapHours(assigned=assigned, contracted=contracted, percent=percent),
-            wellbeing=RecapWellbeing(
-                held=sum(1 for wish in posed if wish.held),
-                total=len(posed),
-            ),
+    stats = RecapStats(
+        assignments=len(assignments),
+        empty=sum(1 for item in warnings if item.code == "empty_post"),
+        interdit=sum(1 for item in warnings if item.severity == WarningSeverity.INTERDIT),
+        below_role=_below_role_count(draft, assignments),
+        hours=RecapHours(assigned=assigned, contracted=contracted, percent=percent),
+        wellbeing=RecapWellbeing(
+            held=sum(1 for wish in posed if wish.held),
+            total=len(posed),
         ),
+    )
+    return CycleRecap(
+        stats=stats,
         legal_cols=legal_cols,
         legal_rows=legal_rows,
         wish_cols=wish_cols,
         wish_rows=wish_rows,
+        score=cycle_score(draft, result, staff=staff, stats=stats, legal_rows=legal_rows, wish_rows=wish_rows),
     )
 
 
@@ -861,3 +891,136 @@ def _board_wishes(person, warnings) -> tuple[BoardWish, ...]:
             )
         )
     return tuple(rows)
+
+
+def _clamp_note(value: float) -> float:
+    return min(10.0, max(0.0, round(value, 1)))
+
+
+def _mean_notes(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return _clamp_note(sum(values) / len(values))
+
+
+def _couverture_note(draft: PlanningDraft, empty: int) -> float | None:
+    required = _required_post_count(draft)
+    if required == 0:
+        return None
+    return _clamp_note(10 * (required - empty) / required)
+
+
+def _legal_note(legal_rows: Sequence[RecapRow]) -> float | None:
+    cells = [cell for row in legal_rows for cell in row.cells.values() if cell is not None]
+    if not cells:
+        return None
+    return _clamp_note(10 * sum(1 for cell in cells if cell.ok) / len(cells))
+
+
+def _hours_note(staff, assignments) -> float | None:
+    notes: list[float] = []
+    for person in staff:
+        weekly = person.contractual_hours_per_week
+        if weekly <= 0:
+            continue
+        by_day = _shifts_by_day(assignments, person.id)
+        miss = abs(_week_hours(by_day, 0) - weekly) + abs(_week_hours(by_day, 7) - weekly)
+        notes.append(10 * max(0.0, 1 - miss / (2 * weekly)))
+    return _mean_notes(notes)
+
+
+def _indispo_note(wish_rows: Sequence[RecapRow]) -> float | None:
+    cells = [row.cells.get("indispo") for row in wish_rows]
+    present = [cell for cell in cells if cell is not None]
+    if not present:
+        return None
+    return _clamp_note(10 * sum(1 for cell in present if cell.ok) / len(present))
+
+
+def _wellbeing_note(stats: RecapStats) -> float | None:
+    if stats.wellbeing.total == 0:
+        return None
+    return _clamp_note(10 * stats.wellbeing.held / stats.wellbeing.total)
+
+
+def _roles_note(draft: PlanningDraft, assignments) -> float | None:
+    plafond = 0
+    by_id = {person.id: person for person in draft.employees}
+    for shift in assignments:
+        person = by_id.get(shift.employee_id)
+        if person is None:
+            continue
+        plafond += max(0, person.level - 1)
+    if plafond == 0:
+        return None
+    ecarts = _overqualification(draft, assignments)
+    return _clamp_note(10 * (1 - ecarts / plafond))
+
+
+def _global_note(notes: ScoreNotes) -> float | None:
+    values = {
+        "couverture": notes.couverture,
+        "legal": notes.legal,
+        "contrat": notes.contrat,
+        "wellbeing": notes.wellbeing,
+        "roles": notes.roles,
+    }
+    weighted = 0.0
+    weight = 0.0
+    for key, value in values.items():
+        if value is None:
+            continue
+        weighted += SCORE_WEIGHTS[key] * value
+        weight += SCORE_WEIGHTS[key]
+    if weight == 0:
+        return None
+    return _clamp_note(weighted / weight)
+
+
+def cycle_score(
+    draft: PlanningDraft,
+    result,
+    *,
+    staff=None,
+    stats: RecapStats | None = None,
+    legal_rows: Sequence[RecapRow] | None = None,
+    wish_rows: Sequence[RecapRow] | None = None,
+) -> CycleScore:
+    people = list(draft.employees) if staff is None else list(staff)
+    assignments = result.assignments
+    warnings = result.warnings
+    if stats is None or legal_rows is None or wish_rows is None:
+        wish_lists = [_board_wishes(person, warnings) for person in people]
+        posed = [wish for row in wish_lists for wish in row]
+        legal_rows = tuple(_legal_row(person, assignments, warnings) for person in people)
+        wish_keys = _wish_col_keys(people)
+        scheme = week_label_scheme_from_weekends(person.wellbeing.weekend for person in draft.employees)
+        wish_rows = tuple(
+            _wish_row(person, wishes, assignments, warnings, wish_keys, draft.hours, scheme)
+            for person, wishes in zip(people, wish_lists)
+        )
+        assigned = sum(shift.duration_hours for shift in assignments)
+        contracted = sum(person.contractual_hours_per_week for person in people) * 2
+        percent = 0 if contracted == 0 else round(100 * assigned / contracted)
+        stats = RecapStats(
+            assignments=len(assignments),
+            empty=sum(1 for item in warnings if item.code == "empty_post"),
+            interdit=sum(1 for item in warnings if item.severity == WarningSeverity.INTERDIT),
+            below_role=_below_role_count(draft, assignments),
+            hours=RecapHours(assigned=assigned, contracted=contracted, percent=percent),
+            wellbeing=RecapWellbeing(
+                held=sum(1 for wish in posed if wish.held),
+                total=len(posed),
+            ),
+        )
+    hours = _hours_note(people, assignments)
+    indispo = _indispo_note(wish_rows)
+    parts = [item for item in (hours, indispo) if item is not None]
+    notes = ScoreNotes(
+        couverture=_couverture_note(draft, stats.empty),
+        legal=_legal_note(legal_rows),
+        contrat=_mean_notes(parts),
+        wellbeing=_wellbeing_note(stats),
+        roles=_roles_note(draft, assignments),
+    )
+    return CycleScore(notes=notes, weights=dict(SCORE_WEIGHTS), global_score=_global_note(notes))
