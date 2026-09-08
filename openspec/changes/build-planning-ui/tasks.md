@@ -150,3 +150,8 @@
 
 - [x] 26.1 `/admin` lien Banc ; `/admin/bench` table + lancer ; `/admin/bench/{category}/{id}/{effort}` compare (2 grilles) ; bump `web/` to 0.28.0
 - [x] 26.2 Verify `npm run build` ; admin → Banc → 1 jeu minimal → ligne → clic compare ; `v0.28.0`
+
+## 27. Admin menu + Modèle / Manuel / Delta
+
+- [x] 27.1 Menu Historique des computes | Banc ; tableau sous-colonnes Modèle / Manuel / Delta ; compare Modèle puis Manuel ; bump `web/` to 0.29.0
+- [x] 27.2 Verify `npm run build` ; admin 2 liens ; banc 7 lignes + crafted ; compare Modèle / Manuel ; `v0.29.0`

@@ -240,6 +240,16 @@ Suivre `bench.md` § UI — le suivre, ne pas le modifier.
 
 Version `0.28.0`.
 
+### 29. Menu admin + banc Modèle / Manuel / Delta
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier.
+
+- Menu **Historique des computes | Banc** sur `/admin`, `/admin/bench` et compare. Plus de bouton isolé « Banc » / « ← Admin ». Entrée courante marquée.
+- Tableau : sous chaque effort, 3 sous-colonnes **Modèle** / **Manuel** / **Delta**. Clic → compare.
+- Compare : blocs **Modèle** puis **Manuel**. Liste API = 7 jeux (dont 3 crafted).
+
+Version `0.29.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { effortLabel } from "./admin";
+import { AdminNav } from "./AdminPage";
 import { go } from "./AuthScreens";
 import {
   BENCH_EFFORTS,
@@ -16,13 +17,6 @@ import {
 import { formatCycleNote } from "./format";
 import { ApiHttpError } from "./sandbox";
 import type { SearchEffort } from "./generate";
-
-function cellText(run: BenchRunSummary | undefined): string {
-  if (!run) {
-    return "—";
-  }
-  return `${formatCycleNote(run.score.global)} · ${formatCycleNote(run.expected_score.global)} · ${formatDelta(run.deltas.global)}`;
-}
 
 function LaunchButtons({
   disabled,
@@ -114,7 +108,7 @@ export function BenchPage() {
   if (error && !datasets) {
     return (
       <main className="page">
-        <h1>Banc</h1>
+        <AdminNav current="bench" />
         <p className="error" role="alert">
           {error}
         </p>
@@ -124,6 +118,7 @@ export function BenchPage() {
   if (!datasets) {
     return (
       <main className="page">
+        <AdminNav current="bench" />
         <p className="sub">Chargement du banc…</p>
       </main>
     );
@@ -131,14 +126,9 @@ export function BenchPage() {
 
   return (
     <main className="page admin-page">
-      <h1>Banc</h1>
+      <AdminNav current="bench" />
       <p className="sub">
         Jeux salle · moteur {appVersion || "—"}. Quitter la page pendant un Maximal / lot est sans danger.
-      </p>
-      <p>
-        <button type="button" className="choice" onClick={() => go("/admin")}>
-          ← Admin
-        </button>
       </p>
       {error ? (
         <p className="error" role="alert">
@@ -175,13 +165,22 @@ export function BenchPage() {
         <table className="admin-table bench-table">
           <thead>
             <tr>
-              <th>Catégorie</th>
-              <th>Jeu</th>
-              <th>Défi</th>
-              <th>Lancer</th>
+              <th rowSpan={2}>Catégorie</th>
+              <th rowSpan={2}>Jeu</th>
+              <th rowSpan={2}>Défi</th>
+              <th rowSpan={2}>Lancer</th>
               {BENCH_EFFORTS.map((effort) => (
-                <th key={effort}>{effortLabel(effort)}</th>
+                <th key={effort} colSpan={3}>
+                  {effortLabel(effort)}
+                </th>
               ))}
+            </tr>
+            <tr>
+              {BENCH_EFFORTS.flatMap((effort) =>
+                (["Modèle", "Manuel", "Delta"] as const).map((label) => (
+                  <th key={`${effort}-${label}`}>{label}</th>
+                )),
+              )}
             </tr>
           </thead>
           <tbody>
@@ -206,19 +205,26 @@ export function BenchPage() {
                     }
                   />
                 </td>
-                {BENCH_EFFORTS.map((effort) => {
+                {BENCH_EFFORTS.flatMap((effort) => {
                   const run = latestRun(runs, dataset.category, dataset.id, effort);
-                  return (
-                    <td key={effort}>
-                      <button
-                        type="button"
-                        className="bench-cell"
-                        onClick={() => go(`/admin/bench/${dataset.category}/${dataset.id}/${effort}`)}
-                      >
-                        {cellText(run)}
+                  const open = () => go(`/admin/bench/${dataset.category}/${dataset.id}/${effort}`);
+                  return [
+                    <td key={`${effort}-modele`}>
+                      <button type="button" className="bench-cell" onClick={open}>
+                        {formatCycleNote(run?.score.global)}
                       </button>
-                    </td>
-                  );
+                    </td>,
+                    <td key={`${effort}-manuel`}>
+                      <button type="button" className="bench-cell" onClick={open}>
+                        {formatCycleNote(run?.expected_score.global)}
+                      </button>
+                    </td>,
+                    <td key={`${effort}-delta`}>
+                      <button type="button" className="bench-cell" onClick={open}>
+                        {formatDelta(run?.deltas.global)}
+                      </button>
+                    </td>,
+                  ];
                 })}
               </tr>
             ))}

@@ -313,3 +313,18 @@ Company `me.admin` SHALL see a **Banc** link on `/admin` (generate log stays). `
 #### Scenario: Compare shows two grids
 - **WHEN** an admin opens `/admin/bench/tight/halles/minimal` after a run
 - **THEN** the page shows generated planning then oracle planning, each with notes
+
+### Requirement: Admin menu and Model / Manual / Delta
+`/admin`, `/admin/bench`, and the compare page SHALL share a flat menu **Historique des computes | Banc** (current entry marked; no isolated « Banc » or « ← Admin » buttons). `/admin` remains the generate log. `/admin/bench` SHALL list datasets from the API (seven rows including three `crafted`). Each effort SHALL have three sub-columns **Modèle** / **Manuel** / **Delta** (`score.global` / `expected_score.global` / `deltas.global`, dash if no run); a click opens compare. Compare SHALL title `category · id · effort` and show **Modèle** then **Manuel** (notes + read-only grids).
+
+#### Scenario: Admin menu has two entries
+- **WHEN** an admin opens `/admin`
+- **THEN** the page shows Historique des computes (marked) and Banc
+
+#### Scenario: Bench table has seven rows and sub-columns
+- **WHEN** an admin opens `/admin/bench`
+- **THEN** the table has seven dataset rows including crafted atelier, rivoli, marais, and each effort has Modèle / Manuel / Delta headers
+
+#### Scenario: Compare labels Model then Manual
+- **WHEN** an admin opens a compare page
+- **THEN** the two blocks are titled Modèle then Manuel

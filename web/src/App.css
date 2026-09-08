@@ -499,6 +499,17 @@ table.plan td.empty-slot {
   padding-bottom: 0;
 }
 
+.admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.bench-table thead th {
+  white-space: nowrap;
+}
+
 .bench-toolbar {
   display: flex;
   flex-direction: column;

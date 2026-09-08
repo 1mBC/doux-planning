@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { go } from "./AuthScreens";
+import { AdminNav } from "./AdminPage";
 import { loadBenchCompare, type BenchCompare } from "./bench";
 import { CycleScoreNotes } from "./cycleRecaps";
 import { CONTEXT_SERVICES, type ContextServiceId } from "./context";
@@ -122,12 +122,8 @@ export function BenchComparePage({ params }: { params: BenchCompareParams | null
 
   return (
     <main className="page admin-page">
+      <AdminNav current="bench" />
       <h1>{title}</h1>
-      <p>
-        <button type="button" className="choice" onClick={() => go("/admin/bench")}>
-          ← Banc
-        </button>
-      </p>
       {error ? (
         <p className="error" role="alert">
           {error}
@@ -137,12 +133,12 @@ export function BenchComparePage({ params }: { params: BenchCompareParams | null
       {payload ? (
         <>
           <section>
-            <h2>Planning généré</h2>
+            <h2>Modèle</h2>
             <CycleScoreNotes score={payload.score} />
             <BenchGrids assignments={payload.assignments} />
           </section>
           <section>
-            <h2>Planning oracle</h2>
+            <h2>Manuel</h2>
             <CycleScoreNotes score={payload.expected.score} />
             <BenchGrids assignments={payload.expected.assignments} />
           </section>

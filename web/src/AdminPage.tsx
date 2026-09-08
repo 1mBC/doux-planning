@@ -43,14 +43,34 @@ function WarningTip({ entry }: { entry: AdminGenerateEntry }) {
 function AdminChrome({ children }: { children?: ReactNode }) {
   return (
     <>
-      <h1>Admin</h1>
-      <p>
-        <button type="button" className="choice" onClick={() => go("/admin/bench")}>
-          Banc
-        </button>
-      </p>
+      <AdminNav current="history" />
       {children}
     </>
+  );
+}
+
+export type AdminNavCurrent = "history" | "bench";
+
+export function AdminNav({ current }: { current: AdminNavCurrent }) {
+  return (
+    <nav className="admin-nav" aria-label="Admin">
+      <button
+        type="button"
+        className={current === "history" ? "choice active" : "choice"}
+        disabled={current === "history"}
+        onClick={() => go("/admin")}
+      >
+        Historique des computes
+      </button>
+      <button
+        type="button"
+        className={current === "bench" ? "choice active" : "choice"}
+        disabled={current === "bench"}
+        onClick={() => go("/admin/bench")}
+      >
+        Banc
+      </button>
+    </nav>
   );
 }
 
