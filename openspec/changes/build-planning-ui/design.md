@@ -218,6 +218,17 @@ Suivre `score.md` § UI (cette tranche) — le suivre, ne pas le modifier.
 
 Version `0.26.0`.
 
+### 27. Score gauges (globale à gauche)
+
+Suivre `score.md` § UI (cette tranche) — le suivre, ne pas le modifier.
+
+- `/planning` company **et** `/exemple` : **Globale /10 en premier à gauche.** Cadre contrasté (bordure plus épaisse, fond plus saturé, même HSL). Pas de résumé sous la globale.
+- Jauge horizontale sous le chiffre (5 axes + globale) : remplissage `note / 10`, `hue = 12 × note`. `null` → jauge vide, neutre.
+- `resumes` : `white-space: pre-line` (`occupées` + indispos à la ligne ; rôles `affectés` / sous-rôle). Libellés inchangés.
+- Parser `resumes` déjà là. Pas de cartes stats. Tableaux légal / souhaits sous la grille.
+
+Version `0.27.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

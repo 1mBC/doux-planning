@@ -287,3 +287,18 @@ Company `/planning` and `/exemple` SHALL place the `CycleScoreNotes` row **above
 #### Scenario: Effort switch updates notes and resumes
 - **WHEN** salle has both `versions.minimal` and `versions.optimized` with different `score` notes and resumes
 - **THEN** clicking Minimal then Optimisé shows that slot’s notes and resumes without POSTing
+
+### Requirement: Cycle score gauges
+Company `/planning` and `/exemple` SHALL show **Globale /10 first, on the left**, with a contrasted frame (thicker border, more saturated fill, same HSL hue) and no resume under it. Each of the six pills SHALL include a horizontal gauge under the number whose fill width is `note / 10` and whose hue is `12 × note`; a `null` note SHALL show an empty neutral gauge. Axis `resumes` SHALL keep `\n` (`white-space: pre-line`). Labels stay Occupation / Couverture / Légal / Bien-être / Rôles / Globale, all `/10`. No stats cards. Legal / wish tables stay under the grid.
+
+#### Scenario: Globale leads the row
+- **WHEN** a displayed cycle has `score`
+- **THEN** the first pastille is Globale /10, it has no resume, and it is visually more contrasted than the five axes
+
+#### Scenario: Gauges follow the note
+- **WHEN** a pastille has note `9,2`
+- **THEN** its gauge fill is 92 % wide at hue `12 × 9.2`
+
+#### Scenario: Occupation resume is two lines
+- **WHEN** `score.resumes.contrat` contains a newline with `occupées` then indispos
+- **THEN** the Occupation pill shows both lines (hours then indispos)

@@ -140,3 +140,8 @@
 
 - [x] 24.1 Parse `resumes` (5 clés) ; Occupation /10 ; sous-ligne par axe ; HSL `hue = 12 × note` ; retirer `CycleStats` / `Stats` ; bump `web/` to 0.26.0
 - [x] 24.2 Verify `npm run build` ; planning + exemple : notes en premier, Occupation, résumés, plus d’anciennes cartes ; switch d’effort = notes + resumes du slot ; `v0.26.0`
+
+## 25. Score gauges (globale à gauche)
+
+- [x] 25.1 Globale à gauche + cadre contrasté ; jauge `note / 10` sur chaque pastille ; `resumes` en `pre-line` ; bump `web/` to 0.27.0
+- [x] 25.2 Verify `npm run build` ; planning + exemple : globale à gauche, jauges, Occupation `occupées` + indispos à la ligne, Rôles `affectés` / sous-rôle ; `v0.27.0`
