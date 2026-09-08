@@ -163,8 +163,18 @@ class ScoreNotes:
 
 
 @dataclass(frozen=True)
+class ScoreResumes:
+    couverture: str | None
+    legal: str | None
+    contrat: str | None
+    wellbeing: str | None
+    roles: str | None
+
+
+@dataclass(frozen=True)
 class CycleScore:
     notes: ScoreNotes
+    resumes: ScoreResumes
     weights: dict[str, float]
     global_score: float | None
 
@@ -917,6 +927,12 @@ def _legal_note(legal_rows: Sequence[RecapRow]) -> float | None:
     return _clamp_note(10 * sum(1 for cell in cells if cell.ok) / len(cells))
 
 
+def _occupation_pen(hours: float, weekly: float) -> float:
+    if hours <= weekly:
+        return (weekly - hours) / weekly
+    return 2 * (hours - weekly) / weekly
+
+
 def _hours_note(staff, assignments) -> float | None:
     notes: list[float] = []
     for person in staff:
@@ -924,8 +940,10 @@ def _hours_note(staff, assignments) -> float | None:
         if weekly <= 0:
             continue
         by_day = _shifts_by_day(assignments, person.id)
-        miss = abs(_week_hours(by_day, 0) - weekly) + abs(_week_hours(by_day, 7) - weekly)
-        notes.append(10 * max(0.0, 1 - miss / (2 * weekly)))
+        pen = _occupation_pen(_week_hours(by_day, 0), weekly) + _occupation_pen(
+            _week_hours(by_day, 7), weekly
+        )
+        notes.append(10 * max(0.0, 1 - pen / 2))
     return _mean_notes(notes)
 
 
@@ -943,7 +961,7 @@ def _wellbeing_note(stats: RecapStats) -> float | None:
     return _clamp_note(10 * stats.wellbeing.held / stats.wellbeing.total)
 
 
-def _roles_note(draft: PlanningDraft, assignments) -> float | None:
+def _roles_measures(draft: PlanningDraft, assignments) -> tuple[int, int] | None:
     plafond = 0
     by_id = {person.id: person for person in draft.employees}
     for shift in assignments:
@@ -953,8 +971,68 @@ def _roles_note(draft: PlanningDraft, assignments) -> float | None:
         plafond += max(0, person.level - 1)
     if plafond == 0:
         return None
-    ecarts = _overqualification(draft, assignments)
+    return _overqualification(draft, assignments), plafond
+
+
+def _roles_note(draft: PlanningDraft, assignments) -> float | None:
+    measures = _roles_measures(draft, assignments)
+    if measures is None:
+        return None
+    ecarts, plafond = measures
     return _clamp_note(10 * (1 - ecarts / plafond))
+
+
+def _cell_counts(cells: Sequence) -> tuple[int, int] | None:
+    present = [cell for cell in cells if cell is not None]
+    if not present:
+        return None
+    return sum(1 for cell in present if cell.ok), len(present)
+
+
+def _score_resumes(
+    notes: ScoreNotes,
+    draft: PlanningDraft,
+    stats: RecapStats,
+    legal_rows: Sequence[RecapRow],
+    wish_rows: Sequence[RecapRow],
+    hours: float | None,
+    indispo: float | None,
+    assignments,
+) -> ScoreResumes:
+    couverture = None
+    if notes.couverture is not None:
+        required = _required_post_count(draft)
+        couverture = f"{required - stats.empty} / {required} postes tenus"
+    legal = None
+    legal_counts = _cell_counts([cell for row in legal_rows for cell in row.cells.values()])
+    if notes.legal is not None and legal_counts is not None:
+        ok, n = legal_counts
+        legal = f"{ok} / {n} règles tenues"
+    parts: list[str] = []
+    if hours is not None:
+        parts.append(
+            f"{_hours_label(stats.hours.assigned)} / {_hours_label(stats.hours.contracted)} contrat"
+        )
+    indispo_counts = _cell_counts([row.cells.get("indispo") for row in wish_rows])
+    if indispo is not None and indispo_counts is not None:
+        ok, n = indispo_counts
+        parts.append(f"{ok} / {n} indispos tenues")
+    contrat = " · ".join(parts) if notes.contrat is not None else None
+    wellbeing = None
+    if notes.wellbeing is not None:
+        wellbeing = f"{stats.wellbeing.held} / {stats.wellbeing.total} souhaits tenus"
+    roles = None
+    role_measures = _roles_measures(draft, assignments)
+    if notes.roles is not None and role_measures is not None:
+        ecarts, plafond = role_measures
+        roles = f"écart {ecarts} / {plafond}"
+    return ScoreResumes(
+        couverture=couverture,
+        legal=legal,
+        contrat=contrat,
+        wellbeing=wellbeing,
+        roles=roles,
+    )
 
 
 def _global_note(notes: ScoreNotes) -> float | None:
@@ -1023,4 +1101,9 @@ def cycle_score(
         wellbeing=_wellbeing_note(stats),
         roles=_roles_note(draft, assignments),
     )
-    return CycleScore(notes=notes, weights=dict(SCORE_WEIGHTS), global_score=_global_note(notes))
+    return CycleScore(
+        notes=notes,
+        resumes=_score_resumes(notes, draft, stats, legal_rows, wish_rows, hours, indispo, assignments),
+        weights=dict(SCORE_WEIGHTS),
+        global_score=_global_note(notes),
+    )

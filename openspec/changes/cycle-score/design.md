@@ -1,15 +1,17 @@
 ## Context
 
-See proposal.md. `cycle_recap` already has stats, legal rows, and wish rows. `_overqualification` / `_below_role_count` already exist for keep-best. Coverage empty slots are `empty_post` warnings. Do not change `_attempt_key`.
+See proposal.md. `cycle_recap` already has stats, legal rows, and wish rows. `_overqualification` / `_below_role_count` already exist for keep-best. Coverage empty slots are `empty_post` warnings. Do not change `_attempt_key`. Freeze: `contracts/domain/score.md` (follow, do not edit).
 
 ## Goals / Non-Goals
 
 **Goals:**
 - One `cycle_score(draft, result)` used as `cycle_recap.score`.
 - Null when a denominator is missing; one-decimal clamp 0–10.
+- Asymmetric hours penalty (over-occupation ×2 vs under-occupation).
+- Five French `resumes` strings, `null` iff the matching note is `null`.
 
 **Non-Goals:**
-- Keep-best changes, editable weights, snapshot rewrite, HTTP.
+- Keep-best changes, editable weights, snapshot rewrite, HTTP, UI chrome.
 
 ## Decisions
 
@@ -19,9 +21,26 @@ See proposal.md. `cycle_recap` already has stats, legal rows, and wish rows. `_o
 
 ### 2. Python field `global_score`
 
-`global` is a keyword. The dataclass stores `global_score`; it is the freeze `global`.
+`global` is a keyword. The dataclass stores `global_score`; it is the freeze `global`. `resumes` has no `global` key.
 
-### 3. Keep-best untouched
+### 3. Hours penalty is asymmetric
+
+Per fiche with `C > 0`, week hours `h` (same source as recap / `contract_hours`):
+
+```
+pen(h, C) = (C − h) / C           if h ≤ C
+          = 2 × (h − C) / C       if h > C
+pen_i     = pen(h_sem_A, C) + pen(h_sem_B, C)
+note_i    = 10 × max(0, 1 − pen_i / 2)
+```
+
+`notes.contrat` averages hours and indispo subnotes when present.
+
+### 4. `ScoreResumes` next to `ScoreNotes`
+
+Same five keys. Forms from freeze (`postes tenus`, `règles tenues`, `{h_posées} / {h_contrat} contrat` via `_hours_label`, `indispos tenues`, `souhaits tenus`, `écart {ecarts} / {plafond}`). Contrat parts joined by ` · `.
+
+### 5. Keep-best untouched
 
 `_attempt_key` stays a 6-tuple. `SEARCH_*` and `generate_cycle` are not edited.
 
@@ -31,7 +50,7 @@ See proposal.md. `cycle_recap` already has stats, legal rows, and wish rows. `_o
 
 ## Migration Plan
 
-None. Infra serializes `score` later.
+None. Infra serializes `score` (including `resumes`) later.
 
 ## Open Questions
 
