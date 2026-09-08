@@ -2,12 +2,20 @@ from dataclasses import replace
 
 import pytest
 
-from doux_planning.context import NoPublishedCycle, cycle_recap, empty_restaurant, generate_team, upsert_employee
+from doux_planning.context import (
+    NoPublishedCycle,
+    cycle_recap,
+    cycle_score,
+    empty_restaurant,
+    generate_team,
+    upsert_employee,
+)
 from doux_planning.engine import PlanningDraft, evaluate
+from doux_planning.hydrate import load_delivered_cycle
 from doux_planning.planning import PublishedCycle
-from doux_planning.staff import Wellbeing
-from doux_planning.structures import RestaurantHours
-from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity
+from doux_planning.staff import Unavailability, Wellbeing
+from doux_planning.structures import ArrivalWave, DepartureWave, RestaurantHours, ServiceStructure
+from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WEEKDAYS
 from tests.fixtures import employee
 from tests.test_engine import _draft, _shift
 from tests.test_team_generate import _complete_salle, _salle_fiche
@@ -100,3 +108,66 @@ def test_wish_max_evening_shows_week_counts():
     assert cell is not None
     assert cell.ok is False
     assert cell.text == "max 2 · 1 / 3 posés"
+
+
+def _score_monday_draft(person, assignments) -> PlanningDraft:
+    structure = ServiceStructure(
+        id="one-post",
+        team=Team.CUISINE,
+        service_id=ServiceName.MIDDAY.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(11 * 60, (2,)),),
+        departures=(DepartureWave(15 * 60, ()),),
+    )
+    return PlanningDraft(
+        employees=(person,),
+        structures=(structure,),
+        hours=RestaurantHours.multi_service(ServiceName.MIDDAY.value, closed_weekdays=set(WEEKDAYS) - {"monday"}),
+        assignments=tuple(assignments),
+    )
+
+
+def test_cycle_score_notes_out_of_ten():
+    person = employee("Sam", "commis", hours=4, employee_id="sam")
+    assignments = [
+        _shift("sam", 0, 11 * 60, 15 * 60, 2),
+        _shift("sam", 7, 11 * 60, 15 * 60, 2),
+    ]
+    draft = _score_monday_draft(person, assignments)
+    result = evaluate(draft)
+    score = cycle_score(draft, result)
+    assert result.codes().isdisjoint({"empty_post"})
+    assert score.notes.couverture == 10.0
+    assert score.notes.legal == 10.0
+    assert score.notes.contrat == 10.0
+    assert score.notes.wellbeing is None
+    assert score.notes.roles == 10.0
+    assert score.global_score is not None
+    assert score.weights == {"couverture": 3.0, "legal": 3.0, "contrat": 2.0, "wellbeing": 1.5, "roles": 0.5}
+
+    blocked = person.with_unavailability(Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value))
+    broken = cycle_score(_score_monday_draft(blocked, assignments), evaluate(_score_monday_draft(blocked, assignments)))
+    assert broken.notes.contrat is not None
+    assert broken.notes.contrat < 10.0
+
+    state = empty_restaurant("resto-score")
+    upsert_employee(state, person)
+    state.published_cycles[Team.CUISINE] = PublishedCycle(id="cuisine", draft=draft, result=result)
+    recap = cycle_recap(state, Team.CUISINE)
+    assert recap.score.notes == score.notes
+    assert recap.score.global_score == score.global_score
+
+
+def test_saint_cloud_example_has_cycle_score_without_rewrite():
+    delivered = load_delivered_cycle("saint-cloud")
+    draft = PlanningDraft(
+        employees=delivered.employees,
+        structures=delivered.structures,
+        hours=delivered.hours,
+        assignments=delivered.assignments,
+    )
+    result = evaluate(draft)
+    score = cycle_score(draft, result)
+    assert len(draft.assignments) == 92
+    assert score.notes.couverture == 10.0
+    assert score.global_score is not None

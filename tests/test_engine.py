@@ -646,6 +646,14 @@ def test_generate_cycle_default_search_is_optimized():
     first = generate_cycle(draft)
     second = generate_cycle(draft, search=SearchEffort.OPTIMIZED)
     assert first.assignments == second.assignments
+    assert _attempt_key(draft, first) == _attempt_key(draft, second)
+
+
+def test_attempt_key_keep_best_tuple_unchanged():
+    chef = employee("Chef", "chef", hours=4, employee_id="chef-a")
+    draft = _draft(employees=(chef,))
+    exact = EngineResult(assignments=(_shift("chef-a", 0, 10 * 60, 14 * 60, 4),), warnings=())
+    assert _attempt_key(draft, exact) == (0, 0, 4.0, 0, 0, 0)
 
 
 def test_search_effort_calendar_limits():

@@ -244,6 +244,22 @@ def _coverage_warnings(draft: PlanningDraft) -> list[Warning]:
     return warnings
 
 
+def _required_post_count(draft: PlanningDraft) -> int:
+    total = 0
+    for day_index in range(draft.horizon_days):
+        weekday = WEEKDAYS[day_index % 7]
+        for service_id in draft.hours.services:
+            if draft.hours.is_closed(weekday, service_id):
+                continue
+            for team in Team:
+                structure = draft.structure_for(team, service_id, weekday)
+                if structure is None:
+                    continue
+                for slice_ in derive_slices(structure):
+                    total += len(slice_.post_levels)
+    return total
+
+
 def _shifts_by_employee(draft: PlanningDraft) -> dict[str, list[Shift]]:
     grouped: dict[str, list[Shift]] = {employee.id: [] for employee in draft.employees}
     for shift in draft.assignments:
