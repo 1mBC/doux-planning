@@ -140,7 +140,11 @@ Admin bench routes SHALL require `admin` true (`contracts/domain/bench.md`). `PO
 
 #### Scenario: All maximal enqueues one job per jeu
 - **WHEN** an admin posts bench run `scope` `all` `search_effort` `maximal`
-- **THEN** the response is HTTP 202 with four `job_ids` and worker ticks (stubbed `run_bench`) insert four `bench_runs`
+- **THEN** the response is HTTP 202 with seven `job_ids` and worker ticks (stubbed `run_bench`) insert seven `bench_runs`
+
+#### Scenario: Category crafted enqueues three jobs
+- **WHEN** an admin posts bench run `scope` `category` `category` `crafted`
+- **THEN** the response is HTTP 202 with three `job_ids`
 
 #### Scenario: Non-admin cannot run bench
 - **WHEN** a company session with `admin` false posts `/v1/admin/bench/run`
