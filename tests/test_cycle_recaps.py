@@ -155,7 +155,46 @@ def test_cycle_score_notes_out_of_ten():
     state.published_cycles[Team.CUISINE] = PublishedCycle(id="cuisine", draft=draft, result=result)
     recap = cycle_recap(state, Team.CUISINE)
     assert recap.score.notes == score.notes
+    assert recap.score.resumes == score.resumes
     assert recap.score.global_score == score.global_score
+
+
+def test_cycle_score_asymmetric_occupation_and_resumes():
+    assignments = [
+        _shift("sam", 0, 11 * 60, 15 * 60, 2),
+        _shift("sam", 7, 11 * 60, 15 * 60, 2),
+    ]
+    under = employee("Sam", "commis", hours=6, employee_id="sam")
+    over = employee("Sam", "commis", hours=2, employee_id="sam")
+    under_score = cycle_score(_score_monday_draft(under, assignments), evaluate(_score_monday_draft(under, assignments)))
+    over_score = cycle_score(_score_monday_draft(over, assignments), evaluate(_score_monday_draft(over, assignments)))
+    assert under_score.notes.contrat is not None
+    assert over_score.notes.contrat is not None
+    assert over_score.notes.contrat < under_score.notes.contrat
+
+    exact = employee("Sam", "commis", hours=4, employee_id="sam")
+    draft = _score_monday_draft(exact, assignments)
+    score = cycle_score(draft, evaluate(draft))
+    assert score.notes.contrat == 10.0
+    assert score.resumes.couverture is not None
+    assert "postes tenus" in score.resumes.couverture
+    assert score.resumes.contrat is not None
+    assert "contrat" in score.resumes.contrat
+    assert "indispos tenues" not in score.resumes.contrat
+    assert score.resumes.wellbeing is None
+    assert score.resumes.legal is not None
+    assert score.resumes.roles is not None
+    assert (score.resumes.couverture is None) == (score.notes.couverture is None)
+    assert (score.resumes.legal is None) == (score.notes.legal is None)
+    assert (score.resumes.contrat is None) == (score.notes.contrat is None)
+    assert (score.resumes.wellbeing is None) == (score.notes.wellbeing is None)
+    assert (score.resumes.roles is None) == (score.notes.roles is None)
+
+    blocked = exact.with_unavailability(Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value))
+    broken = cycle_score(_score_monday_draft(blocked, assignments), evaluate(_score_monday_draft(blocked, assignments)))
+    assert broken.resumes.contrat is not None
+    assert "contrat" in broken.resumes.contrat
+    assert "indispos tenues" in broken.resumes.contrat
 
 
 def test_saint_cloud_example_has_cycle_score_without_rewrite():
