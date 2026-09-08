@@ -1,0 +1,72 @@
+{
+  "id": "nocturne",
+  "category": "clock",
+  "name": "Le Nocturne",
+  "team": "salle",
+  "challenge_fr": "Dîner 19h–minuit, déjeuner 10h30–15h. Soir puis midi suivant = 10h30 de repos (< 11 h). 5 fiches, 4 postes : qui a fermé ne peut pas ouvrir.",
+  "hours": {
+    "mode": "services",
+    "services": ["midday", "evening"],
+    "closed_weekdays": ["sunday"]
+  },
+  "roles": [
+    { "name": "RESPONSABLE", "level": 3, "team": "salle" },
+    { "name": "SERVEUR", "level": 2, "team": "salle" },
+    { "name": "EQUIPIER", "level": 1, "team": "salle" }
+  ],
+  "types": [
+    {
+      "id": "midi",
+      "name": "Midi tôt",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [{ "time_minutes": 630, "post_levels": [2, 1] }],
+      "departures": [{ "time_minutes": 900, "remaining_post_levels": [] }]
+    },
+    {
+      "id": "soir",
+      "name": "Soir tard",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [{ "time_minutes": 1140, "post_levels": [2, 1] }],
+      "departures": [{ "time_minutes": 1440, "remaining_post_levels": [] }]
+    }
+  ],
+  "employees": [
+    {
+      "id": "paul",
+      "name": "Paul",
+      "role": { "name": "RESPONSABLE", "level": 3, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "quentin",
+      "name": "Quentin",
+      "role": { "name": "SERVEUR", "level": 2, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "rose",
+      "name": "Rose",
+      "role": { "name": "SERVEUR", "level": 2, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "sam",
+      "name": "Sam",
+      "role": { "name": "EQUIPIER", "level": 1, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "tina",
+      "name": "Tina",
+      "role": { "name": "EQUIPIER", "level": 1, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    }
+  ]
+}
