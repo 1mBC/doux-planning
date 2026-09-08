@@ -302,3 +302,14 @@ Company `/planning` and `/exemple` SHALL show **Globale /10 first, on the left**
 #### Scenario: Occupation resume is two lines
 - **WHEN** `score.resumes.contrat` contains a newline with `occupées` then indispos
 - **THEN** the Occupation pill shows both lines (hours then indispos)
+
+### Requirement: Admin bench table and compare
+Company `me.admin` SHALL see a **Banc** link on `/admin` (generate log stays). `/admin/bench` SHALL load datasets and runs, offer launch all / category / dataset × Minimal / Optimisé / Maximal, and show one table row per dataset with the **latest** run per effort as generated global · oracle global · Δ global (dash if none). Clicking an effort cell SHALL open `/admin/bench/{category}/{id}/{effort}`. `dataset` + `minimal`/`optimized` is HTTP 200 ; `all` / `category` / `maximal` is 202 and the client MAY poll jobs or refresh runs (leaving the page is OK). The compare page SHALL title `category · id · effort`, show the generated planning then the oracle (notes + resumes, read-only grids). Empty / 404 SHALL be a French message. Non-admin `/admin` and `/admin/bench` SHALL show `Action réservée à l’admin.` without calling bench APIs.
+
+#### Scenario: Minimal dataset run fills the table
+- **WHEN** an admin launches one dataset at Minimal
+- **THEN** that row’s Minimal cell shows generated · oracle · Δ and is clickable
+
+#### Scenario: Compare shows two grids
+- **WHEN** an admin opens `/admin/bench/tight/halles/minimal` after a run
+- **THEN** the page shows generated planning then oracle planning, each with notes

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   effortLabel,
   groupEntriesByParisDay,
@@ -9,6 +9,7 @@ import {
 } from "./admin";
 import { formatSolveDuration, warningSeverityLabel, warningTitle, warningWhen } from "./format";
 import { ApiHttpError } from "./sandbox";
+import { go } from "./AuthScreens";
 import type { WarningItem } from "./types";
 
 function WarningCard({ warning }: { warning: WarningItem }) {
@@ -35,6 +36,20 @@ function WarningTip({ entry }: { entry: AdminGenerateEntry }) {
       {entry.warnings.map((warning, index) => (
         <WarningCard key={`${entry.id}-w-${index}`} warning={warning} />
       ))}
+    </>
+  );
+}
+
+function AdminChrome({ children }: { children?: ReactNode }) {
+  return (
+    <>
+      <h1>Admin</h1>
+      <p>
+        <button type="button" className="choice" onClick={() => go("/admin/bench")}>
+          Banc
+        </button>
+      </p>
+      {children}
     </>
   );
 }
@@ -75,7 +90,7 @@ export function AdminPage() {
   if (error) {
     return (
       <main className="page">
-        <h1>Admin</h1>
+        <AdminChrome />
         <p className="error" role="alert">
           {error}
         </p>
@@ -85,6 +100,7 @@ export function AdminPage() {
   if (!entries) {
     return (
       <main className="page">
+        <AdminChrome />
         <p className="sub">Chargement des generates…</p>
       </main>
     );
@@ -92,7 +108,7 @@ export function AdminPage() {
   if (entries.length === 0) {
     return (
       <main className="page">
-        <h1>Admin</h1>
+        <AdminChrome />
         <p className="sub">Aucun generate pour l’instant.</p>
       </main>
     );
@@ -100,8 +116,9 @@ export function AdminPage() {
 
   return (
     <main className="page admin-page">
-      <h1>Admin</h1>
-      <p className="sub">Generates réussis, plus récent d’abord.</p>
+      <AdminChrome>
+        <p className="sub">Generates réussis, plus récent d’abord.</p>
+      </AdminChrome>
       {groupEntriesByParisDay(entries).map((group) => (
         <section key={group.key}>
           <h2>{group.label}</h2>

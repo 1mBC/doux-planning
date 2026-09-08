@@ -229,6 +229,17 @@ Suivre `score.md` § UI (cette tranche) — le suivre, ne pas le modifier.
 
 Version `0.27.0`.
 
+### 28. Banc admin (table + compare)
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier.
+
+- `/admin` : lien **Banc** (log generate reste). `me.admin` only ; sinon message habituel, pas d’appel bench.
+- `/admin/bench` : datasets + runs. Lancer all | catégorie | jeu × 3 efforts. Tableau une ligne par jeu ; cellule = dernier run (globale · oracle · Δ) ou tiret. Clic → compare.
+- `dataset` + minimal|optimized → 200. `all` | `category` | `maximal` → 202 + poll jobs **ou** refresh runs. Quitter la page OK.
+- `/admin/bench/{category}/{id}/{effort}` : titre `catégorie · id · effort`. Planning généré puis oracle, notes + resumes, grilles lecture. 404 / vide → FR.
+
+Version `0.28.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

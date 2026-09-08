@@ -145,3 +145,8 @@
 
 - [x] 25.1 Globale à gauche + cadre contrasté ; jauge `note / 10` sur chaque pastille ; `resumes` en `pre-line` ; bump `web/` to 0.27.0
 - [x] 25.2 Verify `npm run build` ; planning + exemple : globale à gauche, jauges, Occupation `occupées` + indispos à la ligne, Rôles `affectés` / sous-rôle ; `v0.27.0`
+
+## 26. Admin bench
+
+- [x] 26.1 `/admin` lien Banc ; `/admin/bench` table + lancer ; `/admin/bench/{category}/{id}/{effort}` compare (2 grilles) ; bump `web/` to 0.28.0
+- [x] 26.2 Verify `npm run build` ; admin → Banc → 1 jeu minimal → ligne → clic compare ; `v0.28.0`

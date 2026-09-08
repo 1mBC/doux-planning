@@ -6,6 +6,8 @@ import { LoginScreen, RegisterScreen, SessionChrome, go } from "./AuthScreens";
 import { ContextWizard } from "./ContextWizard";
 import { EmployeePlanning } from "./EmployeePlanning";
 import { AdminDenied, AdminPage } from "./AdminPage";
+import { BenchPage } from "./BenchPage";
+import { BenchComparePage, parseBenchComparePath } from "./BenchComparePage";
 import { PublishedPlanning } from "./PublishedPlanning";
 import "./App.css";
 
@@ -64,9 +66,15 @@ export default function Root() {
       ? "register"
       : path === "/exemple"
         ? "exemple"
-        : path === "/admin"
+        : path === "/admin" || path.startsWith("/admin/")
           ? me?.admin
-            ? "admin"
+            ? path === "/admin/bench"
+              ? "admin-bench"
+              : parseBenchComparePath(path)
+                ? "admin-bench-compare"
+                : path === "/admin"
+                  ? "admin"
+                  : "admin-bench-compare"
             : "admin-denied"
           : path === "/context" && me?.kind === "company"
           ? "context"
@@ -106,6 +114,8 @@ export default function Root() {
       {route === "register" ? <RegisterScreen onSignedIn={setMe} /> : null}
       {route === "context" ? <ContextWizard /> : null}
       {route === "admin" ? <AdminPage /> : null}
+      {route === "admin-bench" ? <BenchPage /> : null}
+      {route === "admin-bench-compare" ? <BenchComparePage params={parseBenchComparePath(path)} /> : null}
       {route === "admin-denied" ? <AdminDenied /> : null}
       {route === "planning" ? <PublishedPlanning /> : null}
       {route === "employee" ? <EmployeePlanning /> : null}
