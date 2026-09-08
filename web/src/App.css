@@ -69,6 +69,15 @@ h3 {
   color: #9a6700;
 }
 
+.score-stats {
+  margin-top: -6px;
+}
+
+.stat.score-global {
+  border-color: #2b6ea8;
+  background: #eef4fa;
+}
+
 .release {
   color: #888;
   font-size: 11px;

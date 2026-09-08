@@ -4,6 +4,7 @@ import {
   parseStats,
   parseWishCol,
   parseWishRow,
+  parseOptionalCycleScore,
   PayloadError,
   requireArray,
   requireNumber,
@@ -12,7 +13,7 @@ import {
 } from "./api";
 import { sendAuth } from "./auth";
 import { ApiHttpError } from "./sandbox";
-import type { LegalRow, PlanningStats, WarningItem, WishCol, WishRow } from "./types";
+import type { LegalRow, PlanningStats, WarningItem, WishCol, WishRow, CycleScore } from "./types";
 
 export type LegalCol = {
   id: string;
@@ -43,6 +44,7 @@ export type PublishedCycle = {
   legal_rows: LegalRow[];
   wish_cols: WishCol[];
   wish_rows: WishRow[];
+  score?: CycleScore;
   generated_at?: string;
   search_effort?: SearchEffort;
   duration_seconds?: number;
@@ -216,6 +218,7 @@ function parseCycle(value: unknown, path: string): PublishedCycle | null {
     legal_rows: requireArray(value, "legal_rows", path).map((item, i) => parseLegalRow(item, `${path}.legal_rows[${i}]`)),
     wish_cols: requireArray(value, "wish_cols", path).map((item, i) => parseWishCol(item, `${path}.wish_cols[${i}]`)),
     wish_rows: requireArray(value, "wish_rows", path).map((item, i) => parseWishRow(item, `${path}.wish_rows[${i}]`)),
+    score: parseOptionalCycleScore(value, path),
   };
   if ("generated_at" in value && value.generated_at !== undefined && value.generated_at !== null) {
     if (typeof value.generated_at !== "string") {

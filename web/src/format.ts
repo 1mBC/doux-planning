@@ -157,6 +157,13 @@ export const GESTURE_HISTORY_FR: Record<Gesture, string> = {
   fill: "Créneau posé",
 };
 
+export function formatCycleNote(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  return value.toFixed(1).replace(".", ",");
+}
+
 export function formatScoreValue(value: number): string {
   if (Number.isInteger(value)) {
     return String(value);

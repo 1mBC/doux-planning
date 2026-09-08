@@ -261,3 +261,14 @@ Company `/planning` SHALL show **Minimal**, **Optimisé**, and **Maximal** as a 
 #### Scenario: Edit mode turns generate off
 - **WHEN** Mode édition is open
 - **THEN** Recalculer is disabled and clicking Minimal / Optimisé / Maximal does not POST
+
+### Requirement: Cycle score notes
+Company `/planning` SHALL display the five axis notes and `global` from `score` of the **currently displayed** cycle (selected effort). Each note SHALL be one French decimal (`8,4`) or a dash when `null` / absent. The client MUST NOT recompute notes, MUST NOT show or edit `weights`, and MUST NOT offer an admin bench. Employee `/planning` MUST NOT show these notes. `/exemple` SHALL show them only when the snapshot payload includes `score`.
+
+#### Scenario: Notes follow the displayed slot
+- **WHEN** salle has both `versions.minimal` and `versions.optimized` with different `score.global`
+- **THEN** clicking Minimal then Optimisé changes the displayed notes to that slot without POSTing
+
+#### Scenario: Null note is a dash
+- **WHEN** a displayed cycle has `score.notes.wellbeing` null
+- **THEN** that pastille shows `—` and does not invent a number

@@ -196,6 +196,15 @@ Suivre `admin.md` § UI + `wizard-ui.md` — les suivre, ne pas les modifier.
 
 Version `0.24.0`. Pas de delete salarié.
 
+### 25. Notes de cycle /10
+
+Suivre `score.md` — le suivre, ne pas le modifier.
+
+- Company `/planning` : 5 notes + globale du **slot affiché** (effort courant). `null` → tiret. Une décimale FR (`8,4`).
+- Pas d’édition des poids. Pas de bench admin. Pas salarié. `/exemple` seulement si le payload a `score`.
+
+Version `0.25.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

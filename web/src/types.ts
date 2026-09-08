@@ -97,6 +97,28 @@ export type WishRow = {
   cells: Record<string, StatusCell | null>;
 };
 
+export type CycleScoreNotes = {
+  couverture: number | null;
+  legal: number | null;
+  contrat: number | null;
+  wellbeing: number | null;
+  roles: number | null;
+};
+
+export type CycleScoreWeights = {
+  couverture: number;
+  legal: number;
+  contrat: number;
+  wellbeing: number;
+  roles: number;
+};
+
+export type CycleScore = {
+  notes: CycleScoreNotes;
+  global: number | null;
+  weights: CycleScoreWeights;
+};
+
 export type Planning = {
   search_effort: string;
   calendars: number;
@@ -107,6 +129,7 @@ export type Planning = {
   legal_rows: LegalRow[];
   wish_cols: WishCol[];
   wish_rows: WishRow[];
+  score?: CycleScore;
 };
 
 export type ExamplePayload = {
