@@ -14,6 +14,9 @@ import type {
   WarningItem,
   WishCol,
   WishRow,
+  CycleScore,
+  CycleScoreNotes,
+  CycleScoreWeights,
 } from "./types";
 
 export class PayloadError extends Error {
@@ -208,6 +211,50 @@ export function parseStats(value: unknown, path = "planning.stats"): PlanningSta
   };
 }
 
+function parseNullableNote(value: unknown, path: string): number | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    throw new PayloadError(`clé invalide : ${path}`);
+  }
+  return value;
+}
+
+const NOTE_KEYS = ["couverture", "legal", "contrat", "wellbeing", "roles"] as const;
+
+export function parseCycleScore(value: unknown, path: string): CycleScore {
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  const notesRaw = requireRecord(value, "notes", path);
+  const weightsRaw = requireRecord(value, "weights", path);
+  if (!("global" in value)) {
+    throw new PayloadError(`clé absente : ${path}.global`);
+  }
+  const notes = {} as CycleScoreNotes;
+  const weights = {} as CycleScoreWeights;
+  for (const key of NOTE_KEYS) {
+    if (!(key in notesRaw)) {
+      throw new PayloadError(`clé absente : ${path}.notes.${key}`);
+    }
+    notes[key] = parseNullableNote(notesRaw[key], `${path}.notes.${key}`);
+    weights[key] = requireNumber(weightsRaw, key, `${path}.weights`);
+  }
+  return {
+    notes,
+    global: parseNullableNote(value.global, `${path}.global`),
+    weights,
+  };
+}
+
+export function parseOptionalCycleScore(obj: Record<string, unknown>, path: string): CycleScore | undefined {
+  if (!("score" in obj) || obj.score === undefined || obj.score === null) {
+    return undefined;
+  }
+  return parseCycleScore(obj.score, `${path}.score`);
+}
+
 function parseStatusCell(value: unknown, path: string): StatusCell {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
@@ -295,6 +342,7 @@ function parsePlanning(value: unknown): Planning {
     wish_rows: requireArray(value, "wish_rows", "planning").map((item, i) =>
       parseWishRow(item, `planning.wish_rows[${i}]`),
     ),
+    score: parseOptionalCycleScore(value, "planning"),
   };
 }
 

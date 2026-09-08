@@ -1,5 +1,6 @@
 import type { LegalCol, PublishedCycle } from "./generate";
-import type { PlanningStats } from "./types";
+import type { CycleScore, PlanningStats } from "./types";
+import { formatCycleNote } from "./format";
 
 export function CycleStats({ stats }: { stats: PlanningStats }) {
   const items: { value: string; label: string; tone?: "ok" | "warn" }[] = [
@@ -30,6 +31,35 @@ export function CycleStats({ stats }: { stats: PlanningStats }) {
     <div className="stats">
       {items.map((item) => (
         <div key={item.label} className={`stat ${item.tone ?? ""}`}>
+          <b>{item.value}</b>
+          <span>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const NOTE_LABELS: { key: keyof CycleScore["notes"]; label: string }[] = [
+  { key: "couverture", label: "Couverture /10" },
+  { key: "legal", label: "Légal /10" },
+  { key: "contrat", label: "Contrat /10" },
+  { key: "wellbeing", label: "Bien-être /10" },
+  { key: "roles", label: "Rôles /10" },
+];
+
+export function CycleScoreNotes({ score }: { score: CycleScore | undefined }) {
+  const items = [
+    ...NOTE_LABELS.map((item) => ({
+      value: formatCycleNote(score?.notes[item.key]),
+      label: item.label,
+      global: false,
+    })),
+    { value: formatCycleNote(score?.global), label: "Globale /10", global: true },
+  ];
+  return (
+    <div className="stats score-stats">
+      {items.map((item) => (
+        <div key={item.label} className={item.global ? "stat score-global" : "stat"}>
           <b>{item.value}</b>
           <span>{item.label}</span>
         </div>

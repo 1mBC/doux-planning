@@ -17,7 +17,7 @@ import {
   type LiveState,
 } from "./liveSandbox";
 import { loadContext, CONTEXT_SERVICES, type ContextServiceId, type RestaurantContext, type TeamId } from "./context";
-import { CycleStats, LegalRecap, WishRecap } from "./cycleRecaps";
+import { CycleStats, CycleScoreNotes, LegalRecap, WishRecap } from "./cycleRecaps";
 import {
   buildPlanningExport,
   exportPublishedPlanning,
@@ -618,6 +618,7 @@ export function PublishedPlanning() {
       {cycle || editing ? (
         <>
           {cycle && !editing ? <CycleStats stats={cycle.stats} /> : null}
+          {cycle && !editing ? <CycleScoreNotes score={cycle.score} /> : null}
           <div ref={sheetsRef} className="export-sheets">
             <PublishedSheet
               title={weekSheetTitle(ctx?.week_labels ?? "ab", 0)}

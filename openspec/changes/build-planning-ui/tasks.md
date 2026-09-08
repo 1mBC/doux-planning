@@ -130,3 +130,8 @@
 
 - [x] 22.1 Admin Effort + Durée + hover cartes recap ; planning `duration_seconds` sous le timestamp ; rôles `<table>` + confirm delete ; copies wizard retirées ; invite `company_code` ; bump `web/` to 0.24.0
 - [x] 22.2 Verify `npm run build` ; admin hover riche + effort/durée ; planning durée ; rôles table + confirm ; copies disparues ; invite code ; exemple 92 ; `v0.24.0`
+
+## 23. Cycle score notes
+
+- [x] 23.1 Parse `score` (5 notes + globale) ; pastilles /10 on company `/planning` for the displayed slot ; null → tiret ; one FR decimal ; bump `web/` to 0.25.0
+- [x] 23.2 Verify `npm run build` ; notes visibles after Recalculer ; switching effort shows that slot’s notes ; exemple 92 ; `v0.25.0`

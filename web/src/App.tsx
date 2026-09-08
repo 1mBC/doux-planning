@@ -35,6 +35,7 @@ import type {
 import { toShiftIdentity } from "./types";
 import { cranHow, fillHow, fillSlotSummary, GestureImpact, slotSummary } from "./impact";
 import { UI_RELEASE } from "./release";
+import { CycleScoreNotes } from "./cycleRecaps";
 import "./App.css";
 
 function PlanningSheet({
@@ -438,6 +439,7 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
       ) : null}
 
       {!editing ? <Stats stats={planning.stats} /> : null}
+      {!editing && planning.score ? <CycleScoreNotes score={planning.score} /> : null}
 
       <PlanningSheet
         title="Semaine A"
