@@ -37,7 +37,7 @@ Omis → `optimized` (200). `TeamNotReady` → 409. Effort / team invalide → 4
   "published": {
     "salle": {
       "versions": {
-        "minimal": { assignments, warnings, stats, legal_*, wish_*, generated_at, search_effort, duration_seconds },
+        "minimal": { assignments, warnings, stats, legal_*, wish_*, score, generated_at, search_effort, duration_seconds },
         "optimized": null,
         "maximal": null
       },

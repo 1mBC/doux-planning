@@ -18,7 +18,7 @@ Plus un seul cycle par équipe. Par équipe :
 }
 ```
 
-`Cycle` = assignments + warnings + recap **plus** `generated_at` ISO (UTC) + `search_effort` + `duration_seconds` (float, temps du solve ; absent sur les vieux slots).  
+`Cycle` = assignments + warnings + recap (y compris `score`, `contracts/domain/score.md`) **plus** `generated_at` ISO (UTC) + `search_effort` + `duration_seconds` (float, temps du solve ; absent sur les vieux slots).  
 `latest` = effort du `generated_at` le plus récent (égalité : maximal > optimized > minimal).
 
 Maximal : **tous** les calendriers de repos trouvables **et remplis** dans `SEARCH_SECONDS` (600 s wall-clock, keep-best au fil de l’eau). Ce n’est **pas** 600 s d’énumération SAT puis un fill illimité.
