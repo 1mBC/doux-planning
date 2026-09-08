@@ -28,6 +28,7 @@ CycleRecap {
   legal_rows: [{ name, employee_id, cells: { rule_id: { ok, text } } }]
   wish_cols:  [{ key, label }]
   wish_rows:  [{ name, employee_id, cells: { key: { ok, text } | null } }]
+  score: CycleScore                    # contracts/domain/score.md
 }
 ```
 
