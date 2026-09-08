@@ -38,7 +38,7 @@ note_i    = 10 × max(0, 1 − pen_i / 2)
 
 ### 4. `ScoreResumes` next to `ScoreNotes`
 
-Same five keys. Forms from freeze (`postes tenus`, `règles tenues`, `{h_posées} / {h_contrat} contrat` via `_hours_label`, `indispos tenues`, `souhaits tenus`, `écart {ecarts} / {plafond}`). Contrat parts joined by ` · `.
+Same five keys. Forms from freeze (`postes tenus`, `règles tenues`, `{h_posées} occupées / {h_contrat} contrat` via `_hours_label`, `indispos tenues` on the next line if hours are present, `souhaits tenus`, `{N} affectés · {k} poste en sous-rôle / {N}` with `N = stats.assignments` and `k = stats.below_role`). Contrat parts joined by `\n`, not ` · `. The roles resume is not the note formula (écart / plafond).
 
 ### 5. Keep-best untouched
 

@@ -997,7 +997,6 @@ def _score_resumes(
     wish_rows: Sequence[RecapRow],
     hours: float | None,
     indispo: float | None,
-    assignments,
 ) -> ScoreResumes:
     couverture = None
     if notes.couverture is not None:
@@ -1011,21 +1010,21 @@ def _score_resumes(
     parts: list[str] = []
     if hours is not None:
         parts.append(
-            f"{_hours_label(stats.hours.assigned)} / {_hours_label(stats.hours.contracted)} contrat"
+            f"{_hours_label(stats.hours.assigned)} occupées / {_hours_label(stats.hours.contracted)} contrat"
         )
     indispo_counts = _cell_counts([row.cells.get("indispo") for row in wish_rows])
     if indispo is not None and indispo_counts is not None:
         ok, n = indispo_counts
         parts.append(f"{ok} / {n} indispos tenues")
-    contrat = " · ".join(parts) if notes.contrat is not None else None
+    contrat = "\n".join(parts) if notes.contrat is not None else None
     wellbeing = None
     if notes.wellbeing is not None:
         wellbeing = f"{stats.wellbeing.held} / {stats.wellbeing.total} souhaits tenus"
     roles = None
-    role_measures = _roles_measures(draft, assignments)
-    if notes.roles is not None and role_measures is not None:
-        ecarts, plafond = role_measures
-        roles = f"écart {ecarts} / {plafond}"
+    if notes.roles is not None:
+        n = stats.assignments
+        k = stats.below_role
+        roles = f"{n} affectés · {k} poste en sous-rôle / {n}"
     return ScoreResumes(
         couverture=couverture,
         legal=legal,
@@ -1103,7 +1102,7 @@ def cycle_score(
     )
     return CycleScore(
         notes=notes,
-        resumes=_score_resumes(notes, draft, stats, legal_rows, wish_rows, hours, indispo, assignments),
+        resumes=_score_resumes(notes, draft, stats, legal_rows, wish_rows, hours, indispo),
         weights=dict(SCORE_WEIGHTS),
         global_score=_global_note(notes),
     )
