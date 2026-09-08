@@ -1,6 +1,6 @@
 ## Context
 
-See proposal.md. Freeze: `contracts/domain/bench.md` (follow, do not edit). Four salle datasets already live under `data/bench/`. Live context helpers (`set_services`, `set_role_ladder`, `upsert_service_type`, `set_typical_week`, `upsert_employee`, `expand_typical_week`, `team_ready`, `cycle_score`) already exist. `generate_cycle` keep-best stays untouched.
+See proposal.md. Freeze: `contracts/domain/bench.md` (follow, do not edit). Seven salle datasets live under `data/bench/` including `crafted/{atelier,rivoli,marais}`. Live context helpers already exist. `generate_cycle` keep-best stays untouched.
 
 ## Goals / Non-Goals
 
@@ -33,6 +33,10 @@ Keeps scan / derive-week / `run_bench` off `context.py`. Reuses hydrate `_employ
 ### 5. `data/bench/VERSION` unread for persistence
 
 Core may ignore the file. Infra persists `app_version` later.
+
+### 6. Catalogue order includes `crafted`
+
+`BENCH_CATEGORY_ORDER = ("tight", "clock", "wishes", "ladder", "crafted")`. Scan still omits incomplete folders. Load / `run_bench` stay the same functions.
 
 ## Risks / Trade-offs
 

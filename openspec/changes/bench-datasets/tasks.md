@@ -7,3 +7,8 @@
 
 - [x] 2.1 Add `run_bench` (disposable copy, `generate_cycle`, `cycle_score` ×2, `deltas`) without writing `published_cycles`, and verify `run_bench("tight", "halles", minimal)` has `score`, `expected_score`, and `deltas`
 - [x] 2.2 Verify a live `empty_restaurant` plus fiches is identical after `run_bench`, keep-best unchanged, and engine / recap pytest stay green
+
+## 3. Crafted catalogue
+
+- [x] 3.1 Add `crafted` to `BENCH_CATEGORY_ORDER` and verify `list_bench_datasets` returns the seven freeze pairs
+- [x] 3.2 Verify expected of all seven has zero `interdit`; crafted atelier/rivoli/marais `cycle_score` global ≥ 9.5; `run_bench(tight, halles, minimal)` still green
