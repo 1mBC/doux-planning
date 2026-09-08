@@ -40,7 +40,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 27 — admin recap + wizard polish | `domain/admin.md`, `domain/generate-versions.md`, `domain/wizard-ui.md` ; briefs `infra-admin-recap.md`, `ui-wizard-polish.md` | **landed** `881876e` (UI v0.24.0) |
 | 28 — notes /10 | `domain/score.md` ; briefs `core-score.md`, `infra-score.md`, `ui-score.md` | **landed** `782b694` (UI v0.25.0) |
 | 29 — score chrome | `domain/score.md` ; briefs `core-score-chrome.md`, `infra-score-chrome.md`, `ui-score-chrome.md` | **landed** `a6f0baa` (UI v0.26.0) |
-| 30 — score gauges | `domain/score.md` ; briefs `core-score-gauges.md`, `ui-score-gauges.md` | **à lander** Core → UI (pas d’Infra ; UI v0.27.0) |
+| 30 — score gauges | `domain/score.md` ; briefs `core-score-gauges.md`, `ui-score-gauges.md` | **landed** `6ad338f` (UI v0.27.0) |
 
 ## Ownership git (ne pas croiser)
 
