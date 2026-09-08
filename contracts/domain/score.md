@@ -16,7 +16,7 @@ Ou **dedans** `cycle_recap` (même objet). Pas de 2ᵉ solve. Lecture du cycle +
 ```
 CycleScore {
   notes: { couverture, legal, contrat, wellbeing, roles }  # float | null, 0–10, 1 décimale
-  resumes: { mêmes clés: string | null }                   # une ligne FR qui explique la note
+  resumes: { mêmes clés: string | null }                   # FR ; `\n` si deux lignes (occupation)
   global: float | null
   weights: { couverture: 3, legal: 3, contrat: 2, wellbeing: 1.5, roles: 0.5 }
 }
@@ -28,7 +28,7 @@ Toujours émettre les 5 clés de `notes` **et** les 5 de `resumes`.
 Arrondi : `round(x, 1)` Python, clamp `[0, 10]`.  
 `weights` = constantes (mémoire). **Pas** d’UI / PATCH restaurateur dans cette tranche.
 
-Clé JSON `contrat` **inchangée**. Libellé UI : **Occupation** (pas « Contrat », pas « Taux d’occupation »).
+Clé JSON `contrat` **inchangée**. Libellé UI : **Occupation**.
 
 ## Couverture
 
@@ -98,7 +98,7 @@ note = 10 × held / total
 
 ## Rôles (sous-roling)
 
-Somme des écarts, pas le compteur `below_role` :
+**Note /10 inchangée** — somme des écarts, **pas** le compteur `below_role` :
 
 ```
 ecarts   = Σ (level_fiche − post_level)     # _overqualification
@@ -110,17 +110,19 @@ note     = 10 × (1 − ecarts / plafond)
 
 ## Résumés (`resumes`)
 
-Une phrase FR par axe, **exactement** ces formes, `null` si la note est `null`.  
-Heures = même forme que `_hours_label` (`29h` / `11h30`). Entiers pour les comptes.
+`null` si la note est `null`. Heures = `_hours_label` (`29h` / `11h30`). Entiers pour les comptes.
 
 - couverture : `{tenus} / {requis} postes tenus`
 - legal : `{ok} / {n} règles tenues`
-- contrat : parties présentes jointes par ` · `
-  - heures : `{h_posées} / {h_contrat} contrat`  
-    `h_posées` = `stats.hours.assigned` (14 j.) ; `h_contrat` = `stats.hours.contracted` (somme `C × 2`)
-  - indispo : `{ok} / {n} indispos tenues`
+- contrat : parties présentes, **chaque partie sur sa ligne** (`\n`, plus de ` · `)
+  - heures : `{h_posées} occupées / {h_contrat} contrat`  
+    `h_posées` / `h_contrat` = `_hours_label` de `stats.hours.assigned` / `contracted` (14 j.)  
+    ex. `58h occupées / 70h contrat`
+  - indispo : `{ok} / {n} indispos tenues` (**ligne suivante** si les heures sont là)
 - wellbeing : `{held} / {total} souhaits tenus`
-- roles : `écart {ecarts} / {plafond}`
+- roles : `{N} affectés · {k} poste en sous-rôle / {N}`  
+  `N` = `stats.assignments` (prises de poste) ; `k` = `stats.below_role`  
+  Le résumé **n’est pas** la formule de la note (écart / plafond).
 
 ## Globale
 
@@ -134,19 +136,20 @@ Poids ci-dessus. Axe `null` : exclu du dénominateur.
 
 Chrome seulement — **pas** de 2ᵉ formule.
 
-- Rangée notes **au-dessus** de la grille, **avant** tout autre bloc stats (`/planning` company **et** `/exemple`).
-- Libellé `notes.contrat` : **Occupation /10**. Autres : Couverture / Légal / Bien-être / Rôles / Globale, tous `/10`.
-- Sous chaque pastille d’axe : `resumes[clé]` tel quel. Globale : pas de sous-ligne.
-- Couleur **linéaire continue** 0→10 : teinte HSL `hue = 12 × note` (0 = rouge, 120 = vert). Pas de seuils / buckets. `null` → neutre (tiret, pas de teinte).
-- **Retirer** les cartes `CycleStats` / `Stats` (shifts, vides, alertes, sous-rôle, % heures, souhaits).  
-  Tableaux `LegalRecap` / `WishRecap` **inchangés**, **sous** la grille.
+- Rangée notes **au-dessus** de la grille (`/planning` company **et** `/exemple`).
+- **Globale en premier à gauche.** Cadre **contrasté** vs les 5 axes : bordure plus épaisse, fond un cran plus saturé, même teinte HSL. Pas de résumé sous la globale.
+- Libellés : Occupation / Couverture / Légal / Bien-être / Rôles / Globale, tous `/10`.
+- Sous chaque pastille d’axe : `resumes[clé]` tel quel, **respecter les `\n`** (`white-space: pre-line`).
+- **Jauge horizontale** sous le chiffre (5 axes + globale) : remplissage `note / 10`, même teinte `hue = 12 × note`. `null` → jauge vide, neutre.
+- Couleur linéaire 0→10 : HSL `hue = 12 × note`. Pas de buckets.
+- Pas de cartes `CycleStats` / `Stats`. Tableaux légal / souhaits **sous** la grille.
 
 ## Tests
 
-- Même écart `|h − C|` : sur-occupation note **stricement** plus basse que sous-occupation (`k = 2`).
-- Fiche pile `C` les deux semaines → sous-note heures 10.
-- `resumes` : 5 clés ; `null` ssi note `null` ; formes ci-dessus (sous-chaîne).
-- Keep-best / `_attempt_key` inchangés. Exemple **92**.
+- Notes /10 **inchangées** (occupation ×2, rôles = écart / plafond).
+- `resumes.contrat` : `occupées` + `contrat` ; indispos sur une **deuxième** ligne (`\n`).
+- `resumes.roles` : `affectés` + `sous-rôle` ; contient `below_role` et `assignments`.
+- Keep-best inchangé. Exemple **92**.
 
 ## Hors freeze
 
