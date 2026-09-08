@@ -25,7 +25,7 @@ DETAIL_JOB_MISSING = "Calcul introuvable."
 TEAMS = ("salle", "cuisine")
 EFFORTS = ("minimal", "optimized", "maximal")
 ACTIVE_JOB_STATUSES = ("queued", "running")
-RECAP_KEYS = ("stats", "legal_cols", "legal_rows", "wish_cols", "wish_rows")
+RECAP_KEYS = ("stats", "legal_cols", "legal_rows", "wish_cols", "wish_rows", "score")
 MAXIMAL_ESTIMATED_SECONDS = 600
 EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3}
 
@@ -233,8 +233,24 @@ def _row_json(row: Any) -> dict[str, Any]:
     }
 
 
+def _cycle_score_json(score: Any) -> dict[str, Any]:
+    notes = score.notes
+    return {
+        "notes": {
+            "couverture": notes.couverture,
+            "legal": notes.legal,
+            "contrat": notes.contrat,
+            "wellbeing": notes.wellbeing,
+            "roles": notes.roles,
+        },
+        "global": score.global_score,
+        "weights": dict(score.weights),
+    }
+
+
 def _cycle_recap_json(recap: CycleRecap) -> dict[str, Any]:
     return {
+        "score": _cycle_score_json(recap.score),
         "stats": {
             "assignments": recap.stats.assignments,
             "empty": recap.stats.empty,
