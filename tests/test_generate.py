@@ -68,6 +68,16 @@ def _assert_live_recap(cycle: dict) -> None:
     assert "we1j" not in wish_keys
     assert "weA" not in wish_keys
     assert "weB" not in wish_keys
+    score = cycle["score"]
+    assert set(score["notes"]) == {"couverture", "legal", "contrat", "wellbeing", "roles"}
+    assert "global" in score
+    assert score["weights"] == {
+        "couverture": 3.0,
+        "legal": 3.0,
+        "contrat": 2.0,
+        "wellbeing": 1.5,
+        "roles": 0.5,
+    }
 
 
 def _salle_patch(fiche_id: str, name: str = "Chez Test") -> dict:
@@ -199,6 +209,9 @@ def test_generate_persist_cycles_auth_and_example():
     assert "stats" not in body
     _assert_live_recap(cycle)
     assert body["published"]["cuisine"] is None
+    listed = client.get("/v1/cycles", headers=headers)
+    assert listed.status_code == 200
+    _assert_live_recap(_slot(listed.json()["published"]["salle"], "minimal"))
 
     with patch("doux_planning.context.generate_cycle") as solve:
         cuisine = client.post(
@@ -251,6 +264,25 @@ def test_generate_persist_cycles_auth_and_example():
     assert coerced["versions"]["minimal"] is None
     _assert_live_recap(_slot(coerced, "optimized"))
     assert _slot(coerced, "optimized")["assignments"] == _slot(published["salle"], "minimal")["assignments"]
+
+    with session_scope() as session:
+        company = session.get(Company, restaurant_id)
+        assert company is not None
+        pack = company.published_cycles["salle"]
+        slot = dict(pack["versions"]["optimized"])
+        slot.pop("score", None)
+        company.published_cycles = {
+            "salle": {
+                "versions": {"minimal": None, "optimized": slot, "maximal": None},
+                "latest": "optimized",
+            },
+            "cuisine": None,
+        }
+        flag_modified(company, "published_cycles")
+    reset_engine()
+    without_score = client.get("/v1/cycles", headers=headers)
+    assert without_score.status_code == 200
+    _assert_live_recap(_slot(without_score.json()["published"]["salle"], "optimized"))
 
     invalid = client.post("/v1/generate", headers=headers, json={"team": "bar", "search_effort": "minimal"})
     assert invalid.status_code == 400

@@ -51,3 +51,7 @@
 ## 9. Admin recap (effort, duration, warning names)
 
 - [x] 9.1 Alembic nullable `generate_logs.search_effort` + `generate_logs.duration_seconds`. Time `generate_team` (sync + worker persist). Log 200 / job done with those keys and each warning + `employee_name` (fiche now, else null). GET `/v1/admin/generates` emits the keys (old rows null). New cycle slots write `duration_seconds` next to `generated_at`; old slots omit the key. Verify POST `minimal` → log `search_effort: minimal`, `duration_seconds` ≥ 0, warning `employee_name` if id; GET admin same keys; old row without columns → null; GET cycles new slot has `duration_seconds`; example 92. No JSONB Alembic. No Core / `web/` / `contracts/` / delete salarié / unlink
+
+## 10. Cycle score on generate / cycles
+
+- [x] 10.1 Emit Core `cycle_recap.score` as `{ notes, global, weights }` on every non-null cycle (POST 200 / job done / GET cycles / hydrate). No Alembic. Stored JSONB without `score` hydrates via Core (no 500). Example GET may omit `score`. Verify POST `minimal` slot has `score.notes` + `score.global` + `score.weights`; GET cycles same; stored cycle without `score` hydrates; example 92. No `engine.py`. No Core / `web/` / `contracts/` edits
