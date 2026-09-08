@@ -1,6 +1,6 @@
 ## Why
 
-The restaurateur (admin) needs four frozen salle datasets on disk so generation can be scored against a human oracle without touching a live restaurant, `published_cycles`, or keep-best.
+The restaurateur (admin) needs the salle bench catalogue on disk (four challenge games plus three crafted witnesses) so generation can be scored against a human oracle without touching a live restaurant, `published_cycles`, or keep-best.
 
 ## What Changes
 
@@ -15,7 +15,7 @@ The restaurateur (admin) needs four frozen salle datasets on disk so generation 
 
 ### New Capabilities
 
-- `bench-datasets`: load the four salle bench datasets from `data/bench/` and run isolated generate vs oracle scores.
+- `bench-datasets`: load the salle bench datasets from `data/bench/` (tight, clock, wishes, ladder, crafted) and run isolated generate vs oracle scores.
 
 ### Modified Capabilities
 

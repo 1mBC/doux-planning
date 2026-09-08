@@ -24,7 +24,7 @@ from doux_planning.staff import Role, RoleLadder, default_legal_rules
 from doux_planning.structures import ArrivalWave, DepartureWave, RestaurantHours, ServiceType, TypicalWeek, TypicalWeekCell
 from doux_planning.types import SearchEffort, Team, WEEKDAYS
 
-BENCH_CATEGORY_ORDER = ("tight", "clock", "wishes", "ladder")
+BENCH_CATEGORY_ORDER = ("tight", "clock", "wishes", "ladder", "crafted")
 NOTE_KEYS = ("couverture", "legal", "contrat", "wellbeing", "roles")
 
 

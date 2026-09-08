@@ -12,7 +12,7 @@ from doux_planning.api.app import app
 from doux_planning.api.auth import DETAIL_ADMIN, promote_admin_email
 from doux_planning.api.db import BenchRun, GenerateLog, reset_engine, session_scope
 from doux_planning.bench import BenchOutcome, list_bench_datasets, load_bench_dataset, run_bench
-from doux_planning.context import SCORE_WEIGHTS, CycleScore, ScoreNotes, ScoreResumes, empty_restaurant, team_ready, upsert_employee
+from doux_planning.context import SCORE_WEIGHTS, CycleScore, ScoreNotes, ScoreResumes, cycle_score, empty_restaurant, team_ready, upsert_employee
 from doux_planning.engine import PlanningDraft, evaluate
 from doux_planning.staff import default_legal_rules
 from doux_planning.types import SearchEffort, Team, WEEKDAYS, WarningSeverity
@@ -122,14 +122,29 @@ def _expected_result(dataset):
     return evaluate(draft)
 
 
-def test_list_bench_datasets_has_four_salle_games():
+FROZEN_BENCH_PAIRS = {
+    ("tight", "halles"),
+    ("clock", "nocturne"),
+    ("wishes", "campus"),
+    ("ladder", "brigade"),
+    ("crafted", "atelier"),
+    ("crafted", "rivoli"),
+    ("crafted", "marais"),
+}
+
+
+def test_list_bench_datasets_has_seven_salle_games():
     listed = list_bench_datasets()
-    assert {(item.category, item.id) for item in listed} == {
+    assert [(item.category, item.id) for item in listed] == [
         ("tight", "halles"),
         ("clock", "nocturne"),
         ("wishes", "campus"),
         ("ladder", "brigade"),
-    }
+        ("crafted", "atelier"),
+        ("crafted", "marais"),
+        ("crafted", "rivoli"),
+    ]
+    assert {(item.category, item.id) for item in listed} == FROZEN_BENCH_PAIRS
     assert all(item.name and item.challenge_fr for item in listed)
 
 
@@ -145,6 +160,24 @@ def test_expected_assignments_have_zero_interdit():
         dataset = load_bench_dataset(item.category, item.id)
         result = _expected_result(dataset)
         assert result.of_severity(WarningSeverity.INTERDIT) == ()
+
+
+@pytest.mark.parametrize("dataset_id", ["atelier", "rivoli", "marais"])
+def test_crafted_expected_global_at_least_nine_five(dataset_id):
+    dataset = load_bench_dataset("crafted", dataset_id)
+    result = _expected_result(dataset)
+    score = cycle_score(
+        PlanningDraft(
+            employees=tuple(person for person in dataset.state.employees if person.team == Team.SALLE),
+            structures=tuple(item for item in dataset.state.structures if item.team == Team.SALLE),
+            hours=dataset.state.hours,
+            assignments=dataset.expected,
+            legal_rules=default_legal_rules(),
+        ),
+        result,
+    )
+    assert score.global_score is not None
+    assert score.global_score >= 9.5
 
 
 def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
@@ -237,12 +270,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     datasets = client.get("/v1/admin/bench/datasets", headers=headers)
     assert datasets.status_code == 200
     assert datasets.json()["app_version"] == "0.27.0"
-    assert {(item["category"], item["id"]) for item in datasets.json()["datasets"]} == {
-        ("tight", "halles"),
-        ("clock", "nocturne"),
-        ("wishes", "campus"),
-        ("ladder", "brigade"),
-    }
+    assert {(item["category"], item["id"]) for item in datasets.json()["datasets"]} == FROZEN_BENCH_PAIRS
 
     logs_before = _count_rows(GenerateLog)
     runs_before = _count_rows(BenchRun)
@@ -286,7 +314,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert queued.status_code == 202
     assert queued.json()["status"] == "queued"
     job_ids = queued.json()["job_ids"]
-    assert len(job_ids) == 4
+    assert len(job_ids) == 7
     runs_before_tick = _count_rows(BenchRun)
     remaining = set(job_ids)
     for _ in range(20):
@@ -304,8 +332,8 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
         assert done.json()["status"] == "done"
         assert done.json()["run_id"]
         run_ids.append(done.json()["run_id"])
-    assert len(set(run_ids)) == 4
-    assert _count_rows(BenchRun) >= runs_before_tick + 4
+    assert len(set(run_ids)) == 7
+    assert _count_rows(BenchRun) >= runs_before_tick + 7
     maximal = client.get("/v1/admin/bench/compare/tight/halles/maximal", headers=headers)
     assert maximal.status_code == 200
     assert maximal.json()["search_effort"] == "maximal"
