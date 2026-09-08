@@ -112,7 +112,7 @@ function asAssignment(shift: CycleAssignment): Assignment {
   return shift as Assignment;
 }
 
-function PublishedSheet({
+export function PublishedSheet({
   title,
   weekOffset,
   employees,
