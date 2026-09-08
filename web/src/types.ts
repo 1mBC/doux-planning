@@ -113,8 +113,17 @@ export type CycleScoreWeights = {
   roles: number;
 };
 
+export type CycleScoreResumes = {
+  couverture: string | null;
+  legal: string | null;
+  contrat: string | null;
+  wellbeing: string | null;
+  roles: string | null;
+};
+
 export type CycleScore = {
   notes: CycleScoreNotes;
+  resumes: CycleScoreResumes;
   global: number | null;
   weights: CycleScoreWeights;
 };

@@ -272,3 +272,18 @@ Company `/planning` SHALL display the five axis notes and `global` from `score` 
 #### Scenario: Null note is a dash
 - **WHEN** a displayed cycle has `score.notes.wellbeing` null
 - **THEN** that pastille shows `—` and does not invent a number
+
+### Requirement: Cycle score chrome
+Company `/planning` and `/exemple` SHALL place the `CycleScoreNotes` row **above** the grid and MUST NOT render the old `CycleStats` / `Stats` cards (shifts, empty posts, legal alerts, below-role, hours percent, wellbeing counts). `LegalRecap` / `WishRecap` SHALL stay **below** the grid, unchanged. The `contrat` axis label SHALL be **Occupation /10** (JSON key `contrat` unchanged). Each axis pill SHALL show `resumes[key]` as-is underneath; the global pill SHALL have no subtitle. Color SHALL be linear HSL `hue = 12 × note` (0 red → 120 green); `null` SHALL be a dash with no tint. The parser MUST require `resumes` (five keys, `string | null`); a `score` payload without `resumes` SHALL omit the notes row and MUST NOT crash. The client MUST NOT edit `weights` or offer an admin bench.
+
+#### Scenario: Occupation label and resumes
+- **WHEN** a displayed cycle has `score.notes` and `score.resumes`
+- **THEN** the contrat pill is labeled Occupation /10, each axis shows its `resumes` string, and Globale has no subtitle
+
+#### Scenario: Missing resumes omits notes
+- **WHEN** a cycle `score` object has no `resumes` key
+- **THEN** the notes row is omitted and the page still renders
+
+#### Scenario: Effort switch updates notes and resumes
+- **WHEN** salle has both `versions.minimal` and `versions.optimized` with different `score` notes and resumes
+- **THEN** clicking Minimal then Optimisé shows that slot’s notes and resumes without POSTing

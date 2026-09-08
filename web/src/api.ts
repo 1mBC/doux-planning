@@ -16,6 +16,7 @@ import type {
   WishRow,
   CycleScore,
   CycleScoreNotes,
+  CycleScoreResumes,
   CycleScoreWeights,
 } from "./types";
 
@@ -223,26 +224,43 @@ function parseNullableNote(value: unknown, path: string): number | null {
 
 const NOTE_KEYS = ["couverture", "legal", "contrat", "wellbeing", "roles"] as const;
 
+function parseNullableResume(value: unknown, path: string): string | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new PayloadError(`clé invalide : ${path}`);
+  }
+  return value;
+}
+
 export function parseCycleScore(value: unknown, path: string): CycleScore {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
   const notesRaw = requireRecord(value, "notes", path);
+  const resumesRaw = requireRecord(value, "resumes", path);
   const weightsRaw = requireRecord(value, "weights", path);
   if (!("global" in value)) {
     throw new PayloadError(`clé absente : ${path}.global`);
   }
   const notes = {} as CycleScoreNotes;
+  const resumes = {} as CycleScoreResumes;
   const weights = {} as CycleScoreWeights;
   for (const key of NOTE_KEYS) {
     if (!(key in notesRaw)) {
       throw new PayloadError(`clé absente : ${path}.notes.${key}`);
     }
+    if (!(key in resumesRaw)) {
+      throw new PayloadError(`clé absente : ${path}.resumes.${key}`);
+    }
     notes[key] = parseNullableNote(notesRaw[key], `${path}.notes.${key}`);
+    resumes[key] = parseNullableResume(resumesRaw[key], `${path}.resumes.${key}`);
     weights[key] = requireNumber(weightsRaw, key, `${path}.weights`);
   }
   return {
     notes,
+    resumes,
     global: parseNullableNote(value.global, `${path}.global`),
     weights,
   };
@@ -250,6 +268,9 @@ export function parseCycleScore(value: unknown, path: string): CycleScore {
 
 export function parseOptionalCycleScore(obj: Record<string, unknown>, path: string): CycleScore | undefined {
   if (!("score" in obj) || obj.score === undefined || obj.score === null) {
+    return undefined;
+  }
+  if (!isRecord(obj.score) || !isRecord(obj.score.resumes)) {
     return undefined;
   }
   return parseCycleScore(obj.score, `${path}.score`);

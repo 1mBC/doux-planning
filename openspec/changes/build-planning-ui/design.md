@@ -205,6 +205,19 @@ Suivre `score.md` — le suivre, ne pas le modifier.
 
 Version `0.25.0`.
 
+### 26. Score chrome (Occupation, résumés, couleur linéaire)
+
+Suivre `score.md` § UI (cette tranche) — le suivre, ne pas le modifier.
+
+- `/planning` company **et** `/exemple` : rangée `CycleScoreNotes` **au-dessus** de la grille. Retirer `CycleStats` / `Stats`. Tableaux légal / souhaits inchangés **sous** la grille.
+- Libellé `notes.contrat` : **Occupation /10**. Clé JSON `contrat` inchangée.
+- Parser : exiger `resumes` (5 clés, `string | null`). Payload sans `resumes` → omettre les notes, pas de crash.
+- Sous chaque pastille d’axe : `resumes[clé]` tel quel. Globale : pas de sous-ligne.
+- Couleur linéaire 0→10 : `hue = 12 × note` (HSL). `null` → tiret, neutre.
+- Pas d’édition des poids. Pas de bench.
+
+Version `0.26.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.
