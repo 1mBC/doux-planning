@@ -38,7 +38,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 25 — generate-jobs + polish UI | `domain/generate-jobs.md`, `http/v1-generate.md`, `domain/export-planning.md`, `domain/wizard-ui.md` ; briefs `infra-generate-jobs.md`, `ui-planning-polish.md` | **landed** `71b6bfa` (UI v0.22.0) |
 | 26 — versions + chrome | `domain/generate-versions.md` ; briefs `infra-generate-versions.md`, `ui-planning-chrome.md` | **landed** `2ef7548` (UI v0.23.0) |
 | 27 — admin recap + wizard polish | `domain/admin.md`, `domain/generate-versions.md`, `domain/wizard-ui.md` ; briefs `infra-admin-recap.md`, `ui-wizard-polish.md` | **landed** `881876e` (UI v0.24.0) |
-| 28 — notes /10 | `domain/score.md` ; briefs `core-score.md`, `infra-score.md`, `ui-score.md` | Core brief puis Infra puis UI |
+| 28 — notes /10 | `domain/score.md` ; briefs `core-score.md`, `infra-score.md`, `ui-score.md` | **landed** `782b694` (UI v0.25.0) |
 
 ## Ownership git (ne pas croiser)
 
