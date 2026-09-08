@@ -165,43 +165,6 @@ function PlanningSheet({
   );
 }
 
-function Stats({ stats }: { stats: ExamplePayload["planning"]["stats"] }) {
-  const items: { value: string; label: string; tone?: "ok" | "warn" }[] = [
-    { value: String(stats.assignments), label: "Shifts posés" },
-    { value: String(stats.empty), label: "Postes vides", tone: stats.empty === 0 ? "ok" : "warn" },
-    {
-      value: String(stats.interdit),
-      label: "Alertes légales",
-      tone: stats.interdit === 0 ? "ok" : "warn",
-    },
-    {
-      value: `${stats.below_role} / ${stats.assignments}`,
-      label: "Shifts sous le rôle",
-      tone: stats.below_role === 0 ? "ok" : "warn",
-    },
-    {
-      value: `${stats.hours.percent} %`,
-      label: "Heures vs contrat",
-      tone: stats.hours.percent === 100 ? "ok" : "warn",
-    },
-    {
-      value: `${stats.wellbeing.held} / ${stats.wellbeing.total}`,
-      label: "Souhaits bien-être",
-      tone: stats.wellbeing.held === stats.wellbeing.total ? "ok" : "warn",
-    },
-  ];
-  return (
-    <div className="stats">
-      {items.map((item) => (
-        <div key={item.label} className={`stat ${item.tone ?? ""}`}>
-          <b>{item.value}</b>
-          <span>{item.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function WarningsList({ warnings }: { warnings: WarningItem[] }) {
   return (
     <section>
@@ -438,8 +401,7 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
         </p>
       ) : null}
 
-      {!editing ? <Stats stats={planning.stats} /> : null}
-      {!editing && planning.score ? <CycleScoreNotes score={planning.score} /> : null}
+      {!editing ? <CycleScoreNotes score={planning.score} /> : null}
 
       <PlanningSheet
         title="Semaine A"

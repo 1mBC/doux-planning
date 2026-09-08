@@ -1,67 +1,61 @@
+import type { CSSProperties } from "react";
 import type { LegalCol, PublishedCycle } from "./generate";
-import type { CycleScore, PlanningStats } from "./types";
+import type { CycleScore } from "./types";
 import { formatCycleNote } from "./format";
-
-export function CycleStats({ stats }: { stats: PlanningStats }) {
-  const items: { value: string; label: string; tone?: "ok" | "warn" }[] = [
-    { value: String(stats.assignments), label: "Shifts posés" },
-    { value: String(stats.empty), label: "Postes vides", tone: stats.empty === 0 ? "ok" : "warn" },
-    {
-      value: String(stats.interdit),
-      label: "Alertes légales",
-      tone: stats.interdit === 0 ? "ok" : "warn",
-    },
-    {
-      value: `${stats.below_role} / ${stats.assignments}`,
-      label: "Shifts sous le rôle",
-      tone: stats.below_role === 0 ? "ok" : "warn",
-    },
-    {
-      value: `${stats.hours.percent} %`,
-      label: "Heures vs contrat",
-      tone: stats.hours.percent === 100 ? "ok" : "warn",
-    },
-    {
-      value: `${stats.wellbeing.held} / ${stats.wellbeing.total}`,
-      label: "Souhaits bien-être",
-      tone: stats.wellbeing.held === stats.wellbeing.total ? "ok" : "warn",
-    },
-  ];
-  return (
-    <div className="stats">
-      {items.map((item) => (
-        <div key={item.label} className={`stat ${item.tone ?? ""}`}>
-          <b>{item.value}</b>
-          <span>{item.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 const NOTE_LABELS: { key: keyof CycleScore["notes"]; label: string }[] = [
   { key: "couverture", label: "Couverture /10" },
   { key: "legal", label: "Légal /10" },
-  { key: "contrat", label: "Contrat /10" },
+  { key: "contrat", label: "Occupation /10" },
   { key: "wellbeing", label: "Bien-être /10" },
   { key: "roles", label: "Rôles /10" },
 ];
 
+function noteTint(note: number | null): CSSProperties | undefined {
+  if (note === null || !Number.isFinite(note)) {
+    return undefined;
+  }
+  const hue = 12 * note;
+  return {
+    background: `hsl(${hue}, 70%, 92%)`,
+    borderColor: `hsl(${hue}, 55%, 58%)`,
+  };
+}
+
+function noteDigitColor(note: number | null): CSSProperties | undefined {
+  if (note === null || !Number.isFinite(note)) {
+    return undefined;
+  }
+  return { color: `hsl(${12 * note}, 70%, 28%)` };
+}
+
 export function CycleScoreNotes({ score }: { score: CycleScore | undefined }) {
+  if (!score) {
+    return null;
+  }
   const items = [
     ...NOTE_LABELS.map((item) => ({
-      value: formatCycleNote(score?.notes[item.key]),
+      value: formatCycleNote(score.notes[item.key]),
       label: item.label,
+      note: score.notes[item.key],
+      resume: score.resumes[item.key],
       global: false,
     })),
-    { value: formatCycleNote(score?.global), label: "Globale /10", global: true },
+    {
+      value: formatCycleNote(score.global),
+      label: "Globale /10",
+      note: score.global,
+      resume: null as string | null,
+      global: true,
+    },
   ];
   return (
     <div className="stats score-stats">
       {items.map((item) => (
-        <div key={item.label} className={item.global ? "stat score-global" : "stat"}>
-          <b>{item.value}</b>
+        <div key={item.label} className={item.global ? "stat score-global" : "stat"} style={noteTint(item.note)}>
+          <b style={noteDigitColor(item.note)}>{item.value}</b>
           <span>{item.label}</span>
+          {!item.global && item.resume ? <p className="score-resume">{item.resume}</p> : null}
         </div>
       ))}
     </div>

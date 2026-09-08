@@ -69,13 +69,17 @@ h3 {
   color: #9a6700;
 }
 
-.score-stats {
-  margin-top: -6px;
+.score-stats .stat {
+  min-width: 148px;
+  max-width: 220px;
 }
 
-.stat.score-global {
-  border-color: #2b6ea8;
-  background: #eef4fa;
+.score-resume {
+  margin: 6px 0 0;
+  color: #555;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.25;
 }
 
 .release {

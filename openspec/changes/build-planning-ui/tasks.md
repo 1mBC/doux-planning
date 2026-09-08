@@ -135,3 +135,8 @@
 
 - [x] 23.1 Parse `score` (5 notes + globale) ; pastilles /10 on company `/planning` for the displayed slot ; null → tiret ; one FR decimal ; bump `web/` to 0.25.0
 - [x] 23.2 Verify `npm run build` ; notes visibles after Recalculer ; switching effort shows that slot’s notes ; exemple 92 ; `v0.25.0`
+
+## 24. Score chrome (Occupation, résumés)
+
+- [x] 24.1 Parse `resumes` (5 clés) ; Occupation /10 ; sous-ligne par axe ; HSL `hue = 12 × note` ; retirer `CycleStats` / `Stats` ; bump `web/` to 0.26.0
+- [x] 24.2 Verify `npm run build` ; planning + exemple : notes en premier, Occupation, résumés, plus d’anciennes cartes ; switch d’effort = notes + resumes du slot ; `v0.26.0`
