@@ -317,7 +317,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert len(job_ids) == 7
     runs_before_tick = _count_rows(BenchRun)
     remaining = set(job_ids)
-    for _ in range(20):
+    for _ in range(40):
         if not remaining:
             break
         job_id = tick_bench_job(run_bench_fn=_stub_run_bench)
@@ -334,6 +334,14 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
         run_ids.append(done.json()["run_id"])
     assert len(set(run_ids)) == 7
     assert _count_rows(BenchRun) >= runs_before_tick + 7
+    crafted = client.post(
+        "/v1/admin/bench/run",
+        headers=headers,
+        json={"scope": "category", "category": "crafted", "search_effort": "maximal"},
+    )
+    assert crafted.status_code == 202
+    assert crafted.json()["status"] == "queued"
+    assert len(crafted.json()["job_ids"]) == 3
     maximal = client.get("/v1/admin/bench/compare/tight/halles/maximal", headers=headers)
     assert maximal.status_code == 200
     assert maximal.json()["search_effort"] == "maximal"
