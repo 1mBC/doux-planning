@@ -55,3 +55,7 @@
 ## 10. Cycle score on generate / cycles
 
 - [x] 10.1 Emit Core `cycle_recap.score` as `{ notes, global, weights }` on every non-null cycle (POST 200 / job done / GET cycles / hydrate). No Alembic. Stored JSONB without `score` hydrates via Core (no 500). Example GET may omit `score`. Verify POST `minimal` slot has `score.notes` + `score.global` + `score.weights`; GET cycles same; stored cycle without `score` hydrates; example 92. No `engine.py`. No Core / `web/` / `contracts/` edits
+
+## 11. Score resumes on generate / cycles
+
+- [x] 11.1 Emit Core `cycle_recap.score.resumes` (five keys, `string | null`) on every non-null cycle via `_cycle_score_json`. No Alembic. Stored JSONB with `score` but no `resumes` hydrates via Core (no 500, no partial score). JSON key `contrat` unchanged. Example GET may omit `score`. Verify POST `minimal` has `score.notes` + `score.resumes` (5 keys) + `score.global` + `score.weights`; GET cycles same; stored score without `resumes` hydrates; example 92. No `engine.py`. No Core / `web/` / `contracts/` edits
