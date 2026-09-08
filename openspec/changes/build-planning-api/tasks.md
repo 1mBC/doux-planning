@@ -59,3 +59,7 @@
 ## 11. Score resumes on generate / cycles
 
 - [x] 11.1 Emit Core `cycle_recap.score.resumes` (five keys, `string | null`) on every non-null cycle via `_cycle_score_json`. No Alembic. Stored JSONB with `score` but no `resumes` hydrates via Core (no 500, no partial score). JSON key `contrat` unchanged. Example GET may omit `score`. Verify POST `minimal` has `score.notes` + `score.resumes` (5 keys) + `score.global` + `score.weights`; GET cycles same; stored score without `resumes` hydrates; example 92. No `engine.py`. No Core / `web/` / `contracts/` edits
+
+## 12. Admin bench HTTP
+
+- [x] 12.1 Alembic `bench_jobs` + `bench_runs`. Admin routes wrap Core `run_bench` / list / load. Sync dataset `minimal`/`optimized` → 200 + row. `all`/`category`/`maximal` → 202 one job per jeu; worker same process other table (no 409 with `generate_jobs`); tick stub for Maximal. No `published_cycles` / `generate_logs`. SPA `/admin` `/admin/bench` compare path. Verify POST dataset minimal 200 + GET runs; POST all maximal 202 + 4 stub ticks → 4 runs; GET compare; 403 non-admin; resto generate `minimal` intact; example 92. No `engine.py` / `web/` / `contracts/` / `data/bench/**` edits

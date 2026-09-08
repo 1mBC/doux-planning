@@ -56,10 +56,11 @@ def test_spa_planning_serves_index_when_dist_exists():
         pytest.skip("web/dist absent")
     index = (dist / "index.html").read_text(encoding="utf-8")
     client = _client()
-    page = client.get("/planning")
-    assert page.status_code == 200
-    assert "<html" in page.text.lower()
-    assert page.text == index
+    for path in ("/planning", "/admin", "/admin/bench", "/admin/bench/tight/halles/minimal"):
+        page = client.get(path)
+        assert page.status_code == 200
+        assert "<html" in page.text.lower()
+        assert page.text == index
     example = client.get("/v1/examples/saint-cloud")
     assert example.status_code == 200
     assert example.json()["planning"]["stats"]["assignments"] == 92
