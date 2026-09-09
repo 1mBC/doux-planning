@@ -97,25 +97,37 @@ def _clear_generate_logs() -> None:
             db.delete(row)
 
 
-def _http_warning(item: dict) -> dict:
+def _evaluate_miss_facts(cycle: dict) -> list[dict]:
+    return [
+        item
+        for item in cycle["facts"]
+        if item.get("polarity") == "miss" and item.get("kind") != "role_gap"
+    ]
+
+
+def _http_fact(item: dict) -> dict:
     return {
+        "axis": item["axis"],
+        "kind": item["kind"],
+        "polarity": item["polarity"],
         "severity": item["severity"],
-        "code": item["code"],
-        "message": item["message"],
         "employee_id": item["employee_id"],
         "day_index": item["day_index"],
+        "payload": item["payload"],
     }
 
 
-def _assert_enriched_warnings(log_warnings: list, cycle_warnings: list, names: dict[str, str]) -> None:
-    assert len(log_warnings) == len(cycle_warnings)
-    for log_warning, cycle_warning in zip(log_warnings, cycle_warnings):
-        assert _http_warning(log_warning) == cycle_warning
-        employee_id = cycle_warning.get("employee_id")
+def _assert_enriched_facts(log_facts: list, cycle: dict, names: dict[str, str]) -> None:
+    misses = _evaluate_miss_facts(cycle)
+    assert len(log_facts) == len(misses)
+    for log_fact, cycle_fact in zip(log_facts, misses):
+        assert _http_fact(log_fact) == _http_fact(cycle_fact)
+        assert "message" not in log_fact
+        employee_id = cycle_fact.get("employee_id")
         if employee_id:
-            assert log_warning["employee_name"] == names.get(employee_id)
+            assert log_fact["employee_name"] == names.get(employee_id)
         else:
-            assert log_warning["employee_name"] is None
+            assert log_fact["employee_name"] is None
 
 
 def test_admin_without_database_is_503(monkeypatch):
@@ -215,9 +227,10 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
     assert first_entry["search_effort"] == "minimal"
     assert isinstance(first_entry["duration_seconds"], (int, float))
     assert first_entry["duration_seconds"] >= 0
-    _assert_enriched_warnings(
-        first_entry["warnings"],
-        first_slot["warnings"],
+    assert "warnings" not in first_entry
+    _assert_enriched_facts(
+        first_entry["facts"],
+        first_slot,
         names={fiche_id: "Emma"},
     )
     assert "T" in first_entry["created_at"]
@@ -248,9 +261,9 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
     assert entries[0]["search_effort"] == "minimal"
     assert isinstance(entries[0]["duration_seconds"], (int, float))
     assert entries[0]["duration_seconds"] >= 0
-    _assert_enriched_warnings(
-        entries[0]["warnings"],
-        second.json()["published"]["salle"]["versions"]["minimal"]["warnings"],
+    _assert_enriched_facts(
+        entries[0]["facts"],
+        second.json()["published"]["salle"]["versions"]["minimal"],
         names={fiche_id: "Emma"},
     )
 
@@ -265,7 +278,15 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
                 team="salle",
                 search_effort=None,
                 duration_seconds=None,
-                warnings=[],
+                warnings=[
+                    {
+                        "severity": "souhait",
+                        "code": "contract_hours",
+                        "message": "Emma : contrat",
+                        "employee_id": "emma",
+                        "day_index": None,
+                    }
+                ],
             )
         )
     with_legacy = client.get("/v1/admin/generates", headers=headers)
@@ -273,6 +294,12 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
     legacy_entry = next(item for item in with_legacy.json()["entries"] if item["id"] == old_id)
     assert legacy_entry["search_effort"] is None
     assert legacy_entry["duration_seconds"] is None
+    assert "warnings" not in legacy_entry
+    assert len(legacy_entry["facts"]) == 1
+    assert legacy_entry["facts"][0]["kind"] == "contract_hours"
+    assert legacy_entry["facts"][0]["polarity"] == "miss"
+    assert legacy_entry["facts"][0]["payload"] == {}
+    assert legacy_entry["facts"][0]["message"] == "Emma : contrat"
 
     employee = client.post(
         "/v1/auth/register",

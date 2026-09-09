@@ -496,6 +496,8 @@ def test_sandbox_enter_get_and_reuse():
     assert body["restaurant"]["name"] == "Saint-Cloud"
     assert {person["id"] for person in body["restaurant"]["employees"]}
     assert body["planning"]["assignments"]
+    assert "facts" in body["planning"]
+    assert "warnings" not in body["planning"]
     assert "legal_rows" not in body["planning"]
     assert "stats" not in body["planning"]
     first = body["planning"]["assignments"][0]
@@ -549,6 +551,10 @@ def test_sandbox_preview_does_not_mutate_and_commit_undo():
         "coverage_removed",
         "role_fit",
     }
+    for key in ("new_interdits", "broken_wishes", "coverage_added", "coverage_removed"):
+        for fact in item["impact"][key]:
+            assert "message" not in fact
+            assert "kind" in fact and "payload" in fact and "polarity" in fact
     assert set(item["current_score"]) == set(before["score"])
     after_preview = client.get("/v1/sandbox").json()
     assert after_preview["planning"]["assignments"] == before["planning"]["assignments"]

@@ -71,9 +71,10 @@ def _assert_live_recap(cycle: dict) -> None:
     score = cycle["score"]
     axes = {"couverture", "legal", "contrat", "wellbeing", "roles"}
     assert set(score["notes"]) == axes
-    assert set(score["resumes"]) == axes
+    assert "resumes" not in score
+    assert "warnings" not in cycle
+    assert isinstance(cycle["facts"], list)
     assert "global" in score
-    assert "global" not in score["resumes"]
     assert score["weights"] == {
         "couverture": 3.0,
         "legal": 3.0,
@@ -81,6 +82,12 @@ def _assert_live_recap(cycle: dict) -> None:
         "wellbeing": 1.5,
         "roles": 0.5,
     }
+    for row in list(cycle["legal_rows"]) + list(cycle["wish_rows"]):
+        for cell in row["cells"].values():
+            if cell is None:
+                continue
+            assert "kind" in cell and "payload" in cell
+            assert "text" not in cell
 
 
 def _salle_patch(fiche_id: str, name: str = "Chez Test") -> dict:
@@ -254,7 +261,18 @@ def test_generate_persist_cycles_auth_and_example():
         salle_blob = company.published_cycles["salle"]
         minimal = salle_blob["versions"]["minimal"]
         company.published_cycles = {
-            "salle": {"assignments": minimal["assignments"], "warnings": minimal["warnings"]},
+            "salle": {
+                "assignments": minimal["assignments"],
+                "warnings": [
+                    {
+                        "severity": "souhait",
+                        "code": "contract_hours",
+                        "message": "Emma : contrat",
+                        "employee_id": fiche_id,
+                        "day_index": None,
+                    }
+                ],
+            },
             "cuisine": None,
         }
         flag_modified(company, "published_cycles")
@@ -292,9 +310,47 @@ def test_generate_persist_cycles_auth_and_example():
         assert company is not None
         pack = company.published_cycles["salle"]
         slot = dict(pack["versions"]["optimized"])
+        slot.pop("facts", None)
+        slot["warnings"] = [
+            {
+                "severity": "souhait",
+                "code": "contract_hours",
+                "message": "Emma : contrat",
+                "employee_id": fiche_id,
+                "day_index": None,
+            }
+        ]
         score = dict(slot["score"])
-        score.pop("resumes", None)
+        score["resumes"] = {
+            "couverture": "ancien",
+            "legal": "ancien",
+            "contrat": "ancien",
+            "wellbeing": "ancien",
+            "roles": "ancien",
+        }
         slot["score"] = score
+        slot["legal_rows"] = [
+            {
+                "name": row["name"],
+                "employee_id": row["employee_id"],
+                "cells": {
+                    key: None if cell is None else {"ok": cell["ok"], "text": "ancien"}
+                    for key, cell in row["cells"].items()
+                },
+            }
+            for row in slot["legal_rows"]
+        ]
+        slot["wish_rows"] = [
+            {
+                "name": row["name"],
+                "employee_id": row["employee_id"],
+                "cells": {
+                    key: None if cell is None else {"ok": cell["ok"], "text": "ancien"}
+                    for key, cell in row["cells"].items()
+                },
+            }
+            for row in slot["wish_rows"]
+        ]
         company.published_cycles = {
             "salle": {
                 "versions": {"minimal": None, "optimized": slot, "maximal": None},
@@ -338,6 +394,12 @@ def test_generate_persist_cycles_auth_and_example():
     example = client.get("/v1/examples/saint-cloud")
     assert example.status_code == 200
     assert example.json()["planning"]["stats"]["assignments"] == 92
+    example_facts = example.json()["planning"]["facts"]
+    assert (
+        len([item for item in example_facts if item["polarity"] == "miss" and item["kind"] != "role_gap"])
+        == 17
+    )
+    assert "warnings" not in example.json()["planning"]
     with_session = client.get("/v1/examples/saint-cloud", headers=headers)
     assert with_session.status_code == 200
     assert with_session.json()["planning"]["stats"]["assignments"] == 92
@@ -591,7 +653,18 @@ def test_generate_versions_slots_me_planning_and_enter():
         assert company is not None
         flat = _slot(first.json()["published"]["salle"], "minimal")
         company.published_cycles = {
-            "salle": {"assignments": flat["assignments"], "warnings": flat["warnings"]},
+            "salle": {
+                "assignments": flat["assignments"],
+                "warnings": [
+                    {
+                        "severity": "souhait",
+                        "code": "contract_hours",
+                        "message": "Emma : contrat",
+                        "employee_id": fiche_id,
+                        "day_index": None,
+                    }
+                ],
+            },
             "cuisine": None,
         }
         flag_modified(company, "published_cycles")

@@ -4,7 +4,7 @@ from typing import Any
 
 from sqlalchemy.orm.attributes import flag_modified
 
-from doux_planning.engine import EngineResult, Shift, _attempt_key
+from doux_planning.engine import EngineResult, Shift, _attempt_key, evaluate
 from doux_planning.hydrate import hydrate_delivered_cycle
 from doux_planning.planning import (
     EmptyHistoryError,
@@ -14,8 +14,7 @@ from doux_planning.planning import (
     PreviewProposal,
     SandboxSnapshot,
 )
-from doux_planning.types import Team, WarningSeverity
-from doux_planning.warnings import Warning
+from doux_planning.types import Team
 
 RESTAURANT_ID = "saint-cloud"
 GESTURES = {"retune", "replace", "swap", "fill"}
@@ -116,7 +115,9 @@ def sandbox_state() -> dict[str, Any]:
     assert sandbox is not None
     result = sandbox.last_result
     assignments = sandbox.draft.assignments
-    warnings = result.warnings if result is not None else ()
+    if result is None:
+        evaluated = evaluate(sandbox.draft)
+        result = EngineResult(assignments=assignments, warnings=evaluated.warnings)
     return {
         "sandbox": {"target": "cycle", "history_length": len(sandbox.history)},
         "restaurant": {
@@ -126,7 +127,7 @@ def sandbox_state() -> dict[str, Any]:
         },
         "planning": {
             "assignments": [_shift_json(item) for item in assignments],
-            "warnings": [_warning_json(item) for item in warnings],
+            "facts": _cycle_facts_json(state, Team.SALLE, sandbox.draft, result),
         },
         "score": _score_json(sandbox.draft, result),
         "history": list(_recaps),
@@ -263,14 +264,32 @@ def _shift_json(shift: Shift) -> dict[str, Any]:
     }
 
 
-def _warning_json(warning: Warning) -> dict[str, Any]:
-    return {
-        "severity": warning.severity.value,
-        "code": warning.code,
-        "message": warning.message,
-        "employee_id": warning.employee_id,
-        "day_index": warning.day_index,
-    }
+def _fact_json(item) -> dict[str, Any]:
+    from doux_planning.api.generate import _fact_json as serialize_fact
+
+    return serialize_fact(item)
+
+
+def _cycle_facts_json(state, team: Team, draft, result: EngineResult) -> list[dict[str, Any]]:
+    from doux_planning.api.generate import _cycle_recap_json
+    from doux_planning.context import cycle_recap
+    from doux_planning.planning import PublishedCycle
+
+    previous = state.published_cycles.get(team)
+    state.published_cycles[team] = PublishedCycle(id=team.value, draft=draft, result=result)
+    try:
+        recap = cycle_recap(state, team)
+        return _cycle_recap_json(recap)["facts"]
+    finally:
+        if previous is None:
+            state.published_cycles.pop(team, None)
+        else:
+            state.published_cycles[team] = previous
+
+
+def _evaluated_result(draft, assignments) -> EngineResult:
+    evaluated = evaluate(draft.with_assignments(tuple(assignments)))
+    return EngineResult(assignments=tuple(assignments), warnings=evaluated.warnings)
 
 
 def _score_json(draft, result: EngineResult | None) -> dict[str, Any]:
@@ -281,8 +300,8 @@ def _score_json(draft, result: EngineResult | None) -> dict[str, Any]:
 
 def _impact_json(impact: PreviewImpact) -> dict[str, Any]:
     return {
-        "new_interdits": [_warning_json(item) for item in impact.new_interdits],
-        "broken_wishes": [_warning_json(item) for item in impact.broken_wishes],
+        "new_interdits": [_fact_json(item) for item in impact.new_interdits],
+        "broken_wishes": [_fact_json(item) for item in impact.broken_wishes],
         "contract": [
             {
                 "employee_id": row.employee_id,
@@ -294,8 +313,8 @@ def _impact_json(impact: PreviewImpact) -> dict[str, Any]:
             }
             for row in impact.contract
         ],
-        "coverage_added": [_warning_json(item) for item in impact.coverage_added],
-        "coverage_removed": [_warning_json(item) for item in impact.coverage_removed],
+        "coverage_added": [_fact_json(item) for item in impact.coverage_added],
+        "coverage_removed": [_fact_json(item) for item in impact.coverage_removed],
         "role_fit": [
             {
                 "current_gap": row.current_gap,
@@ -349,16 +368,6 @@ def _proposal_json(item: PreviewProposal) -> dict[str, Any]:
     }
 
 
-def _warning_from_json(raw: dict[str, Any]) -> Warning:
-    return Warning(
-        WarningSeverity(raw["severity"]),
-        raw["code"],
-        raw["message"],
-        raw.get("employee_id"),
-        raw.get("day_index"),
-    )
-
-
 def _persist() -> None:
     from doux_planning.api.db import SandboxSession, database_url, session_scope
 
@@ -371,12 +380,12 @@ def _persist() -> None:
     document = {
         "recaps": list(_recaps),
         "assignments": [_shift_json(item) for item in sandbox.draft.assignments],
-        "warnings": [_warning_json(item) for item in (result.warnings if result else ())],
+        "facts": [_fact_json(item) for item in (result.warnings if result else ())],
         "history": [
             {
                 "assignments": [_shift_json(item) for item in snap.assignments],
-                "warnings": [
-                    _warning_json(item)
+                "facts": [
+                    _fact_json(item)
                     for item in (snap.last_result.warnings if snap.last_result is not None else ())
                 ],
             }
@@ -424,15 +433,14 @@ def _restore() -> None:
     sandbox = _store.get(RESTAURANT_ID).sandbox
     assert sandbox is not None
     assignments = tuple(parse_shift(item) for item in document["assignments"])
-    warnings = tuple(_warning_from_json(item) for item in document.get("warnings") or ())
     sandbox.draft = sandbox.draft.with_assignments(assignments)
-    sandbox.last_result = EngineResult(assignments=assignments, warnings=warnings)
+    sandbox.last_result = _evaluated_result(sandbox.draft, assignments)
     sandbox.history = [
         SandboxSnapshot(
             assignments=tuple(parse_shift(item) for item in snap["assignments"]),
-            last_result=EngineResult(
-                assignments=tuple(parse_shift(item) for item in snap["assignments"]),
-                warnings=tuple(_warning_from_json(item) for item in snap.get("warnings") or ()),
+            last_result=_evaluated_result(
+                sandbox.draft,
+                tuple(parse_shift(item) for item in snap["assignments"]),
             ),
         )
         for snap in document.get("history") or []

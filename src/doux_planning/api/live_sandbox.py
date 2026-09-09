@@ -11,6 +11,7 @@ from doux_planning.api.context import _load_company, _state_from_rows
 from doux_planning.api.db import Company, session_scope
 from doux_planning.api.generate import (
     EFFORTS,
+    _fact_json,
     _team_cycle_json,
     latest_cycle_blob,
     normalize_team_published,
@@ -18,14 +19,13 @@ from doux_planning.api.generate import (
 )
 from doux_planning.api.sandbox import (
     GESTURES,
+    _cycle_facts_json,
     _employee_json,
     _match_proposal,
     _proposal_json,
     _recap_json,
     _score_json,
     _shift_json,
-    _warning_from_json,
-    _warning_json,
     parse_shift,
     parse_slot,
 )
@@ -36,7 +36,7 @@ from doux_planning.context import (
     expand_typical_week,
     publish_live_sandbox,
 )
-from doux_planning.engine import EngineResult, PlanningDraft
+from doux_planning.engine import EngineResult, PlanningDraft, evaluate
 from doux_planning.planning import (
     EmptyHistoryError,
     IdentityRetuneError,
@@ -65,7 +65,6 @@ def _published_from_json(state: RestaurantState, team: Team, blob: Any) -> Publi
     if not isinstance(blob, dict):
         return None
     assignments = tuple(parse_shift(item) for item in blob.get("assignments") or [])
-    warnings = tuple(_warning_from_json(item) for item in blob.get("warnings") or [])
     structures = tuple(item for item in expand_typical_week(state) if item.team == team)
     employees = tuple(person for person in state.employees if person.team == team)
     draft = PlanningDraft(
@@ -75,10 +74,11 @@ def _published_from_json(state: RestaurantState, team: Team, blob: Any) -> Publi
         legal_rules=default_legal_rules(),
         assignments=assignments,
     )
+    evaluated = evaluate(draft)
     return PublishedCycle(
         id=team.value,
         draft=draft,
-        result=EngineResult(assignments=assignments, warnings=warnings),
+        result=EngineResult(assignments=assignments, warnings=evaluated.warnings),
     )
 
 
@@ -89,20 +89,26 @@ def _sandbox_from_json(state: RestaurantState, team: Team, blob: Any) -> Sandbox
     if published is None:
         return None
     assignments = tuple(parse_shift(item) for item in blob.get("assignments") or [])
-    warnings = tuple(_warning_from_json(item) for item in blob.get("warnings") or [])
     sandbox = Sandbox(
         restaurant_id=state.identity.id,
         target="cycle",
         week_id=None,
         draft=replace(published.draft).with_assignments(assignments),
-        last_result=EngineResult(assignments=assignments, warnings=warnings),
+        last_result=EngineResult(
+            assignments=assignments,
+            warnings=evaluate(published.draft.with_assignments(assignments)).warnings,
+        ),
     )
     sandbox.history = [
         SandboxSnapshot(
             assignments=tuple(parse_shift(item) for item in snap.get("assignments") or []),
             last_result=EngineResult(
                 assignments=tuple(parse_shift(item) for item in snap.get("assignments") or []),
-                warnings=tuple(_warning_from_json(item) for item in snap.get("warnings") or []),
+                warnings=evaluate(
+                    published.draft.with_assignments(
+                        tuple(parse_shift(item) for item in snap.get("assignments") or [])
+                    )
+                ).warnings,
             ),
         )
         for snap in blob.get("history") or []
@@ -144,12 +150,12 @@ def _sandbox_blob(
     result = sandbox.last_result
     payload: dict[str, Any] = {
         "assignments": [_shift_json(item) for item in sandbox.draft.assignments],
-        "warnings": [_warning_json(item) for item in (result.warnings if result else ())],
+        "facts": [_fact_json(item) for item in (result.warnings if result else ())],
         "history": [
             {
                 "assignments": [_shift_json(item) for item in snap.assignments],
-                "warnings": [
-                    _warning_json(item)
+                "facts": [
+                    _fact_json(item)
                     for item in (snap.last_result.warnings if snap.last_result is not None else ())
                 ],
             }
@@ -232,6 +238,9 @@ def _live_state(
 ) -> dict[str, Any]:
     sandbox = _require_sandbox(state, team)
     result = sandbox.last_result
+    if result is None:
+        evaluated = evaluate(sandbox.draft)
+        result = EngineResult(assignments=sandbox.draft.assignments, warnings=evaluated.warnings)
     employees = [person for person in state.employees if person.team == team]
     return {
         "team": team.value,
@@ -243,7 +252,7 @@ def _live_state(
         },
         "planning": {
             "assignments": [_shift_json(item) for item in sandbox.draft.assignments],
-            "warnings": [_warning_json(item) for item in (result.warnings if result else ())],
+            "facts": _cycle_facts_json(state, team, sandbox.draft, result),
         },
         "score": _score_json(sandbox.draft, result),
         "history": list(recaps[team]),
