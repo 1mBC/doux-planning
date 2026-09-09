@@ -5,6 +5,7 @@ import {
   parseStats,
   parseWishCol,
   parseWishRow,
+  parseCycleScore,
   parseOptionalCycleScore,
   PayloadError,
   requireArray,
@@ -35,6 +36,17 @@ export type CycleAssignment = {
   end_minutes: number;
   post_level: number;
   duration_hours: number;
+};
+
+export type CycleSlice = {
+  assignments: CycleAssignment[];
+  facts: ScoreFact[];
+  stats: PlanningStats;
+  legal_cols: LegalCol[];
+  legal_rows: LegalRow[];
+  wish_cols: WishCol[];
+  wish_rows: WishRow[];
+  score: CycleScore;
 };
 
 export type PublishedCycle = {
@@ -147,6 +159,24 @@ function parseLegalCol(value: unknown, path: string): LegalCol {
   return {
     id: requireString(value, "id", path),
     label_fr: requireString(value, "label_fr", path),
+  };
+}
+
+export function parseCycleSlice(value: unknown, path: string): CycleSlice {
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  return {
+    assignments: requireArray(value, "assignments", path).map((item, i) =>
+      parseCycleAssignment(item, `${path}.assignments[${i}]`),
+    ),
+    facts: parseFactsArray(value.facts, `${path}.facts`),
+    stats: parseStats(value.stats, `${path}.stats`),
+    legal_cols: requireArray(value, "legal_cols", path).map((item, i) => parseLegalCol(item, `${path}.legal_cols[${i}]`)),
+    legal_rows: requireArray(value, "legal_rows", path).map((item, i) => parseLegalRow(item, `${path}.legal_rows[${i}]`)),
+    wish_cols: requireArray(value, "wish_cols", path).map((item, i) => parseWishCol(item, `${path}.wish_cols[${i}]`)),
+    wish_rows: requireArray(value, "wish_rows", path).map((item, i) => parseWishRow(item, `${path}.wish_rows[${i}]`)),
+    score: parseCycleScore(value.score, `${path}.score`),
   };
 }
 

@@ -138,9 +138,11 @@ export function CycleScoreNotes({
             onClick={() => toggle(item.axis)}
             onKeyDown={(event) => onKey(event, item.axis)}
           >
-            <b style={noteDigitColor(item.note)}>{item.value}</b>
-            <ScoreGauge note={item.note} />
             <span>{item.label}</span>
+            <div className="score-note-row">
+              <b style={noteDigitColor(item.note)}>{item.value}</b>
+              <ScoreGauge note={item.note} />
+            </div>
             {!item.global && item.resume ? <p className="score-resume">{item.resume}</p> : null}
           </div>
         ))}

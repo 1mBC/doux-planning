@@ -4,9 +4,13 @@ import { AdminNav } from "./AdminPage";
 import { go } from "./AuthScreens";
 import {
   BENCH_EFFORTS,
+  benchBelowManuelExportFilename,
+  benchDatasetExportFilename,
+  downloadJsonFile,
   formatDelta,
   latestRun,
   loadBenchDatasets,
+  loadBenchExport,
   loadBenchRuns,
   pollBenchJob,
   postBenchRun,
@@ -42,6 +46,7 @@ export function BenchPage() {
   const [runs, setRuns] = useState<BenchRunSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const cancelled = useRef(false);
 
   useEffect(() => {
@@ -105,6 +110,50 @@ export function BenchPage() {
     }
   }
 
+  async function exportDataset(dataset: BenchDataset) {
+    setExporting(true);
+    setError(null);
+    try {
+      const pack = await loadBenchExport({
+        scope: "dataset",
+        category: dataset.category,
+        dataset_id: dataset.id,
+      });
+      if (cancelled.current) {
+        return;
+      }
+      downloadJsonFile(pack, benchDatasetExportFilename(dataset.category, dataset.id));
+    } catch (err: unknown) {
+      if (!cancelled.current) {
+        setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+      }
+    } finally {
+      if (!cancelled.current) {
+        setExporting(false);
+      }
+    }
+  }
+
+  async function exportBelowManuel() {
+    setExporting(true);
+    setError(null);
+    try {
+      const pack = await loadBenchExport({ scope: "below_manuel" });
+      if (cancelled.current) {
+        return;
+      }
+      downloadJsonFile(pack, benchBelowManuelExportFilename());
+    } catch (err: unknown) {
+      if (!cancelled.current) {
+        setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+      }
+    } finally {
+      if (!cancelled.current) {
+        setExporting(false);
+      }
+    }
+  }
+
   if (error && !datasets) {
     return (
       <main className="page">
@@ -123,6 +172,8 @@ export function BenchPage() {
       </main>
     );
   }
+
+  const locked = busy || exporting;
 
   return (
     <main className="page admin-page">
@@ -146,13 +197,13 @@ export function BenchPage() {
         <div className="bench-toolbar">
           <div className="bench-toolbar-row">
             <span>Toutes les catégories</span>
-            <LaunchButtons disabled={busy} onLaunch={(effort) => void launch({ scope: "all", search_effort: effort })} />
+            <LaunchButtons disabled={locked} onLaunch={(effort) => void launch({ scope: "all", search_effort: effort })} />
           </div>
           {categories.map((category) => (
             <div key={category} className="bench-toolbar-row">
               <span>{category}</span>
               <LaunchButtons
-                disabled={busy}
+                disabled={locked}
                 onLaunch={(effort) => void launch({ scope: "category", category, search_effort: effort })}
               />
             </div>
@@ -162,6 +213,11 @@ export function BenchPage() {
 
       <section>
         <h2>Derniers runs</h2>
+        <div className="bench-toolbar-row">
+          <button type="button" className="choice" disabled={locked} onClick={() => void exportBelowManuel()}>
+            Exporter sous le Manuel
+          </button>
+        </div>
         <table className="admin-table bench-table">
           <thead>
             <tr>
@@ -193,17 +249,22 @@ export function BenchPage() {
                 </td>
                 <td className="bench-challenge">{dataset.challenge_fr}</td>
                 <td>
-                  <LaunchButtons
-                    disabled={busy}
-                    onLaunch={(effort) =>
-                      void launch({
-                        scope: "dataset",
-                        category: dataset.category,
-                        dataset_id: dataset.id,
-                        search_effort: effort,
-                      })
-                    }
-                  />
+                  <div className="bench-row-actions">
+                    <LaunchButtons
+                      disabled={locked}
+                      onLaunch={(effort) =>
+                        void launch({
+                          scope: "dataset",
+                          category: dataset.category,
+                          dataset_id: dataset.id,
+                          search_effort: effort,
+                        })
+                      }
+                    />
+                    <button type="button" className="choice" disabled={locked} onClick={() => void exportDataset(dataset)}>
+                      Exporter ce jeu
+                    </button>
+                  </div>
                 </td>
                 {BENCH_EFFORTS.flatMap((effort) => {
                   const run = latestRun(runs, dataset.category, dataset.id, effort);

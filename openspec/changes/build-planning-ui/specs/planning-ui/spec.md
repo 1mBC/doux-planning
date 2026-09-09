@@ -344,3 +344,21 @@ The client SHALL parse cycle `facts[]` (`axis`, `kind`, `polarity`, `payload`) a
 - **WHEN** salle has both `versions.minimal` and `versions.optimized`
 - **THEN** switching effort shows that slot’s facts without POSTing
 
+### Requirement: Score pill title then note and gauge
+`CycleScoreNotes` SHALL use the same layout on `/planning`, `/exemple`, and bench compare: title first, then note and gauge on the **same line** (fill `note / 10`, hue `12 × note`, `null` → empty gauge), then totaux on the next line (Globale has no totaux). Click SHALL list misses then hits. Globale remains first with a contrasted frame.
+
+#### Scenario: Pill stacks title then note+gauge
+- **WHEN** a pastille is rendered
+- **THEN** the title sits above a row that aligns the numeric note with the gauge, and totaux (if any) sit under that row
+
+### Requirement: Admin bench pack export
+Compare SHALL parse `employees`, `model`, and `manual` (`CycleSlice`) and render both blocks with the same `CycleScoreNotes` (complete facts, stats, recap rows, real employee names). `/admin/bench` SHALL offer **Exporter sous le Manuel** (`GET /v1/admin/bench/export?scope=below_manuel`) and each table row plus the compare page SHALL offer **Exporter ce jeu** (`scope=dataset`). The browser SHALL download JSON named `bench-{category}-{id}.json` or `bench-below-manuel.json`.
+
+#### Scenario: Compare uses full slices
+- **WHEN** an admin opens compare after a run
+- **THEN** Modèle and Manuel each show clickable notes with miss and hit facts, and grid names come from `employees` not ids
+
+#### Scenario: Export dataset downloads a pack
+- **WHEN** an admin clicks Exporter ce jeu on compare or a table row that has a run
+- **THEN** the client GETs `scope=dataset` and downloads JSON with `kind: bench-pack`
+

@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { AdminNav } from "./AdminPage";
-import { loadBenchCompare, type BenchCompare } from "./bench";
+import {
+  benchDatasetExportFilename,
+  downloadJsonFile,
+  loadBenchCompare,
+  loadBenchExport,
+  type BenchCompare,
+} from "./bench";
 import { CycleScoreNotes } from "./cycleRecaps";
 import { CONTEXT_SERVICES, type ContextServiceId } from "./context";
 import { weekSheetTitle } from "./format";
 import { PublishedSheet } from "./PublishedPlanning";
 import { ApiHttpError } from "./sandbox";
-import type { CycleAssignment, SearchEffort } from "./generate";
+import type { CycleAssignment, CycleSlice, SearchEffort } from "./generate";
 import type { Employee } from "./types";
 
 export type BenchCompareParams = {
@@ -34,21 +40,6 @@ export function parseBenchComparePath(path: string): BenchCompareParams | null {
   return { category: decodeURIComponent(match[1]), datasetId: decodeURIComponent(match[2]), effort };
 }
 
-function peopleFromAssignments(assignments: CycleAssignment[]): Employee[] {
-  const ids: string[] = [];
-  for (const shift of assignments) {
-    if (!ids.includes(shift.employee_id)) {
-      ids.push(shift.employee_id);
-    }
-  }
-  return ids.map((id) => ({
-    id,
-    name: id,
-    role: { name: "Salle", level: 1, team: "salle" },
-    team: "salle",
-  }));
-}
-
 function servicesFromAssignments(assignments: CycleAssignment[]): { id: ContextServiceId; label: string }[] {
   const ids = [...new Set(assignments.map((item) => item.service_id))];
   const known = CONTEXT_SERVICES.filter((item) => ids.includes(item.id));
@@ -63,8 +54,7 @@ function indexCycle(assignments: CycleAssignment[]): Map<string, CycleAssignment
   return map;
 }
 
-function BenchGrids({ assignments }: { assignments: CycleAssignment[] }) {
-  const people = useMemo(() => peopleFromAssignments(assignments), [assignments]);
+function BenchGrids({ assignments, employees }: { assignments: CycleAssignment[]; employees: Employee[] }) {
   const services = useMemo(() => servicesFromAssignments(assignments), [assignments]);
   const byKey = useMemo(() => indexCycle(assignments), [assignments]);
   return (
@@ -72,7 +62,7 @@ function BenchGrids({ assignments }: { assignments: CycleAssignment[] }) {
       <PublishedSheet
         title={weekSheetTitle("ab", 0)}
         weekOffset={0}
-        employees={people}
+        employees={employees}
         assignments={assignments}
         services={services}
         byKey={byKey}
@@ -80,7 +70,7 @@ function BenchGrids({ assignments }: { assignments: CycleAssignment[] }) {
       <PublishedSheet
         title={weekSheetTitle("ab", 7)}
         weekOffset={7}
-        employees={people}
+        employees={employees}
         assignments={assignments}
         services={services}
         byKey={byKey}
@@ -89,9 +79,23 @@ function BenchGrids({ assignments }: { assignments: CycleAssignment[] }) {
   );
 }
 
+function SliceNotes({ slice, employees }: { slice: CycleSlice; employees: Employee[] }) {
+  return (
+    <CycleScoreNotes
+      score={slice.score}
+      facts={slice.facts}
+      stats={slice.stats}
+      legalRows={slice.legal_rows}
+      wishRows={slice.wish_rows}
+      employees={employees}
+    />
+  );
+}
+
 export function BenchComparePage({ params }: { params: BenchCompareParams | null }) {
   const [payload, setPayload] = useState<BenchCompare | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!params) {
@@ -120,10 +124,35 @@ export function BenchComparePage({ params }: { params: BenchCompareParams | null
 
   const title = params ? `${params.category} · ${params.datasetId} · ${params.effort}` : "Banc";
 
+  async function exportDataset() {
+    if (!params) {
+      return;
+    }
+    setExporting(true);
+    setError(null);
+    try {
+      const pack = await loadBenchExport({
+        scope: "dataset",
+        category: params.category,
+        dataset_id: params.datasetId,
+      });
+      downloadJsonFile(pack, benchDatasetExportFilename(params.category, params.datasetId));
+    } catch (err: unknown) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <main className="page admin-page">
       <AdminNav current="bench" />
       <h1>{title}</h1>
+      <div className="bench-toolbar-row">
+        <button type="button" className="choice" disabled={exporting || !params} onClick={() => void exportDataset()}>
+          Exporter ce jeu
+        </button>
+      </div>
       {error ? (
         <p className="error" role="alert">
           {error}
@@ -134,13 +163,13 @@ export function BenchComparePage({ params }: { params: BenchCompareParams | null
         <>
           <section>
             <h2>Modèle</h2>
-            <CycleScoreNotes score={payload.score} facts={payload.facts} />
-            <BenchGrids assignments={payload.assignments} />
+            <SliceNotes slice={payload.model} employees={payload.employees} />
+            <BenchGrids assignments={payload.model.assignments} employees={payload.employees} />
           </section>
           <section>
             <h2>Manuel</h2>
-            <CycleScoreNotes score={payload.expected.score} />
-            <BenchGrids assignments={payload.expected.assignments} />
+            <SliceNotes slice={payload.manual} employees={payload.employees} />
+            <BenchGrids assignments={payload.manual.assignments} employees={payload.employees} />
           </section>
         </>
       ) : null}
