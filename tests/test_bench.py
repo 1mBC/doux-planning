@@ -12,7 +12,15 @@ from doux_planning.api.app import app
 from doux_planning.api.auth import DETAIL_ADMIN, promote_admin_email
 from doux_planning.api.db import BenchRun, GenerateLog, reset_engine, session_scope
 from doux_planning.bench import BenchOutcome, list_bench_datasets, load_bench_dataset, run_bench
-from doux_planning.context import SCORE_WEIGHTS, CycleScore, ScoreNotes, cycle_score, empty_restaurant, team_ready, upsert_employee
+from doux_planning.context import (
+    SCORE_WEIGHTS,
+    CycleScore,
+    ScoreNotes,
+    cycle_score,
+    empty_restaurant,
+    team_ready,
+    upsert_employee,
+)
 from doux_planning.engine import PlanningDraft, evaluate
 from doux_planning.staff import default_legal_rules
 from doux_planning.types import SearchEffort, Team, WEEKDAYS, WarningSeverity
@@ -97,6 +105,8 @@ def _stub_run_bench(category, dataset_id, effort):
         duration_seconds=0.0,
         assignments=(),
         warnings=(),
+        facts=(),
+        expected_facts=(),
         score=score,
         expected_score=score,
         deltas={"couverture": 0.0, "legal": 0.0, "contrat": 0.0, "wellbeing": None, "roles": 0.0, "global": 0.0},
@@ -187,6 +197,17 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
     assert outcome.score is not None
     assert outcome.expected_score is not None
     assert set(outcome.deltas) == {"couverture", "legal", "contrat", "wellbeing", "roles", "global"}
+    assert outcome.facts
+    assert outcome.expected_facts
+    assert all(
+        fact.severity is not WarningSeverity.INTERDIT
+        for fact in outcome.expected_facts
+        if fact.polarity == "miss"
+    )
+    assert any(
+        fact.polarity == "hit" and fact.kind in {"post_held", "role_gap"}
+        for fact in (*outcome.facts, *outcome.expected_facts)
+    )
 
 
 def test_run_bench_leaves_live_restaurant_unchanged():

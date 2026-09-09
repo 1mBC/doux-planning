@@ -5,6 +5,7 @@ import pytest
 from doux_planning.context import (
     NoPublishedCycle,
     cycle_recap,
+    cycle_recap_from_draft,
     cycle_score,
     empty_restaurant,
     generate_team,
@@ -268,3 +269,24 @@ def test_saint_cloud_recap_facts_are_evaluate_misses_then_hits():
     assert all(not hasattr(item, "message") for item in result.warnings)
     assert any(fact.kind == "contract_hours" and fact.polarity == "miss" for fact in evaluate_misses)
     assert any(fact.kind == "consecutive_rest_days" and fact.polarity == "miss" for fact in evaluate_misses)
+
+
+def test_cycle_recap_from_draft_matches_live_when_published_identical():
+    delivered = load_delivered_cycle("saint-cloud")
+    draft = PlanningDraft(
+        employees=delivered.employees,
+        structures=delivered.structures,
+        hours=delivered.hours,
+        assignments=delivered.assignments,
+    )
+    result = evaluate(draft)
+    state = empty_restaurant("saint-cloud")
+    state.employees = list(delivered.employees)
+    state.structures = list(delivered.structures)
+    state.hours = delivered.hours
+    state.published_cycles[Team.SALLE] = PublishedCycle(id=Team.SALLE.value, draft=draft, result=result)
+    recap = cycle_recap(state, Team.SALLE)
+    from_draft = cycle_recap_from_draft(draft, result)
+    assert from_draft.facts == recap.facts
+    assert from_draft.stats == recap.stats
+    assert from_draft.score == recap.score
