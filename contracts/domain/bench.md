@@ -67,7 +67,8 @@ UnknownBenchDataset
 ```
 
 `run_bench` inchangé : copie jetable + `generate_cycle` + `cycle_score` ×2 + `deltas` (Modèle − Manuel).  
-**Zéro** `published_cycles`. Keep-best / `SEARCH_*` inchangés. Tests generate = **`minimal`**.
+**Zéro** `published_cycles`. Keep-best / `SEARCH_*` inchangés. Tests generate = **`minimal`**.  
+Serialize **facts** misses evaluate (payload, pas `message`) sur `bench_runs` — plus `warnings[].message`. Score **sans** `resumes`. Compare UI = dictionnaire `score-facts.md`.
 
 ## HTTP (admin)
 

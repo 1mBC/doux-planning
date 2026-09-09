@@ -26,7 +26,7 @@ POST /v1/live/sandbox/{team}/discard   → 200 LiveState  (re-enter publié, his
 POST /v1/live/sandbox/{team}/publish   → 200 Cycles     (même `published` que GET /v1/cycles)
 ```
 
-`LiveState` = état joujou (`sandbox`, `restaurant` fiches de **cette** équipe, `planning.assignments` + `warnings`, `score`, `history`) **plus** `"team": "salle"|"cuisine"`.
+`LiveState` = état joujou (`sandbox`, `restaurant` fiches de **cette** équipe, `planning.assignments` + `facts`, `score` sans resumes, `history`) **plus** `"team": "salle"|"cuisine"`. Overlay impact = `v1-sandbox-edit.md` (facts, pas `message`).
 
 Discard : Core discard puis enter **le même** slot effort. Publish : réécrit `versions[effort]` (`generated_at` inchangé), `latest` inchangé sauf si ce slot est le seul, ferme le brouillon. `GET /v1/cycles` au format versions. L’autre équipe / les autres efforts intacts.
 
