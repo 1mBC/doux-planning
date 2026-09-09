@@ -183,6 +183,18 @@ def admin_bench_compare(
     return compare(authorization, category, dataset_id, search_effort)
 
 
+@app.get("/v1/admin/bench/export")
+def admin_bench_export(
+    scope: str,
+    authorization: str | None = Header(default=None),
+    category: str | None = None,
+    dataset_id: str | None = None,
+) -> dict:
+    from doux_planning.api.bench import export_pack
+
+    return export_pack(authorization, scope=scope, category=category, dataset_id=dataset_id)
+
+
 @app.post("/v1/generate")
 def post_generate(
     body: dict[str, Any], authorization: str | None = Header(default=None)

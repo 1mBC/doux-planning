@@ -322,12 +322,55 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     compared = client.get("/v1/admin/bench/compare/tight/halles/minimal", headers=headers)
     assert compared.status_code == 200
     assert compared.json()["id"] == first["id"]
-    assert compared.json()["expected"]["assignments"]
-    assert compared.json()["expected"]["score"] == first["expected_score"]
-    assert compared.json()["assignments"] is not None
-    assert "facts" in compared.json()
+    assert compared.json()["employees"]
+    assert all("name" in person and "id" in person for person in compared.json()["employees"])
+    model_facts = compared.json()["model"]["facts"]
+    manual_facts = compared.json()["manual"]["facts"]
+    assert any(item.get("polarity") == "hit" for item in model_facts)
+    assert any(item.get("polarity") == "hit" for item in manual_facts)
+    assert "facts" not in compared.json()
+    assert "assignments" not in compared.json()
+    assert "expected" not in compared.json()
     assert "warnings" not in compared.json()
     assert "resumes" not in compared.json()["score"]
+    assert "resumes" not in compared.json()["model"]["score"]
+
+    exported = client.get(
+        "/v1/admin/bench/export",
+        headers=headers,
+        params={"scope": "dataset", "category": "tight", "dataset_id": "halles"},
+    )
+    assert exported.status_code == 200
+    pack = exported.json()
+    assert pack["export_version"] == 1
+    assert pack["kind"] == "bench-pack"
+    assert pack["scope"] == "dataset"
+    assert pack["app_version"] == "0.27.0"
+    assert pack["exported_at"]
+    assert len(pack["datasets"]) == 1
+    halles_pack = pack["datasets"][0]
+    assert halles_pack["category"] == "tight"
+    assert halles_pack["id"] == "halles"
+    assert halles_pack["context"]
+    assert all("invite_token" not in person for person in halles_pack["context"]["employees"])
+    assert halles_pack["manual"]["facts"]
+    assert halles_pack["efforts"][0]["search_effort"] == "minimal"
+    assert "below_manuel" in halles_pack["efforts"][0]
+    assert halles_pack["efforts"][0]["model"]["facts"]
+
+    below = client.get("/v1/admin/bench/export", headers=headers, params={"scope": "below_manuel"})
+    assert below.status_code == 200
+    assert below.json()["kind"] == "bench-pack"
+    assert below.json()["scope"] == "below_manuel"
+    assert isinstance(below.json()["datasets"], list)
+
+    forbidden_export = client.get(
+        "/v1/admin/bench/export",
+        headers=_bearer(other.json()["token"]),
+        params={"scope": "below_manuel"},
+    )
+    assert forbidden_export.status_code == 403
+    assert forbidden_export.json()["detail"] == DETAIL_ADMIN
 
     queued = client.post(
         "/v1/admin/bench/run",
@@ -368,6 +411,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     maximal = client.get("/v1/admin/bench/compare/tight/halles/maximal", headers=headers)
     assert maximal.status_code == 200
     assert maximal.json()["search_effort"] == "maximal"
+    assert "model" in maximal.json() and "manual" in maximal.json()
 
     fiche_id = f"emma-{secrets.token_hex(4)}"
     patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id))
