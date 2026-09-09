@@ -165,3 +165,8 @@
 
 - [x] 29.1 Parser compare `model` / `manual` / `employees` ; `CycleScoreNotes` partout titre / note+jauge / totaux ; Exporter ce jeu + sous le Manuel ; bump `web/` to 0.31.0
 - [x] 29.2 Verify `npm run build` ; compare Occupation miss+hit des deux côtés ; pastille titre puis note+jauge ; export dataset `kind: bench-pack` ; `v0.31.0`
+
+## 30. Score tables Contrat + Légal & Contrat
+
+- [x] 30.1 Pastille Contrat / titres gras / totaux ; tableau 4 col clic + Alertes ; Légal & Contrat + Bien-être ; bump `web/` to 0.32.0
+- [x] 30.2 Verify `npm run build` ; `/exemple` Contrat 4 col, Alertes, Diane ⚠️ 30h · 29h / 39h, Bien-être sans contrat/indispo ; `/planning` idem ; `v0.32.0`

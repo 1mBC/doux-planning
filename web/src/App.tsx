@@ -32,8 +32,7 @@ import type {
 import { toShiftIdentity } from "./types";
 import { cranHow, fillHow, fillSlotSummary, GestureImpact, slotSummary } from "./impact";
 import { UI_RELEASE } from "./release";
-import { AlertsList, CycleScoreNotes } from "./cycleRecaps";
-import { formatRecapCell } from "./scoreFacts";
+import { AlertsList, CycleScoreNotes, LegalAndContractRecap, WellbeingRecap } from "./cycleRecaps";
 import "./App.css";
 
 function PlanningSheet({
@@ -429,65 +428,13 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
 
       {!editing ? (
         <>
-          <section>
-            <h2>Règles légales</h2>
-            <p className="sub">Plafonds interdits, mesurés sur le cycle. Colonnes présentes dans le snapshot uniquement.</p>
-            <table className="matrix">
-              <thead>
-                <tr>
-                  <th>Personne</th>
-                  {legalCols.map((col) => (
-                    <th key={col.id}>{col.label_fr}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {planning.legal_rows.map((row) => (
-                  <tr key={row.employee_id}>
-                    <td>{row.name}</td>
-                    {legalCols.map((col) => {
-                      const cell = row.cells[col.id];
-                      return (
-                        <td key={col.id} className={cell && !cell.ok ? "cell-bad" : undefined}>
-                          {cell ? formatRecapCell(cell) : ""}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-
-          <section>
-            <h2>Souhaits bien-être</h2>
-            <p className="sub">Colonnes = types de souhait. Case vide = non émis.</p>
-            <table className="matrix">
-              <thead>
-                <tr>
-                  <th>Personne</th>
-                  {planning.wish_cols.map((col) => (
-                    <th key={col.key}>{col.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {planning.wish_rows.map((row) => (
-                  <tr key={row.employee_id}>
-                    <td>{row.name}</td>
-                    {planning.wish_cols.map((col) => {
-                      const cell = row.cells[col.key];
-                      return (
-                        <td key={col.key} className={cell && !cell.ok ? "cell-bad" : undefined}>
-                          {cell ? formatRecapCell(cell) : ""}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+          <LegalAndContractRecap
+            legalCols={legalCols}
+            legalRows={planning.legal_rows}
+            wishCols={planning.wish_cols}
+            wishRows={planning.wish_rows}
+          />
+          <WellbeingRecap wishCols={planning.wish_cols} wishRows={planning.wish_rows} />
         </>
       ) : null}
 

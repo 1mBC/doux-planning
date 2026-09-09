@@ -362,3 +362,14 @@ Compare SHALL parse `employees`, `model`, and `manual` (`CycleSlice`) and render
 - **WHEN** an admin clicks Exporter ce jeu on compare or a table row that has a run
 - **THEN** the client GETs `scope=dataset` and downloads JSON with `kind: bench-pack`
 
+### Requirement: Score tables Contrat legal wellbeing
+The contrat pill SHALL be labeled **Contrat /10**. Axis titles SHALL be bold. Contrat totaux SHALL read `{h} occupées / {h}` without the word contrat, and `{ok}/{n} indispos respectées` when an indispo column exists. Pill click and the Alertes list SHALL share one 4-column table (Catégorie | Sous-catégorie | Statut ⚠️/✅ | Détail): all misses grouped by axis order, then all hits grouped the same way. `h2` SHALL have no subtitle. After Alertes on `/planning` and `/exemple`, the client SHALL render **Légal & Contrat** (`legal_cols` then Contrat then Indispos) then **Bien-être** (`wish_cols` minus contrat/indispo, omitted if empty). Recap cells SHALL be emoji plus measure without OK/Non tenu prefixes. Diane Saint-Cloud contrat SHALL show `⚠️ 30h · 29h / 39h`. Wizard copy stays. Bench compare SHALL keep pills and the 4-col click only.
+
+#### Scenario: Example Contrat pill and fused tables
+- **WHEN** `/exemple` loads Saint-Cloud
+- **THEN** a Contrat /10 pill is present, Alertes is a 4-column table of evaluate misses, Légal & Contrat includes Diane `⚠️ 30h · 29h / 39h`, and Bien-être has no contrat/indispo columns
+
+#### Scenario: Pill click lists misses then hits
+- **WHEN** the restaurateur clicks Contrat then Globale
+- **THEN** each opens the 4-column table with that axis’s (or all) misses grouped first, then hits
+

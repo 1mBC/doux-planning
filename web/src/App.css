@@ -88,6 +88,9 @@ h3 {
 
 .score-pill > span {
   display: block;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-size: 11px;
 }
 
 .score-note-row {
@@ -340,6 +343,20 @@ table.matrix td.cell-bad {
   color: #c05600;
   font-weight: 700;
   background: #fff4e5;
+}
+
+.fact-table .fact-status {
+  text-align: center;
+  width: 3.2rem;
+  white-space: nowrap;
+}
+
+.fact-table tr.score-fact-miss td:first-child {
+  border-left: 3px solid #9a6700;
+}
+
+.fact-table tr.score-fact-hit td:first-child {
+  border-left: 3px solid #0f7b3a;
 }
 
 code {
