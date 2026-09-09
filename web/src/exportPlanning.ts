@@ -19,7 +19,7 @@ export type PlanningExport = {
   week_labels: WeekLabelScheme;
   employees: ConfigEmployee[];
   assignments: PublishedCycle["assignments"];
-  warnings: PublishedCycle["warnings"];
+  facts: PublishedCycle["facts"];
   stats: PublishedCycle["stats"];
   legal_cols: PublishedCycle["legal_cols"];
   legal_rows: PublishedCycle["legal_rows"];
@@ -66,7 +66,7 @@ export function buildPlanningExport(
       .filter((person) => person.team === team)
       .map(({ invite_token: _token, ...rest }): ConfigEmployee => rest),
     assignments: cycle.assignments,
-    warnings: cycle.warnings,
+    facts: cycle.facts,
     stats: cycle.stats,
     legal_cols: cycle.legal_cols,
     legal_rows: cycle.legal_rows,

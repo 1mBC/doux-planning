@@ -1,6 +1,7 @@
 import {
   isRecord,
   parseCycleScore,
+  parseFactsPrefer,
   PayloadError,
   requireArray,
   requireNumber,
@@ -8,8 +9,8 @@ import {
   requireString,
 } from "./api";
 import { sendAuth } from "./auth";
-import { parseCycleAssignment, parseWarning, type CycleAssignment, type SearchEffort } from "./generate";
-import type { CycleScore, WarningItem } from "./types";
+import { parseCycleAssignment, type CycleAssignment, type SearchEffort } from "./generate";
+import type { CycleScore, ScoreFact } from "./types";
 
 export type BenchScope = "all" | "category" | "dataset";
 
@@ -56,7 +57,7 @@ export type BenchJob = {
 
 export type BenchCompare = BenchRunSummary & {
   assignments: CycleAssignment[];
-  warnings: WarningItem[];
+  facts: ScoreFact[];
   expected: {
     assignments: CycleAssignment[];
     score: CycleScore;
@@ -200,7 +201,7 @@ export function parseBenchCompare(value: unknown): BenchCompare {
     assignments: requireArray(value, "assignments", "compare").map((item, i) =>
       parseCycleAssignment(item, `compare.assignments[${i}]`),
     ),
-    warnings: requireArray(value, "warnings", "compare").map((item, i) => parseWarning(item, `compare.warnings[${i}]`)),
+    facts: parseFactsPrefer(value, "compare"),
     expected: {
       assignments: requireArray(expectedRaw, "assignments", "compare.expected").map((item, i) =>
         parseCycleAssignment(item, `compare.expected.assignments[${i}]`),

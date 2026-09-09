@@ -328,3 +328,19 @@ Company `me.admin` SHALL see a **Banc** link on `/admin` (generate log stays). `
 #### Scenario: Compare labels Model then Manual
 - **WHEN** an admin opens a compare page
 - **THEN** the two blocks are titled Modèle then Manuel
+
+### Requirement: Score facts dictionary and clickable notes
+The client SHALL parse cycle `facts[]` (`axis`, `kind`, `polarity`, `payload`) and recap cells `{ ok, kind, payload }`. `score` SHALL be notes + weights + global ; a leftover `resumes` key MUST be ignored (not required, not crashed). `/planning` and `/exemple` score pills SHALL be clickable and open one list: misses of that axis then hits (Globale = every fact including `role_gap`). Unknown `kind` SHALL render `kind` plus raw payload without inventing French. Pill subtitles SHALL be composed in the UI from `stats` and recap counts (not `score.resumes`). The alert list under the grid SHALL be evaluate misses only (`polarity == miss` and `kind != role_gap`). Legal / wish tables SHALL render from payload (Diane contrat `30h · 29h / 39h`). Sandbox overlay impact lists SHALL use the same dictionary ; `contract` / `role_fit` stay unchanged. Admin hover and planning JSON export SHALL use `facts` ; a legacy log item with `message` and empty payload SHALL show `message`. Bench compare MUST prefer `facts` and MUST NOT crash on legacy `warnings`.
+
+#### Scenario: Example has 17 dictionary alerts
+- **WHEN** `/exemple` loads Saint-Cloud
+- **THEN** the alert list has 17 evaluate misses rendered via the dictionary, notes /10 remain, Diane contrat shows `30h · 29h / 39h`, and Théo Monday A midday is 11h–16h
+
+#### Scenario: Click Occupation then Globale
+- **WHEN** the restaurateur clicks Occupation then Globale on `/exemple` or `/planning`
+- **THEN** each opens one list with that axis’s misses then hits (Globale includes `role_gap`)
+
+#### Scenario: Effort switch uses that slot’s facts
+- **WHEN** salle has both `versions.minimal` and `versions.optimized`
+- **THEN** switching effort shows that slot’s facts without POSTing
+

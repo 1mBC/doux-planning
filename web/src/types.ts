@@ -46,13 +46,20 @@ export type Assignment = {
   duration_hours: number;
 };
 
-export type WarningItem = {
-  severity: "interdit" | "couverture" | "souhait";
-  code: string;
-  message: string;
+export type ScoreFactPolarity = "miss" | "hit";
+
+export type ScoreFactSeverity = "interdit" | "couverture" | "souhait";
+
+export type ScoreFact = {
+  axis: string;
+  kind: string;
+  polarity: ScoreFactPolarity;
+  severity: ScoreFactSeverity | null;
   employee_id: string | null;
   day_index: number | null;
+  payload: Record<string, unknown>;
   employee_name?: string | null;
+  message?: string;
 };
 
 export type PlanningHoursStats = {
@@ -77,7 +84,8 @@ export type PlanningStats = {
 
 export type StatusCell = {
   ok: boolean;
-  text: string;
+  kind: string;
+  payload: Record<string, unknown>;
 };
 
 export type LegalRow = {
@@ -113,17 +121,8 @@ export type CycleScoreWeights = {
   roles: number;
 };
 
-export type CycleScoreResumes = {
-  couverture: string | null;
-  legal: string | null;
-  contrat: string | null;
-  wellbeing: string | null;
-  roles: string | null;
-};
-
 export type CycleScore = {
   notes: CycleScoreNotes;
-  resumes: CycleScoreResumes;
   global: number | null;
   weights: CycleScoreWeights;
 };
@@ -133,7 +132,7 @@ export type Planning = {
   calendars: number;
   seconds: number;
   assignments: Assignment[];
-  warnings: WarningItem[];
+  facts: ScoreFact[];
   stats: PlanningStats;
   legal_rows: LegalRow[];
   wish_cols: WishCol[];
@@ -202,11 +201,11 @@ export type RoleFit = {
 };
 
 export type Impact = {
-  new_interdits: WarningItem[];
-  broken_wishes: WarningItem[];
+  new_interdits: ScoreFact[];
+  broken_wishes: ScoreFact[];
   contract: ContractImpact[];
-  coverage_added: WarningItem[];
-  coverage_removed: WarningItem[];
+  coverage_added: ScoreFact[];
+  coverage_removed: ScoreFact[];
   role_fit: RoleFit[];
 };
 
@@ -255,7 +254,7 @@ export type SandboxRestaurant = {
 
 export type SandboxPlanning = {
   assignments: Assignment[];
-  warnings: WarningItem[];
+  facts: ScoreFact[];
 };
 
 export type SandboxState = {

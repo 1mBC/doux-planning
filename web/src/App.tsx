@@ -15,8 +15,6 @@ import {
   indexAssignments,
   legalColumns,
   personInk,
-  warningSeverityLabel,
-  warningTitle,
   weekdayFromDayIndex,
   weekHours,
 } from "./format";
@@ -30,12 +28,12 @@ import type {
   PreviewProposal,
   SandboxState,
   ShiftIdentity,
-  WarningItem,
 } from "./types";
 import { toShiftIdentity } from "./types";
 import { cranHow, fillHow, fillSlotSummary, GestureImpact, slotSummary } from "./impact";
 import { UI_RELEASE } from "./release";
-import { CycleScoreNotes } from "./cycleRecaps";
+import { AlertsList, CycleScoreNotes } from "./cycleRecaps";
+import { formatRecapCell } from "./scoreFacts";
 import "./App.css";
 
 function PlanningSheet({
@@ -165,27 +163,6 @@ function PlanningSheet({
   );
 }
 
-function WarningsList({ warnings }: { warnings: WarningItem[] }) {
-  return (
-    <section>
-      <h2>Alertes</h2>
-      <p className="sub">{warnings.length} warning{warnings.length > 1 ? "s" : ""} du moteur — affichés tels quels.</p>
-      <ol className="warnings">
-        {warnings.map((warning, index) => {
-          const title = warningTitle(warning.code);
-          return (
-            <li key={`${warning.severity}-${warning.code}-${warning.employee_id}-${warning.day_index}-${index}`} className={`warn-${warning.severity}`}>
-              <span className="sev">{warningSeverityLabel(warning)}</span>
-              {title ? <span className="code">{title}</span> : null}
-              <span className="msg">{warning.message}</span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
 function HistoryList({
   entries,
   employees,
@@ -262,7 +239,6 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
 
   const employees = editing ? sandbox.restaurant.employees : payload?.restaurant.employees ?? [];
   const assignments = editing ? sandbox.planning.assignments : payload?.planning.assignments ?? [];
-  const warnings = editing ? sandbox.planning.warnings : payload?.planning.warnings ?? [];
   const byKey = useMemo(() => indexAssignments(assignments), [assignments]);
 
   async function startEdit() {
@@ -401,7 +377,16 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
         </p>
       ) : null}
 
-      {!editing ? <CycleScoreNotes score={planning.score} /> : null}
+      {!editing ? (
+        <CycleScoreNotes
+          score={planning.score}
+          facts={planning.facts}
+          stats={planning.stats}
+          legalRows={planning.legal_rows}
+          wishRows={planning.wish_rows}
+          employees={employees}
+        />
+      ) : null}
 
       <PlanningSheet
         title="Semaine A"
@@ -422,7 +407,7 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
         onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
       />
 
-      {!editing ? <WarningsList warnings={warnings} /> : null}
+      {!editing ? <AlertsList facts={planning.facts} employees={employees} /> : null}
 
       {editing ? (
         <section>
@@ -464,7 +449,7 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
                       const cell = row.cells[col.id];
                       return (
                         <td key={col.id} className={cell && !cell.ok ? "cell-bad" : undefined}>
-                          {cell?.text ?? ""}
+                          {cell ? formatRecapCell(cell) : ""}
                         </td>
                       );
                     })}
@@ -494,7 +479,7 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
                       const cell = row.cells[col.key];
                       return (
                         <td key={col.key} className={cell && !cell.ok ? "cell-bad" : undefined}>
-                          {cell ? cell.text : ""}
+                          {cell ? formatRecapCell(cell) : ""}
                         </td>
                       );
                     })}

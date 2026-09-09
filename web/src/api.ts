@@ -11,14 +11,16 @@ import type {
   PlanningWellbeingStats,
   Restaurant,
   StatusCell,
-  WarningItem,
+  ScoreFact,
+  ScoreFactPolarity,
+  ScoreFactSeverity,
   WishCol,
   WishRow,
   CycleScore,
   CycleScoreNotes,
-  CycleScoreResumes,
   CycleScoreWeights,
 } from "./types";
+import { factAxis } from "./scoreFacts";
 
 export class PayloadError extends Error {
   constructor(message: string) {
@@ -146,35 +148,103 @@ export function parseAssignment(value: unknown, path: string): Assignment {
   };
 }
 
-function parseSeverity(value: unknown, path: string): WarningItem["severity"] {
+function parsePolarity(value: unknown, path: string): ScoreFactPolarity {
+  if (value === "miss" || value === "hit") {
+    return value;
+  }
+  throw new PayloadError(`polarity inattendue : ${path}`);
+}
+
+function parseOptionalSeverity(value: unknown, path: string): ScoreFactSeverity | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
   if (value === "interdit" || value === "couverture" || value === "souhait") {
     return value;
   }
   throw new PayloadError(`severity inattendue : ${path}`);
 }
 
-export function parseWarning(value: unknown, path: string): WarningItem {
+function parseOptionalId(value: unknown, path: string): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new PayloadError(`clé invalide : ${path}`);
+  }
+  return value;
+}
+
+function parseOptionalDayIndex(value: unknown, path: string): number | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    throw new PayloadError(`clé invalide : ${path}`);
+  }
+  return value;
+}
+
+function parsePayload(value: unknown, path: string): Record<string, unknown> {
+  if (value === undefined || value === null) {
+    return {};
+  }
+  if (!isRecord(value)) {
+    throw new PayloadError(`clé invalide : ${path}`);
+  }
+  return value;
+}
+
+export function parseScoreFact(value: unknown, path: string): ScoreFact {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
-  if (!("employee_id" in value) || !("day_index" in value)) {
-    throw new PayloadError(`clé absente : ${path}.employee_id ou day_index`);
+  const kind =
+    typeof value.kind === "string"
+      ? value.kind
+      : typeof value.code === "string"
+        ? value.code
+        : "";
+  if (!kind) {
+    throw new PayloadError(`clé absente : ${path}.kind`);
   }
-  const employeeId = value.employee_id;
-  const dayIndex = value.day_index;
-  if (employeeId !== null && typeof employeeId !== "string") {
-    throw new PayloadError(`clé invalide : ${path}.employee_id`);
-  }
-  if (dayIndex !== null && typeof dayIndex !== "number") {
-    throw new PayloadError(`clé invalide : ${path}.day_index`);
-  }
-  return {
-    severity: parseSeverity(value.severity, `${path}.severity`),
-    code: requireString(value, "code", path),
-    message: requireString(value, "message", path),
-    employee_id: employeeId,
-    day_index: dayIndex,
+  const polarity = "polarity" in value && value.polarity !== undefined ? parsePolarity(value.polarity, `${path}.polarity`) : "miss";
+  const fact: ScoreFact = {
+    axis: typeof value.axis === "string" && value.axis ? value.axis : factAxis(kind),
+    kind,
+    polarity,
+    severity: parseOptionalSeverity(value.severity, `${path}.severity`),
+    employee_id: parseOptionalId(value.employee_id, `${path}.employee_id`),
+    day_index: parseOptionalDayIndex(value.day_index, `${path}.day_index`),
+    payload: parsePayload(value.payload, `${path}.payload`),
   };
+  if ("employee_name" in value && value.employee_name !== undefined) {
+    if (value.employee_name !== null && typeof value.employee_name !== "string") {
+      throw new PayloadError(`clé invalide : ${path}.employee_name`);
+    }
+    fact.employee_name = value.employee_name;
+  }
+  if (typeof value.message === "string") {
+    fact.message = value.message;
+  }
+  return fact;
+}
+
+export function parseFactsArray(value: unknown, path: string): ScoreFact[] {
+  if (!Array.isArray(value)) {
+    throw new PayloadError(`clé absente ou invalide : ${path}`);
+  }
+  return value.map((item, i) => parseScoreFact(item, `${path}[${i}]`));
+}
+
+export function parseFactsPrefer(obj: Record<string, unknown>, path: string): ScoreFact[] {
+  if (Array.isArray(obj.facts)) {
+    return parseFactsArray(obj.facts, `${path}.facts`);
+  }
+  if (Array.isArray(obj.warnings)) {
+    return parseFactsArray(obj.warnings, `${path}.warnings`);
+  }
+  return [];
 }
 
 function parseHoursStats(value: unknown): PlanningHoursStats {
@@ -224,43 +294,26 @@ function parseNullableNote(value: unknown, path: string): number | null {
 
 const NOTE_KEYS = ["couverture", "legal", "contrat", "wellbeing", "roles"] as const;
 
-function parseNullableResume(value: unknown, path: string): string | null {
-  if (value === null) {
-    return null;
-  }
-  if (typeof value !== "string") {
-    throw new PayloadError(`clé invalide : ${path}`);
-  }
-  return value;
-}
-
 export function parseCycleScore(value: unknown, path: string): CycleScore {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
   const notesRaw = requireRecord(value, "notes", path);
-  const resumesRaw = requireRecord(value, "resumes", path);
   const weightsRaw = requireRecord(value, "weights", path);
   if (!("global" in value)) {
     throw new PayloadError(`clé absente : ${path}.global`);
   }
   const notes = {} as CycleScoreNotes;
-  const resumes = {} as CycleScoreResumes;
   const weights = {} as CycleScoreWeights;
   for (const key of NOTE_KEYS) {
     if (!(key in notesRaw)) {
       throw new PayloadError(`clé absente : ${path}.notes.${key}`);
     }
-    if (!(key in resumesRaw)) {
-      throw new PayloadError(`clé absente : ${path}.resumes.${key}`);
-    }
     notes[key] = parseNullableNote(notesRaw[key], `${path}.notes.${key}`);
-    resumes[key] = parseNullableResume(resumesRaw[key], `${path}.resumes.${key}`);
     weights[key] = requireNumber(weightsRaw, key, `${path}.weights`);
   }
   return {
     notes,
-    resumes,
     global: parseNullableNote(value.global, `${path}.global`),
     weights,
   };
@@ -270,7 +323,7 @@ export function parseOptionalCycleScore(obj: Record<string, unknown>, path: stri
   if (!("score" in obj) || obj.score === undefined || obj.score === null) {
     return undefined;
   }
-  if (!isRecord(obj.score) || !isRecord(obj.score.resumes)) {
+  if (!isRecord(obj.score)) {
     return undefined;
   }
   return parseCycleScore(obj.score, `${path}.score`);
@@ -284,9 +337,11 @@ function parseStatusCell(value: unknown, path: string): StatusCell {
   if (typeof ok !== "boolean") {
     throw new PayloadError(`clé absente ou invalide : ${path}.ok`);
   }
+  const kind = requireString(value, "kind", path);
   return {
     ok,
-    text: requireString(value, "text", path),
+    kind,
+    payload: parsePayload(value.payload, `${path}.payload`),
   };
 }
 
@@ -350,9 +405,7 @@ function parsePlanning(value: unknown): Planning {
     assignments: requireArray(value, "assignments", "planning").map((item, i) =>
       parseAssignment(item, `planning.assignments[${i}]`),
     ),
-    warnings: requireArray(value, "warnings", "planning").map((item, i) =>
-      parseWarning(item, `planning.warnings[${i}]`),
-    ),
+    facts: parseFactsArray(value.facts, "planning.facts"),
     stats: parseStats(value.stats),
     legal_rows: requireArray(value, "legal_rows", "planning").map((item, i) =>
       parseLegalRow(item, `planning.legal_rows[${i}]`),

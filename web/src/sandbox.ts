@@ -2,7 +2,8 @@ import {
   isRecord,
   parseAssignment,
   parseEmployee,
-  parseWarning,
+  parseFactsArray,
+  parseScoreFact,
   PayloadError,
   requireArray,
   requireNumber,
@@ -147,19 +148,19 @@ function parseImpact(value: unknown, path: string): Impact {
   }
   return {
     new_interdits: requireArray(value, "new_interdits", path).map((item, i) =>
-      parseWarning(item, `${path}.new_interdits[${i}]`),
+      parseScoreFact(item, `${path}.new_interdits[${i}]`),
     ),
     broken_wishes: requireArray(value, "broken_wishes", path).map((item, i) =>
-      parseWarning(item, `${path}.broken_wishes[${i}]`),
+      parseScoreFact(item, `${path}.broken_wishes[${i}]`),
     ),
     contract: requireArray(value, "contract", path).map((item, i) =>
       parseContractImpact(item, `${path}.contract[${i}]`),
     ),
     coverage_added: requireArray(value, "coverage_added", path).map((item, i) =>
-      parseWarning(item, `${path}.coverage_added[${i}]`),
+      parseScoreFact(item, `${path}.coverage_added[${i}]`),
     ),
     coverage_removed: requireArray(value, "coverage_removed", path).map((item, i) =>
-      parseWarning(item, `${path}.coverage_removed[${i}]`),
+      parseScoreFact(item, `${path}.coverage_removed[${i}]`),
     ),
     role_fit: requireArray(value, "role_fit", path).map((item, i) => parseRoleFit(item, `${path}.role_fit[${i}]`)),
   };
@@ -302,9 +303,7 @@ export function parseSandboxState(value: unknown): SandboxState {
       assignments: requireArray(planning, "assignments", "planning").map((item, i) =>
         parseAssignment(item, `planning.assignments[${i}]`),
       ),
-      warnings: requireArray(planning, "warnings", "planning").map((item, i) =>
-        parseWarning(item, `planning.warnings[${i}]`),
-      ),
+      facts: parseFactsArray(planning.facts, "planning.facts"),
     },
     score: parseScore(value.score, "score"),
     history: requireArray(value, "history", "root").map((item, i) => parseHistoryCran(item, `history[${i}]`)),
