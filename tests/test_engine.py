@@ -26,6 +26,7 @@ from doux_planning.staff import Unavailability
 from doux_planning.structures import ArrivalWave, DepartureWave, RestaurantHours, ServiceStructure
 from doux_planning.staff import Wellbeing
 from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WeekendChoice, WEEKDAYS
+from doux_planning.warnings import freeze_payload
 from tests.fixtures import employee, kitchen_midday_structure, kitchen_staff
 
 
@@ -73,13 +74,20 @@ def test_chef_starting_late_leaves_morning_hole():
     hole = next(
         item
         for item in result.of_severity(WarningSeverity.COUVERTURE)
-        if item.code == "empty_post" and "niveau 4" in item.message and "10h" in item.message
+        if item.code == "empty_post"
+        and item.payload.get("post_level") == 4
+        and item.payload.get("start_minutes") == 10 * 60
     )
     assert hole.day_index == 0
-    assert "lundi" in hole.message
-    assert "sem. A" in hole.message
-    assert "déjeuner" in hole.message
-    assert "10h–11h" in hole.message
+    assert hole.payload == {
+        "weekday": "monday",
+        "service_id": ServiceName.MIDDAY.value,
+        "team": Team.CUISINE.value,
+        "start_minutes": 10 * 60,
+        "end_minutes": 11 * 60,
+        "post_level": 4,
+    }
+    assert "lundi" not in hole.payload.values()
 
 
 def test_interdit_fixtures():
@@ -162,6 +170,9 @@ def test_publish_with_acknowledged_interdit():
     assert not publish_allowed(result, frozenset())
     acked = frozenset(item.key() for item in interdits)
     assert publish_allowed(result, acked)
+    assert all(len(item.key()) == 5 for item in interdits)
+    assert all(isinstance(item.payload, dict) for item in interdits)
+    assert all(item.key()[4] == freeze_payload(item.payload) for item in interdits)
 
 
 def test_rank_candidates_orders_by_warnings_then_fit():
@@ -771,21 +782,54 @@ def test_lower_personal_min_shift_fills_a_short_post():
     assert monday[0].duration_hours == 3.0
 
 
-def _first_message(result, code: str) -> str:
-    return next(item.message for item in result.warnings if item.code == code)
+def _first_payload(result, code: str) -> dict:
+    return next(item.payload for item in result.warnings if item.code == code)
 
 
-def test_remaining_evaluate_messages_are_french():
+def _assert_no_french_payload(payload: dict) -> None:
+    markers = (
+        "lundi",
+        "mardi",
+        "mercredi",
+        "jeudi",
+        "vendredi",
+        "samedi",
+        "dimanche",
+        "déjeuner",
+        "dîner",
+        "sem.",
+        "contrat",
+        "repos",
+        "max ",
+        "h de",
+    )
+
+    def walk(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict):
+            for item in value.values():
+                yield from walk(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                yield from walk(item)
+
+    for text in walk(payload):
+        lowered = text.lower()
+        assert not any(marker in lowered for marker in markers), text
+
+
+def test_evaluate_payloads_are_typed_not_french():
     chef = employee("ChefA", "chef", employee_id="chef-a")
     long_day = evaluate(_draft([_shift("chef-a", 0, 8 * 60, 21 * 60, 4)], employees=(chef,)))
-    assert "max 11h" in _first_message(long_day, "max_daily_hours")
-    assert "lundi" in _first_message(long_day, "max_daily_hours")
+    assert _first_payload(long_day, "max_daily_hours") == {"hours": 13, "limit_hours": 11}
+    _assert_no_french_payload(_first_payload(long_day, "max_daily_hours"))
 
     no_rest = evaluate(
         _draft([_shift("chef-a", day, 10 * 60, 16 * 60, 4) for day in range(7)], employees=(chef,))
     )
-    assert "/ 2 j. de repos" in _first_message(no_rest, "weekly_rest_days")
-    assert "sem. A" in _first_message(no_rest, "weekly_rest_days")
+    assert _first_payload(no_rest, "weekly_rest_days") == {"rest_days": 0, "required": 2, "week_start": 0}
+    _assert_no_french_payload(_first_payload(no_rest, "weekly_rest_days"))
 
     coupure = evaluate(
         PlanningDraft(
@@ -800,19 +844,22 @@ def test_remaining_evaluate_messages_are_french():
             ),
         )
     )
-    assert "coupure > 5h" in _first_message(coupure, "max_coupure")
-    assert "lundi" in _first_message(coupure, "max_coupure")
+    assert _first_payload(coupure, "max_coupure") == {"gap_minutes": 7 * 60, "limit_hours": 5}
+    _assert_no_french_payload(_first_payload(coupure, "max_coupure"))
 
     long_week = evaluate(
         _draft([_shift("chef-a", day, 8 * 60, 18 * 60, 4) for day in range(6)], employees=(chef,))
     )
-    assert "/ max 48h" in _first_message(long_week, "max_weekly_hours")
-    assert "sem. A" in _first_message(long_week, "max_weekly_hours")
+    assert _first_payload(long_week, "max_weekly_hours") == {"hours": 60, "limit_hours": 48, "week_start": 0}
+    _assert_no_french_payload(_first_payload(long_week, "max_weekly_hours"))
 
     blocked = chef.with_unavailability(Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value))
     indispo = evaluate(_draft([_shift("chef-a", 0, 10 * 60, 16 * 60, 4)], employees=(blocked,)))
-    assert "posé sur indispo" in _first_message(indispo, "unavailability")
-    assert "lundi déjeuner" in _first_message(indispo, "unavailability")
+    assert _first_payload(indispo, "unavailability") == {
+        "weekday": "monday",
+        "service_id": ServiceName.MIDDAY.value,
+    }
+    _assert_no_french_payload(_first_payload(indispo, "unavailability"))
 
     closed = evaluate(
         PlanningDraft(
@@ -822,8 +869,11 @@ def test_remaining_evaluate_messages_are_french():
             assignments=(_shift("chef-a", 6, 11 * 60, 15 * 60, 4),),
         )
     )
-    assert "shift sur fermeture" in _first_message(closed, "assigned_on_closure")
-    assert "dimanche · déjeuner" in _first_message(closed, "assigned_on_closure")
+    assert _first_payload(closed, "assigned_on_closure") == {
+        "weekday": "sunday",
+        "service_id": ServiceName.MIDDAY.value,
+    }
+    _assert_no_french_payload(_first_payload(closed, "assigned_on_closure"))
 
     sam = employee("Sam", "commis", hours=20, employee_id="sam").with_wellbeing(Wellbeing(consecutive_rest=True))
     souhait = evaluate(
@@ -837,9 +887,11 @@ def test_remaining_evaluate_messages_are_french():
             employees=(sam,),
         )
     )
-    assert "pas deux repos consécutifs" in _first_message(souhait, "consecutive_rest_days")
-    assert "contrat" in _first_message(souhait, "contract_hours")
-    assert "sem. A" in _first_message(souhait, "contract_hours")
+    assert _first_payload(souhait, "consecutive_rest_days") == {"week_start": 0}
+    contract = _first_payload(souhait, "contract_hours")
+    assert contract["contracted"] == 20
+    assert contract["week_start"] in {0, 7}
+    _assert_no_french_payload(contract)
     assert all(
         item.severity is WarningSeverity.SOUHAIT
         for item in souhait.warnings
@@ -864,10 +916,17 @@ def test_remaining_evaluate_messages_are_french():
             assignments=tuple(both_weekends),
         )
     )
-    assert "pas de repos samedi ou dimanche" in _first_message(weekends, "weekend_rest_day")
-    assert "week-end pair non tenu" in _first_message(weekends, "weekend_even_weeks")
-    assert "week-end impair non tenu" in _first_message(weekends, "weekend_odd_weeks")
-    assert "pas exactement un week-end off / 14 j." in _first_message(weekends, "weekend_every_two_weeks")
+    assert _first_payload(weekends, "weekend_rest_day") == {"week_start": 0}
+    assert _first_payload(weekends, "weekend_even_weeks") == {"off_week_0": False, "off_week_7": False}
+    assert _first_payload(weekends, "weekend_odd_weeks") == {"off_week_0": False, "off_week_7": False}
+    assert _first_payload(weekends, "weekend_every_two_weeks") == {"off_week_0": False, "off_week_7": False}
+    for code in (
+        "weekend_rest_day",
+        "weekend_even_weeks",
+        "weekend_odd_weeks",
+        "weekend_every_two_weeks",
+    ):
+        _assert_no_french_payload(_first_payload(weekends, code))
 
 
 def test_maximal_honors_search_seconds_including_fill():

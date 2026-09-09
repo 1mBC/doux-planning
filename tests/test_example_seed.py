@@ -54,10 +54,11 @@ def test_seed_again_clears_published_and_keeps_example_fiches():
     assert not team_ready(seeded, Team.CUISINE)
 
 
-def test_saint_cloud_snapshot_has_live_french_recap():
+def test_saint_cloud_snapshot_has_typed_facts_recap():
     planning = json.loads((data_dir() / "examples" / "saint-cloud.json").read_text(encoding="utf-8"))["planning"]
     assert len(planning["assignments"]) == 92
     assert planning["stats"]["assignments"] == 92
+    assert "warnings" not in planning
     theo = next(
         item
         for item in planning["assignments"]
@@ -67,11 +68,22 @@ def test_saint_cloud_snapshot_has_live_french_recap():
     assert theo["end_minutes"] == 960
     assert theo["duration_hours"] == 5.0
     diane = next(row for row in planning["wish_rows"] if row["employee_id"] == "diane")
-    assert diane["cells"]["contrat"] == {"ok": False, "text": "30h · 29h / 39h"}
+    assert diane["cells"]["contrat"] == {
+        "ok": False,
+        "kind": "contract_hours",
+        "payload": {"hours_week_0": 30, "hours_week_7": 29, "contracted": 39},
+    }
     assert {col["key"] for col in planning["wish_cols"]}.isdisjoint({"we1j", "weA", "weB", "soirs", "repos2", "coupures"})
     assert "legal_cols" not in planning
-    assert any(item["code"] == "contract_hours" and "contrat" in item["message"] for item in planning["warnings"])
-    assert any(
-        item["code"] == "consecutive_rest_days" and "pas deux repos" in item["message"]
-        for item in planning["warnings"]
-    )
+    assert "resumes" not in planning["score"]
+    evaluate_misses = [
+        item for item in planning["facts"] if item["polarity"] == "miss" and item["kind"] != "role_gap"
+    ]
+    assert len(evaluate_misses) == 17
+    assert any(item["kind"] == "contract_hours" and item["polarity"] == "miss" for item in evaluate_misses)
+    assert any(item["kind"] == "consecutive_rest_days" and item["polarity"] == "miss" for item in evaluate_misses)
+    for row in planning["legal_rows"] + planning["wish_rows"]:
+        for cell in row["cells"].values():
+            if cell is None:
+                continue
+            assert "text" not in cell

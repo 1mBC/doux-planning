@@ -12,7 +12,7 @@ from doux_planning.api.app import app
 from doux_planning.api.auth import DETAIL_ADMIN, promote_admin_email
 from doux_planning.api.db import BenchRun, GenerateLog, reset_engine, session_scope
 from doux_planning.bench import BenchOutcome, list_bench_datasets, load_bench_dataset, run_bench
-from doux_planning.context import SCORE_WEIGHTS, CycleScore, ScoreNotes, ScoreResumes, cycle_score, empty_restaurant, team_ready, upsert_employee
+from doux_planning.context import SCORE_WEIGHTS, CycleScore, ScoreNotes, cycle_score, empty_restaurant, team_ready, upsert_employee
 from doux_planning.engine import PlanningDraft, evaluate
 from doux_planning.staff import default_legal_rules
 from doux_planning.types import SearchEffort, Team, WEEKDAYS, WarningSeverity
@@ -89,8 +89,7 @@ def _salle_patch(fiche_id: str) -> dict:
 
 def _stub_run_bench(category, dataset_id, effort):
     notes = ScoreNotes(10.0, 10.0, 10.0, None, 10.0)
-    resumes = ScoreResumes("10 / 10 postes tenus", "1 / 1 règles tenues", "10h / 10h contrat", None, "écart 0 / 1")
-    score = CycleScore(notes=notes, resumes=resumes, weights=dict(SCORE_WEIGHTS), global_score=10.0)
+    score = CycleScore(notes=notes, weights=dict(SCORE_WEIGHTS), global_score=10.0)
     return BenchOutcome(
         category=category,
         id=dataset_id,

@@ -56,7 +56,7 @@ def test_weekend_rest_day_column_null_for_colleague_without_box():
     assert by_id["lea"].cells["weekend_rest_day"] is None
 
 
-def test_rest_between_warning_has_french_clocks():
+def test_rest_between_warning_payload_is_minutes_not_french():
     person = employee("ChefA", "chef", employee_id="chef-a")
     assignments = [
         _shift("chef-a", 0, 10 * 60, 23 * 60, 4, weekday="monday"),
@@ -65,22 +65,38 @@ def test_rest_between_warning_has_french_clocks():
     result = evaluate(_draft(assignments, employees=(person,)))
     warning = next(item for item in result.warnings if item.code == "rest_between_days")
     assert warning.day_index == 0
-    assert "lundi 23h" in warning.message
-    assert "mardi 8h" in warning.message
-    assert "→" in warning.message
-    assert "moins de 11 h de repos" in warning.message
+    assert warning.payload == {
+        "day_index_b": 1,
+        "end_minutes": 23 * 60,
+        "start_minutes_b": 8 * 60,
+        "rest_minutes": 9 * 60,
+        "required_minutes": 660,
+    }
+    assert not hasattr(warning, "message")
+    assert "lundi" not in str(warning.payload)
+    assert "mardi" not in str(warning.payload)
 
 
-def test_empty_post_message_names_french_hole():
+def test_empty_post_payload_names_english_hole():
     assignments = [_shift("chef-a", 0, 11 * 60, 16 * 60, 4)]
     result = evaluate(_draft(assignments))
     hole = next(
         item
         for item in result.of_severity(WarningSeverity.COUVERTURE)
-        if item.code == "empty_post" and "niveau 4" in item.message and "10h" in item.message
+        if item.code == "empty_post"
+        and item.payload.get("post_level") == 4
+        and item.payload.get("start_minutes") == 10 * 60
     )
     assert hole.day_index == 0
-    assert hole.message == "lundi · sem. A · déjeuner · 10h–11h · niveau 4"
+    assert hole.payload == {
+        "weekday": "monday",
+        "service_id": ServiceName.MIDDAY.value,
+        "team": Team.CUISINE.value,
+        "start_minutes": 10 * 60,
+        "end_minutes": 11 * 60,
+        "post_level": 4,
+    }
+    assert not hasattr(hole, "message")
 
 
 def test_wish_max_evening_shows_week_counts():
@@ -107,7 +123,14 @@ def test_wish_max_evening_shows_week_counts():
     cell = recap.wish_rows[0].cells["max_evening"]
     assert cell is not None
     assert cell.ok is False
-    assert cell.text == "max 2 · 1 / 3 posés"
+    assert cell.kind == "max_evenings"
+    assert cell.payload == {
+        "limit": 2,
+        "count_week_0": 1,
+        "count_week_7": 3,
+        "service_id": ServiceName.EVENING.value,
+    }
+    assert not hasattr(cell, "text")
 
 
 def _score_monday_draft(person, assignments) -> PlanningDraft:
@@ -155,11 +178,19 @@ def test_cycle_score_notes_out_of_ten():
     state.published_cycles[Team.CUISINE] = PublishedCycle(id="cuisine", draft=draft, result=result)
     recap = cycle_recap(state, Team.CUISINE)
     assert recap.score.notes == score.notes
-    assert recap.score.resumes == score.resumes
+    assert not hasattr(recap.score, "resumes")
     assert recap.score.global_score == score.global_score
+    assert recap.facts
+    for row in (*recap.legal_rows, *recap.wish_rows):
+        for cell in row.cells.values():
+            if cell is None:
+                continue
+            assert not hasattr(cell, "text")
+            assert cell.kind
+            assert isinstance(cell.payload, dict)
 
 
-def test_cycle_score_asymmetric_occupation_and_resumes():
+def test_cycle_score_asymmetric_occupation():
     assignments = [
         _shift("sam", 0, 11 * 60, 15 * 60, 2),
         _shift("sam", 7, 11 * 60, 15 * 60, 2),
@@ -177,39 +208,14 @@ def test_cycle_score_asymmetric_occupation_and_resumes():
     score = cycle_score(draft, evaluate(draft))
     assert score.notes.contrat == 10.0
     assert score.notes.roles == 10.0
-    assert score.resumes.couverture is not None
-    assert "postes tenus" in score.resumes.couverture
-    assert score.resumes.contrat is not None
-    assert "occupées" in score.resumes.contrat
-    assert "contrat" in score.resumes.contrat
-    assert score.resumes.contrat == "8h occupées / 8h contrat"
-    assert "indispos tenues" not in score.resumes.contrat
-    assert "\n" not in score.resumes.contrat
-    assert score.resumes.wellbeing is None
-    assert score.resumes.legal is not None
-    assert score.resumes.roles is not None
-    assert "affectés" in score.resumes.roles
-    assert "sous-rôle" in score.resumes.roles
-    assert score.resumes.roles == "2 affectés · 0 poste en sous-rôle / 2"
-    assert not score.resumes.roles.startswith("écart")
-    assert (score.resumes.couverture is None) == (score.notes.couverture is None)
-    assert (score.resumes.legal is None) == (score.notes.legal is None)
-    assert (score.resumes.contrat is None) == (score.notes.contrat is None)
-    assert (score.resumes.wellbeing is None) == (score.notes.wellbeing is None)
-    assert (score.resumes.roles is None) == (score.notes.roles is None)
+    assert not hasattr(score, "resumes")
 
     blocked = exact.with_unavailability(Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value))
     broken = cycle_score(_score_monday_draft(blocked, assignments), evaluate(_score_monday_draft(blocked, assignments)))
     assert broken.notes.roles == 10.0
-    assert broken.resumes.contrat is not None
-    assert "occupées" in broken.resumes.contrat
-    assert "contrat" in broken.resumes.contrat
-    assert "indispos tenues" in broken.resumes.contrat
-    assert "\n" in broken.resumes.contrat
-    hours_line, indispo_line = broken.resumes.contrat.split("\n")
-    assert "occupées" in hours_line
-    assert "contrat" in hours_line
-    assert "indispos tenues" in indispo_line
+    assert broken.notes.contrat is not None
+    assert broken.notes.contrat < 10.0
+    assert not hasattr(broken, "resumes")
 
 
 def test_saint_cloud_example_has_cycle_score_without_rewrite():
@@ -225,3 +231,40 @@ def test_saint_cloud_example_has_cycle_score_without_rewrite():
     assert len(draft.assignments) == 92
     assert score.notes.couverture == 10.0
     assert score.global_score is not None
+    assert not hasattr(score, "resumes")
+
+
+def test_saint_cloud_recap_facts_are_evaluate_misses_then_hits():
+    delivered = load_delivered_cycle("saint-cloud")
+    draft = PlanningDraft(
+        employees=delivered.employees,
+        structures=delivered.structures,
+        hours=delivered.hours,
+        assignments=delivered.assignments,
+    )
+    result = evaluate(draft)
+    state = empty_restaurant("saint-cloud")
+    state.employees = list(delivered.employees)
+    state.structures = list(delivered.structures)
+    state.hours = delivered.hours
+    state.published_cycles[Team.SALLE] = PublishedCycle(id=Team.SALLE.value, draft=draft, result=result)
+    recap = cycle_recap(state, Team.SALLE)
+    evaluate_misses = [fact for fact in recap.facts if fact.polarity == "miss" and fact.kind != "role_gap"]
+    assert len(result.assignments) == 92
+    assert len(evaluate_misses) == 17
+    assert [fact.kind for fact in evaluate_misses] == [item.code for item in result.warnings]
+    assert recap.stats.below_role == 47
+    assert recap.stats.wellbeing.held == 10
+    assert recap.stats.wellbeing.total == 12
+    diane = next(row for row in recap.wish_rows if row.employee_id == "diane")
+    contrat = diane.cells["contrat"]
+    assert contrat is not None
+    assert contrat.ok is False
+    assert contrat.kind == "contract_hours"
+    assert contrat.payload["contracted"] == 39
+    assert set(contrat.payload) == {"hours_week_0", "hours_week_7", "contracted"}
+    assert not hasattr(contrat, "text")
+    assert not hasattr(recap.score, "resumes")
+    assert all(not hasattr(item, "message") for item in result.warnings)
+    assert any(fact.kind == "contract_hours" and fact.polarity == "miss" for fact in evaluate_misses)
+    assert any(fact.kind == "consecutive_rest_days" and fact.polarity == "miss" for fact in evaluate_misses)

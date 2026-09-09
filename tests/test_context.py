@@ -286,7 +286,10 @@ def test_context_wellbeing_week_labels_and_unavail_service_id():
     assert example.status_code == 200
     stats = example.json()["planning"]["stats"]
     assert stats["assignments"] == 92
-    assert len(example.json()["planning"]["warnings"]) == 17
+    facts = example.json()["planning"]["facts"]
+    evaluate_misses = [item for item in facts if item["polarity"] == "miss" and item["kind"] != "role_gap"]
+    assert len(evaluate_misses) == 17
+    assert "warnings" not in example.json()["planning"]
     assert stats["wellbeing"] == {"held": 10, "total": 12}
     assert stats["below_role"] == 47
 
