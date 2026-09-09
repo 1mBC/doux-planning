@@ -115,11 +115,55 @@ export function evaluateMisses(facts: ScoreFact[]): ScoreFact[] {
   return facts.filter((fact) => fact.polarity === "miss" && fact.kind !== "role_gap");
 }
 
+export const AXIS_ORDER = ["couverture", "legal", "contrat", "wellbeing", "roles"] as const;
+
+export const AXIS_LABEL_FR: Record<(typeof AXIS_ORDER)[number], string> = {
+  couverture: "Couverture",
+  legal: "Légal",
+  contrat: "Contrat",
+  wellbeing: "Bien-être",
+  roles: "Rôles",
+};
+
+export function factCategory(axis: string): string {
+  if (axis in AXIS_LABEL_FR) {
+    return AXIS_LABEL_FR[axis as keyof typeof AXIS_LABEL_FR];
+  }
+  return axis;
+}
+
+export function factSubcategory(kind: string): string {
+  if (kind === "contract_hours") {
+    return "Occupation";
+  }
+  if (kind === "unavailability") {
+    return "Indispo";
+  }
+  if (kind === "empty_post" || kind === "post_held") {
+    return "Poste";
+  }
+  if (kind === "assigned_on_closure") {
+    return "Fermeture";
+  }
+  return factTitle(kind);
+}
+
+export function sortFactsForTable(facts: ScoreFact[]): ScoreFact[] {
+  const rank = (axis: string): number => {
+    const index = AXIS_ORDER.indexOf(axis as (typeof AXIS_ORDER)[number]);
+    return index === -1 ? AXIS_ORDER.length : index;
+  };
+  const stable = (items: ScoreFact[]): ScoreFact[] =>
+    items
+      .map((fact, index) => ({ fact, index }))
+      .sort((a, b) => rank(a.fact.axis) - rank(b.fact.axis) || a.index - b.index)
+      .map((item) => item.fact);
+  return [...stable(facts.filter((fact) => fact.polarity === "miss")), ...stable(facts.filter((fact) => fact.polarity !== "miss"))];
+}
+
 export function factsForAxis(facts: ScoreFact[], axis: string | "global"): ScoreFact[] {
   const filtered = axis === "global" ? facts : facts.filter((fact) => fact.axis === axis);
-  const misses = filtered.filter((fact) => fact.polarity === "miss");
-  const hits = filtered.filter((fact) => fact.polarity !== "miss");
-  return [...misses, ...hits];
+  return sortFactsForTable(filtered);
 }
 
 export function factSeverityLabel(fact: Pick<ScoreFact, "kind" | "severity" | "polarity">): string {
@@ -417,16 +461,12 @@ export function formatFactLine(fact: ScoreFact, ctx: FactFormatCtx = {}): string
   return formatKnownLine(fact, ctx) ?? (payloadEmpty(fact.payload) ? factTitle(fact.kind) : rawPayload(fact.payload));
 }
 
-function okPrefix(ok: boolean, text: string): string {
-  return ok ? `OK · ${text}` : text;
-}
-
-export function formatRecapCell(cell: StatusCell): string {
+export function formatRecapMeasure(cell: StatusCell): string {
   const payload = cell.payload;
   switch (cell.kind) {
     case "rest_between_days": {
       if (cell.ok) {
-        return "OK · min 11h";
+        return "min 11h";
       }
       const jourA = weekdayFr(undefined, asInt(payload.day_index) ?? asInt(payload.day_index_a));
       const jourB = weekdayFr(undefined, asInt(payload.day_index_b));
@@ -439,33 +479,33 @@ export function formatRecapCell(cell: StatusCell): string {
       const tightest = asNumber(payload.tightest) ?? asNumber(payload.rest_days);
       const required = asNumber(payload.required) ?? 2;
       if (tightest === null) {
-        return cell.ok ? "OK" : "Non tenu";
+        return "";
       }
-      return okPrefix(cell.ok, `${tightest} / ${required} j.`);
+      return `${tightest} / ${required} j.`;
     }
     case "max_coupure": {
       const maxGap = asNumber(payload.max_gap_hours);
       const gapMin = asNumber(payload.gap_minutes);
       const hours = maxGap ?? (gapMin !== null ? gapMin / 60 : null);
       if (hours === null) {
-        return cell.ok ? "OK" : "Non tenu";
+        return "";
       }
-      return okPrefix(cell.ok, `max ${hoursLabel(hours)}`);
+      return `max ${hoursLabel(hours)}`;
     }
     case "max_daily_hours": {
       const hours = asNumber(payload.max_hours) ?? asNumber(payload.hours);
       if (hours === null) {
-        return cell.ok ? "OK" : "Non tenu";
+        return "";
       }
-      return okPrefix(cell.ok, `max ${hoursLabel(hours)}`);
+      return `max ${hoursLabel(hours)}`;
     }
     case "max_weekly_hours": {
       const a = asNumber(payload.hours_week_0);
       const b = asNumber(payload.hours_week_7);
       if (a === null || b === null) {
-        return cell.ok ? "OK" : "Non tenu";
+        return "";
       }
-      return okPrefix(cell.ok, `${hoursLabel(a)} / ${hoursLabel(b)}`);
+      return `${hoursLabel(a)} / ${hoursLabel(b)}`;
     }
     case "contract_hours": {
       const a = asNumber(payload.hours_week_0);
@@ -476,46 +516,47 @@ export function formatRecapCell(cell: StatusCell): string {
         if (hours !== null && contracted !== null) {
           return `${hoursLabel(hours)} / ${hoursLabel(contracted)}`;
         }
-        return cell.ok ? "OK" : "Non tenu";
+        return "";
       }
       return `${hoursLabel(a)} · ${hoursLabel(b)} / ${hoursLabel(contracted)}`;
     }
     case "unavailability": {
       const slots = asNumber(payload.slot_count);
       if (cell.ok) {
-        return slots === null ? "OK" : `OK · ${slots} créneaux`;
+        return slots === null ? "" : `${slots} créneaux`;
       }
       const weekday = asString(payload.weekday);
       const service = asString(payload.service_id);
       if (weekday || service) {
-        return `Non tenu · ${weekdayFr(weekday)} ${serviceFr(service)}`;
+        return `${weekdayFr(weekday)} ${serviceFr(service)}`;
       }
-      return "Non tenu";
+      return "";
     }
     case "consecutive_rest_days": {
       if (cell.ok) {
         const left = asString(payload.left_weekday);
         const right = asString(payload.right_weekday);
         if (left && right) {
-          return `OK · tenu · ${WEEKDAY_FR[left] ?? left}–${WEEKDAY_FR[right] ?? right}`;
+          return `${WEEKDAY_FR[left] ?? left}–${WEEKDAY_FR[right] ?? right}`;
         }
-        return "OK · tenu";
+        return "";
       }
-      return `Non tenu · sem. ${weekLabel(asInt(payload.week_start), "ab")}`;
+      return `sem. ${weekLabel(asInt(payload.week_start), "ab")}`;
     }
     case "weekend_rest_day": {
       if (cell.ok) {
         const off = asString(payload.off);
         const short = off === "sunday" ? "dim" : off === "saturday" ? "sam" : off ?? "sam";
-        return `OK · ${short}`;
+        return short;
       }
-      return `Non tenu · sem. ${weekLabel(asInt(payload.week_start), "ab")}`;
+      return `sem. ${weekLabel(asInt(payload.week_start), "ab")}`;
     }
     case "weekend_every_two_weeks":
     case "weekend_even_weeks":
     case "weekend_odd_weeks": {
-      const key = asString(payload.weekend) ?? (cell.kind === "weekend_even_weeks" ? "even" : cell.kind === "weekend_odd_weeks" ? "odd" : "every_two");
-      return okPrefix(cell.ok, WEEKEND_FR[key] ?? key);
+      const key =
+        asString(payload.weekend) ?? (cell.kind === "weekend_even_weeks" ? "even" : cell.kind === "weekend_odd_weeks" ? "odd" : "every_two");
+      return WEEKEND_FR[key] ?? key;
     }
     case "max_mornings":
     case "max_middays":
@@ -525,17 +566,24 @@ export function formatRecapCell(cell: StatusCell): string {
       const a = asNumber(payload.count_week_0) ?? asNumber(payload.count);
       const b = asNumber(payload.count_week_7) ?? a;
       if (limit === null || a === null || b === null) {
-        return cell.ok ? "OK" : "Non tenu";
+        return "";
       }
-      const measure = `max ${limit} · ${a} / ${b} posés`;
-      return cell.ok ? `OK · ${measure}` : measure;
+      return `max ${limit} · ${a} / ${b} posés`;
     }
     default:
       if (!knownKind(cell.kind)) {
         return payloadEmpty(payload) ? cell.kind : `${cell.kind} ${rawPayload(payload)}`;
       }
-      return payloadEmpty(payload) ? (cell.ok ? "OK" : cell.kind) : rawPayload(payload);
+      return payloadEmpty(payload) ? "" : rawPayload(payload);
   }
+}
+
+export function formatRecapCell(cell: StatusCell): string {
+  const measure = formatRecapMeasure(cell);
+  if (cell.ok) {
+    return measure ? `OK · ${measure}` : "OK";
+  }
+  return measure || "Non tenu";
 }
 
 export function composeScoreResumes(
@@ -560,14 +608,14 @@ export function composeScoreResumes(
 
   const occupation: string[] = [];
   if (stats) {
-    occupation.push(`${hoursLabel(stats.hours.assigned)} occupées / ${hoursLabel(stats.hours.contracted)} contrat`);
+    occupation.push(`${hoursLabel(stats.hours.assigned)} occupées / ${hoursLabel(stats.hours.contracted)}`);
   }
   const indispoCells = (wishRows ?? [])
     .map((row) => row.cells.indispo)
     .filter((cell): cell is StatusCell => cell !== undefined && cell !== null);
   if (indispoCells.length > 0) {
     const ok = indispoCells.filter((cell) => cell.ok).length;
-    occupation.push(`${ok}/${indispoCells.length} indispos tenues`);
+    occupation.push(`${ok}/${indispoCells.length} indispos respectées`);
   }
   if (occupation.length > 0) {
     resumes.contrat = occupation.join("\n");

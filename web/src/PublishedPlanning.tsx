@@ -17,7 +17,7 @@ import {
   type LiveState,
 } from "./liveSandbox";
 import { loadContext, CONTEXT_SERVICES, type ContextServiceId, type RestaurantContext, type TeamId } from "./context";
-import { CycleScoreNotes, LegalRecap, WishRecap, AlertsList } from "./cycleRecaps";
+import { CycleScoreNotes, LegalAndContractRecap, WellbeingRecap, AlertsList } from "./cycleRecaps";
 import {
   buildPlanningExport,
   exportPublishedPlanning,
@@ -628,8 +628,13 @@ export function PublishedPlanning() {
           <AlertsList facts={facts} employees={people} weekScheme={ctx?.week_labels ?? "ab"} />
           {cycle && !editing ? (
             <>
-              <LegalRecap cols={cycle.legal_cols} rows={cycle.legal_rows} />
-              <WishRecap cycle={cycle} />
+              <LegalAndContractRecap
+                legalCols={cycle.legal_cols}
+                legalRows={cycle.legal_rows}
+                wishCols={cycle.wish_cols}
+                wishRows={cycle.wish_rows}
+              />
+              <WellbeingRecap wishCols={cycle.wish_cols} wishRows={cycle.wish_rows} />
             </>
           ) : null}
           {editing ? (

@@ -275,6 +275,16 @@ Suivre `bench.md` § UI + `score.md` § UI — les suivre, ne pas les modifier.
 
 Version `0.31.0`.
 
+### 32. Score tables Contrat + Légal & Contrat + Bien-être
+
+Suivre `score-facts.md` (gagne) + `score.md` § UI — les suivre, ne pas les modifier.
+
+- Pastille `contrat` : **Contrat /10**. Titres d’axe **gras**. Totaux : `occupées / {h}` sans le mot contrat ; `indispos respectées`.
+- Clic pastille **et** Alertes : même tableau Catégorie | Sous-catégorie | Statut (⚠️/✅) | Détail. Miss groupés par catégorie, puis hits. Zéro sous-titre sous les `h2`.
+- `/planning` + `/exemple` : après Alertes → **Légal & Contrat** (legal_cols + Contrat + Indispos) puis **Bien-être** (wish_cols moins contrat/indispo ; omettre si vide). Cellules emoji + mesure. Wizard inchangé. Banc compare : pastilles + clic seulement.
+
+Version `0.32.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.
