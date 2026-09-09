@@ -28,7 +28,7 @@ Toujours émettre les 5 clés de `notes`.
 Arrondi : `round(x, 1)` Python, clamp `[0, 10]`.  
 `weights` = constantes (mémoire). **Pas** d’UI / PATCH restaurateur dans cette tranche.
 
-Clé JSON `contrat` **inchangée**. Libellé UI : **Occupation**.
+Clé JSON `contrat` **inchangée**. Libellé UI : **Contrat**.
 
 ## Couverture
 
@@ -54,7 +54,7 @@ note = 10 × (cellules ok) / (cellules)
 
 Aucune cellule → `legal` null.
 
-## Occupation (`notes.contrat`)
+## Contrat (`notes.contrat`)
 
 Deux sous-notes, moyenne des parties **présentes** :
 
@@ -123,14 +123,15 @@ Chrome + **clic → liste facts** : `contracts/domain/score-facts.md` (gagne).
 
 Dans chaque pastille, ordre :
 
-1. **titre** (Occupation /10, Globale /10, …)
+1. **titre gras** (Contrat /10, Globale /10, Couverture /10, …)
 2. **même ligne** : note + jauge (`note / 10`, HSL `hue = 12 × note`, `null` → jauge vide)
 3. **ligne suivante** : totaux UI (`score-facts.md` résumés). Globale : pas de totaux.
-4. clic → détail **miss puis hit**
+4. clic → tableau 4 colonnes (`score-facts.md`)
 
 - Rangée notes **au-dessus** de la grille (`/planning` company **et** `/exemple`).
 - **Globale en premier à gauche.** Cadre **contrasté** vs les 5 axes.
-- Tableaux légal / souhaits **sous** la grille.
+- Libellé axe `contrat` : **Contrat /10** (plus Occupation).
+- Sous la grille : Alertes + **Légal & Contrat** + **Bien-être** (`score-facts.md`).
 
 ## Tests
 

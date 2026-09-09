@@ -82,13 +82,10 @@ Toujours `evaluate`. `severity`, `code`/`kind`, `day_index` **inchangés** (card
 `rest_between_days` : `day_index` = jour A ; payload avec les deux horloges (minutes).  
 `weekend_every_two_weeks` peut rester sans `day_index`.
 
-## UI (cette tranche + score-facts)
+## UI
 
-- Warning/fact `contract_hours` : pastille **Contrat**. Autres `souhait` : « Souhait ».
-- Tableaux légal + souhaits : cellule `ok: false` → **orange + gras**. Titre wish : **Souhaits bien-être**.
-- Liste alertes = facts miss hors `role_gap`, rendue par le dictionnaire.
-- Clic notes = `score-facts.md`.
-- `/planning` company : **Calculer** / **Mode édition** **sous** le switch Salle · Cuisine.
+Gagne : `contracts/domain/score-facts.md` (pastilles, tableaux 4 col, Légal & Contrat, Bien-être).  
+Wizard « Souhaits bien-être » (contexte) **inchangé**.
 
 ## Tests
 
