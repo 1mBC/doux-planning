@@ -18,6 +18,7 @@ from doux_planning.api.db import Company, GenerateJob, GenerateLog, Restaurateur
 from doux_planning.context import CycleRecap, RecapCell, TeamNotReady, cycle_recap, generate_team, team_ready
 from doux_planning.planning import PublishedCycle, RestaurantState
 from doux_planning.types import SearchEffort, Team
+from doux_planning.warnings import FACT_AXIS, ScoreFact, score_fact_from_warning
 
 DETAIL_NOT_READY = "Cette équipe n'est pas prête à calculer."
 DETAIL_JOB_RUNNING = "Un calcul maximal est déjà en cours."
@@ -25,7 +26,7 @@ DETAIL_JOB_MISSING = "Calcul introuvable."
 TEAMS = ("salle", "cuisine")
 EFFORTS = ("minimal", "optimized", "maximal")
 ACTIVE_JOB_STATUSES = ("queued", "running")
-RECAP_KEYS = ("stats", "legal_cols", "legal_rows", "wish_cols", "wish_rows", "score")
+RECAP_KEYS = ("facts", "stats", "legal_cols", "legal_rows", "wish_cols", "wish_rows", "score")
 SCORE_AXES = ("couverture", "legal", "contrat", "wellbeing", "roles")
 MAXIMAL_ESTIMATED_SECONDS = 600
 EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3}
@@ -59,11 +60,28 @@ def compute_latest(versions: dict[str, Any]) -> str | None:
     return best[2] if best else None
 
 
+def _typed_cells(blob: dict[str, Any]) -> bool:
+    for key in ("legal_rows", "wish_rows"):
+        for row in blob.get(key) or []:
+            if not isinstance(row, dict):
+                return False
+            for cell in (row.get("cells") or {}).values():
+                if cell is None:
+                    continue
+                if not isinstance(cell, dict) or "kind" not in cell or "payload" not in cell or "text" in cell:
+                    return False
+    return True
+
+
 def _has_recap(blob: Any) -> bool:
     if not (isinstance(blob, dict) and all(key in blob for key in RECAP_KEYS)):
         return False
     score = blob.get("score")
-    return isinstance(score, dict) and "resumes" in score
+    if not isinstance(score, dict) or "resumes" in score:
+        return False
+    if "warnings" in blob:
+        return False
+    return _typed_cells(blob)
 
 
 def _ensure_cycle_recap(state: RestaurantState, team: Team, cycle: dict[str, Any]) -> dict[str, Any]:
@@ -213,20 +231,23 @@ def _shift_json(shift: Any) -> dict[str, Any]:
     }
 
 
-def _warning_json(warning: Any) -> dict[str, Any]:
+def _fact_json(item: Any) -> dict[str, Any]:
+    fact = item if isinstance(item, ScoreFact) else score_fact_from_warning(item)
     return {
-        "severity": warning.severity.value,
-        "code": warning.code,
-        "message": warning.message,
-        "employee_id": warning.employee_id,
-        "day_index": warning.day_index,
+        "axis": fact.axis,
+        "kind": fact.kind,
+        "polarity": fact.polarity,
+        "severity": None if fact.severity is None else fact.severity.value,
+        "employee_id": fact.employee_id,
+        "day_index": fact.day_index,
+        "payload": dict(fact.payload),
     }
 
 
 def _cell_json(cell: RecapCell | None) -> dict[str, Any] | None:
     if cell is None:
         return None
-    return {"ok": cell.ok, "text": cell.text}
+    return {"ok": cell.ok, "kind": cell.kind, "payload": dict(cell.payload)}
 
 
 def _row_json(row: Any) -> dict[str, Any]:
@@ -244,7 +265,6 @@ def _score_axes_json(axes: Any) -> dict[str, Any]:
 def _cycle_score_json(score: Any) -> dict[str, Any]:
     return {
         "notes": _score_axes_json(score.notes),
-        "resumes": _score_axes_json(score.resumes),
         "global": score.global_score,
         "weights": dict(score.weights),
     }
@@ -252,6 +272,7 @@ def _cycle_score_json(score: Any) -> dict[str, Any]:
 
 def _cycle_recap_json(recap: CycleRecap) -> dict[str, Any]:
     return {
+        "facts": [_fact_json(item) for item in recap.facts],
         "score": _cycle_score_json(recap.score),
         "stats": {
             "assignments": recap.stats.assignments,
@@ -281,7 +302,6 @@ def _cycle_json(published: PublishedCycle | None, recap: CycleRecap | None = Non
     result = published.result
     body: dict[str, Any] = {
         "assignments": [_shift_json(shift) for shift in result.assignments],
-        "warnings": [_warning_json(warning) for warning in result.warnings],
     }
     if recap is not None:
         body.update(_cycle_recap_json(recap))
@@ -467,7 +487,7 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
         team=team.value,
         search_effort=search.value,
         duration_seconds=duration_seconds,
-        warnings=list(slot.get("warnings") or []),
+        facts=list(slot.get("facts") or []),
         employees=state.employees,
     )
     return {
@@ -506,7 +526,7 @@ def persist_maximal_result(
         team=team.value,
         search_effort=SearchEffort.MAXIMAL.value,
         duration_seconds=duration_seconds,
-        warnings=list(slot.get("warnings") or []),
+        facts=list(slot.get("facts") or []),
         employees=state.employees,
     )
     return published
@@ -521,22 +541,65 @@ def _employee_name_at_log(employees: Any, employee_id: str | None) -> str | None
     return None
 
 
-def _log_warnings(warnings: list[Any], employees: Any) -> list[dict[str, Any]]:
+def _evaluate_miss_facts(facts: list[Any], employees: Any) -> list[dict[str, Any]]:
     logged: list[dict[str, Any]] = []
-    for warning in warnings:
-        if isinstance(warning, dict):
-            item = {
-                "severity": warning.get("severity"),
-                "code": warning.get("code"),
-                "message": warning.get("message"),
-                "employee_id": warning.get("employee_id"),
-                "day_index": warning.get("day_index"),
+    for item in facts:
+        if not isinstance(item, dict):
+            item = _fact_json(item)
+        if item.get("polarity") != "miss" or item.get("kind") == "role_gap":
+            continue
+        logged.append(
+            {
+                "axis": item.get("axis"),
+                "kind": item.get("kind"),
+                "polarity": "miss",
+                "severity": item.get("severity"),
+                "employee_id": item.get("employee_id"),
+                "day_index": item.get("day_index"),
+                "payload": dict(item.get("payload") or {}),
+                "employee_name": _employee_name_at_log(employees, item.get("employee_id")),
             }
-        else:
-            item = _warning_json(warning)
-        item["employee_name"] = _employee_name_at_log(employees, item.get("employee_id"))
-        logged.append(item)
+        )
     return logged
+
+
+def _facts_from_log_items(raw: list[Any] | None) -> list[dict[str, Any]]:
+    facts: list[dict[str, Any]] = []
+    for item in raw or []:
+        if not isinstance(item, dict):
+            continue
+        payload = item.get("payload")
+        has_payload = isinstance(payload, dict)
+        if has_payload and item.get("kind"):
+            fact = {
+                "axis": item.get("axis") or FACT_AXIS.get(item.get("kind"), "couverture"),
+                "kind": item.get("kind"),
+                "polarity": item.get("polarity") or "miss",
+                "severity": item.get("severity"),
+                "employee_id": item.get("employee_id"),
+                "day_index": item.get("day_index"),
+                "payload": dict(payload),
+            }
+            if "employee_name" in item:
+                fact["employee_name"] = item.get("employee_name")
+            facts.append(fact)
+            continue
+        kind = item.get("kind") or item.get("code")
+        fact = {
+            "axis": FACT_AXIS.get(kind, "couverture") if kind else "couverture",
+            "kind": kind,
+            "polarity": "miss",
+            "severity": item.get("severity"),
+            "employee_id": item.get("employee_id"),
+            "day_index": item.get("day_index"),
+            "payload": {},
+        }
+        if "employee_name" in item:
+            fact["employee_name"] = item.get("employee_name")
+        if item.get("message") is not None:
+            fact["message"] = item["message"]
+        facts.append(fact)
+    return facts
 
 
 def _log_generate(
@@ -546,7 +609,7 @@ def _log_generate(
     team: str,
     search_effort: str,
     duration_seconds: float,
-    warnings: list[Any],
+    facts: list[Any],
     employees: Any,
 ) -> None:
     with session_scope() as db:
@@ -564,7 +627,7 @@ def _log_generate(
                 team=team,
                 search_effort=search_effort,
                 duration_seconds=duration_seconds,
-                warnings=_log_warnings(warnings, employees),
+                warnings=_evaluate_miss_facts(facts, employees),
             )
         )
 
@@ -583,7 +646,7 @@ def list_generate_logs(authorization: str | None) -> dict[str, Any]:
                     "team": row.team,
                     "search_effort": row.search_effort,
                     "duration_seconds": row.duration_seconds,
-                    "warnings": list(row.warnings or []),
+                    "facts": _facts_from_log_items(row.warnings),
                 }
                 for row in rows
             ]

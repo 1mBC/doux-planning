@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_database
 from doux_planning.api.db import BenchJob, BenchRun, session_scope
-from doux_planning.api.generate import _cycle_score_json, _shift_json, _warning_json
+from doux_planning.api.generate import _cycle_score_json, _fact_json, _shift_json
 from doux_planning.bench import (
     BENCH_CATEGORY_ORDER,
     BenchOutcome,
@@ -64,7 +64,7 @@ def persist_bench_outcome(outcome: BenchOutcome) -> BenchRun:
         expected_score=_cycle_score_json(outcome.expected_score),
         deltas=dict(outcome.deltas),
         assignments=[_shift_json(shift) for shift in outcome.assignments],
-        warnings=[_warning_json(warning) for warning in outcome.warnings],
+        warnings=[_fact_json(warning) for warning in outcome.warnings],
     )
     with session_scope() as db:
         db.add(row)
@@ -164,7 +164,7 @@ def get_run(authorization: str | None, run_id: str) -> dict[str, Any]:
             raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
         body = _run_summary(row)
         body["assignments"] = list(row.assignments or [])
-        body["warnings"] = list(row.warnings or [])
+        body["facts"] = list(row.warnings or [])
         return body
 
 
@@ -210,7 +210,7 @@ def compare(authorization: str | None, category: str, dataset_id: str, search_ef
             raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING) from exc
         body = _run_summary(row)
         body["assignments"] = list(row.assignments or [])
-        body["warnings"] = list(row.warnings or [])
+        body["facts"] = list(row.warnings or [])
         body["expected"] = {
             "assignments": [_shift_json(shift) for shift in dataset.expected],
             "score": dict(row.expected_score),

@@ -286,7 +286,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert first["dataset_id"] == "halles"
     assert first["search_effort"] == "minimal"
     assert first["app_version"] == "0.27.0"
-    assert "notes" in first["score"] and "resumes" in first["score"]
+    assert "notes" in first["score"] and "resumes" not in first["score"]
     assert "assignments" not in first
     assert _count_rows(GenerateLog) == logs_before
     assert _count_rows(BenchRun) == runs_before + 1
@@ -304,6 +304,9 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert compared.json()["expected"]["assignments"]
     assert compared.json()["expected"]["score"] == first["expected_score"]
     assert compared.json()["assignments"] is not None
+    assert "facts" in compared.json()
+    assert "warnings" not in compared.json()
+    assert "resumes" not in compared.json()["score"]
 
     queued = client.post(
         "/v1/admin/bench/run",
