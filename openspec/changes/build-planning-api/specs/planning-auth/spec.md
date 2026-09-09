@@ -149,3 +149,22 @@ Admin bench routes SHALL require `admin` true (`contracts/domain/bench.md`). `PO
 #### Scenario: Non-admin cannot run bench
 - **WHEN** a company session with `admin` false posts `/v1/admin/bench/run`
 - **THEN** the response is HTTP 403 French
+
+### Requirement: Admin bench compare slices and export pack
+GET `/v1/admin/bench/compare/{category}/{dataset_id}/{search_effort}` MUST return the last-run summary plus `employees` and `model` / `manual` `CycleSlice` (`assignments`, `facts`, `score`, `stats`, `legal_cols`, `legal_rows`, `wish_cols`, `wish_rows`) recomputed via Core `cycle_recap_from_draft` from persisted assignments, `expected.json`, and catalogue context. GET MUST NOT emit top-level `facts`, `assignments`, `expected`, or `warnings`. GET `/v1/admin/bench/export` with `scope` `dataset` (plus `category` and `dataset_id`) or `below_manuel` MUST return `{ export_version: 1, kind: "bench-pack", app_version, exported_at, scope, datasets }`. Catalogue `context` MUST omit `invite_token`. A jeu enters `below_manuel` when at least one last-run effort has `score.global < expected_score.global` (both non-null); the pack MUST include every run effort of those jeux. Unknown jeu or `scope=dataset` with no run MUST be HTTP 404 French. Empty `below_manuel` MUST be HTTP 200 with `datasets: []`. A company or employee session with `admin` false MUST receive HTTP 403 `Action réservée à l’admin.`
+
+#### Scenario: Compare after halles minimal has recap hits
+- **WHEN** an admin gets compare `tight` / `halles` / `minimal` after a dataset run
+- **THEN** the response is HTTP 200 with `employees`, `model.facts` hits, and `manual.facts` hits, and MUST NOT include top-level `facts`
+
+#### Scenario: Export dataset pack
+- **WHEN** an admin gets `/v1/admin/bench/export` `scope` `dataset` for `tight` / `halles` after a run
+- **THEN** the response is HTTP 200 `kind` `bench-pack` with one dataset, `manual`, and that effort
+
+#### Scenario: Export below_manuel
+- **WHEN** an admin gets `/v1/admin/bench/export` `scope` `below_manuel`
+- **THEN** the response is HTTP 200 with `datasets` as a list (empty when no last-run is below Manuel)
+
+#### Scenario: Non-admin cannot export bench pack
+- **WHEN** a company session with `admin` false gets `/v1/admin/bench/export`
+- **THEN** the response is HTTP 403 French

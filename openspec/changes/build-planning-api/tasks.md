@@ -64,6 +64,7 @@
 
 - [x] 12.1 Alembic `bench_jobs` + `bench_runs`. Admin routes wrap Core `run_bench` / list / load. Sync dataset `minimal`/`optimized` → 200 + row. `all`/`category`/`maximal` → 202 one job per jeu; worker same process other table (no 409 with `generate_jobs`); tick stub for Maximal. No `published_cycles` / `generate_logs`. SPA `/admin` `/admin/bench` compare path. Verify POST dataset minimal 200 + GET runs; POST all maximal 202 + 4 stub ticks → 4 runs; GET compare; 403 non-admin; resto generate `minimal` intact; example 92. No `engine.py` / `web/` / `contracts/` / `data/bench/**` edits
 - [x] 12.2 `POST /v1/admin/bench/run` `scope=all` queues one job per listed dataset (7 today). `scope=category` `crafted` → 202 / 3 jobs. Routes unchanged. No Alembic. Verify POST all maximal + tick stub → 7 `job_ids` / 7 runs; POST category crafted → 3 jobs. No `engine.py` / `web/` / `contracts/` / `data/bench/**` edits
+- [x] 12.3 GET compare returns `employees` + `model` / `manual` `CycleSlice` via `cycle_recap_from_draft` (persisted assignments + expected.json + context). No top-level `facts` = warnings. GET `/v1/admin/bench/export` `scope=dataset` and `below_manuel`. No Alembic (recompute). Verify compare halles after minimal has `model.facts` and `manual.facts` hits; export dataset + below_manuel 200; 403 non-admin. No `engine.py` / `web/` / `contracts/` edits
 
 ## 13. Score facts on generate / cycles / logs
 

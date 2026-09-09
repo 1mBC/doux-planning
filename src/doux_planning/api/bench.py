@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import secrets
 from datetime import datetime, timezone
 from typing import Any
@@ -10,9 +11,11 @@ from sqlalchemy import select
 
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_database
 from doux_planning.api.db import BenchJob, BenchRun, session_scope
-from doux_planning.api.generate import _cycle_score_json, _fact_json, _shift_json
+from doux_planning.api.generate import _cycle_recap_json, _cycle_score_json, _fact_json, _shift_json
+from doux_planning.api.sandbox import parse_shift
 from doux_planning.bench import (
     BENCH_CATEGORY_ORDER,
+    BenchListing,
     BenchOutcome,
     UnknownBenchDataset,
     bench_dir,
@@ -20,9 +23,13 @@ from doux_planning.bench import (
     load_bench_dataset,
     run_bench,
 )
-from doux_planning.types import SearchEffort
+from doux_planning.context import cycle_recap_from_draft, expand_typical_week
+from doux_planning.engine import PlanningDraft, evaluate
+from doux_planning.staff import default_legal_rules
+from doux_planning.types import SearchEffort, Team
 
 SCOPES = ("all", "category", "dataset")
+EXPORT_SCOPES = ("dataset", "below_manuel")
 EFFORTS = ("minimal", "optimized", "maximal")
 SYNC_EFFORTS = ("minimal", "optimized")
 DETAIL_BENCH_MISSING = "Jeu introuvable."
@@ -64,7 +71,7 @@ def persist_bench_outcome(outcome: BenchOutcome) -> BenchRun:
         expected_score=_cycle_score_json(outcome.expected_score),
         deltas=dict(outcome.deltas),
         assignments=[_shift_json(shift) for shift in outcome.assignments],
-        warnings=[_fact_json(warning) for warning in outcome.warnings],
+        warnings=[_fact_json(item) for item in outcome.facts],
     )
     with session_scope() as db:
         db.add(row)
@@ -92,6 +99,47 @@ def _enqueue_bench_job(category: str, dataset_id: str, effort: str) -> str:
             )
         )
     return job_id
+
+
+def _employee_slice(person) -> dict[str, Any]:
+    return {
+        "id": person.id,
+        "name": person.name,
+        "role": {"name": person.role.name, "level": person.role.level, "team": person.role.team.value},
+        "team": person.team.value,
+    }
+
+
+def _as_shifts(assignments) -> tuple:
+    if not assignments:
+        return ()
+    first = next(iter(assignments))
+    if isinstance(first, dict):
+        return tuple(parse_shift(item) for item in assignments)
+    return tuple(assignments)
+
+
+def _salle_draft(dataset, assignments) -> PlanningDraft:
+    state = dataset.state
+    employees = tuple(person for person in state.employees if person.team == Team.SALLE)
+    structures = tuple(item for item in expand_typical_week(state) if item.team == Team.SALLE)
+    return PlanningDraft(
+        employees=employees,
+        structures=structures,
+        hours=state.hours,
+        legal_rules=default_legal_rules(),
+        assignments=tuple(assignments),
+    )
+
+
+def _cycle_slice(dataset, assignments) -> dict[str, Any]:
+    shifts = _as_shifts(assignments)
+    draft = _salle_draft(dataset, shifts)
+    result = evaluate(draft)
+    recap = cycle_recap_from_draft(draft, result)
+    body = {"assignments": [_shift_json(shift) for shift in result.assignments]}
+    body.update(_cycle_recap_json(recap))
+    return body
 
 
 def _known_targets() -> list[tuple[str, str]]:
@@ -204,19 +252,130 @@ def compare(authorization: str | None, category: str, dataset_id: str, search_ef
         ).first()
         if row is None:
             raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
-        try:
-            dataset = load_bench_dataset(category, dataset_id)
-        except UnknownBenchDataset as exc:
-            raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING) from exc
-        body = _run_summary(row)
-        body["assignments"] = list(row.assignments or [])
-        body["facts"] = list(row.warnings or [])
-        body["expected"] = {
-            "assignments": [_shift_json(shift) for shift in dataset.expected],
-            "score": dict(row.expected_score),
-        }
-        body["expected_score"] = dict(row.expected_score)
-        return body
+        assignments = list(row.assignments or [])
+        summary = _run_summary(row)
+    try:
+        dataset = load_bench_dataset(category, dataset_id)
+    except UnknownBenchDataset as exc:
+        raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING) from exc
+    body = summary
+    body["employees"] = [_employee_slice(person) for person in dataset.state.employees]
+    body["model"] = _cycle_slice(dataset, assignments)
+    body["manual"] = _cycle_slice(dataset, dataset.expected)
+    return body
+
+
+def _score_global(score: Any) -> float | None:
+    if not isinstance(score, dict) or score.get("global") is None:
+        return None
+    return float(score["global"])
+
+
+def _below_manuel(row: BenchRun) -> bool:
+    model = _score_global(row.score)
+    manual = _score_global(row.expected_score)
+    if model is None or manual is None:
+        return False
+    return model < manual
+
+
+def _latest_runs_map() -> dict[tuple[str, str], dict[str, BenchRun]]:
+    with session_scope() as db:
+        rows = list(db.scalars(select(BenchRun).order_by(BenchRun.created_at.desc(), BenchRun.id.desc())))
+    grouped: dict[tuple[str, str], dict[str, BenchRun]] = {}
+    for row in rows:
+        bucket = grouped.setdefault((row.category, row.dataset_id), {})
+        if row.search_effort not in bucket:
+            bucket[row.search_effort] = row
+    return grouped
+
+
+def _context_json(category: str, dataset_id: str) -> dict[str, Any]:
+    path = bench_dir() / category / dataset_id / "context.json"
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(raw, dict):
+        employees = raw.get("employees")
+        if isinstance(employees, list):
+            cleaned = []
+            for person in employees:
+                if isinstance(person, dict):
+                    item = dict(person)
+                    item.pop("invite_token", None)
+                    cleaned.append(item)
+                else:
+                    cleaned.append(person)
+            raw = dict(raw)
+            raw["employees"] = cleaned
+    return raw
+
+
+def _dataset_pack_entry(listing: BenchListing, latest: dict[str, BenchRun]) -> dict[str, Any]:
+    dataset = load_bench_dataset(listing.category, listing.id)
+    efforts: list[dict[str, Any]] = []
+    for effort in EFFORTS:
+        row = latest.get(effort)
+        if row is None:
+            continue
+        efforts.append(
+            {
+                "search_effort": effort,
+                "duration_seconds": row.duration_seconds,
+                "below_manuel": _below_manuel(row),
+                "model": _cycle_slice(dataset, row.assignments),
+                "deltas": dict(row.deltas),
+            }
+        )
+    return {
+        "category": listing.category,
+        "id": listing.id,
+        "name": listing.name,
+        "challenge_fr": listing.challenge_fr,
+        "context": _context_json(listing.category, listing.id),
+        "manual": _cycle_slice(dataset, dataset.expected),
+        "efforts": efforts,
+    }
+
+
+def export_pack(
+    authorization: str | None,
+    *,
+    scope: str | None,
+    category: str | None = None,
+    dataset_id: str | None = None,
+) -> dict[str, Any]:
+    require_admin(authorization)
+    require_database()
+    if scope not in EXPORT_SCOPES:
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    listed = { (item.category, item.id): item for item in list_bench_datasets() }
+    grouped = _latest_runs_map()
+    datasets: list[dict[str, Any]] = []
+    if scope == "dataset":
+        if not isinstance(category, str) or not category or not isinstance(dataset_id, str) or not dataset_id:
+            raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+        listing = listed.get((category, dataset_id))
+        if listing is None:
+            raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING)
+        latest = grouped.get((category, dataset_id)) or {}
+        if not latest:
+            raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
+        datasets.append(_dataset_pack_entry(listing, latest))
+    else:
+        for item in list_bench_datasets():
+            latest = grouped.get((item.category, item.id)) or {}
+            if not latest:
+                continue
+            if not any(_below_manuel(row) for row in latest.values()):
+                continue
+            datasets.append(_dataset_pack_entry(item, latest))
+    return {
+        "export_version": 1,
+        "kind": "bench-pack",
+        "app_version": bench_app_version(),
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "scope": scope,
+        "datasets": datasets,
+    }
 
 
 def post_run(authorization: str | None, body: dict[str, Any]) -> dict[str, Any] | JSONResponse:
