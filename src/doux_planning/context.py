@@ -562,33 +562,28 @@ WISH_COL_LABELS = {
 MAX_DAILY_RULE = {Team.SALLE: "max_daily_salle", Team.CUISINE: "max_daily_cuisine"}
 
 
-def cycle_recap(state: RestaurantState, team: Team) -> CycleRecap:
-    published = state.published_cycles.get(team)
-    if published is None:
-        raise NoPublishedCycle(team)
-    staff = [person for person in state.employees if person.team == team]
-    result = published.result
-    draft = published.draft
+def cycle_recap_from_draft(draft: PlanningDraft, result, *, staff=None) -> CycleRecap:
+    people = list(draft.employees) if staff is None else list(staff)
     warnings = result.warnings
     assignments = result.assignments
     assigned = sum(shift.duration_hours for shift in assignments)
-    contracted = sum(person.contractual_hours_per_week for person in staff) * 2
+    contracted = sum(person.contractual_hours_per_week for person in people) * 2
     percent = 0 if contracted == 0 else round(100 * assigned / contracted)
-    wish_lists = [_board_wishes(person, warnings) for person in staff]
+    wish_lists = [_board_wishes(person, warnings) for person in people]
     posed = [wish for row in wish_lists for wish in row]
-    legal_rows = tuple(_legal_row(person, assignments, warnings) for person in staff)
+    legal_rows = tuple(_legal_row(person, assignments, warnings) for person in people)
     used_rules = {rule_id for row in legal_rows for rule_id in row.cells}
     legal_cols = tuple(
         LegalCol(id=rule.id, label_fr=rule.label_fr)
         for rule in default_legal_rules()
         if rule.id in used_rules
     )
-    wish_keys = _wish_col_keys(staff)
+    wish_keys = _wish_col_keys(people)
     wish_cols = tuple(WishCol(key=key, label=WISH_COL_LABELS[key]) for key in wish_keys)
     scheme = week_label_scheme_from_weekends(person.wellbeing.weekend for person in draft.employees)
     wish_rows = tuple(
         _wish_row(person, wishes, assignments, warnings, wish_keys, draft.hours, scheme)
-        for person, wishes in zip(staff, wish_lists)
+        for person, wishes in zip(people, wish_lists)
     )
     stats = RecapStats(
         assignments=len(assignments),
@@ -607,9 +602,17 @@ def cycle_recap(state: RestaurantState, team: Team) -> CycleRecap:
         legal_rows=legal_rows,
         wish_cols=wish_cols,
         wish_rows=wish_rows,
-        facts=cycle_facts(draft, result, legal_rows, wish_rows, staff),
-        score=cycle_score(draft, result, staff=staff, stats=stats, legal_rows=legal_rows, wish_rows=wish_rows),
+        facts=cycle_facts(draft, result, legal_rows, wish_rows, people),
+        score=cycle_score(draft, result, staff=people, stats=stats, legal_rows=legal_rows, wish_rows=wish_rows),
     )
+
+
+def cycle_recap(state: RestaurantState, team: Team) -> CycleRecap:
+    published = state.published_cycles.get(team)
+    if published is None:
+        raise NoPublishedCycle(team)
+    staff = [person for person in state.employees if person.team == team]
+    return cycle_recap_from_draft(published.draft, published.result, staff=staff)
 
 
 def _has_interdit(warnings, employee_id: str, code: str) -> bool:

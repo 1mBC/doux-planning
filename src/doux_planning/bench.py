@@ -7,7 +7,7 @@ from pathlib import Path
 
 from doux_planning.context import (
     CycleScore,
-    cycle_score,
+    cycle_recap_from_draft,
     empty_restaurant,
     expand_typical_week,
     set_restaurant_name,
@@ -18,6 +18,7 @@ from doux_planning.context import (
     upsert_service_type,
 )
 from doux_planning.engine import PlanningDraft, Shift, evaluate, generate_cycle
+from doux_planning.warnings import ScoreFact
 from doux_planning.hydrate import _employee, _shift, data_dir
 from doux_planning.planning import RestaurantState
 from doux_planning.staff import Role, RoleLadder, default_legal_rules
@@ -61,6 +62,8 @@ class BenchOutcome:
     duration_seconds: float
     assignments: tuple[Shift, ...]
     warnings: tuple
+    facts: tuple[ScoreFact, ...]
+    expected_facts: tuple[ScoreFact, ...]
     score: CycleScore
     expected_score: CycleScore
     deltas: dict[str, float | None]
@@ -136,10 +139,10 @@ def run_bench(category: str, dataset_id: str, effort: SearchEffort) -> BenchOutc
     duration = time.perf_counter() - started
     if state.published_cycles != published_before:
         raise RuntimeError("run_bench must not write published_cycles")
-    score = cycle_score(draft.with_assignments(result.assignments), result)
+    recap = cycle_recap_from_draft(draft.with_assignments(result.assignments), result)
     expected_draft = draft.with_assignments(dataset.expected)
     expected_result = evaluate(expected_draft)
-    expected_score = cycle_score(expected_draft, expected_result)
+    expected_recap = cycle_recap_from_draft(expected_draft, expected_result)
     return BenchOutcome(
         category=category,
         id=dataset_id,
@@ -147,9 +150,11 @@ def run_bench(category: str, dataset_id: str, effort: SearchEffort) -> BenchOutc
         duration_seconds=duration,
         assignments=result.assignments,
         warnings=result.warnings,
-        score=score,
-        expected_score=expected_score,
-        deltas=_score_deltas(score, expected_score),
+        facts=recap.facts,
+        expected_facts=expected_recap.facts,
+        score=recap.score,
+        expected_score=expected_recap.score,
+        deltas=_score_deltas(recap.score, expected_recap.score),
     )
 
 
