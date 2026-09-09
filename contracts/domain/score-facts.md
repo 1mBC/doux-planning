@@ -51,17 +51,11 @@ Cycle {
 Miss evaluate seulement : `polarity == "miss"` **et** `kind != "role_gap"`.  
 Les sous-rôles se voient au clic de la pastille Rôles / Globale, pas dans la liste alertes.
 
-### Clic pastille score (`/planning` + `/exemple`)
+### Pastille score (`/planning` + `/exemple` + banc)
 
-Une **seule** liste (overlay / panneau) :
+Dans la pastille : **titre**, puis **note + jauge** (même ligne), puis **totaux**. Clic → une liste, misses puis hits (`score.md` UI).
 
-1. misses de l’axe (`axis` de la pastille ; Globale = tous)
-2. **juste en dessous**, tous les hits du même filtre
-
-Enriched : titre dictionnaire + gabarit payload + nom + jour/semaine.  
 Kind inconnu : afficher `kind` + payload brut, **ne pas inventer** de FR.
-
-Résumé sous la pastille (plus `score.resumes`) : l’UI le compose (section Dictionnaire). `stats` + comptes de facts.
 
 ## Python Core
 

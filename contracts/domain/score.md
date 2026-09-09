@@ -118,15 +118,19 @@ Poids ci-dessus. Axe `null` : exclu du dénominateur.
 
 ## UI
 
-Chrome + **clic → liste facts** : `contracts/domain/score-facts.md` (gagne).
+Chrome + **clic → liste facts** : `contracts/domain/score-facts.md` (gagne).  
+**Même** `CycleScoreNotes` sur `/planning`, `/exemple`, banc compare.
+
+Dans chaque pastille, ordre :
+
+1. **titre** (Occupation /10, Globale /10, …)
+2. **même ligne** : note + jauge (`note / 10`, HSL `hue = 12 × note`, `null` → jauge vide)
+3. **ligne suivante** : totaux UI (`score-facts.md` résumés). Globale : pas de totaux.
+4. clic → détail **miss puis hit**
 
 - Rangée notes **au-dessus** de la grille (`/planning` company **et** `/exemple`).
 - **Globale en premier à gauche.** Cadre **contrasté** vs les 5 axes.
-- Libellés : Occupation / Couverture / Légal / Bien-être / Rôles / Globale, tous `/10`.
-- Sous chaque pastille d’axe : résumé UI (plus `score.resumes`). Globale : pas de sous-ligne.
-- **Jauge** `note / 10`, HSL `hue = 12 × note`. `null` → jauge vide.
-- Clic pastille : une liste, **miss puis hit** de l’axe (Globale = tout).
-- Tableaux légal / souhaits **sous** la grille ; cellules rendues depuis `kind` + `payload`.
+- Tableaux légal / souhaits **sous** la grille.
 
 ## Tests
 
