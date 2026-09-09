@@ -53,7 +53,9 @@ Les sous-rôles se voient au clic de la pastille Rôles / Globale, pas dans la l
 
 ### Pastille score (`/planning` + `/exemple` + banc)
 
-Dans la pastille : **titre**, puis **note + jauge** (même ligne), puis **totaux**. Clic → une liste, misses puis hits (`score.md` UI).
+Titre d’axe **gras** et contrasté. Axe `contrat` : **Contrat /10** (plus Occupation).  
+Totaux Contrat : `{h} occupées / {h}` (**sans** le mot `contrat`) ; `{ok}/{n} indispos respectées` (plus `tenues`).  
+Clic → tableau 4 colonnes ci-dessous.
 
 Kind inconnu : afficher `kind` + payload brut, **ne pas inventer** de FR.
 
@@ -253,17 +255,43 @@ Gabarit **liste** (miss / hit) — l’UI formate horloges (`23h` / `11h30`), jo
 
 Gabarit **cellule** recap : mêmes mesures qu’aujourd’hui (`OK ·` si `ok`, `30h · 29h / 39h` pour contrat, `max {limit} · {nA} / {nB} posés`, etc.) — **composés dans l’UI**, plus dans Core.
 
-Pastille alerte : `contract_hours` → **Contrat** ; autres `souhait` → Souhait ; `interdit` / `couverture` inchangés.
+Pastille alerte / col 1 : `axis` → Couverture / Légal / Contrat / Bien-être / Rôles.  
+`contract_hours` severity pastille : **Contrat**.
+
+### Tableau 4 colonnes (clic pastille **et** Alertes)
+
+Même composant. Pas de sous-titre sous le `h2`.
+
+| Catégorie | Sous-catégorie | Statut | Détail |
+|---|---|---|---|
+| Contrat | Occupation | ⚠️ ou ✅ | gabarit enrichi |
+
+- **Catégorie** = axe (ordre : Couverture, Légal, Contrat, Bien-être, Rôles).
+- **Sous-catégorie** = kind (Occupation = `contract_hours`, Indispo = `unavailability`, Poste = `empty_post`/`post_held`, Fermeture = `assigned_on_closure`, sinon le titre dictionnaire).
+- **Statut** : ⚠️ miss / ✅ hit. Rien d’autre dans cette colonne.
+- **Détail** : gabarit liste (nom, horloges, mesures). Pas de « OK · » / « Non tenu · » ici.
+
+Ordre des lignes : **tous les warnings (miss) d’abord**, groupés par catégorie (pas d’alternance) ; **puis** tous les OK, mêmes groupes.  
+Alertes = misses evaluate (`kind != role_gap`) dans ce tableau. Titre **Alertes**, zéro sous-titre.
+
+### Matrices sous la grille (`/planning` + `/exemple`)
+
+Après Alertes, **deux** tableaux personne × colonnes. Zéro `<p class="sub">`. Cellule : `✅`/`⚠️` + mesure (`formatRecapCell` **sans** préfixe OK/Non tenu). `ok: false` reste orange + gras.
+
+1. **Légal & Contrat** — `legal_cols` puis colonnes `Contrat` + `Indispos` (indispo omise si aucune fiche n’en a, comme aujourd’hui). Fusion : plus de tableau « Règles légales » séparé ; occupation + indispos **sortent** du wish.
+2. **Bien-être** — `wish_cols` **moins** `contrat` et `indispo`. Si plus aucune colonne → **omettre** le tableau. Titre **Bien-être** (plus « Souhaits bien-être » sur cette page).
+
+Banc compare : pastilles + clic 4 col seulement (pas ces matrices).
 
 ### Résumés sous pastille (ex-`resumes`)
 
 L’UI, pas Core :
 
-- couverture : `{post_held} / {post_held + empty_post} postes tenus` (équivalent `stats`)
-- legal : `{cellules ok} / {cellules}` — compter les cells recap, **pas** les paires evaluate
-- occupation : `{stats.hours.assigned occupées} / {contracted contrat}` puis ligne `{ok}/{n} indispos tenues` si col indispo
-- wellbeing : `{stats.wellbeing.held} / {total} souhaits tenus`
-- rôles : `{N} affectés · {k} poste en sous-rôle / {N}` (`stats.assignments` / `below_role`)
+- couverture : `{post_held} / {post_held + empty_post} postes tenus`
+- legal : `{cellules ok} / {cellules}` (cells recap)
+- contrat : `{assigned} occupées / {contracted}` puis ligne `{ok}/{n} indispos respectées` si col indispo
+- wellbeing : `{held} / {total} souhaits tenus`
+- rôles : `{N} affectés · {k} poste en sous-rôle / {N}`
 
 ## Surfaces (toutes adaptées, pas de dual-write)
 

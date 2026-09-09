@@ -45,6 +45,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 32 — crafted + chrome banc | `domain/bench.md` ; briefs `core-bench-crafted.md`, `infra-bench-crafted.md`, `ui-bench-crafted.md` | **landed** `cad892b` (UI v0.29.0) |
 | 33 — score facts | `domain/score-facts.md` + patches score / recaps / snapshot / admin / export / generate / sandbox ; briefs `core-score-facts.md`, `infra-score-facts.md`, `ui-score-facts.md` | **landed** `dfe7810` (UI v0.30.0) |
 | 34 — banc recap + pack | `domain/bench.md`, `domain/score.md` ; briefs `core-bench-pack.md`, `infra-bench-pack.md`, `ui-bench-pack.md` | **landed** `0dfc765` (UI v0.31.0) |
+| 35 — score tables | `domain/score-facts.md`, `domain/score.md`, `domain/cycle-recaps.md` ; brief `ui-score-tables.md` | **freeze** |
 
 ## Ownership git (ne pas croiser)
 
