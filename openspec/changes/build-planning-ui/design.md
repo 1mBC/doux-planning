@@ -265,6 +265,16 @@ Suivre `score-facts.md` (gagne) + `score.md` § UI — les suivre, ne pas les mo
 
 Version `0.30.0`.
 
+### 31. Banc mêmes pastilles + export pack
+
+Suivre `bench.md` § UI + `score.md` § UI — les suivre, ne pas les modifier.
+
+- `CycleScoreNotes` **partout** (planning, exemple, banc) : (1) titre (2) note + jauge **même ligne** (3) totaux (4) clic miss puis hit. Globale d’abord, cadre contrasté, pas de totaux.
+- Compare : parser `employees` + `model` + `manual` (`CycleSlice`). Les deux blocs = même composant, facts complets, noms réels (plus l’id à la place du nom).
+- **Exporter ce jeu** (compare + ligne tableau) → `GET /v1/admin/bench/export?scope=dataset`. **Exporter sous le Manuel** (tableau) → `scope=below_manuel`. Download JSON, fichiers `bench-{category}-{id}.json` / `bench-below-manuel.json`.
+
+Version `0.31.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

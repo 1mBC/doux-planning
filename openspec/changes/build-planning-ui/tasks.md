@@ -160,3 +160,8 @@
 
 - [x] 28.1 Parser `facts[]` + cellules `kind`/`payload` + `score` sans resumes ; dictionnaire FR ; pastilles cliquables miss puis hit ; alertes = misses evaluate ; overlay / admin / export / banc ; bump `web/` to 0.30.0
 - [x] 28.2 Verify `npm run build` ; `/exemple` 17 alertes dictionnaire, clic Occupation / Globale, Diane `30h · 29h / 39h`, Théo 11h–16h, notes /10 ; `/planning` pastilles du slot ; overlay sans `message` brut ; `/admin` hover facts ; `v0.30.0`
+
+## 29. Banc mêmes pastilles + export pack
+
+- [x] 29.1 Parser compare `model` / `manual` / `employees` ; `CycleScoreNotes` partout titre / note+jauge / totaux ; Exporter ce jeu + sous le Manuel ; bump `web/` to 0.31.0
+- [x] 29.2 Verify `npm run build` ; compare Occupation miss+hit des deux côtés ; pastille titre puis note+jauge ; export dataset `kind: bench-pack` ; `v0.31.0`

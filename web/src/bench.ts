@@ -1,7 +1,7 @@
 import {
   isRecord,
   parseCycleScore,
-  parseFactsPrefer,
+  parseEmployee,
   PayloadError,
   requireArray,
   requireNumber,
@@ -9,8 +9,8 @@ import {
   requireString,
 } from "./api";
 import { sendAuth } from "./auth";
-import { parseCycleAssignment, type CycleAssignment, type SearchEffort } from "./generate";
-import type { CycleScore, ScoreFact } from "./types";
+import { parseCycleSlice, type CycleSlice, type SearchEffort } from "./generate";
+import type { CycleScore, Employee } from "./types";
 
 export type BenchScope = "all" | "category" | "dataset";
 
@@ -56,13 +56,12 @@ export type BenchJob = {
 };
 
 export type BenchCompare = BenchRunSummary & {
-  assignments: CycleAssignment[];
-  facts: ScoreFact[];
-  expected: {
-    assignments: CycleAssignment[];
-    score: CycleScore;
-  };
+  employees: Employee[];
+  model: CycleSlice;
+  manual: CycleSlice;
 };
+
+export type BenchExportScope = "dataset" | "below_manuel";
 
 const DELTA_KEYS = ["couverture", "legal", "contrat", "wellbeing", "roles", "global"] as const;
 export const BENCH_EFFORTS: SearchEffort[] = ["minimal", "optimized", "maximal"];
@@ -194,21 +193,57 @@ export function parseBenchCompare(value: unknown): BenchCompare {
   if (!isRecord(value)) {
     throw new PayloadError("objet attendu : compare");
   }
-  const expectedRaw = requireRecord(value, "expected", "compare");
-  const expectedScore = "score" in expectedRaw ? parseCycleScore(expectedRaw.score, "compare.expected.score") : summary.expected_score;
   return {
     ...summary,
-    assignments: requireArray(value, "assignments", "compare").map((item, i) =>
-      parseCycleAssignment(item, `compare.assignments[${i}]`),
+    employees: requireArray(value, "employees", "compare").map((item, i) =>
+      parseEmployee(item, `compare.employees[${i}]`),
     ),
-    facts: parseFactsPrefer(value, "compare"),
-    expected: {
-      assignments: requireArray(expectedRaw, "assignments", "compare.expected").map((item, i) =>
-        parseCycleAssignment(item, `compare.expected.assignments[${i}]`),
-      ),
-      score: expectedScore,
-    },
+    model: parseCycleSlice(value.model, "compare.model"),
+    manual: parseCycleSlice(value.manual, "compare.manual"),
   };
+}
+
+export function benchDatasetExportFilename(category: string, datasetId: string): string {
+  return `bench-${category}-${datasetId}.json`;
+}
+
+export function benchBelowManuelExportFilename(): string {
+  return "bench-below-manuel.json";
+}
+
+export function downloadJsonFile(payload: unknown, filename: string): void {
+  const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function loadBenchExport(params: {
+  scope: "dataset";
+  category: string;
+  dataset_id: string;
+}): Promise<unknown>;
+export async function loadBenchExport(params: { scope: "below_manuel" }): Promise<unknown>;
+export async function loadBenchExport(params: {
+  scope: BenchExportScope;
+  category?: string;
+  dataset_id?: string;
+}): Promise<unknown> {
+  const query = new URLSearchParams();
+  query.set("scope", params.scope);
+  if (params.scope === "dataset") {
+    if (!params.category || !params.dataset_id) {
+      throw new PayloadError("export dataset : category et dataset_id requis");
+    }
+    query.set("category", params.category);
+    query.set("dataset_id", params.dataset_id);
+  }
+  return sendAuth(`/v1/admin/bench/export?${query.toString()}`, { method: "GET" }, true);
 }
 
 export async function loadBenchDatasets(): Promise<{ app_version: string; datasets: BenchDataset[] }> {
