@@ -134,7 +134,7 @@ export function BenchComparePage({ params }: { params: BenchCompareParams | null
         <>
           <section>
             <h2>Modèle</h2>
-            <CycleScoreNotes score={payload.score} />
+            <CycleScoreNotes score={payload.score} facts={payload.facts} />
             <BenchGrids assignments={payload.assignments} />
           </section>
           <section>

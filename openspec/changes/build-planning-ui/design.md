@@ -250,6 +250,21 @@ Suivre `bench.md` § UI — le suivre, ne pas le modifier.
 
 Version `0.29.0`.
 
+### 30. Score facts (dictionnaire + clic notes)
+
+Suivre `score-facts.md` (gagne) + `score.md` § UI — les suivre, ne pas les modifier.
+
+- Parser : `facts[]` (`axis`, `kind`, `polarity`, `payload`) ; cellules `{ ok, kind, payload }` ; `score` sans `resumes` (ignorer si présent). Plus de `message` requis.
+- Dictionnaire kind → titre + gabarit. Kind inconnu → `kind` + payload brut, ne pas inventer.
+- Pastilles `/planning` + `/exemple` **cliquables** : une liste, misses de l’axe puis hits. Globale = tous les facts (y compris `role_gap`).
+- Liste alertes sous la grille : misses evaluate (`kind != role_gap`).
+- Résumés sous pastille composés UI (`stats` + comptes). Tableaux légal / souhaits rendus depuis payload (Diane `30h · 29h / 39h`).
+- Overlay sandbox : `impact` via le dictionnaire ; `contract` / `role_fit` inchangés.
+- Admin hover + export JSON : `facts`. Vieux log `message` + payload vide : fallback `message`.
+- Banc compare : ne pas crasher si `warnings` legacy ; préférer `facts`.
+
+Version `0.30.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

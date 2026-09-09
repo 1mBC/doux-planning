@@ -17,7 +17,7 @@ import {
   type LiveState,
 } from "./liveSandbox";
 import { loadContext, CONTEXT_SERVICES, type ContextServiceId, type RestaurantContext, type TeamId } from "./context";
-import { CycleScoreNotes, LegalRecap, WishRecap } from "./cycleRecaps";
+import { CycleScoreNotes, LegalRecap, WishRecap, AlertsList } from "./cycleRecaps";
 import {
   buildPlanningExport,
   exportPublishedPlanning,
@@ -41,8 +41,6 @@ import {
   formatHoursTotal,
   groupedEmployees,
   personInk,
-  warningSeverityLabel,
-  warningTitle,
   weekdayFromDayIndex,
   weekSheetTitle,
 } from "./format";
@@ -55,7 +53,6 @@ import type {
   HistoryEntry,
   PreviewProposal,
   ShiftIdentity,
-  WarningItem,
 } from "./types";
 import { toShiftIdentity } from "./types";
 
@@ -277,32 +274,6 @@ function HistoryList({
   );
 }
 
-function WarningsList({ warnings }: { warnings: WarningItem[] }) {
-  return (
-    <section>
-      <h2>Alertes</h2>
-      <p className="sub">
-        {warnings.length} warning{warnings.length > 1 ? "s" : ""} du moteur — affichés tels quels.
-      </p>
-      <ol className="warnings">
-        {warnings.map((warning, index) => {
-          const title = warningTitle(warning.code);
-          return (
-            <li
-              key={`${warning.severity}-${warning.code}-${warning.employee_id}-${warning.day_index}-${index}`}
-              className={`warn-${warning.severity}`}
-            >
-              <span className="sev">{warningSeverityLabel(warning)}</span>
-              {title ? <span className="code">{title}</span> : null}
-              <span className="msg">{warning.message}</span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
 export function PublishedPlanning() {
   const [ctx, setCtx] = useState<RestaurantContext | null>(null);
   const [published, setPublished] = useState<PublishedCycles | null>(null);
@@ -354,7 +325,7 @@ export function PublishedPlanning() {
     [ctx, team, editing, live],
   );
   const assignments = editing ? (live.planning.assignments as CycleAssignment[]) : (cycle?.assignments ?? []);
-  const warnings = editing ? live.planning.warnings : (cycle?.warnings ?? []);
+  const facts = editing ? live.planning.facts : (cycle?.facts ?? []);
   const byKey = useMemo(() => indexCycle(assignments), [assignments]);
   const services = ctx ? serviceRows(ctx, assignments) : [];
   const canCalculate = ctx?.ready[team] === true && !editing && calculating === null;
@@ -617,7 +588,17 @@ export function PublishedPlanning() {
 
       {cycle || editing ? (
         <>
-          {cycle && !editing ? <CycleScoreNotes score={cycle.score} /> : null}
+          {cycle && !editing ? (
+            <CycleScoreNotes
+              score={cycle.score}
+              facts={cycle.facts}
+              stats={cycle.stats}
+              legalRows={cycle.legal_rows}
+              wishRows={cycle.wish_rows}
+              employees={people}
+              weekScheme={ctx?.week_labels ?? "ab"}
+            />
+          ) : null}
           <div ref={sheetsRef} className="export-sheets">
             <PublishedSheet
               title={weekSheetTitle(ctx?.week_labels ?? "ab", 0)}
@@ -644,7 +625,7 @@ export function PublishedPlanning() {
               onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
             />
           </div>
-          <WarningsList warnings={warnings} />
+          <AlertsList facts={facts} employees={people} weekScheme={ctx?.week_labels ?? "ab"} />
           {cycle && !editing ? (
             <>
               <LegalRecap cols={cycle.legal_cols} rows={cycle.legal_rows} />

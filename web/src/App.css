@@ -100,6 +100,52 @@ h3 {
   white-space: pre-line;
 }
 
+.score-pill {
+  cursor: pointer;
+  text-align: left;
+}
+
+.score-pill.is-open {
+  box-shadow: 0 0 0 2px #1a1a1a;
+}
+
+.score-fact-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.score-fact-list li {
+  display: grid;
+  grid-template-columns: 7.5rem 9rem 1fr;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #eee;
+  font-size: 12px;
+}
+
+.score-fact-list li:last-child {
+  border-bottom: 0;
+}
+
+.score-fact-miss {
+  border-left: 3px solid #9a6700;
+}
+
+.score-fact-hit {
+  border-left: 3px solid #0f7b3a;
+}
+
+.score-fact-empty {
+  display: block;
+  padding: 10px;
+  color: #666;
+}
+
 .release {
   color: #888;
   font-size: 11px;
@@ -224,10 +270,10 @@ table.plan tr.soir td.work {
   color: #555;
 }
 
-.warnings .msg {
+.warnings .msg,
+.score-fact-list .msg {
   color: #333;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .warn-interdit {

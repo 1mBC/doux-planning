@@ -1,5 +1,6 @@
 import {
   isRecord,
+  parseFactsArray,
   parseLegalRow,
   parseStats,
   parseWishCol,
@@ -13,7 +14,7 @@ import {
 } from "./api";
 import { sendAuth } from "./auth";
 import { ApiHttpError } from "./sandbox";
-import type { LegalRow, PlanningStats, WarningItem, WishCol, WishRow, CycleScore } from "./types";
+import type { LegalRow, PlanningStats, ScoreFact, WishCol, WishRow, CycleScore } from "./types";
 
 export type LegalCol = {
   id: string;
@@ -38,7 +39,7 @@ export type CycleAssignment = {
 
 export type PublishedCycle = {
   assignments: CycleAssignment[];
-  warnings: WarningItem[];
+  facts: ScoreFact[];
   stats: PlanningStats;
   legal_cols: LegalCol[];
   legal_rows: LegalRow[];
@@ -122,44 +123,6 @@ function parseServiceId(value: unknown, path: string): CycleServiceId {
   throw new PayloadError(`service_id inattendu : ${path}`);
 }
 
-function parseSeverity(value: unknown, path: string): WarningItem["severity"] {
-  if (value === "interdit" || value === "couverture" || value === "souhait") {
-    return value;
-  }
-  throw new PayloadError(`severity inattendue : ${path}`);
-}
-
-export function parseWarning(value: unknown, path: string): WarningItem {
-  if (!isRecord(value)) {
-    throw new PayloadError(`objet attendu : ${path}`);
-  }
-  if (!("employee_id" in value) || !("day_index" in value)) {
-    throw new PayloadError(`clé absente : ${path}`);
-  }
-  const employeeId = value.employee_id;
-  const dayIndex = value.day_index;
-  if (employeeId !== null && typeof employeeId !== "string") {
-    throw new PayloadError(`clé invalide : ${path}.employee_id`);
-  }
-  if (dayIndex !== null && typeof dayIndex !== "number") {
-    throw new PayloadError(`clé invalide : ${path}.day_index`);
-  }
-  const warning: WarningItem = {
-    severity: parseSeverity(value.severity, `${path}.severity`),
-    code: requireString(value, "code", path),
-    message: requireString(value, "message", path),
-    employee_id: employeeId,
-    day_index: dayIndex,
-  };
-  if ("employee_name" in value && value.employee_name !== undefined) {
-    if (value.employee_name !== null && typeof value.employee_name !== "string") {
-      throw new PayloadError(`clé invalide : ${path}.employee_name`);
-    }
-    warning.employee_name = value.employee_name;
-  }
-  return warning;
-}
-
 export function parseCycleAssignment(value: unknown, path: string): CycleAssignment {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
@@ -212,7 +175,7 @@ function parseCycle(value: unknown, path: string): PublishedCycle | null {
     assignments: requireArray(value, "assignments", path).map((item, i) =>
       parseCycleAssignment(item, `${path}.assignments[${i}]`),
     ),
-    warnings: requireArray(value, "warnings", path).map((item, i) => parseWarning(item, `${path}.warnings[${i}]`)),
+    facts: parseFactsArray(value.facts, `${path}.facts`),
     stats: parseStats(value.stats, `${path}.stats`),
     legal_cols: requireArray(value, "legal_cols", path).map((item, i) => parseLegalCol(item, `${path}.legal_cols[${i}]`)),
     legal_rows: requireArray(value, "legal_rows", path).map((item, i) => parseLegalRow(item, `${path}.legal_rows[${i}]`)),

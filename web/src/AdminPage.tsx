@@ -7,34 +7,34 @@ import {
   teamLabel,
   type AdminGenerateEntry,
 } from "./admin";
-import { formatSolveDuration, warningSeverityLabel, warningTitle, warningWhen } from "./format";
+import { formatSolveDuration, warningWhen } from "./format";
+import { factSeverityLabel, factTitle, formatFactLine } from "./scoreFacts";
 import { ApiHttpError } from "./sandbox";
 import { go } from "./AuthScreens";
-import type { WarningItem } from "./types";
+import type { ScoreFact } from "./types";
 
-function WarningCard({ warning }: { warning: WarningItem }) {
-  const title = warningTitle(warning.code);
+function FactCard({ fact }: { fact: ScoreFact }) {
   return (
     <article className="admin-warn-card">
       <p className="admin-warn-meta">
-        <span className="sev">{warningSeverityLabel(warning)}</span>
-        {title ? <span className="code">{title}</span> : <span className="code">—</span>}
+        <span className="sev">{factSeverityLabel(fact)}</span>
+        <span className="code">{factTitle(fact.kind)}</span>
       </p>
-      <p>{warningWhen(warning.day_index)}</p>
-      <p>{warning.employee_name?.trim() ? warning.employee_name : "—"}</p>
-      <p className="msg">{warning.message || "—"}</p>
+      <p>{warningWhen(fact.day_index)}</p>
+      <p>{fact.employee_name?.trim() ? fact.employee_name : "—"}</p>
+      <p className="msg">{formatFactLine(fact)}</p>
     </article>
   );
 }
 
-function WarningTip({ entry }: { entry: AdminGenerateEntry }) {
-  if (entry.warnings.length === 0) {
+function FactTip({ entry }: { entry: AdminGenerateEntry }) {
+  if (entry.facts.length === 0) {
     return <p>aucun warning</p>;
   }
   return (
     <>
-      {entry.warnings.map((warning, index) => (
-        <WarningCard key={`${entry.id}-w-${index}`} warning={warning} />
+      {entry.facts.map((fact, index) => (
+        <FactCard key={`${entry.id}-w-${index}`} fact={fact} />
       ))}
     </>
   );
@@ -164,9 +164,9 @@ export function AdminPage() {
                   <td>{effortLabel(entry.search_effort)}</td>
                   <td>{formatSolveDuration(entry.duration_seconds)}</td>
                   <td>
-                    <span className="admin-pill">{entry.warnings.length}</span>
+                    <span className="admin-pill">{entry.facts.length}</span>
                     <div className="admin-tip" role="tooltip">
-                      <WarningTip entry={entry} />
+                      <FactTip entry={entry} />
                     </div>
                   </td>
                 </tr>

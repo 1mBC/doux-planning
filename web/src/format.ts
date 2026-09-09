@@ -5,8 +5,9 @@ import type {
   LegalContext,
   LegalRow,
   LegalRule,
-  WarningItem,
+  ScoreFact,
 } from "./types";
+import { factSeverityLabel, factTitle } from "./scoreFacts";
 
 export const DAYS_FR = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 export const DAYS_FR_SHORT = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
@@ -133,15 +134,10 @@ export function effortLabel(effort: string): string {
   return EFFORT_FR[effort] ?? effort;
 }
 
-export const SEVERITY_FR: Record<WarningItem["severity"], string> = {
+export const SEVERITY_FR: Record<NonNullable<ScoreFact["severity"]>, string> = {
   interdit: "Interdit",
   couverture: "Couverture",
   souhait: "Souhait",
-};
-
-const CODE_TITLE_FR: Record<string, string> = {
-  empty_post: "Poste vide",
-  contract_hours: "Heures de contrat",
 };
 
 export const GESTURE_CHOICE_FR: { id: Gesture; label: string }[] = [
@@ -194,15 +190,12 @@ export function formatContractPercents(
   return `(${formatScoreValue(before)} % → ${formatScoreValue(after)} %)`;
 }
 
-export function warningTitle(code: string): string | undefined {
-  return CODE_TITLE_FR[code];
+export function warningTitle(kind: string): string {
+  return factTitle(kind);
 }
 
-export function warningSeverityLabel(warning: { code: string; severity: WarningItem["severity"] }): string {
-  if (warning.code === "contract_hours") {
-    return "Contrat";
-  }
-  return SEVERITY_FR[warning.severity];
+export function warningSeverityLabel(warning: Pick<ScoreFact, "kind" | "severity" | "polarity">): string {
+  return factSeverityLabel(warning);
 }
 
 export function assignmentKey(employeeId: string, dayIndex: number, serviceId: string): string {

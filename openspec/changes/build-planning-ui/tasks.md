@@ -155,3 +155,8 @@
 
 - [x] 27.1 Menu Historique des computes | Banc ; tableau sous-colonnes Modèle / Manuel / Delta ; compare Modèle puis Manuel ; bump `web/` to 0.29.0
 - [x] 27.2 Verify `npm run build` ; admin 2 liens ; banc 7 lignes + crafted ; compare Modèle / Manuel ; `v0.29.0`
+
+## 28. Score facts (dictionnaire + clic notes)
+
+- [x] 28.1 Parser `facts[]` + cellules `kind`/`payload` + `score` sans resumes ; dictionnaire FR ; pastilles cliquables miss puis hit ; alertes = misses evaluate ; overlay / admin / export / banc ; bump `web/` to 0.30.0
+- [x] 28.2 Verify `npm run build` ; `/exemple` 17 alertes dictionnaire, clic Occupation / Globale, Diane `30h · 29h / 39h`, Théo 11h–16h, notes /10 ; `/planning` pastilles du slot ; overlay sans `message` brut ; `/admin` hover facts ; `v0.30.0`

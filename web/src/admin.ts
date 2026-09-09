@@ -1,7 +1,7 @@
-import { isRecord, PayloadError, requireArray, requireString } from "./api";
+import { isRecord, parseFactsPrefer, PayloadError, requireArray, requireString } from "./api";
 import { sendAuth } from "./auth";
-import { parseWarning, type SearchEffort } from "./generate";
-import type { WarningItem } from "./types";
+import type { SearchEffort } from "./generate";
+import type { ScoreFact } from "./types";
 
 export type AdminTeam = "salle" | "cuisine";
 
@@ -13,7 +13,7 @@ export type AdminGenerateEntry = {
   team: AdminTeam;
   search_effort: SearchEffort | null;
   duration_seconds: number | null;
-  warnings: WarningItem[];
+  facts: ScoreFact[];
 };
 
 export type AdminGenerates = {
@@ -68,7 +68,7 @@ function parseEntry(value: unknown, path: string): AdminGenerateEntry {
     team: parseTeam(value.team, `${path}.team`),
     search_effort: parseOptionalEffort(value.search_effort, `${path}.search_effort`),
     duration_seconds: parseOptionalDuration(value.duration_seconds, `${path}.duration_seconds`),
-    warnings: requireArray(value, "warnings", path).map((item, i) => parseWarning(item, `${path}.warnings[${i}]`)),
+    facts: parseFactsPrefer(value, path),
   };
 }
 
