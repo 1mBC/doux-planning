@@ -133,7 +133,7 @@ Adapter **sans** alias. Hydrate lit la **nouvelle** forme seulement.
 
 `forced_off_days` inchangé.
 
-Si le solve (même effort que le snapshot, aujourd’hui `optimized`) **change** assignments / warnings / stats : **réécrire** le bloc `planning` du JSON. Remonter au facteur les **nouveaux** `stats.assignments` / `warnings.length` / `wellbeing.held` — **ne pas** éditer `contracts/http/v1-examples.md`. Si le solve est identique, ne pas toucher `planning`.
+Si le solve (même effort que le snapshot, aujourd’hui `optimized`) **change** assignments / facts / stats : **réécrire** le bloc `planning` du JSON. Remonter au facteur les **nouveaux** `stats.assignments` / misses evaluate / `wellbeing.held` — **ne pas** éditer `contracts/http/v1-examples.md`. Si le solve est identique, ne pas toucher `planning`. Forme facts = `score-facts.md`.
 
 GET exemple public reste du **fichier** (pas un generate HTTP).
 

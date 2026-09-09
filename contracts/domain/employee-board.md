@@ -5,7 +5,7 @@ Produit : le salarié voit **toute** la grille de **son** équipe (cycle publié
 
 `employee_view` actuel (shifts **à soi** seulement, Saint-Cloud `cycle` / weeks) **reste** pour ses tests. Ici : nouvelle API live.
 
-Pas de `legal_rows` / `wish_rows` snapshot Saint-Cloud recopiés. Souhaits = prefs de la fiche + warnings `souhait` du `EngineResult` **déjà** sur `published_cycles[team]`. Pas de second solve, pas de `generate_cycle`.
+Pas de `legal_rows` / `wish_rows` snapshot Saint-Cloud recopiés. Souhaits = prefs de la fiche + facts miss `souhait` du `EngineResult` **déjà** sur `published_cycles[team]`. `held` = aucune miss de ce `kind` pour l’id. Pas de second solve, pas de `generate_cycle`. Textes panneau (`rest_day_label`, …) **hors** cette coupe facts.
 
 ## API
 

@@ -57,7 +57,7 @@ Les autres clés restaurant (`structures`, `source`, contrat, wellbeing…) peuv
 
 Clés obligatoires, dans cet ordre sémantique (l’ordre JSON n’est pas un contrat) :
 
-`search_effort`, `calendars`, `seconds`, `assignments`, `warnings`, `stats`, `legal_rows`, `wish_cols`, `wish_rows`
+`search_effort`, `calendars`, `seconds`, `assignments`, `facts`, `stats`, `legal_rows`, `wish_cols`, `wish_rows`, `score`
 
 | Clé | Invariant Saint-Cloud actuel |
 |---|---|
@@ -72,7 +72,7 @@ Clés obligatoires, dans cet ordre sémantique (l’ordre JSON n’est pas un co
 | `stats.wellbeing.held` | `10` |
 | `stats.wellbeing.total` | `12` |
 | `assignments.length` | `92` |
-| `warnings.length` | `17` |
+| misses evaluate (`facts` `polarity=miss` et `kind != role_gap`) | `17` |
 
 `stats.souhait` n’existe plus. Les manques d’heures de contrat sont dans `stats.hours` (`percent` = heures posées / heures contrat sur 14 j., arrondi). Les souhaits de bien-être (hors colonne `contrat` de `wish_rows`) sont dans `stats.wellbeing`. Pas de compteur « semaines à l’heure ».
 
@@ -83,21 +83,19 @@ Clés obligatoires, dans cet ordre sémantique (l’ordre JSON n’est pas un co
 Ancre UI : Théo midi lundi semaine A = `employee_id: "theo"`, `day_index: 0`, `service_id: "midday"`, `start_minutes: 660`, `end_minutes: 960`, `duration_hours: 5.0`.
 
 `service_id` : `"midday"` | `"evening"`.  
-`day_index` : `0..13` (0–6 semaine 1 = A ou Paire, 7–13 = B ou Impaire). Snapshot public Saint-Cloud : **A / B** (pas de `weekend` even/odd). Invariants = même grille `optimized` (92 / below_role 47). Recap + warnings = evaluate + `cycle_recap` **post** warn-fr (`exemple-snapshot.md`).
+`day_index` : `0..13` (0–6 semaine 1 = A ou Paire, 7–13 = B ou Impaire). Snapshot public Saint-Cloud : **A / B** (pas de `weekend` even/odd). Invariants = même grille `optimized` (92 / below_role 47). Recap + facts = evaluate + `cycle_recap` (`exemple-snapshot.md`, `score-facts.md`).
 
-### `planning.warnings[]`
+### `planning.facts[]`
 
-`severity`, `code`, `message`, `employee_id` (nullable), `day_index`
-
-`message` est du texte moteur **FR** (warn-fr + empty_post / 11 h). L’UI l’affiche, elle ne le réécrit pas en diagnostic.
+Forme `contracts/domain/score-facts.md`. Misses evaluate d’abord (17), puis hits. **Pas** de `warnings` / `message`.
 
 ### `planning.legal_rows[]` / `wish_cols` / `wish_rows[]`
 
-- `legal_rows[]` : `name`, `employee_id`, `cells` map `{ rule_id: { ok, text } | absent }`
+- `legal_rows[]` : `name`, `employee_id`, `cells` map `{ rule_id: { ok, kind, payload } | absent }`
 - `wish_cols[]` : `{ key, label }`
-- `wish_rows[]` : `name`, `employee_id`, `cells` map `{ col_key: { ok, text } \| null }`
+- `wish_rows[]` : `name`, `employee_id`, `cells` map `{ col_key: { ok, kind, payload } \| null }`
 
-Ancre UI : cellule souhait Diane `contrat` = `{ "ok": false, "text": "30h · 29h / 39h" }`.  
+Ancre UI : cellule souhait Diane `contrat` = `{ "ok": false, "kind": "contract_hours", "payload": { "hours_week_0": 30, "hours_week_7": 29, "contracted": 39 } }`.  
 `wish_cols` = clés live (`contrat`, `indispo`, `consecutive_rest`, …) — plus `we1j` / `weA` / `weB` / `soirs` / `repos2`.  
 Règle légale `max_daily_cuisine` : présente dans `legal.rules`, **aucune** cellule dans `legal_rows` Saint-Cloud → l’UI n’invente pas la colonne.
 

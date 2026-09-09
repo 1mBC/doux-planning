@@ -20,7 +20,7 @@ publish_live_sandbox(state, team) -> RestaurantState
 - Enter : brouillon = draft + result du cycle publié. Ré-enter = même brouillon (historique conservé).
 - `live_sandboxes[team]` indépendant de l’autre équipe et de `state.sandbox` Saint-Cloud.
 - Discard : jette le brouillon de **cette** équipe ; le publié reste. Ré-enter = publié intact.
-- Publish : `published_cycles[team] =` draft courant (assignments + warnings). Pas de semaines / reconciliation. L’autre cycle intact.
+- Publish : `published_cycles[team] =` draft courant (assignments + facts, `score-facts.md`). Pas de semaines / reconciliation. L’autre cycle intact.
 - Preview / apply / undo : opèrent sur `live_sandboxes[team]` (passer `team` ou router le store). Saint-Cloud continue d’utiliser `state.sandbox`.
 
 ## Tests
