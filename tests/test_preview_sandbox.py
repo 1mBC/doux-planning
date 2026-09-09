@@ -130,7 +130,7 @@ def test_warning_delta_keeps_contract_hours_identity_and_adds_interdit():
         Warning(
             WarningSeverity.SOUHAIT,
             "contract_hours",
-            "DIANE has 30.0h vs 39.0h contract",
+            {"hours": 30, "contracted": 39, "week_start": 0},
             employee_id="diane",
             day_index=0,
         ),
@@ -139,21 +139,28 @@ def test_warning_delta_keeps_contract_hours_identity_and_adds_interdit():
         Warning(
             WarningSeverity.SOUHAIT,
             "contract_hours",
-            "DIANE has 31.0h vs 39.0h contract",
+            {"hours": 31, "contracted": 39, "week_start": 0},
             employee_id="diane",
             day_index=0,
         ),
         Warning(
             WarningSeverity.INTERDIT,
             "rest_between_days",
-            "DIANE rest too short",
+            {
+                "day_index_b": 2,
+                "end_minutes": 23 * 60,
+                "start_minutes_b": 8 * 60,
+                "rest_minutes": 9 * 60,
+                "required_minutes": 660,
+            },
             employee_id="diane",
             day_index=1,
         ),
     )
     delta = warning_delta(current, trial)
     assert len(delta.unchanged) == 1
-    assert delta.unchanged[0].message == "DIANE has 31.0h vs 39.0h contract"
+    assert delta.unchanged[0].payload == {"hours": 31, "contracted": 39, "week_start": 0}
+    assert not hasattr(delta.unchanged[0], "message")
     assert [item.code for item in delta.added] == ["rest_between_days"]
     assert delta.removed == ()
     assert all(item.code != "rest_between_days" for item in delta.unchanged)
@@ -270,13 +277,13 @@ def test_occupied_rank_prefers_one_interdit_over_interdit_plus_souhait():
     current = EngineResult(assignments=(), warnings=())
     only_interdit = EngineResult(
         assignments=(),
-        warnings=(Warning(WarningSeverity.INTERDIT, "unavailability", "blocked", "alex", 0),),
+        warnings=(Warning(WarningSeverity.INTERDIT, "unavailability", {"weekday": "monday", "service_id": "midday"}, "alex", 0),),
     )
     interdit_and_wish = EngineResult(
         assignments=(),
         warnings=(
-            Warning(WarningSeverity.INTERDIT, "unavailability", "blocked", "blair", 0),
-            Warning(WarningSeverity.SOUHAIT, "max_coupures", "too many", "blair", 0),
+            Warning(WarningSeverity.INTERDIT, "unavailability", {"weekday": "monday", "service_id": "midday"}, "blair", 0),
+            Warning(WarningSeverity.SOUHAIT, "max_coupures", {"count": 3, "limit": 1, "week_start": 0}, "blair", 0),
         ),
     )
     assert occupied_sort_key(draft, current, only_interdit) < occupied_sort_key(

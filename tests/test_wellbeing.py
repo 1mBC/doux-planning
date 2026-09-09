@@ -99,14 +99,17 @@ def test_max_evening_zero_and_coupure_zero_warn():
     assert all(item.severity is WarningSeverity.SOUHAIT for item in result.warnings if item.code in {"max_evenings", "max_coupures"})
     evening = next(item for item in result.warnings if item.code == "max_evenings")
     assert evening.day_index == 0
-    assert "lundi" in evening.message
-    assert "max 0" in evening.message
-    assert "dîner" in evening.message
-    assert "sem. A" in evening.message
+    assert evening.payload == {
+        "count": 1,
+        "limit": 0,
+        "week_start": 0,
+        "service_id": ServiceName.EVENING.value,
+        "day_indexes": [0],
+    }
     coupure = next(item for item in result.warnings if item.code == "max_coupures")
-    assert "1 coupures" in coupure.message
-    assert "max 0" in coupure.message
-    assert "sem. A" in coupure.message
+    assert coupure.payload == {"count": 1, "limit": 0, "week_start": 0}
+    assert not hasattr(evening, "message")
+    assert not hasattr(coupure, "message")
 
 
 def test_unavailability_is_only_day_service_pair():
