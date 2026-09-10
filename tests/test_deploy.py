@@ -56,7 +56,14 @@ def test_spa_planning_serves_index_when_dist_exists():
         pytest.skip("web/dist absent")
     index = (dist / "index.html").read_text(encoding="utf-8")
     client = _client()
-    for path in ("/planning", "/admin", "/admin/bench", "/admin/bench/tight/halles/minimal"):
+    for path in (
+        "/planning",
+        "/admin",
+        "/admin/bench",
+        "/admin/bench/versions",
+        "/admin/bench/run/example-run",
+        "/admin/bench/tight/halles/minimal",
+    ):
         page = client.get(path)
         assert page.status_code == 200
         assert "<html" in page.text.lower()
