@@ -19,6 +19,7 @@ from doux_planning.bench import (
     BenchOutcome,
     UnknownBenchDataset,
     bench_dir,
+    engine_ref,
     list_bench_datasets,
     load_bench_dataset,
     run_bench,
@@ -36,17 +37,27 @@ DETAIL_BENCH_MISSING = "Jeu introuvable."
 DETAIL_BENCH_RUN_MISSING = "Aucun run pour ce jeu."
 DETAIL_BENCH_JOB_MISSING = "Calcul introuvable."
 DETAIL_BENCH_FAILED = "Le calcul a échoué."
+LEGACY_ENGINE_REF = "0.27.0"
+CANONICAL_CORE_ZERO = "core-0"
 
 
 def bench_app_version() -> str:
-    return (bench_dir() / "VERSION").read_text(encoding="utf-8").strip()
+    return engine_ref()
+
+
+def _display_engine_ref(stored: str | None) -> str:
+    if stored == LEGACY_ENGINE_REF:
+        return CANONICAL_CORE_ZERO
+    return stored or ""
 
 
 def _run_summary(row: BenchRun) -> dict[str, Any]:
+    ref = _display_engine_ref(row.app_version)
     return {
         "id": row.id,
         "created_at": row.created_at.isoformat(),
-        "app_version": row.app_version,
+        "engine_ref": ref,
+        "app_version": ref,
         "category": row.category,
         "dataset_id": row.dataset_id,
         "search_effort": row.search_effort,
@@ -62,7 +73,7 @@ def persist_bench_outcome(outcome: BenchOutcome) -> BenchRun:
     row = BenchRun(
         id=secrets.token_urlsafe(12),
         created_at=created_at,
-        app_version=bench_app_version(),
+        app_version=outcome.engine_ref,
         category=outcome.category,
         dataset_id=outcome.id,
         search_effort=outcome.search_effort.value,
@@ -173,8 +184,10 @@ def _parse_run_body(body: dict[str, Any]) -> tuple[str, str, list[tuple[str, str
 
 def list_datasets(authorization: str | None) -> dict[str, Any]:
     require_admin(authorization)
+    ref = engine_ref()
     return {
-        "app_version": bench_app_version(),
+        "engine_ref": ref,
+        "app_version": ref,
         "datasets": [
             {
                 "category": item.category,
@@ -204,16 +217,25 @@ def list_runs(
         return {"runs": [_run_summary(row) for row in rows]}
 
 
+def _compare_body(row: BenchRun) -> dict[str, Any]:
+    try:
+        dataset = load_bench_dataset(row.category, row.dataset_id)
+    except UnknownBenchDataset as exc:
+        raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING) from exc
+    body = _run_summary(row)
+    body["employees"] = [_employee_slice(person) for person in dataset.state.employees]
+    body["model"] = _cycle_slice(dataset, row.assignments)
+    body["manual"] = _cycle_slice(dataset, dataset.expected)
+    return body
+
+
 def get_run(authorization: str | None, run_id: str) -> dict[str, Any]:
     require_admin(authorization)
     with session_scope() as db:
         row = db.get(BenchRun, run_id)
         if row is None:
             raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
-        body = _run_summary(row)
-        body["assignments"] = list(row.assignments or [])
-        body["facts"] = list(row.warnings or [])
-        return body
+        return _compare_body(row)
 
 
 def get_job(authorization: str | None, job_id: str) -> dict[str, Any]:
@@ -240,29 +262,23 @@ def compare(authorization: str | None, category: str, dataset_id: str, search_ef
     require_admin(authorization)
     if search_effort not in EFFORTS:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    current = engine_ref()
     with session_scope() as db:
-        row = db.scalars(
-            select(BenchRun)
-            .where(
-                BenchRun.category == category,
-                BenchRun.dataset_id == dataset_id,
-                BenchRun.search_effort == search_effort,
+        rows = list(
+            db.scalars(
+                select(BenchRun)
+                .where(
+                    BenchRun.category == category,
+                    BenchRun.dataset_id == dataset_id,
+                    BenchRun.search_effort == search_effort,
+                )
+                .order_by(BenchRun.created_at.desc(), BenchRun.id.desc())
             )
-            .order_by(BenchRun.created_at.desc(), BenchRun.id.desc())
-        ).first()
-        if row is None:
-            raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
-        assignments = list(row.assignments or [])
-        summary = _run_summary(row)
-    try:
-        dataset = load_bench_dataset(category, dataset_id)
-    except UnknownBenchDataset as exc:
-        raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING) from exc
-    body = summary
-    body["employees"] = [_employee_slice(person) for person in dataset.state.employees]
-    body["model"] = _cycle_slice(dataset, assignments)
-    body["manual"] = _cycle_slice(dataset, dataset.expected)
-    return body
+        )
+    row = next((item for item in rows if _display_engine_ref(item.app_version) == current), None)
+    if row is None:
+        raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
+    return _compare_body(row)
 
 
 def _score_global(score: Any) -> float | None:
@@ -279,15 +295,72 @@ def _below_manuel(row: BenchRun) -> bool:
     return model < manual
 
 
-def _latest_runs_map() -> dict[tuple[str, str], dict[str, BenchRun]]:
+def _runs_newest() -> list[BenchRun]:
     with session_scope() as db:
-        rows = list(db.scalars(select(BenchRun).order_by(BenchRun.created_at.desc(), BenchRun.id.desc())))
+        return list(db.scalars(select(BenchRun).order_by(BenchRun.created_at.desc(), BenchRun.id.desc())))
+
+
+def _latest_current_runs_map() -> dict[tuple[str, str], dict[str, BenchRun]]:
+    current = engine_ref()
     grouped: dict[tuple[str, str], dict[str, BenchRun]] = {}
-    for row in rows:
+    for row in _runs_newest():
+        if _display_engine_ref(row.app_version) != current:
+            continue
         bucket = grouped.setdefault((row.category, row.dataset_id), {})
         if row.search_effort not in bucket:
             bucket[row.search_effort] = row
     return grouped
+
+
+def _version_cell(row: BenchRun) -> dict[str, Any]:
+    return {
+        "run_id": row.id,
+        "global": _score_global(row.score),
+        "deltas": dict(row.deltas),
+        "duration_seconds": row.duration_seconds,
+    }
+
+
+def list_versions(authorization: str | None) -> dict[str, Any]:
+    require_admin(authorization)
+    newest = _runs_newest()
+    oldest = list(reversed(newest))
+    engine_refs: list[str] = []
+    for row in oldest:
+        ref = _display_engine_ref(row.app_version)
+        if ref and ref not in engine_refs:
+            engine_refs.append(ref)
+    latest: dict[tuple[str, str, str, str], BenchRun] = {}
+    first_run: dict[tuple[str, str], BenchRun] = {}
+    for row in newest:
+        key = (row.category, row.dataset_id, _display_engine_ref(row.app_version), row.search_effort)
+        latest.setdefault(key, row)
+    for row in oldest:
+        first_run.setdefault((row.category, row.dataset_id), row)
+    datasets: list[dict[str, Any]] = []
+    for item in list_bench_datasets():
+        first = first_run.get((item.category, item.id))
+        by_ref: dict[str, dict[str, Any]] = {}
+        for ref in engine_refs:
+            by_ref[ref] = {
+                effort: (
+                    _version_cell(latest[(item.category, item.id, ref, effort)])
+                    if (item.category, item.id, ref, effort) in latest
+                    else None
+                )
+                for effort in EFFORTS
+            }
+        datasets.append(
+            {
+                "category": item.category,
+                "id": item.id,
+                "name": item.name,
+                "challenge_fr": item.challenge_fr,
+                "manual": None if first is None else {"global": _score_global(first.expected_score)},
+                "by_ref": by_ref,
+            }
+        )
+    return {"engine_ref": engine_ref(), "engine_refs": engine_refs, "datasets": datasets}
 
 
 def _context_json(category: str, dataset_id: str) -> dict[str, Any]:
@@ -319,6 +392,8 @@ def _dataset_pack_entry(listing: BenchListing, latest: dict[str, BenchRun]) -> d
         efforts.append(
             {
                 "search_effort": effort,
+                "run_id": row.id,
+                "engine_ref": _display_engine_ref(row.app_version),
                 "duration_seconds": row.duration_seconds,
                 "below_manuel": _below_manuel(row),
                 "model": _cycle_slice(dataset, row.assignments),
@@ -347,8 +422,8 @@ def export_pack(
     require_database()
     if scope not in EXPORT_SCOPES:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
-    listed = { (item.category, item.id): item for item in list_bench_datasets() }
-    grouped = _latest_runs_map()
+    listed = {(item.category, item.id): item for item in list_bench_datasets()}
+    grouped = _latest_current_runs_map()
     datasets: list[dict[str, Any]] = []
     if scope == "dataset":
         if not isinstance(category, str) or not category or not isinstance(dataset_id, str) or not dataset_id:
@@ -368,10 +443,12 @@ def export_pack(
             if not any(_below_manuel(row) for row in latest.values()):
                 continue
             datasets.append(_dataset_pack_entry(item, latest))
+    ref = engine_ref()
     return {
         "export_version": 1,
         "kind": "bench-pack",
-        "app_version": bench_app_version(),
+        "engine_ref": ref,
+        "app_version": ref,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "scope": scope,
         "datasets": datasets,

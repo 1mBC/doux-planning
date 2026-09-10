@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import secrets
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -117,6 +118,36 @@ def _stub_run_bench(category, dataset_id, effort):
 def _count_rows(model) -> int:
     with session_scope() as db:
         return int(db.scalar(select(func.count()).select_from(model)) or 0)
+
+
+def _insert_bench_run(
+    *,
+    app_version: str,
+    category: str,
+    dataset_id: str,
+    search_effort: str,
+    score_global: float,
+    expected_global: float,
+) -> str:
+    run_id = secrets.token_urlsafe(12)
+    with session_scope() as db:
+        db.add(
+            BenchRun(
+                id=run_id,
+                created_at=datetime.now(timezone.utc),
+                app_version=app_version,
+                category=category,
+                dataset_id=dataset_id,
+                search_effort=search_effort,
+                duration_seconds=0.0,
+                score={"notes": {}, "global": score_global, "weights": {}},
+                expected_score={"notes": {}, "global": expected_global, "weights": {}},
+                deltas={"global": score_global - expected_global},
+                assignments=[],
+                warnings=[],
+            )
+        )
+    return run_id
 
 
 def _expected_result(dataset):
@@ -295,7 +326,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
 
     datasets = client.get("/v1/admin/bench/datasets", headers=headers)
     assert datasets.status_code == 200
-    assert datasets.json()["app_version"] == "0.27.0"
+    assert datasets.json()["engine_ref"] == datasets.json()["app_version"] == "core-0"
     assert {(item["category"], item["id"]) for item in datasets.json()["datasets"]} == FROZEN_BENCH_PAIRS
 
     logs_before = _count_rows(GenerateLog)
@@ -312,7 +343,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert first["category"] == "tight"
     assert first["dataset_id"] == "halles"
     assert first["search_effort"] == "minimal"
-    assert first["app_version"] == "0.27.0"
+    assert first["engine_ref"] == first["app_version"] == "core-0"
     assert "notes" in first["score"] and "resumes" not in first["score"]
     assert "assignments" not in first
     assert _count_rows(GenerateLog) == logs_before
@@ -351,7 +382,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert pack["export_version"] == 1
     assert pack["kind"] == "bench-pack"
     assert pack["scope"] == "dataset"
-    assert pack["app_version"] == "0.27.0"
+    assert pack["engine_ref"] == pack["app_version"] == "core-0"
     assert pack["exported_at"]
     assert len(pack["datasets"]) == 1
     halles_pack = pack["datasets"][0]
@@ -361,6 +392,8 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert all("invite_token" not in person for person in halles_pack["context"]["employees"])
     assert halles_pack["manual"]["facts"]
     assert halles_pack["efforts"][0]["search_effort"] == "minimal"
+    assert halles_pack["efforts"][0]["run_id"] == first["id"]
+    assert halles_pack["efforts"][0]["engine_ref"] == "core-0"
     assert "below_manuel" in halles_pack["efforts"][0]
     assert halles_pack["efforts"][0]["model"]["facts"]
 
@@ -377,6 +410,65 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     )
     assert forbidden_export.status_code == 403
     assert forbidden_export.json()["detail"] == DETAIL_ADMIN
+
+    by_id = client.get(f"/v1/admin/bench/runs/{first['id']}", headers=headers)
+    assert by_id.status_code == 200
+    assert by_id.json()["id"] == first["id"]
+    assert by_id.json()["engine_ref"] == by_id.json()["app_version"] == "core-0"
+    assert "model" in by_id.json() and "manual" in by_id.json()
+    assert any(item.get("polarity") == "hit" for item in by_id.json()["model"]["facts"])
+    assert any(item.get("polarity") == "hit" for item in by_id.json()["manual"]["facts"])
+    assert "assignments" not in by_id.json()
+    assert "facts" not in by_id.json()
+    missing_run = client.get("/v1/admin/bench/runs/unknown-run", headers=headers)
+    assert missing_run.status_code == 404
+
+    _insert_bench_run(
+        app_version="core-1",
+        category="tight",
+        dataset_id="halles",
+        search_effort="minimal",
+        score_global=1.0,
+        expected_global=8.0,
+    )
+    versions = client.get("/v1/admin/bench/versions", headers=headers)
+    assert versions.status_code == 200
+    assert versions.json()["engine_ref"] == "core-0"
+    assert "core-0" in versions.json()["engine_refs"]
+    assert "core-1" in versions.json()["engine_refs"]
+    assert "0.27.0" not in versions.json()["engine_refs"]
+    halles_row = next(item for item in versions.json()["datasets"] if item["id"] == "halles")
+    assert set(halles_row["by_ref"]) >= {"core-0", "core-1"}
+    assert halles_row["by_ref"]["core-0"]["minimal"]["run_id"] == first["id"]
+    assert halles_row["by_ref"]["core-1"]["minimal"]["run_id"]
+    assert halles_row["by_ref"]["core-1"]["minimal"]["run_id"] != first["id"]
+    assert set(halles_row["by_ref"]["core-0"]) == {"minimal", "optimized", "maximal"}
+    current_compare = client.get("/v1/admin/bench/compare/tight/halles/minimal", headers=headers)
+    assert current_compare.status_code == 200
+    assert current_compare.json()["id"] == first["id"]
+    assert current_compare.json()["engine_ref"] == "core-0"
+
+    legacy_id = _insert_bench_run(
+        app_version="0.27.0",
+        category="clock",
+        dataset_id="nocturne",
+        search_effort="minimal",
+        score_global=4.0,
+        expected_global=7.0,
+    )
+    legacy = client.get(f"/v1/admin/bench/runs/{legacy_id}", headers=headers)
+    assert legacy.status_code == 200
+    assert legacy.json()["engine_ref"] == legacy.json()["app_version"] == "core-0"
+    merged = client.get("/v1/admin/bench/versions", headers=headers)
+    assert "0.27.0" not in merged.json()["engine_refs"]
+    assert "core-0" in merged.json()["engine_refs"]
+
+    forbidden_versions = client.get("/v1/admin/bench/versions", headers=_bearer(other.json()["token"]))
+    assert forbidden_versions.status_code == 403
+    assert forbidden_versions.json()["detail"] == DETAIL_ADMIN
+    forbidden_run = client.get(f"/v1/admin/bench/runs/{first['id']}", headers=_bearer(other.json()["token"]))
+    assert forbidden_run.status_code == 403
+    assert forbidden_run.json()["detail"] == DETAIL_ADMIN
 
     queued = client.post(
         "/v1/admin/bench/run",

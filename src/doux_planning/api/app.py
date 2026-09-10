@@ -183,6 +183,13 @@ def admin_bench_compare(
     return compare(authorization, category, dataset_id, search_effort)
 
 
+@app.get("/v1/admin/bench/versions")
+def admin_bench_versions(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import list_versions
+
+    return list_versions(authorization)
+
+
 @app.get("/v1/admin/bench/export")
 def admin_bench_export(
     scope: str,
@@ -391,7 +398,16 @@ def web_dist() -> Path | None:
     return None
 
 
-SPA_PATHS = ("/planning", "/login", "/register", "/context", "/exemple", "/admin", "/admin/bench")
+SPA_PATHS = (
+    "/planning",
+    "/login",
+    "/register",
+    "/context",
+    "/exemple",
+    "/admin",
+    "/admin/bench",
+    "/admin/bench/versions",
+)
 
 
 def _mount_spa(application: FastAPI) -> None:
@@ -408,6 +424,12 @@ def _mount_spa(application: FastAPI) -> None:
     application.add_api_route("/", _index, methods=["GET"], include_in_schema=False)
     for spa_path in SPA_PATHS:
         application.add_api_route(spa_path, _index, methods=["GET"], include_in_schema=False)
+    application.add_api_route(
+        "/admin/bench/run/{run_id}",
+        _index,
+        methods=["GET"],
+        include_in_schema=False,
+    )
     application.add_api_route(
         "/admin/bench/{category}/{dataset_id}/{search_effort}",
         _index,
