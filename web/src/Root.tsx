@@ -8,7 +8,6 @@ import { EmployeePlanning } from "./EmployeePlanning";
 import { AdminDenied, AdminPage } from "./AdminPage";
 import { BenchPage } from "./BenchPage";
 import { BenchComparePage, parseBenchComparePath, parseBenchRunPath } from "./BenchComparePage";
-import { BenchVersionsPage } from "./BenchVersionsPage";
 import { PublishedPlanning } from "./PublishedPlanning";
 import "./App.css";
 
@@ -29,6 +28,12 @@ export default function Root() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+
+  useEffect(() => {
+    if (path === "/admin/bench/versions") {
+      go("/admin/bench");
+    }
+  }, [path]);
 
   useEffect(() => {
     const token = readStoredToken();
@@ -69,11 +74,9 @@ export default function Root() {
         ? "exemple"
         : path === "/admin" || path.startsWith("/admin/")
           ? me?.admin
-            ? path === "/admin/bench"
+            ? path === "/admin/bench" || path === "/admin/bench/versions"
               ? "admin-bench"
-              : path === "/admin/bench/versions"
-                ? "admin-bench-versions"
-                : parseBenchRunPath(path)
+              : parseBenchRunPath(path)
                   ? "admin-bench-run"
                   : parseBenchComparePath(path)
                     ? "admin-bench-compare"
@@ -120,7 +123,6 @@ export default function Root() {
       {route === "context" ? <ContextWizard /> : null}
       {route === "admin" ? <AdminPage /> : null}
       {route === "admin-bench" ? <BenchPage /> : null}
-      {route === "admin-bench-versions" ? <BenchVersionsPage /> : null}
       {route === "admin-bench-run" ? <BenchComparePage params={null} runId={parseBenchRunPath(path)} /> : null}
       {route === "admin-bench-compare" ? <BenchComparePage params={parseBenchComparePath(path)} /> : null}
       {route === "admin-denied" ? <AdminDenied /> : null}

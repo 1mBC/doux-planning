@@ -8,15 +8,13 @@ import {
   benchDatasetExportFilename,
   downloadJsonFile,
   formatDelta,
-  latestRun,
-  loadBenchDatasets,
   loadBenchExport,
-  loadBenchRuns,
+  loadBenchVersions,
   pollBenchJob,
   postBenchRun,
-  type BenchDataset,
-  type BenchRunSummary,
   type BenchScope,
+  type BenchVersionDataset,
+  type BenchVersions,
 } from "./bench";
 import { formatCycleNote } from "./format";
 import { ApiHttpError } from "./sandbox";
@@ -40,10 +38,30 @@ function LaunchButtons({
   );
 }
 
+function EngineCell({
+  cell,
+}: {
+  cell: { run_id: string; global: number | null; deltas: { global: number | null } } | null;
+}) {
+  if (!cell) {
+    return <span className="bench-cell-empty">—</span>;
+  }
+  const label = `${formatCycleNote(cell.global)} ${formatDelta(cell.deltas.global)}`;
+  return (
+    <button
+      type="button"
+      className="bench-cell bench-version-cell"
+      title={label}
+      onClick={() => go(`/admin/bench/run/${encodeURIComponent(cell.run_id)}`)}
+    >
+      <span>{formatCycleNote(cell.global)}</span>
+      <span className="bench-version-delta">{formatDelta(cell.deltas.global)}</span>
+    </button>
+  );
+}
+
 export function BenchPage() {
-  const [datasets, setDatasets] = useState<BenchDataset[] | null>(null);
-  const [engineRef, setEngineRef] = useState("");
-  const [runs, setRuns] = useState<BenchRunSummary[]>([]);
+  const [versions, setVersions] = useState<BenchVersions | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -51,14 +69,11 @@ export function BenchPage() {
 
   useEffect(() => {
     cancelled.current = false;
-    Promise.all([loadBenchDatasets(), loadBenchRuns()])
-      .then(([catalog, listed]) => {
-        if (cancelled.current) {
-          return;
+    loadBenchVersions()
+      .then((next) => {
+        if (!cancelled.current) {
+          setVersions(next);
         }
-        setEngineRef(catalog.engine_ref);
-        setDatasets(catalog.datasets);
-        setRuns(listed.runs);
       })
       .catch((err: unknown) => {
         if (!cancelled.current) {
@@ -72,13 +87,20 @@ export function BenchPage() {
 
   const categories = useMemo(() => {
     const seen: string[] = [];
-    for (const item of datasets ?? []) {
+    for (const item of versions?.datasets ?? []) {
       if (!seen.includes(item.category)) {
         seen.push(item.category);
       }
     }
     return seen;
-  }, [datasets]);
+  }, [versions]);
+
+  async function refreshVersions() {
+    const next = await loadBenchVersions();
+    if (!cancelled.current) {
+      setVersions(next);
+    }
+  }
 
   async function launch(body: { scope: BenchScope; category?: string; dataset_id?: string; search_effort: SearchEffort }) {
     setBusy(true);
@@ -91,10 +113,7 @@ export function BenchPage() {
       if (cancelled.current) {
         return;
       }
-      const listed = await loadBenchRuns();
-      if (!cancelled.current) {
-        setRuns(listed.runs);
-      }
+      await refreshVersions();
     } catch (err: unknown) {
       if (cancelled.current) {
         return;
@@ -110,7 +129,7 @@ export function BenchPage() {
     }
   }
 
-  async function exportDataset(dataset: BenchDataset) {
+  async function exportDataset(dataset: BenchVersionDataset) {
     setExporting(true);
     setError(null);
     try {
@@ -154,7 +173,7 @@ export function BenchPage() {
     }
   }
 
-  if (error && !datasets) {
+  if (error && !versions) {
     return (
       <main className="page">
         <AdminNav current="bench" />
@@ -164,7 +183,7 @@ export function BenchPage() {
       </main>
     );
   }
-  if (!datasets) {
+  if (!versions) {
     return (
       <main className="page">
         <AdminNav current="bench" />
@@ -174,12 +193,13 @@ export function BenchPage() {
   }
 
   const locked = busy || exporting;
+  const effortColSpan = 1 + versions.engine_refs.length;
 
   return (
     <main className="page admin-page">
       <AdminNav current="bench" />
       <p className="sub">
-        Jeux salle · moteur {engineRef || "—"}. Quitter la page pendant un Maximal / lot est sans danger.
+        Jeux salle · moteur {versions.engine_ref || "—"}. Quitter la page pendant un Maximal / lot est sans danger.
       </p>
       {error ? (
         <p className="error" role="alert">
@@ -226,21 +246,22 @@ export function BenchPage() {
               <th rowSpan={2}>Défi</th>
               <th rowSpan={2}>Lancer</th>
               {BENCH_EFFORTS.map((effort) => (
-                <th key={effort} colSpan={3}>
+                <th key={effort} colSpan={effortColSpan}>
                   {effortLabel(effort)}
                 </th>
               ))}
             </tr>
             <tr>
-              {BENCH_EFFORTS.flatMap((effort) =>
-                (["Modèle", "Manuel", "Delta"] as const).map((label) => (
-                  <th key={`${effort}-${label}`}>{label}</th>
+              {BENCH_EFFORTS.flatMap((effort) => [
+                <th key={`${effort}-manuel`}>Manuel</th>,
+                ...versions.engine_refs.map((ref) => (
+                  <th key={`${effort}-${ref}`}>{ref}</th>
                 )),
-              )}
+              ])}
             </tr>
           </thead>
           <tbody>
-            {datasets.map((dataset) => (
+            {versions.datasets.map((dataset) => (
               <tr key={`${dataset.category}/${dataset.id}`}>
                 <td>{dataset.category}</td>
                 <td>
@@ -267,24 +288,18 @@ export function BenchPage() {
                   </div>
                 </td>
                 {BENCH_EFFORTS.flatMap((effort) => {
-                  const run = latestRun(runs, dataset.category, dataset.id, effort, engineRef || undefined);
-                  const open = () => go(`/admin/bench/${dataset.category}/${dataset.id}/${effort}`);
+                  const openPath = () => go(`/admin/bench/${dataset.category}/${dataset.id}/${effort}`);
                   return [
-                    <td key={`${effort}-modele`}>
-                      <button type="button" className="bench-cell" onClick={open}>
-                        {formatCycleNote(run?.score.global)}
-                      </button>
-                    </td>,
                     <td key={`${effort}-manuel`}>
-                      <button type="button" className="bench-cell" onClick={open}>
-                        {formatCycleNote(run?.expected_score.global)}
+                      <button type="button" className="bench-cell" onClick={openPath}>
+                        {formatCycleNote(dataset.manual?.global)}
                       </button>
                     </td>,
-                    <td key={`${effort}-delta`}>
-                      <button type="button" className="bench-cell" onClick={open}>
-                        {formatDelta(run?.deltas.global)}
-                      </button>
-                    </td>,
+                    ...versions.engine_refs.map((ref) => (
+                      <td key={`${effort}-${ref}`}>
+                        <EngineCell cell={dataset.by_ref[ref]?.[effort] ?? null} />
+                      </td>
+                    )),
                   ];
                 })}
               </tr>

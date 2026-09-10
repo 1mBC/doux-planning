@@ -108,7 +108,6 @@ export function BenchComparePage({
   const [payload, setPayload] = useState<BenchCompare | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
-  const fromRun = Boolean(runId);
 
   useEffect(() => {
     if (!runId && !params) {
@@ -168,7 +167,7 @@ export function BenchComparePage({
 
   return (
     <main className="page admin-page">
-      <AdminNav current={fromRun ? "versions" : "bench"} />
+      <AdminNav current="bench" />
       <h1>{title}</h1>
       <div className="bench-toolbar-row">
         <button
