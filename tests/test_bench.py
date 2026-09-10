@@ -111,7 +111,7 @@ def _stub_run_bench(category, dataset_id, effort):
         score=score,
         expected_score=score,
         deltas={"couverture": 0.0, "legal": 0.0, "contrat": 0.0, "wellbeing": None, "roles": 0.0, "global": 0.0},
-        engine_ref="core-0",
+        engine_ref="core-1",
     )
 
 
@@ -240,11 +240,33 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
         fact.polarity == "hit" and fact.kind in {"post_held", "role_gap"}
         for fact in (*outcome.facts, *outcome.expected_facts)
     )
-    assert outcome.engine_ref == "core-0"
+    assert outcome.engine_ref == "core-1"
 
 
-def test_engine_ref_is_core_zero():
-    assert engine_ref() == "core-0"
+def test_engine_ref_is_core_one():
+    assert engine_ref() == "core-1"
+
+
+def test_run_bench_marais_minimal_hard_max_evenings():
+    outcome = run_bench("crafted", "marais", SearchEffort.MINIMAL)
+    assert outcome.engine_ref == "core-1"
+    assert not any(fact.polarity == "miss" and fact.kind == "max_evenings" for fact in outcome.facts)
+    assert not any(shift.employee_id == "e" and shift.service_id == "evening" for shift in outcome.assignments)
+
+
+def test_run_bench_rivoli_minimal_expected_zero_interdit():
+    outcome = run_bench("crafted", "rivoli", SearchEffort.MINIMAL)
+    assert all(
+        fact.severity is not WarningSeverity.INTERDIT
+        for fact in outcome.expected_facts
+        if fact.polarity == "miss"
+    )
+
+
+def test_run_bench_campus_minimal_runs():
+    outcome = run_bench("wishes", "campus", SearchEffort.MINIMAL)
+    assert outcome.engine_ref == "core-1"
+    assert outcome.search_effort == SearchEffort.MINIMAL
 
 
 def test_run_bench_leaves_live_restaurant_unchanged():

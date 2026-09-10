@@ -21,6 +21,12 @@ The system SHALL store wellbeing as consecutive rest, at most one weekend choice
 - **WHEN** a fiche sets max evening services to 0 or max coupures per week to 0
 - **THEN** exceeding that cap produces the matching souhait warning
 
+#### Scenario: Fill refuses exceeding max_services
+- **WHEN** a fiche has `max_services.evening` 0
+- **THEN** fill does not assign that person an evening shift
+- **WHEN** `max_services` has no key for that service
+- **THEN** fill does not treat that service as capped
+
 #### Scenario: Unavailability is only the day-service pair
 - **WHEN** a fiche has an unavailability for Tuesday midday
 - **THEN** only that weekday and service is blocked
