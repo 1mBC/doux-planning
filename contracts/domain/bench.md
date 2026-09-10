@@ -235,7 +235,7 @@ Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
 Core : `engine_ref() == "core-0"`. `run_bench(tight, halles, minimal).engine_ref == "core-0"`. Recap / facts / published_cycles / keep-best **inchangés**.  
 Infra : summary + datasets + export ont `engine_ref` et `app_version` identiques. GET versions : `0.27.0` fusionné en `core-0` ; deux refs → deux colonnes, last-run indépendants. GET `/runs/{id}` = forme compare de ce run. Compare chemin = last-run **courant**. 403 non-admin.  
-UI : menu 3 entrées. Versions : clic Maximal ouvre le compare de ce `run_id`. Banc sous-titre `core-0`. Barre v0.33.0.
+UI : menu 3 entrées. Versions : clic Maximal → `/admin/bench/run/{run_id}` (API `GET /runs/{id}`). Banc sous-titre `core-0`. Barre v0.33.0.
 
 ## Hors freeze
 
