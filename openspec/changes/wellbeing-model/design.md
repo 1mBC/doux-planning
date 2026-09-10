@@ -34,6 +34,10 @@ A list `wellbeing`, deleted enum strings, `every_*` on indispos, or leftover `ma
 
 Compare `generate_cycle(..., optimized)` assignments to the file. Identical → leave `planning`. Different → rewrite `planning` and report new stats; do not edit `contracts/http/v1-examples.md`.
 
+### 6. Fill treats posed `max_services` as a hard cap (`core-1`)
+
+If the key is present, a trial that would make that week's count (evaluate `_service_count` + the trial) exceed the limit is skipped like an overlap. It is no longer the 5th `_soft_penalty` tie-break. SAT rest, keep-best, `_attempt_key`, and `SEARCH_*` stay unchanged. Evaluate still emits `max_*` souhait facts.
+
 ## Risks / Trade-offs
 
 - [HTTP api still sends `wellbeing: []`] → Do not patch `api/`; list failing tests.

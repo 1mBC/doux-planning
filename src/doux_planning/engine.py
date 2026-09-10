@@ -830,6 +830,17 @@ def _would_exceed_coupures(assignments: list[Shift], employee: Employee, trial: 
     return _coupure_count_in_week(with_trial, employee.id, week_start) > cap
 
 
+def _would_exceed_max_services(assignments: list[Shift], employee: Employee, trial: Shift) -> bool:
+    if trial.service_id not in employee.wellbeing.max_services:
+        return False
+    week_start = (trial.day_index // 7) * 7
+    by_day: dict[int, list[Shift]] = {}
+    for shift in assignments:
+        if shift.employee_id == employee.id:
+            by_day.setdefault(shift.day_index, []).append(shift)
+    return _service_count(by_day, week_start, trial.service_id) + 1 > employee.wellbeing.max_services[trial.service_id]
+
+
 def _assigned_window(
     employee: Employee, window: PostWindow, structure: ServiceStructure
 ) -> PostWindow | None:
@@ -944,21 +955,6 @@ def _soft_penalty(
     over_day_cap = day_hours + duration > max_daily + 1e-9
     rest_bad = not _rest_between_ok(assignments, trial)
     pause_bad = not _pause_within_legal(assignments, trial)
-    week_start = (trial.day_index // 7) * 7
-    over_service_cap = False
-    for service_id, limit in employee.wellbeing.max_services.items():
-        count = sum(
-            1
-            for shift in assignments
-            if shift.employee_id == employee.id
-            and week_start <= shift.day_index < week_start + 7
-            and shift.service_id == service_id
-        )
-        if trial.service_id == service_id:
-            count += 1
-        if count > limit:
-            over_service_cap = True
-            break
     overqual = employee.level - trial.post_level
     current_ratio = week_hours / max(employee.contractual_hours_per_week, 1.0)
     projected_ratio = (week_hours + duration) / max(employee.contractual_hours_per_week, 1.0)
@@ -968,7 +964,6 @@ def _soft_penalty(
         current_ratio,
         int(not started_day),
         overqual,
-        int(over_service_cap),
         projected_ratio,
         pool_index,
         employee.id,
@@ -1011,6 +1006,8 @@ def _can_fill_window(
         post_level=window.level,
     )
     if _has_overlap(assignments, trial):
+        return False
+    if _would_exceed_max_services(assignments, employee, trial):
         return False
     if _would_exceed_coupures(assignments, employee, trial):
         return False
@@ -1110,6 +1107,8 @@ def _pick_for_post(
             post_level=window_level,
         )
         if _has_overlap(assignments, trial):
+            continue
+        if _would_exceed_max_services(assignments, employee, trial):
             continue
         if _would_exceed_coupures(assignments, employee, trial):
             continue
