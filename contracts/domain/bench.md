@@ -124,9 +124,9 @@ Libellés UI : Modèle / Manuel. Clés JSON `model` / `manual`. Plus d’alias p
 
 ### GET compare d’un run
 
-`GET /v1/admin/bench/run/{run_id}`
+`GET /v1/admin/bench/runs/{run_id}`
 
-Même 200 que compare. 404 si id inconnu.
+Route **déjà là**. 200 = **même forme que compare** (`employees`, `model`, `manual` + summary `engine_ref` / `app_version`). Plus d’alias plats `assignments` / `facts` au top-level. 404 si id inconnu.
 
 ### GET versions (matrice)
 
@@ -234,7 +234,7 @@ Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 ## Tests
 
 Core : `engine_ref() == "core-0"`. `run_bench(tight, halles, minimal).engine_ref == "core-0"`. Recap / facts / published_cycles / keep-best **inchangés**.  
-Infra : summary + datasets + export ont `engine_ref` et `app_version` identiques. GET versions : `0.27.0` fusionné en `core-0` ; deux refs → deux colonnes, last-run indépendants. GET `/run/{id}` = ce run. Compare chemin = last-run **courant**. 403 non-admin.  
+Infra : summary + datasets + export ont `engine_ref` et `app_version` identiques. GET versions : `0.27.0` fusionné en `core-0` ; deux refs → deux colonnes, last-run indépendants. GET `/runs/{id}` = forme compare de ce run. Compare chemin = last-run **courant**. 403 non-admin.  
 UI : menu 3 entrées. Versions : clic Maximal ouvre le compare de ce `run_id`. Banc sous-titre `core-0`. Barre v0.33.0.
 
 ## Hors freeze
