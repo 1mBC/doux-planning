@@ -98,7 +98,8 @@ Routes run / jobs / datasets **inchangées** (plus `engine_ref` / `app_version` 
 Persist : colonne existante `bench_runs.app_version` = `outcome.engine_ref`. **Pas** d’Alembic.
 
 **Last-run** = le plus récent par `(category, dataset_id, search_effort, engine_ref)`.  
-Tableau Banc / export / compare-chemin = last-run du **`engine_ref` courant** (VERSION).  
+Export / compare-chemin = last-run du **`engine_ref` courant** (VERSION).  
+Tableau Banc = **toutes** les refs (`GET /versions`), les trois computes.  
 Un nouveau run **n’écrase pas** les scores d’un autre `engine_ref`.
 
 Vieux `"0.27.0"` lu comme `"core-0"`.
@@ -205,13 +206,25 @@ Pas d’Alembic (recompute). Keep-best inchangé.
 ## UI
 
 Company **`me.admin`**.  
-Menu **à plat** : **Historique des computes | Banc | Versions**. Entrée courante marquée. SPA `/admin/bench/versions` + `/admin/bench/run/{run_id}` (fallback `index.html`).
+Menu **à plat** : **Historique des computes | Banc**. **Plus** d’entrée Versions. `/admin/bench/versions` → **redirige** vers `/admin/bench`. SPA `/admin/bench/run/{run_id}` inchangé.
 
-**Banc** (tableau last-run) : inchangé (Modèle | Manuel | Delta), filtré moteur **courant**. Sous-titre : `moteur {engine_ref}`.
+**Un seul tableau** (Banc). Source : `GET /v1/admin/bench/versions` (plus le last-run courant seul).
 
-**Versions** : une ligne par jeu, une colonne par `engine_refs`. Cellule = **Maximal** : globale + delta vs Manuel. Tiret si pas de run. Clic → `/admin/bench/run/{run_id}` (même écran compare, ce run-là). Hover = les 5 notes si on les a déjà sur le summary ; sinon globale + delta suffisent. Pas de bouton revert.
+Pour **chaque** compute (Minimal, Optimisé, Maximal) :
 
-Compare chemin existant = last-run courant, comme aujourd’hui.
+```
+<effort>
+  Manuel | {engine_ref} | {engine_ref} | …
+```
+
+- **Manuel** : `dataset.manual.global` (même chiffre pour les trois efforts).  
+- **Chaque `engine_ref`** : globale Modèle + delta vs Manuel. Tiret si pas de run.  
+- Clic cellule moteur → `/admin/bench/run/{run_id}` (compare de **ce** run).  
+- Clic Manuel → compare-chemin de cet effort (last-run courant), comme aujourd’hui.
+
+Lancer / export **inchangés**. Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu’on lance). Pas de bouton revert.
+
+Compare chemin existant = last-run courant, inchangé.
 
 **Pastilles score** (`CycleScoreNotes`) — **partout** (planning, exemple, banc) :
 
@@ -229,14 +242,13 @@ Compare : **même** `CycleScoreNotes` des deux côtés, avec `facts` + `stats` +
 
 Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
-**`0.33.0`**, note FR : banc versions moteur, matrice Maximal par `engine_ref`.
+**`0.34.0`**, note FR : banc, tous les computes, une colonne par version moteur.
 
 ## Tests
 
-Core : `engine_ref() == "core-0"`. `run_bench(tight, halles, minimal).engine_ref == "core-0"`. Recap / facts / published_cycles / keep-best **inchangés**.  
-Infra : summary + datasets + export ont `engine_ref` et `app_version` identiques. GET versions : `0.27.0` fusionné en `core-0` ; deux refs → deux colonnes, last-run indépendants. GET `/runs/{id}` = forme compare de ce run. Compare chemin = last-run **courant**. 403 non-admin.  
-UI : menu 3 entrées. Versions : clic Maximal → `/admin/bench/run/{run_id}` (API `GET /runs/{id}`). Banc sous-titre `core-0`. Barre v0.33.0.
+HTTP / Core **inchangés** (déjà landés).  
+UI : menu 2 entrées (plus Versions). Tableau Banc : 3 computes × (Manuel + une col par `engine_refs`). Deux refs → deux colonnes moteur **sous Minimal et sous Optimisé et sous Maximal**. Clic `core-0` Maximal ouvre `/admin/bench/run/{id}`. `/admin/bench/versions` ramène au Banc. Barre v0.34.0.
 
 ## Hors freeze
 
-Plafonds de services durs (`core-1`) — file **suivante**. Bouton revert. Deux fills dans le même process. Jeux cuisine. CSV/XLSX banc. Archive / sync.
+Plafonds de services durs (`core-1`) — **après** cette file. Bouton revert. Deux fills dans le même process. Jeux cuisine. CSV/XLSX banc. Archive / sync.
