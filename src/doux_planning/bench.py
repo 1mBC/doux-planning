@@ -67,10 +67,15 @@ class BenchOutcome:
     score: CycleScore
     expected_score: CycleScore
     deltas: dict[str, float | None]
+    engine_ref: str
 
 
 def bench_dir() -> Path:
     return data_dir() / "bench"
+
+
+def engine_ref() -> str:
+    return (bench_dir() / "VERSION").read_text(encoding="utf-8").strip()
 
 
 def list_bench_datasets() -> list[BenchListing]:
@@ -155,6 +160,7 @@ def run_bench(category: str, dataset_id: str, effort: SearchEffort) -> BenchOutc
         score=recap.score,
         expected_score=expected_recap.score,
         deltas=_score_deltas(recap.score, expected_recap.score),
+        engine_ref=engine_ref(),
     )
 
 
