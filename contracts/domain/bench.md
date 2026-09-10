@@ -9,7 +9,7 @@ Le banc **ne lit / n’écrit jamais** `published_cycles`, `live_sandboxes`, com
 Un nom par version de moteur : `engine_ref`. **Une** source : `trim(data/bench/VERSION)` (une ligne).  
 Ce n’est **pas** le numéro UI (`web/src/release.ts`).
 
-Cette tranche : `core-0` (moteur actuel, **aucun** change fill / SAT / keep-best).  
+File 38 : `core-1` = fill, plafonds `max_services` **durs**. `core-0` = moteur d’avant (rows déjà en base).  
 HTTP et rows émettent `engine_ref` **et** `app_version` = **le même string** (alias, une seule source).
 
 Vieux runs `app_version = "0.27.0"` : à la **lecture** `engine_ref = "core-0"` (même moteur). On n’écrit plus `0.27.0`.
@@ -251,4 +251,4 @@ UI : menu 2 entrées (plus Versions). Tableau Banc : 3 computes × (Manuel + une
 
 ## Hors freeze
 
-Plafonds de services durs (`core-1`) — **après** cette file. Bouton revert. Deux fills dans le même process. Jeux cuisine. CSV/XLSX banc. Archive / sync.
+Bouton revert. Deux fills dans le même process. Réserver les créneaux rares (Atelier). Jeux cuisine. CSV/XLSX banc. Archive / sync.

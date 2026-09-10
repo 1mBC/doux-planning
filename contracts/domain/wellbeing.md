@@ -101,6 +101,15 @@ Codes **retirés** : `no_evening`, `no_morning`. `weekend_rest_day` est **réint
 
 Le solveur doit **viser** ces souhaits (pas seulement les warning après coup). Formules légales inchangées.
 
+## Fill — `max_services` dur (`core-1`)
+
+Si la clé est **posée**, le fill **ne pose pas** un shift qui ferait dépasser la limite sur la semaine du `day_index` (même compteur que evaluate : shifts déjà là + le trial, ce `service_id`).  
+Inéligible = **même famille qu’un overlap** (plus un tie-break après les heures).  
+Clé **absente** = pas de plafond.
+
+SAT repos / keep-best / `_attempt_key` / `SEARCH_*` **inchangés**.  
+Evaluate + facts `max_mornings` / `max_middays` / `max_evenings` restent des **souhaits** (un edit sandbox peut encore violer).
+
 ## `employee_board` — `wishes`
 
 Une entrée **par souhait posé** sur la fiche (pas les absents) :
@@ -151,4 +160,4 @@ Régression wellbeing-model (déjà landed) : repos consécutifs, we even/odd/ev
 
 ## Hors freeze
 
-Archive / sync. Wizard / types = `contracts/domain/wizard-ui.md`.
+Atelier / réserver les créneaux rares. `max_services` dans le SAT repos. Archive / sync. Wizard / types = `contracts/domain/wizard-ui.md`.
