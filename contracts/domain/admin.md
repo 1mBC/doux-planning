@@ -57,4 +57,4 @@ SPA fallback `/admin` (Railway déjà `index.html` pour `/planning`, `/login`). 
 
 ## Hors freeze
 
-Banc de jeux = `contracts/domain/bench.md`. Supprimer un salarié / panneau compte. Archive / sync.
+Banc + **Versions** = `contracts/domain/bench.md`. Supprimer un salarié / panneau compte. Archive / sync.
