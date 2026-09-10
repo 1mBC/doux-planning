@@ -170,3 +170,8 @@
 
 - [x] 30.1 Pastille Contrat / titres gras / totaux ; tableau 4 col clic + Alertes ; Légal & Contrat + Bien-être ; bump `web/` to 0.32.0
 - [x] 30.2 Verify `npm run build` ; `/exemple` Contrat 4 col, Alertes, Diane ⚠️ 30h · 29h / 39h, Bien-être sans contrat/indispo ; `/planning` idem ; `v0.32.0`
+
+## 31. Banc versions moteur
+
+- [x] 31.1 Menu Historique | Banc | Versions ; parser engine_ref ; matrice Maximal ; compare via GET runs/{id} ; bump web/ to 0.33.0
+- [x] 31.2 Verify npm run build ; menu 3 ; Banc moteur core-0 ; Versions colonne core-0 après Maximal ; clic compare ; v0.33.0

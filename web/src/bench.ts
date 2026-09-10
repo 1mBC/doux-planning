@@ -33,6 +33,7 @@ export type BenchDeltas = {
 export type BenchRunSummary = {
   id: string;
   created_at: string;
+  engine_ref: string;
   app_version: string;
   category: string;
   dataset_id: string;
@@ -41,6 +42,34 @@ export type BenchRunSummary = {
   score: CycleScore;
   expected_score: CycleScore;
   deltas: BenchDeltas;
+};
+
+export type BenchVersionCell = {
+  run_id: string;
+  global: number | null;
+  deltas: BenchDeltas;
+  duration_seconds: number;
+};
+
+export type BenchVersionEfforts = {
+  minimal: BenchVersionCell | null;
+  optimized: BenchVersionCell | null;
+  maximal: BenchVersionCell | null;
+};
+
+export type BenchVersionDataset = {
+  category: string;
+  id: string;
+  name: string;
+  challenge_fr: string;
+  manual: { global: number | null } | null;
+  by_ref: Record<string, BenchVersionEfforts>;
+};
+
+export type BenchVersions = {
+  engine_ref: string;
+  engine_refs: string[];
+  datasets: BenchVersionDataset[];
 };
 
 export type BenchJobStatus = "queued" | "running" | "done" | "failed";
@@ -83,6 +112,16 @@ function parseNullableNumber(value: unknown, path: string): number | null {
   return value;
 }
 
+function parseEngineRef(obj: Record<string, unknown>, path: string): string {
+  if (typeof obj.engine_ref === "string" && obj.engine_ref) {
+    return obj.engine_ref;
+  }
+  if (typeof obj.app_version === "string" && obj.app_version) {
+    return obj.app_version;
+  }
+  throw new PayloadError(`clé absente : ${path}.engine_ref`);
+}
+
 function parseDeltas(obj: Record<string, unknown>, path: string): BenchDeltas {
   const raw = requireRecord(obj, "deltas", path);
   const deltas = {} as BenchDeltas;
@@ -95,12 +134,14 @@ function parseDeltas(obj: Record<string, unknown>, path: string): BenchDeltas {
   return deltas;
 }
 
-export function parseBenchDatasets(value: unknown): { app_version: string; datasets: BenchDataset[] } {
+export function parseBenchDatasets(value: unknown): { engine_ref: string; app_version: string; datasets: BenchDataset[] } {
   if (!isRecord(value)) {
     throw new PayloadError("réponse bench datasets invalide");
   }
+  const ref = parseEngineRef(value, "bench");
   return {
-    app_version: requireString(value, "app_version", "bench"),
+    engine_ref: ref,
+    app_version: ref,
     datasets: requireArray(value, "datasets", "bench").map((item, i) => {
       const path = `bench.datasets[${i}]`;
       if (!isRecord(item)) {
@@ -123,7 +164,8 @@ export function parseBenchRunSummary(value: unknown, path: string): BenchRunSumm
   return {
     id: requireString(value, "id", path),
     created_at: requireString(value, "created_at", path),
-    app_version: requireString(value, "app_version", path),
+    engine_ref: parseEngineRef(value, path),
+    app_version: parseEngineRef(value, path),
     category: requireString(value, "category", path),
     dataset_id: requireString(value, "dataset_id", path),
     search_effort: parseEffort(value.search_effort, `${path}.search_effort`),
@@ -246,7 +288,67 @@ export async function loadBenchExport(params: {
   return sendAuth(`/v1/admin/bench/export?${query.toString()}`, { method: "GET" }, true);
 }
 
-export async function loadBenchDatasets(): Promise<{ app_version: string; datasets: BenchDataset[] }> {
+export function parseBenchVersionCell(value: unknown, path: string): BenchVersionCell | null {
+  if (value === null) {
+    return null;
+  }
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  return {
+    run_id: requireString(value, "run_id", path),
+    global: parseNullableNumber(value.global, `${path}.global`),
+    deltas: parseDeltas(value, path),
+    duration_seconds: requireNumber(value, "duration_seconds", path),
+  };
+}
+
+export function parseBenchVersions(value: unknown): BenchVersions {
+  if (!isRecord(value)) {
+    throw new PayloadError("réponse bench versions invalide");
+  }
+  const engineRefs = requireArray(value, "engine_refs", "versions").map((item, i) => {
+    if (typeof item !== "string" || !item) {
+      throw new PayloadError(`clé invalide : versions.engine_refs[${i}]`);
+    }
+    return item;
+  });
+  return {
+    engine_ref: parseEngineRef(value, "versions"),
+    engine_refs: engineRefs,
+    datasets: requireArray(value, "datasets", "versions").map((item, i) => {
+      const path = `versions.datasets[${i}]`;
+      if (!isRecord(item)) {
+        throw new PayloadError(`objet attendu : ${path}`);
+      }
+      const byRefRaw = requireRecord(item, "by_ref", path);
+      const by_ref: Record<string, BenchVersionEfforts> = {};
+      for (const ref of engineRefs) {
+        const bucket = requireRecord(byRefRaw, ref, `${path}.by_ref`);
+        by_ref[ref] = {
+          minimal: parseBenchVersionCell(bucket.minimal ?? null, `${path}.by_ref.${ref}.minimal`),
+          optimized: parseBenchVersionCell(bucket.optimized ?? null, `${path}.by_ref.${ref}.optimized`),
+          maximal: parseBenchVersionCell(bucket.maximal ?? null, `${path}.by_ref.${ref}.maximal`),
+        };
+      }
+      let manual: { global: number | null } | null = null;
+      if (item.manual !== null && item.manual !== undefined) {
+        const raw = requireRecord(item, "manual", path);
+        manual = { global: parseNullableNumber(raw.global, `${path}.manual.global`) };
+      }
+      return {
+        category: requireString(item, "category", path),
+        id: requireString(item, "id", path),
+        name: requireString(item, "name", path),
+        challenge_fr: requireString(item, "challenge_fr", path),
+        manual,
+        by_ref,
+      };
+    }),
+  };
+}
+
+export async function loadBenchDatasets(): Promise<{ engine_ref: string; app_version: string; datasets: BenchDataset[] }> {
   return parseBenchDatasets(await sendAuth("/v1/admin/bench/datasets", { method: "GET" }, true));
 }
 
@@ -266,6 +368,14 @@ export async function loadBenchCompare(category: string, datasetId: string, effo
       true,
     ),
   );
+}
+
+export async function loadBenchRun(runId: string): Promise<BenchCompare> {
+  return parseBenchCompare(await sendAuth(`/v1/admin/bench/runs/${encodeURIComponent(runId)}`, { method: "GET" }, true));
+}
+
+export async function loadBenchVersions(): Promise<BenchVersions> {
+  return parseBenchVersions(await sendAuth("/v1/admin/bench/versions", { method: "GET" }, true));
 }
 
 export async function postBenchRun(body: {
@@ -311,8 +421,15 @@ export function latestRun(
   category: string,
   datasetId: string,
   effort: SearchEffort,
+  engineRef?: string,
 ): BenchRunSummary | undefined {
-  return runs.find((run) => run.category === category && run.dataset_id === datasetId && run.search_effort === effort);
+  return runs.find(
+    (run) =>
+      run.category === category &&
+      run.dataset_id === datasetId &&
+      run.search_effort === effort &&
+      (!engineRef || run.engine_ref === engineRef),
+  );
 }
 
 export function formatDelta(value: number | null | undefined): string {
