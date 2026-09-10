@@ -296,6 +296,16 @@ Suivre `bench.md` § UI — le suivre, ne pas le modifier.
 
 Version `0.33.0`.
 
+### 34. Banc tableau toutes versions
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier.
+
+- Menu **Historique des computes | Banc**. Plus d’entrée Versions. `/admin/bench/versions` redirige vers `/admin/bench`.
+- Un seul tableau Banc, source `GET /v1/admin/bench/versions`. Pour Minimal, Optimisé, Maximal : sous-colonnes `Manuel | {engine_refs…}`. Manuel = `dataset.manual.global`. Cellule moteur = globale + delta (tiret si null). Clic moteur → `/admin/bench/run/{run_id}`. Clic Manuel → compare-chemin de cet effort.
+- Après un launch, recharger `/versions`. Lancer / export / page run / compare-chemin inchangés. Pas de bouton revert.
+
+Version `0.34.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

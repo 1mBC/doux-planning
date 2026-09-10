@@ -373,14 +373,18 @@ The contrat pill SHALL be labeled **Contrat /10**. Axis titles SHALL be bold. Co
 - **WHEN** the restaurateur clicks Contrat then Globale
 - **THEN** each opens the 4-column table with that axis’s (or all) misses grouped first, then hits
 
-### Requirement: Admin bench versions matrix
-`/admin`, `/admin/bench`, `/admin/bench/versions`, the path compare, and `/admin/bench/run/{run_id}` SHALL share a flat menu **Historique des computes | Banc | Versions** (current entry marked). `/admin/bench` SHALL keep the last-run Modèle / Manuel / Delta table for the current `engine_ref` and show subtitle `moteur {engine_ref}` (`engine_ref` or `app_version`, same string). `/admin/bench/versions` SHALL GET `/v1/admin/bench/versions` and render one row per dataset and one column per `engine_refs`. Each cell SHALL show that ref’s Maximal globale plus delta vs Manuel (dash if null). A click SHALL open `/admin/bench/run/{run_id}`, which SHALL load the same compare screen via `GET /v1/admin/bench/runs/{run_id}`. Path compare `/admin/bench/{category}/{id}/{effort}` SHALL remain the current engine’s last-run. There SHALL be no revert button. Bench export stays unchanged.
+### Requirement: Admin bench table all engine versions
+`/admin`, `/admin/bench`, the path compare, and `/admin/bench/run/{run_id}` SHALL share a flat menu **Historique des computes | Banc** (current entry marked; no Versions entry). `/admin/bench/versions` SHALL redirect to `/admin/bench`. `/admin/bench` SHALL GET `/v1/admin/bench/versions` and render one table: for each of Minimal, Optimisé, Maximal, sub-columns **Manuel** then each `engine_refs` value. Manuel SHALL show `dataset.manual.global` (dash if null) and a click SHALL open the path compare for that effort. An engine cell SHALL show that ref’s globale plus delta vs Manuel (dash if null); a click SHALL open `/admin/bench/run/{run_id}`. After a launch the page SHALL reload `/versions`. Subtitle remains `moteur {engine_ref}` for the current VERSION. Launch, export, run compare, and path compare stay unchanged. There SHALL be no revert button.
 
-#### Scenario: Admin menu has three entries
+#### Scenario: Admin menu has two entries
 - **WHEN** an admin opens `/admin`
-- **THEN** the page shows Historique des computes (marked), Banc, and Versions
+- **THEN** the page shows Historique des computes (marked) and Banc, and no Versions entry
 
-#### Scenario: Versions matrix Maximal cell opens that run
-- **WHEN** an admin opens `/admin/bench/versions` after a Maximal run
-- **THEN** a `core-0` column shows globale + delta, and a click opens that run’s Modèle / Manuel compare
+#### Scenario: Bench table has Manuel and engine_ref under each effort
+- **WHEN** an admin opens `/admin/bench` after a Maximal run
+- **THEN** each of the three computes has a Manuel column and a `core-0` column, and a click on `core-0` Maximal opens that run’s Modèle / Manuel compare
+
+#### Scenario: Versions URL redirects to Banc
+- **WHEN** an admin opens `/admin/bench/versions`
+- **THEN** the client navigates to `/admin/bench`
 

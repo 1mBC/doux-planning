@@ -175,3 +175,8 @@
 
 - [x] 31.1 Menu Historique | Banc | Versions ; parser engine_ref ; matrice Maximal ; compare via GET runs/{id} ; bump web/ to 0.33.0
 - [x] 31.2 Verify npm run build ; menu 3 ; Banc moteur core-0 ; Versions colonne core-0 après Maximal ; clic compare ; v0.33.0
+
+## 32. Banc tableau toutes versions
+
+- [x] 32.1 Menu Historique | Banc ; tableau 3 efforts × Manuel + engine_refs ; redirect /versions ; bump web/ to 0.34.0
+- [x] 32.2 Verify npm run build ; menu 2 ; Banc Manuel+core-0 sous 3 computes ; clic core-0 Maximal compare ; /versions → Banc ; v0.34.0
