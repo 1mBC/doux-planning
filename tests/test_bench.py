@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from doux_planning.api.app import app
 from doux_planning.api.auth import DETAIL_ADMIN, promote_admin_email
 from doux_planning.api.db import BenchRun, GenerateLog, reset_engine, session_scope
-from doux_planning.bench import BenchOutcome, list_bench_datasets, load_bench_dataset, run_bench
+from doux_planning.bench import BenchOutcome, engine_ref, list_bench_datasets, load_bench_dataset, run_bench
 from doux_planning.context import (
     SCORE_WEIGHTS,
     CycleScore,
@@ -110,6 +110,7 @@ def _stub_run_bench(category, dataset_id, effort):
         score=score,
         expected_score=score,
         deltas={"couverture": 0.0, "legal": 0.0, "contrat": 0.0, "wellbeing": None, "roles": 0.0, "global": 0.0},
+        engine_ref="core-0",
     )
 
 
@@ -208,6 +209,11 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
         fact.polarity == "hit" and fact.kind in {"post_held", "role_gap"}
         for fact in (*outcome.facts, *outcome.expected_facts)
     )
+    assert outcome.engine_ref == "core-0"
+
+
+def test_engine_ref_is_core_zero():
+    assert engine_ref() == "core-0"
 
 
 def test_run_bench_leaves_live_restaurant_unchanged():
