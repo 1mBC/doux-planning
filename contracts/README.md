@@ -47,7 +47,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 34 — banc recap + pack | `domain/bench.md`, `domain/score.md` ; briefs `core-bench-pack.md`, `infra-bench-pack.md`, `ui-bench-pack.md` | **landed** `0dfc765` (UI v0.31.0) |
 | 35 — score tables | `domain/score-facts.md`, `domain/score.md`, `domain/cycle-recaps.md` ; brief `ui-score-tables.md` | **landed** `5b21221` (UI v0.32.0) |
 | 36 — banc versions | `domain/bench.md` ; briefs `core-bench-versions.md`, `infra-bench-versions.md`, `ui-bench-versions.md` | **landed** `fc1f8cb` (UI v0.33.0) |
-| 37 — banc tableau versions | `domain/bench.md` ; brief `ui-bench-table-versions.md` | **freeze on master** `4ec4a4b` |
+| 37 — banc tableau versions | `domain/bench.md` ; brief `ui-bench-table-versions.md` | **landed** `84e0a9b` (UI v0.34.0) |
 
 ## Ownership git (ne pas croiser)
 
