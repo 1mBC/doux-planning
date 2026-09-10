@@ -42,7 +42,7 @@ function LaunchButtons({
 
 export function BenchPage() {
   const [datasets, setDatasets] = useState<BenchDataset[] | null>(null);
-  const [appVersion, setAppVersion] = useState("");
+  const [engineRef, setEngineRef] = useState("");
   const [runs, setRuns] = useState<BenchRunSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -56,7 +56,7 @@ export function BenchPage() {
         if (cancelled.current) {
           return;
         }
-        setAppVersion(catalog.app_version);
+        setEngineRef(catalog.engine_ref);
         setDatasets(catalog.datasets);
         setRuns(listed.runs);
       })
@@ -179,7 +179,7 @@ export function BenchPage() {
     <main className="page admin-page">
       <AdminNav current="bench" />
       <p className="sub">
-        Jeux salle · moteur {appVersion || "—"}. Quitter la page pendant un Maximal / lot est sans danger.
+        Jeux salle · moteur {engineRef || "—"}. Quitter la page pendant un Maximal / lot est sans danger.
       </p>
       {error ? (
         <p className="error" role="alert">
@@ -267,7 +267,7 @@ export function BenchPage() {
                   </div>
                 </td>
                 {BENCH_EFFORTS.flatMap((effort) => {
-                  const run = latestRun(runs, dataset.category, dataset.id, effort);
+                  const run = latestRun(runs, dataset.category, dataset.id, effort, engineRef || undefined);
                   const open = () => go(`/admin/bench/${dataset.category}/${dataset.id}/${effort}`);
                   return [
                     <td key={`${effort}-modele`}>

@@ -5,6 +5,7 @@ import {
   downloadJsonFile,
   loadBenchCompare,
   loadBenchExport,
+  loadBenchRun,
   type BenchCompare,
 } from "./bench";
 import { CycleScoreNotes } from "./cycleRecaps";
@@ -38,6 +39,11 @@ export function parseBenchComparePath(path: string): BenchCompareParams | null {
     return null;
   }
   return { category: decodeURIComponent(match[1]), datasetId: decodeURIComponent(match[2]), effort };
+}
+
+export function parseBenchRunPath(path: string): string | null {
+  const match = /^\/admin\/bench\/run\/([^/]+)$/.exec(path);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 function servicesFromAssignments(assignments: CycleAssignment[]): { id: ContextServiceId; label: string }[] {
@@ -92,13 +98,20 @@ function SliceNotes({ slice, employees }: { slice: CycleSlice; employees: Employ
   );
 }
 
-export function BenchComparePage({ params }: { params: BenchCompareParams | null }) {
+export function BenchComparePage({
+  params,
+  runId,
+}: {
+  params: BenchCompareParams | null;
+  runId?: string | null;
+}) {
   const [payload, setPayload] = useState<BenchCompare | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const fromRun = Boolean(runId);
 
   useEffect(() => {
-    if (!params) {
+    if (!runId && !params) {
       setError("Page introuvable.");
       setPayload(null);
       return;
@@ -106,7 +119,10 @@ export function BenchComparePage({ params }: { params: BenchCompareParams | null
     let cancelled = false;
     setError(null);
     setPayload(null);
-    loadBenchCompare(params.category, params.datasetId, params.effort)
+    const request = runId
+      ? loadBenchRun(runId)
+      : loadBenchCompare(params!.category, params!.datasetId, params!.effort);
+    request
       .then((next) => {
         if (!cancelled) {
           setPayload(next);
@@ -120,12 +136,18 @@ export function BenchComparePage({ params }: { params: BenchCompareParams | null
     return () => {
       cancelled = true;
     };
-  }, [params?.category, params?.datasetId, params?.effort]);
+  }, [runId, params?.category, params?.datasetId, params?.effort]);
 
-  const title = params ? `${params.category} · ${params.datasetId} · ${params.effort}` : "Banc";
+  const title = payload
+    ? `${payload.category} · ${payload.dataset_id} · ${payload.search_effort}`
+    : params
+      ? `${params.category} · ${params.datasetId} · ${params.effort}`
+      : "Banc";
 
   async function exportDataset() {
-    if (!params) {
+    const category = payload?.category ?? params?.category;
+    const datasetId = payload?.dataset_id ?? params?.datasetId;
+    if (!category || !datasetId) {
       return;
     }
     setExporting(true);
@@ -133,10 +155,10 @@ export function BenchComparePage({ params }: { params: BenchCompareParams | null
     try {
       const pack = await loadBenchExport({
         scope: "dataset",
-        category: params.category,
-        dataset_id: params.datasetId,
+        category,
+        dataset_id: datasetId,
       });
-      downloadJsonFile(pack, benchDatasetExportFilename(params.category, params.datasetId));
+      downloadJsonFile(pack, benchDatasetExportFilename(category, datasetId));
     } catch (err: unknown) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {
@@ -146,10 +168,15 @@ export function BenchComparePage({ params }: { params: BenchCompareParams | null
 
   return (
     <main className="page admin-page">
-      <AdminNav current="bench" />
+      <AdminNav current={fromRun ? "versions" : "bench"} />
       <h1>{title}</h1>
       <div className="bench-toolbar-row">
-        <button type="button" className="choice" disabled={exporting || !params} onClick={() => void exportDataset()}>
+        <button
+          type="button"
+          className="choice"
+          disabled={exporting || !(payload || params)}
+          onClick={() => void exportDataset()}
+        >
           Exporter ce jeu
         </button>
       </div>

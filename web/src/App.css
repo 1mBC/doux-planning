@@ -642,6 +642,21 @@ table.plan td.empty-slot {
   background: #f4f7fa;
 }
 
+.bench-version-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bench-version-delta {
+  color: #555;
+  font-size: 12px;
+}
+
+.bench-cell-empty {
+  color: #888;
+}
+
 .admin-warn-card:first-child {
   padding-top: 0;
 }

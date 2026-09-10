@@ -285,6 +285,17 @@ Suivre `score-facts.md` (gagne) + `score.md` § UI — les suivre, ne pas les mo
 
 Version `0.32.0`.
 
+### 33. Banc versions moteur
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier.
+
+- Menu admin à plat **Historique des computes | Banc | Versions**. Entrée courante marquée.
+- Banc last-run inchangé, filtré `engine_ref` courant. Sous-titre `moteur {engine_ref}` (parser `engine_ref` ou `app_version`, même string).
+- `/admin/bench/versions` : GET `/v1/admin/bench/versions`. Lignes = jeux, colonnes = `engine_refs`. Cellule = Maximal (globale + delta vs Manuel, tiret si null). Clic → `/admin/bench/run/{run_id}`.
+- Page run : même écran compare, chargé via `GET /v1/admin/bench/runs/{run_id}`. Compare-chemin = last-run courant. Pas de bouton revert. Export banc inchangé.
+
+Version `0.33.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

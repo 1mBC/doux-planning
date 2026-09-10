@@ -373,3 +373,14 @@ The contrat pill SHALL be labeled **Contrat /10**. Axis titles SHALL be bold. Co
 - **WHEN** the restaurateur clicks Contrat then Globale
 - **THEN** each opens the 4-column table with that axis’s (or all) misses grouped first, then hits
 
+### Requirement: Admin bench versions matrix
+`/admin`, `/admin/bench`, `/admin/bench/versions`, the path compare, and `/admin/bench/run/{run_id}` SHALL share a flat menu **Historique des computes | Banc | Versions** (current entry marked). `/admin/bench` SHALL keep the last-run Modèle / Manuel / Delta table for the current `engine_ref` and show subtitle `moteur {engine_ref}` (`engine_ref` or `app_version`, same string). `/admin/bench/versions` SHALL GET `/v1/admin/bench/versions` and render one row per dataset and one column per `engine_refs`. Each cell SHALL show that ref’s Maximal globale plus delta vs Manuel (dash if null). A click SHALL open `/admin/bench/run/{run_id}`, which SHALL load the same compare screen via `GET /v1/admin/bench/runs/{run_id}`. Path compare `/admin/bench/{category}/{id}/{effort}` SHALL remain the current engine’s last-run. There SHALL be no revert button. Bench export stays unchanged.
+
+#### Scenario: Admin menu has three entries
+- **WHEN** an admin opens `/admin`
+- **THEN** the page shows Historique des computes (marked), Banc, and Versions
+
+#### Scenario: Versions matrix Maximal cell opens that run
+- **WHEN** an admin opens `/admin/bench/versions` after a Maximal run
+- **THEN** a `core-0` column shows globale + delta, and a click opens that run’s Modèle / Manuel compare
+
