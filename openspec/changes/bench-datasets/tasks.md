@@ -12,3 +12,9 @@
 
 - [x] 3.1 Add `crafted` to `BENCH_CATEGORY_ORDER` and verify `list_bench_datasets` returns the seven freeze pairs
 - [x] 3.2 Verify expected of all seven has zero `interdit`; crafted atelier/rivoli/marais `cycle_score` global ≥ 9.5; `run_bench(tight, halles, minimal)` still green
+
+## 4. Widen catalogue
+
+- [x] 4.1 Extend `BENCH_CATEGORY_ORDER` and load `typical_week` from JSON when present, otherwise keep the derived week
+- [x] 4.2 Add the 23 freeze folders (context + expected), leave the 7 existing files bit-identical, keep `VERSION` `core-2`
+- [x] 4.3 Verify 30 listed pairs, every expected 0 `interdit`, six crafted global ≥ 9.5, coverage of morning / multi-type / L6, and `run_bench(tight, halles, minimal)` still green

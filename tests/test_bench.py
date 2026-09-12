@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import secrets
 from datetime import datetime, timezone
@@ -163,7 +164,7 @@ def _expected_result(dataset):
     return evaluate(draft)
 
 
-FROZEN_BENCH_PAIRS = {
+OLD_BENCH_PAIRS = (
     ("tight", "halles"),
     ("clock", "nocturne"),
     ("wishes", "campus"),
@@ -171,21 +172,65 @@ FROZEN_BENCH_PAIRS = {
     ("crafted", "atelier"),
     ("crafted", "rivoli"),
     ("crafted", "marais"),
+)
+
+FROZEN_BENCH_ORDER = [
+    ("tight", "halles"),
+    ("tight", "marche"),
+    ("tight", "quai"),
+    ("clock", "aube"),
+    ("clock", "brasserie"),
+    ("clock", "nocturne"),
+    ("wishes", "butte"),
+    ("wishes", "campus"),
+    ("wishes", "canal"),
+    ("ladder", "brigade"),
+    ("ladder", "jumeaux"),
+    ("ladder", "pyramide"),
+    ("ladder", "sommet"),
+    ("ladder", "trou"),
+    ("crafted", "atelier"),
+    ("crafted", "marais"),
+    ("crafted", "opera"),
+    ("crafted", "republique"),
+    ("crafted", "rivoli"),
+    ("crafted", "temple"),
+    ("hours", "mixte"),
+    ("hours", "petits"),
+    ("size", "grande"),
+    ("size", "studio"),
+    ("overqual", "cadres"),
+    ("closed", "lundi"),
+    ("closed", "samedi"),
+    ("shapes", "journee"),
+    ("shapes", "triple"),
+    ("shapes", "week-we"),
+]
+FROZEN_BENCH_PAIRS = set(FROZEN_BENCH_ORDER)
+
+OLD_BENCH_SHA256 = {
+    ("tight", "halles", "context.json"): "da342624c9100e37da03f8fae01d7a233c20514ae34a10f455a0e0f8cc21de14",
+    ("tight", "halles", "expected.json"): "352e35dcf167b9f9cb848a5a7c3d09e971c5078c168450851cdf407609728f76",
+    ("clock", "nocturne", "context.json"): "6f0bfff46a31d2b772be37f032d07d4992a490cd8fcd8183ab2653178edc395c",
+    ("clock", "nocturne", "expected.json"): "8216bec8eae55a317bca28479d6d33764f2858b7d748449458ee04fc053712a6",
+    ("wishes", "campus", "context.json"): "926dd3439fe5923b77f23e6aee10899d5887ecc40a5ed564317757c3720f433e",
+    ("wishes", "campus", "expected.json"): "0368a227937a993b474518669e5946e1d25b014f60b59adc2370745fc2582e59",
+    ("ladder", "brigade", "context.json"): "ca5bfb9ed299c707e1f80f558347f07e33e16e204a97ce40a62afd167a8a6446",
+    ("ladder", "brigade", "expected.json"): "5276bab330344053a1db45e5d2ef3584662474c9b24c86489d00f1e51633e635",
+    ("crafted", "atelier", "context.json"): "b234a0d015bfa01e78b07b0403f2aa78838d540ce9fbe0ed82a849c018b650d2",
+    ("crafted", "atelier", "expected.json"): "6b820cc5c5f30072cd9bbdabd6968e8bd00a857b3e237153a6407e503c4055c0",
+    ("crafted", "rivoli", "context.json"): "58694356b7074e53e3a46b49611becabd7da54a31b900c4be1ad81690704928b",
+    ("crafted", "rivoli", "expected.json"): "54417750205e6213a55efabf1e5c308d1c0787159e213a5737ca71536b8430e5",
+    ("crafted", "marais", "context.json"): "7d1c7bc9d2e13ac4993fd6ecc4f8e1d3d208448e063fc0204a0d8da453135484",
+    ("crafted", "marais", "expected.json"): "483a21d14b83cd2eec266b292ca9d752db15eb7ba1cf62129d31a453250d95b5",
 }
 
 
-def test_list_bench_datasets_has_seven_salle_games():
+def test_list_bench_datasets_has_thirty_salle_games():
     listed = list_bench_datasets()
-    assert [(item.category, item.id) for item in listed] == [
-        ("tight", "halles"),
-        ("clock", "nocturne"),
-        ("wishes", "campus"),
-        ("ladder", "brigade"),
-        ("crafted", "atelier"),
-        ("crafted", "marais"),
-        ("crafted", "rivoli"),
-    ]
+    assert [(item.category, item.id) for item in listed] == FROZEN_BENCH_ORDER
     assert {(item.category, item.id) for item in listed} == FROZEN_BENCH_PAIRS
+    assert len(listed) == 30
     assert all(item.name and item.challenge_fr for item in listed)
 
 
@@ -203,7 +248,50 @@ def test_expected_assignments_have_zero_interdit():
         assert result.of_severity(WarningSeverity.INTERDIT) == ()
 
 
-@pytest.mark.parametrize("dataset_id", ["atelier", "rivoli", "marais"])
+def test_old_seven_dataset_files_unchanged():
+    root = Path(__file__).resolve().parents[1] / "data" / "bench"
+    for (category, dataset_id, filename), digest in OLD_BENCH_SHA256.items():
+        path = root / category / dataset_id / filename
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
+    listed = {(item.category, item.id) for item in list_bench_datasets()}
+    assert set(OLD_BENCH_PAIRS) <= listed
+    for category, dataset_id in OLD_BENCH_PAIRS:
+        dataset = load_bench_dataset(category, dataset_id)
+        assert dataset.id == dataset_id
+        assert dataset.expected
+
+
+def test_new_datasets_cover_morning_multi_type_and_l6():
+    old = set(OLD_BENCH_PAIRS)
+    morning = []
+    multi = []
+    level_six = []
+    for item in list_bench_datasets():
+        pair = (item.category, item.id)
+        if pair in old:
+            continue
+        dataset = load_bench_dataset(item.category, item.id)
+        if "morning" in dataset.state.hours.services:
+            morning.append(pair)
+        by_service: dict[str, set[str]] = {}
+        for kind in dataset.state.service_types:
+            by_service.setdefault(kind.service_id, set()).add(kind.id)
+        if any(len(ids) >= 2 for ids in by_service.values()):
+            multi.append(pair)
+        roles = [
+            role
+            for ladder in dataset.state.ladders.values()
+            if ladder is not None
+            for role in ladder.roles
+        ]
+        if any(role.level >= 6 for role in roles):
+            level_six.append(pair)
+    assert len(morning) >= 4
+    assert len(multi) >= 4
+    assert len(level_six) >= 4
+
+
+@pytest.mark.parametrize("dataset_id", ["atelier", "rivoli", "marais", "temple", "republique", "opera"])
 def test_crafted_expected_global_at_least_nine_five(dataset_id):
     dataset = load_bench_dataset("crafted", dataset_id)
     result = _expected_result(dataset)
@@ -514,7 +602,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert queued.status_code == 202
     assert queued.json()["status"] == "queued"
     job_ids = queued.json()["job_ids"]
-    assert len(job_ids) == 7
+    assert len(job_ids) == 30
     runs_before_tick = _count_rows(BenchRun)
     remaining = set(job_ids)
     for _ in range(40):

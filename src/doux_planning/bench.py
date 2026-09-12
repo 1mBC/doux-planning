@@ -25,7 +25,18 @@ from doux_planning.staff import Role, RoleLadder, default_legal_rules
 from doux_planning.structures import ArrivalWave, DepartureWave, RestaurantHours, ServiceType, TypicalWeek, TypicalWeekCell
 from doux_planning.types import SearchEffort, Team, WEEKDAYS
 
-BENCH_CATEGORY_ORDER = ("tight", "clock", "wishes", "ladder", "crafted")
+BENCH_CATEGORY_ORDER = (
+    "tight",
+    "clock",
+    "wishes",
+    "ladder",
+    "crafted",
+    "hours",
+    "size",
+    "overqual",
+    "closed",
+    "shapes",
+)
 NOTE_KEYS = ("couverture", "legal", "contrat", "wellbeing", "roles")
 
 
@@ -194,11 +205,29 @@ def _load_context(category: str, dataset_id: str, raw: dict) -> RestaurantState:
         set_role_ladder(state, RoleLadder(team, tuple(roles), substitution_explained=True))
     for item in raw["types"]:
         upsert_service_type(state, _service_type(item))
-    set_typical_week(state, _derived_typical_week(raw["roles"], hours_raw, raw["types"]))
+    if "typical_week" in raw:
+        set_typical_week(state, _typical_week_from_json(raw["typical_week"]))
+    else:
+        set_typical_week(state, _derived_typical_week(raw["roles"], hours_raw, raw["types"]))
     for item in raw["employees"]:
         upsert_employee(state, _employee(item))
     state.structures = expand_typical_week(state)
     return state
+
+
+def _typical_week_from_json(cells_raw: list[dict]) -> TypicalWeek:
+    return TypicalWeek(
+        cells=tuple(
+            TypicalWeekCell(
+                weekday=item["weekday"],
+                service_id=item["service_id"],
+                type_id=item.get("type_id"),
+                closed=bool(item["closed"]),
+                team=Team(item["team"]),
+            )
+            for item in cells_raw
+        )
+    )
 
 
 def _service_type(raw: dict) -> ServiceType:
