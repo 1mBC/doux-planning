@@ -272,7 +272,34 @@ Manuel | {engine_ref}                    | {engine_ref} | …
 - Clic cellule → `/admin/bench/run/{run_id}` (compare de **ce** run).  
 - Couleur delta (globale) : **0 = vert**. Négatif = crescendo **rouge** (clamp −1). Positif = crescendo **bleu** (clamp +1). Tiret = pas de couleur.
 
-Lancer / export **inchangés**. Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu’on lance). Pas de bouton revert.
+Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu’on lance). Pas de bouton revert.
+
+### Recap modèles (au-dessus du tableau)
+
+Une bande **au-dessus** de « Derniers runs », **après** Lancer. Source = le même `GET /versions` (pas de route neuve).
+
+Pour **chaque** `engine_ref` sauf le **premier** de `engine_refs` (pas de précédent) : un bloc `{ref} vs {ref_précédent}`.
+
+Pour **chaque** compute (`minimal` / `optimized` / `maximal`) :
+
+Jeux = intersection : `by_ref[ref][effort].global` **et** `by_ref[prev][effort].global` non null.  
+`d_i = global_ref − global_prev` (pareil que Δmanuel_ref − Δmanuel_prev).
+
+- **%** : `100 × mean(d) / 10` (échelle note /10) — ex. moyenne +0,24 → **+2,4 %**. Intersection vide → tiret.  
+- **max** : `max(d)`  
+- **min** : `min(d)` (souvent négatif)
+
+Couleurs = **mêmes** règles que les cellules delta (0 vert, − rouge clamp −1, + bleu clamp +1) sur `mean(d)` / max / min (pas sur le % brut).  
+Premier `engine_ref` : **pas** de bloc (rien à comparer).
+
+### Lancer (2 lignes)
+
+Plus une rangée par catégorie.
+
+1. **Global** (inchangé) : « Toutes les catégories » + 3 boutons effort → `scope=all`.  
+2. **Par compute** : 3 contrôles (Minimal / Optimisé / Maximal). Clic → **liste des catégories** (`list` / versions, ordre API). Clic une catégorie → `scope=category` + cet effort. Ouvrir la liste **ne** lance pas.
+
+Export inchangé.
 
 Compare chemin existant = last-run courant, inchangé.
 
@@ -292,7 +319,7 @@ Compare : **même** `CycleScoreNotes` des deux côtés, avec `facts` + `stats` +
 
 Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
-**`0.37.0`**, note FR : banc, Manuel à gauche, deltas colorés par modèle.
+**`0.38.0`**, note FR : banc, recap vs modèle précédent + lancer 2 lignes.
 
 ## Tests
 
