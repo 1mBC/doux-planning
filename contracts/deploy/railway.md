@@ -16,8 +16,10 @@ navigateur  →  https://<railway-domain>/
                  ├── /v1/*     FastAPI (auth, context, generate, jobs, live, me/planning, exemple, sandbox)
                  └── /*        SPA (web/dist) + fallback index.html (/planning, /login, /admin, …)
 
-2ᵉ service **worker** (même image, **pas** de domaine public) : boucle jobs Maximal (`contracts/domain/generate-jobs.md`). Même `DATABASE_URL`.
+2ᵉ service **worker** × N replicas (même image, pas de domaine public)
 ```
+
+Worker : boucle Maximal + banc (`contracts/domain/worker-queue.md`). Même `DATABASE_URL`. Slider replicas Railway, **même commit**. File = Postgres (`SKIP LOCKED` + heartbeat). **Pas** un process par SHA.
 
 Même origine : le front continue d’appeler `/v1` (déjà le cas). Pas de CORS. Pas de second service front.
 
@@ -46,6 +48,7 @@ Si `dist` absent (dev API seule) : les routes `/v1` restent OK, pas de 500.
 2. Plugin Postgres. Vérifier `DATABASE_URL` sur le service web.
 3. Generate domain. Premier deploy après merge du slice Infra.
 4. Variable `ADMIN_EMAIL` (déjà collée) : restart / redeploy pour promote.
-5. **2ᵉ service worker** (même repo / image, start worker, `DATABASE_URL` partagé, pas de domaine public) — une fois, pour Maximal.
+5. **2ᵉ service worker** (même repo / image, start worker, `DATABASE_URL` partagé, pas de domaine public) — une fois, pour Maximal / banc.
+6. **Replicas** du service worker (autant que le plan Railway tient). Même image. Ne pas lancer la boucle worker sur le service web.
 
 Pas de token à coller dans le repo. Pas de CI GitHub obligatoire.
