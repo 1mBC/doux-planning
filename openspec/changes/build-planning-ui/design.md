@@ -316,6 +316,16 @@ Suivre `bench.md` § UI — le suivre, ne pas le modifier. Liste = API.
 
 Version `0.35.0`.
 
+### 36. Banc 50 jeux (20 oracles crafted)
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier. Liste = API.
+
+- Tableau + barre Lancer : **aucun** 30 / 7 / 6 en dur. Source `GET /v1/admin/bench/datasets` / `GET /v1/admin/bench/versions` (50 lignes, dont 26 `crafted`, ordre API).
+- Une rangée Lancer par catégorie listée (inchangé).
+- Compare / export / 3 computes × versions inchangés. Pas de chrome worker.
+
+Version `0.36.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.
