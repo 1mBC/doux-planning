@@ -180,4 +180,4 @@ Régression wellbeing-model (déjà landed) : repos consécutifs, we even/odd/ev
 
 ## Hors freeze
 
-`weekend-eve` / `eve-first` (files suivantes). `max_services` dans le SAT repos. Archive / sync. Wizard / types = `contracts/domain/wizard-ui.md`.
+`weekend-eve` / `eve-first` reportés. Seeds / fill coupures = `contracts/domain/engine-seeds.md`. `max_services` dans le SAT repos. Archive / sync. Wizard / types = `contracts/domain/wizard-ui.md`.
