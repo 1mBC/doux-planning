@@ -9,7 +9,7 @@ Le banc **ne lit / n’écrit jamais** `published_cycles`, `live_sandboxes`, com
 Un nom par version de moteur : `engine_ref`. **Une** source : `trim(data/bench/VERSION)` (une ligne).  
 Ce n’est **pas** le numéro UI (`web/src/release.ts`).
 
-`core-2` = fill **fewest** (créneaux au moins de monde d’abord). `core-1` = plafonds durs, ordre chrono. `core-0` = avant les plafonds.  
+`core-3` = seeds → SAT (locks) → fill (`contracts/domain/engine-seeds.md`). `core-2` = fill **fewest**. `core-1` = plafonds durs, ordre chrono. `core-0` = avant les plafonds.  
 HTTP et rows émettent `engine_ref` **et** `app_version` = **le même string** (alias, une seule source).
 
 Vieux runs `app_version = "0.27.0"` : à la **lecture** `engine_ref = "core-0"` (même moteur). On n’écrit plus `0.27.0`.
@@ -83,7 +83,7 @@ Catégories **figées** (ordre d’affichage) — **50 jeux**. Les **30** déjà
 Les 24 non-`crafted` (déjà au catalogue) : manuel **0 interdit** seulement — **on ne les retire pas**, on ne les réécrit pas.  
 Les **20** nouveaux sont **tous** `crafted` (pas de diversité-de-forme sans oracle).  
 Scan disque. Jeu sans les deux JSON → **omit**, pas 500.  
-`engine_ref()` = trim `VERSION` — **reste `core-2`** (pas un change moteur).
+`engine_ref()` = trim `VERSION` — **`core-3`** après land Core (`engine-seeds.md`). Catalogue 50 **inchangé**.
 
 Parmi les **20** nouveaux : ≥ 4 à 3 services (`morning`) ; ≥ 4 à **2 types ou plus** sur le même `service_id` ; ≥ 4 avec un rôle **level ≥ 6**.  
 Méthode **obligatoire** pour chaque nouveau : écrire `expected.json` (grille 14 j) **avant** de figer `context.json` ; `evaluate` → **0 interdit**, **0 hours_miss**, **0 below_role**.
@@ -260,17 +260,17 @@ Menu **à plat** : **Historique des computes | Banc**. **Plus** d’entrée Vers
 
 **Un seul tableau** (Banc). Source : `GET /v1/admin/bench/versions` (plus le last-run courant seul).
 
-Pour **chaque** compute (Minimal, Optimisé, Maximal) :
+**Un** Manuel à gauche, puis **une** colonne par `engine_ref`, déclinée en 3 computes (**inverse** de l’ancien : plus de Manuel × 3).
 
 ```
-<effort>
-  Manuel | {engine_ref} | {engine_ref} | …
+Manuel | {engine_ref}                    | {engine_ref} | …
+         Minimal | Optimisé | Maximal
 ```
 
-- **Manuel** : `dataset.manual.global` (même chiffre pour les trois efforts).  
-- **Chaque `engine_ref`** : globale Modèle + delta vs Manuel. Tiret si pas de run.  
-- Clic cellule moteur → `/admin/bench/run/{run_id}` (compare de **ce** run).  
-- Clic Manuel → compare-chemin de cet effort (last-run courant), comme aujourd’hui.
+- **Manuel** : `dataset.manual.global` **une fois**. Clic → compare-chemin `optimized` moteur **courant**.  
+- **Chaque cellule modèle × compute** : **uniquement** le delta vs Manuel (`deltas.global`). **Pas** la note absolue. Tiret si pas de run.  
+- Clic cellule → `/admin/bench/run/{run_id}` (compare de **ce** run).  
+- Couleur delta (globale) : **0 = vert**. Négatif = crescendo **rouge** (clamp −1). Positif = crescendo **bleu** (clamp +1). Tiret = pas de couleur.
 
 Lancer / export **inchangés**. Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu’on lance). Pas de bouton revert.
 
@@ -292,14 +292,14 @@ Compare : **même** `CycleScoreNotes` des deux côtés, avec `facts` + `stats` +
 
 Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
-**`0.36.0`**, note FR : banc 50 jeux, 20 oracles crafted.
+**`0.37.0`**, note FR : banc, Manuel à gauche, deltas colorés par modèle.
 
 ## Tests
 
 HTTP / UI **inchangés** (liste = scan / `list_bench_datasets`).  
 Core catalogue : **50** jeux. Les **30** déjà là loadent **bit-à-bit**. Tous les expected : 0 interdit. Les **26** `crafted` : globale ≥ 9,5. Les 20 nouveaux : aussi 0 `hours_miss`, 0 `below_role`.  
 ≥ 4 des 20 avec `morning` ; ≥ 4 avec 2 `types` le même `service_id` ; ≥ 4 avec un rôle `level >= 6`.  
-`engine_ref() == "core-2"`. `run_bench(tight, halles, minimal)` vert. Keep-best inchangé.
+`engine_ref() == "core-3"` (après land Core). `run_bench(tight, halles, minimal)` vert. Keep-best inchangé. Catalogue 50 inchangé.
 
 ## Hors freeze
 
