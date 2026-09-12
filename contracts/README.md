@@ -53,7 +53,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 40 — banc élargi | `domain/bench.md` ; briefs `core-bench-widen.md`, `infra-bench-widen.md`, `ui-bench-widen.md` | **landed** `4c4a841` (UI v0.35.0) |
 | 41 — oracles + pile workers | `domain/bench.md`, `domain/worker-queue.md`, `domain/generate-jobs.md`, `deploy/railway.md` ; briefs `core-bench-oracles.md`, `infra-worker-queue.md`, `ui-bench-oracles.md` | **landed** `8423e56` (UI v0.36.0) |
 | 42 — seeds core-3 + banc deltas | `domain/engine-seeds.md`, `domain/bench.md` ; briefs `core-engine-seeds.md`, `ui-bench-deltas.md` | **landed** `5a3b983` (UI v0.37.0) |
-| 43 — banc recap + lancer | `domain/bench.md` ; brief `ui-bench-recap.md` | **ouvert** |
+| 43 — banc recap + lancer | `domain/bench.md` ; brief `ui-bench-recap.md` | **landed** `f78ca84` (UI v0.38.0) |
 
 ## Ownership git (ne pas croiser)
 
