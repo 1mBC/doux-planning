@@ -40,7 +40,19 @@ If the key is present, a trial that would make that week's count (evaluate `_ser
 
 ### 7. Fill and repair use the same `fewest` window order (`core-2`)
 
-`_fill_assignments` and `_repair_holes` share one job list. Eligible count is **static**: `_can_fill_window` on an empty assignment board (rest calendar + unavailabilities + hard `max_services` + legal), not already-placed shifts. Sort: `eligible_count` ascending, then `day_index`, then restaurant `hours.services` order, then post level descending (then `start_minutes` for stability). One strategy only — not `weekend-eve` or `eve-first`. Keep-best / SAT / hard caps stay unchanged.
+`_fill_assignments` and `_repair_holes` share one job list. Eligible count is **static**: `_can_fill_window` on an empty assignment board (rest calendar + unavailabilities + hard `max_services` + legal), not already-placed shifts. Sort: `eligible_count` ascending, then `day_index`, then restaurant `hours.services` order, then post level descending (then `start_minutes` for stability). One strategy only — not `weekend-eve` or `eve-first`. Keep-best / `_attempt_key` / `SEARCH_*` stay unchanged.
+
+### 8. Seeders lock windows, then SAT, then fill (`core-3`)
+
+`generate_cycle` follows `contracts/domain/engine-seeds.md`. A seed is a list of lock `Shift`s. SAT forces `work[emp, day] = 1` on lock days and subtracts already-held posts from service coverage. Fill / repair / displace never move a lock. A locked seed that makes hard SAT infeasible is discarded (0 calendars, no slack). `empty` is the `core-2` pipe (one copy) and still slacks if hard SAT fails.
+
+`SEED_TIGHT_THRESHOLD = 3`. Seeders: `tight-frozen` (eligibles once on an empty grid, seed only `≤ 3`, fewest first), `tight-dynamic` (recompute after each pose, next = tightest still `≤ 3`), `high-role` (L6…L1 then tension), `weekend-scarce` (Sat/Sun fewest, threshold 3), `empty`. Who to pose: legal → exact level → least versatile → furthest from contract hours → `employee_id`. Copies (10 / 50) permute tied windows and draw tied candidates via `seed_index`.
+
+Compute: `SEARCH_CALENDAR_LIMITS` / `SEARCH_SECONDS` unchanged. `minimal` = empty + 16 calendars. `optimized` = 10 × each seeder except empty ×1, then 320 unique round-robin (1 / seed) / 30 s. `maximal` = 50 × + stop 10 min. Keep-best over every (seed × calendar).
+
+### 9. Fill penalizes creating a coupure (`core-3`)
+
+Drop `int(not started_day)` from `_soft_penalty`. Penalize a trial that creates a same-day coupure (already a shift that day **and** a gap). Prefer someone off that day, or a contiguous chain. Hard `max_coupures_per_week` skip stays. Fewest-first stays.
 
 ## Risks / Trade-offs
 

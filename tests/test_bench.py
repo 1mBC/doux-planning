@@ -492,16 +492,16 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
         fact.polarity == "hit" and fact.kind in {"post_held", "role_gap"}
         for fact in (*outcome.facts, *outcome.expected_facts)
     )
-    assert outcome.engine_ref == "core-2"
+    assert outcome.engine_ref == "core-3"
 
 
-def test_engine_ref_is_core_two():
-    assert engine_ref() == "core-2"
+def test_engine_ref_is_core_three():
+    assert engine_ref() == "core-3"
 
 
 def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
     outcome = run_bench("crafted", "atelier", SearchEffort.MINIMAL)
-    assert outcome.engine_ref == "core-2"
+    assert outcome.engine_ref == "core-3"
     saturday_evening_empties = [
         fact
         for fact in outcome.facts
@@ -515,7 +515,7 @@ def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
 
 def test_run_bench_marais_minimal_hard_max_evenings():
     outcome = run_bench("crafted", "marais", SearchEffort.MINIMAL)
-    assert outcome.engine_ref == "core-2"
+    assert outcome.engine_ref == "core-3"
     assert not any(fact.polarity == "miss" and fact.kind == "max_evenings" for fact in outcome.facts)
     assert not any(shift.employee_id == "e" and shift.service_id == "evening" for shift in outcome.assignments)
 
@@ -531,7 +531,7 @@ def test_run_bench_rivoli_minimal_expected_zero_interdit():
 
 def test_run_bench_campus_minimal_runs():
     outcome = run_bench("wishes", "campus", SearchEffort.MINIMAL)
-    assert outcome.engine_ref == "core-2"
+    assert outcome.engine_ref == "core-3"
     assert outcome.search_effort == SearchEffort.MINIMAL
 
 
@@ -614,7 +614,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
 
     datasets = client.get("/v1/admin/bench/datasets", headers=headers)
     assert datasets.status_code == 200
-    assert datasets.json()["engine_ref"] == datasets.json()["app_version"] == "core-2"
+    assert datasets.json()["engine_ref"] == datasets.json()["app_version"] == "core-3"
     assert len(datasets.json()["datasets"]) == 50
     assert {(item["category"], item["id"]) for item in datasets.json()["datasets"]} == FROZEN_BENCH_PAIRS
 
@@ -632,7 +632,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert first["category"] == "tight"
     assert first["dataset_id"] == "halles"
     assert first["search_effort"] == "minimal"
-    assert first["engine_ref"] == first["app_version"] == "core-2"
+    assert first["engine_ref"] == first["app_version"] == "core-3"
     assert "notes" in first["score"] and "resumes" not in first["score"]
     assert "assignments" not in first
     assert _count_rows(GenerateLog) == logs_before
@@ -671,7 +671,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert pack["export_version"] == 1
     assert pack["kind"] == "bench-pack"
     assert pack["scope"] == "dataset"
-    assert pack["engine_ref"] == pack["app_version"] == "core-2"
+    assert pack["engine_ref"] == pack["app_version"] == "core-3"
     assert pack["exported_at"]
     assert len(pack["datasets"]) == 1
     halles_pack = pack["datasets"][0]
@@ -682,7 +682,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert halles_pack["manual"]["facts"]
     assert halles_pack["efforts"][0]["search_effort"] == "minimal"
     assert halles_pack["efforts"][0]["run_id"] == first["id"]
-    assert halles_pack["efforts"][0]["engine_ref"] == "core-2"
+    assert halles_pack["efforts"][0]["engine_ref"] == "core-3"
     assert "below_manuel" in halles_pack["efforts"][0]
     assert halles_pack["efforts"][0]["model"]["facts"]
 
@@ -703,7 +703,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     by_id = client.get(f"/v1/admin/bench/runs/{first['id']}", headers=headers)
     assert by_id.status_code == 200
     assert by_id.json()["id"] == first["id"]
-    assert by_id.json()["engine_ref"] == by_id.json()["app_version"] == "core-2"
+    assert by_id.json()["engine_ref"] == by_id.json()["app_version"] == "core-3"
     assert "model" in by_id.json() and "manual" in by_id.json()
     assert any(item.get("polarity") == "hit" for item in by_id.json()["model"]["facts"])
     assert any(item.get("polarity") == "hit" for item in by_id.json()["manual"]["facts"])
@@ -722,20 +722,20 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     )
     versions = client.get("/v1/admin/bench/versions", headers=headers)
     assert versions.status_code == 200
-    assert versions.json()["engine_ref"] == "core-2"
-    assert "core-2" in versions.json()["engine_refs"]
+    assert versions.json()["engine_ref"] == "core-3"
+    assert "core-3" in versions.json()["engine_refs"]
     assert "core-1" in versions.json()["engine_refs"]
     assert "0.27.0" not in versions.json()["engine_refs"]
     halles_row = next(item for item in versions.json()["datasets"] if item["id"] == "halles")
-    assert set(halles_row["by_ref"]) >= {"core-2", "core-1"}
-    assert halles_row["by_ref"]["core-2"]["minimal"]["run_id"] == first["id"]
+    assert set(halles_row["by_ref"]) >= {"core-3", "core-1"}
+    assert halles_row["by_ref"]["core-3"]["minimal"]["run_id"] == first["id"]
     assert halles_row["by_ref"]["core-1"]["minimal"]["run_id"]
     assert halles_row["by_ref"]["core-1"]["minimal"]["run_id"] != first["id"]
-    assert set(halles_row["by_ref"]["core-2"]) == {"minimal", "optimized", "maximal"}
+    assert set(halles_row["by_ref"]["core-3"]) == {"minimal", "optimized", "maximal"}
     current_compare = client.get("/v1/admin/bench/compare/tight/halles/minimal", headers=headers)
     assert current_compare.status_code == 200
     assert current_compare.json()["id"] == first["id"]
-    assert current_compare.json()["engine_ref"] == "core-2"
+    assert current_compare.json()["engine_ref"] == "core-3"
 
     legacy_id = _insert_bench_run(
         app_version="0.27.0",

@@ -33,6 +33,24 @@ The system SHALL store wellbeing as consecutive rest, at most one weekend choice
 - **WHEN** eligible counts are equal
 - **THEN** order is day_index, then restaurant service order, then post level descending
 
+#### Scenario: Seeds lock then SAT then fill
+- **WHEN** `generate_cycle` runs at optimized or maximal
+- **THEN** it builds seeder locks, constrains SAT by those locks, fills remaining holes without moving locks, and keep-bests every seed × calendar
+- **WHEN** a locked seed makes hard SAT infeasible
+- **THEN** that seed is discarded and other seeds continue
+
+#### Scenario: Minimal is empty plus sixteen calendars
+- **WHEN** `generate_cycle` runs at minimal
+- **THEN** there are no seed locks and at most 16 rest calendars
+
+#### Scenario: Fill does not prefer a started day
+- **WHEN** one person already has a shift that day with a gap to the trial and another person is free that day
+- **THEN** fill prefers the person who does not create a coupure
+
+#### Scenario: engine_ref is core-3
+- **WHEN** `engine_ref()` is read
+- **THEN** it equals `core-3`
+
 #### Scenario: Unavailability is only the day-service pair
 - **WHEN** a fiche has an unavailability for Tuesday midday
 - **THEN** only that weekday and service is blocked
