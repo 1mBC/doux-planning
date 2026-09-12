@@ -388,3 +388,14 @@ The contrat pill SHALL be labeled **Contrat /10**. Axis titles SHALL be bold. Co
 - **WHEN** an admin opens `/admin/bench/versions`
 - **THEN** the client navigates to `/admin/bench`
 
+### Requirement: Admin bench lists all API datasets
+`/admin/bench` SHALL render one table row per dataset from `GET /v1/admin/bench/versions` (API order) and SHALL NOT hardcode a 7-dataset or 4-category catalogue. The launch toolbar SHALL include one row per distinct category in that list (`hours`, `size`, `overqual`, `closed`, `shapes`, and the older ones). Compare, export, and the three-effort × engine_ref columns stay unchanged.
+
+#### Scenario: Thirty rows and new categories
+- **WHEN** an admin opens `/admin/bench`
+- **THEN** the table has 30 dataset rows and the launch bar shows hours, size, overqual, closed, and shapes
+
+#### Scenario: Launch shapes category
+- **WHEN** an admin launches category `shapes` at Minimal
+- **THEN** the page does not crash and stays on `/admin/bench`
+
