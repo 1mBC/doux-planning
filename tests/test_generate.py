@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import secrets
+import threading
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,7 +12,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm.attributes import flag_modified
 
 from doux_planning.api.app import app
-from doux_planning.api.db import Company, reset_engine, session_scope
+from doux_planning.api.db import BenchJob, Company, GenerateJob, reset_engine, session_scope
 from doux_planning.types import WEEKDAYS
 
 
@@ -743,3 +745,115 @@ def test_worker_requeues_stale_running_and_logs_progress(capsys, monkeypatch):
     assert "generate start" in progress
     assert "generate progress" in progress
     assert "generate end" in progress
+
+
+def _insert_generate_job(restaurant_id: str, *, status: str, heartbeat_at, job_id: str | None = None) -> str:
+    job_id = job_id or f"hb-{secrets.token_hex(4)}"
+    with session_scope() as session:
+        session.add(
+            GenerateJob(
+                id=job_id,
+                restaurant_id=restaurant_id,
+                team="salle",
+                search_effort="maximal",
+                status=status,
+                estimated_seconds=600,
+                error=None,
+                created_at=datetime.now(timezone.utc),
+                heartbeat_at=heartbeat_at,
+            )
+        )
+    return job_id
+
+
+def _insert_bench_job(*, status: str, heartbeat_at=None, effort: str = "maximal") -> str:
+    job_id = secrets.token_urlsafe(12)
+    with session_scope() as session:
+        session.add(
+            BenchJob(
+                id=job_id,
+                category="tight",
+                dataset_id=f"para-{secrets.token_hex(4)}",
+                search_effort=effort,
+                status=status,
+                error=None,
+                run_id=None,
+                created_at=datetime.now(timezone.utc),
+                heartbeat_at=heartbeat_at,
+            )
+        )
+    return job_id
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_worker_queue_reclaim_stale_only_and_parallel_ticks():
+    from doux_planning.api.worker import (
+        reclaim_stale_bench_jobs,
+        reclaim_stale_jobs,
+        reclaim_stale_running_jobs,
+        tick_bench_job,
+    )
+    from tests.test_bench import _stub_run_bench
+
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"queue-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    restaurant_id = registered.json()["me"]["restaurant_id"]
+    fresh_id = _insert_generate_job(
+        restaurant_id,
+        status="running",
+        heartbeat_at=datetime.now(timezone.utc),
+    )
+    assert reclaim_stale_running_jobs() == 0
+    with session_scope() as session:
+        fresh = session.get(GenerateJob, fresh_id)
+        assert fresh is not None
+        assert fresh.status == "running"
+
+    stale_id = _insert_generate_job(
+        restaurant_id,
+        status="running",
+        heartbeat_at=datetime.now(timezone.utc) - timedelta(seconds=181),
+    )
+    assert reclaim_stale_running_jobs() == 1
+    with session_scope() as session:
+        stale = session.get(GenerateJob, stale_id)
+        assert stale is not None
+        assert stale.status == "queued"
+
+    start_fresh = _insert_generate_job(
+        restaurant_id,
+        status="running",
+        heartbeat_at=datetime.now(timezone.utc),
+    )
+    bench_fresh = _insert_bench_job(status="running", heartbeat_at=datetime.now(timezone.utc))
+    assert reclaim_stale_jobs() == 0
+    with session_scope() as session:
+        assert session.get(GenerateJob, start_fresh).status == "running"
+        assert session.get(BenchJob, bench_fresh).status == "running"
+
+    old_bench = _insert_bench_job(
+        status="running",
+        heartbeat_at=datetime.now(timezone.utc) - timedelta(seconds=200),
+    )
+    assert reclaim_stale_bench_jobs() == 1
+    with session_scope() as session:
+        assert session.get(BenchJob, old_bench).status == "queued"
+
+    first = _insert_bench_job(status="queued")
+    second = _insert_bench_job(status="queued")
+    claimed: list[str | None] = []
+
+    def _tick() -> None:
+        claimed.append(tick_bench_job(run_bench_fn=_stub_run_bench))
+
+    workers = [threading.Thread(target=_tick) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+    assert None not in claimed
+    assert set(claimed) == {first, second}

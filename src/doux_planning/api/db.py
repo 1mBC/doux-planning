@@ -127,6 +127,7 @@ class GenerateJob(Base):
     estimated_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     error: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class BenchJob(Base):
@@ -140,6 +141,7 @@ class BenchJob(Base):
     error: Mapped[str | None] = mapped_column(String, nullable=True)
     run_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class BenchRun(Base):

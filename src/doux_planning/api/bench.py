@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_database
 from doux_planning.api.db import BenchJob, BenchRun, session_scope
@@ -94,22 +95,45 @@ def persist_bench_outcome(outcome: BenchOutcome) -> BenchRun:
         return stored
 
 
-def _enqueue_bench_job(category: str, dataset_id: str, effort: str) -> str:
-    job_id = secrets.token_urlsafe(12)
-    with session_scope() as db:
-        db.add(
-            BenchJob(
-                id=job_id,
-                category=category,
-                dataset_id=dataset_id,
-                search_effort=effort,
-                status="queued",
-                error=None,
-                run_id=None,
-                created_at=datetime.now(timezone.utc),
-            )
+def _active_bench_job(db, category: str, dataset_id: str, effort: str) -> BenchJob | None:
+    return db.scalars(
+        select(BenchJob).where(
+            BenchJob.category == category,
+            BenchJob.dataset_id == dataset_id,
+            BenchJob.search_effort == effort,
+            BenchJob.status.in_(("queued", "running")),
         )
-    return job_id
+    ).first()
+
+
+def _enqueue_bench_job(category: str, dataset_id: str, effort: str) -> str:
+    try:
+        with session_scope() as db:
+            existing = _active_bench_job(db, category, dataset_id, effort)
+            if existing is not None:
+                return existing.id
+            job_id = secrets.token_urlsafe(12)
+            db.add(
+                BenchJob(
+                    id=job_id,
+                    category=category,
+                    dataset_id=dataset_id,
+                    search_effort=effort,
+                    status="queued",
+                    error=None,
+                    run_id=None,
+                    created_at=datetime.now(timezone.utc),
+                    heartbeat_at=None,
+                )
+            )
+            db.flush()
+            return job_id
+    except IntegrityError:
+        with session_scope() as db:
+            existing = _active_bench_job(db, category, dataset_id, effort)
+            if existing is None:
+                raise
+            return existing.id
 
 
 def _employee_slice(person) -> dict[str, Any]:

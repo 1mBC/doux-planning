@@ -140,15 +140,19 @@ Admin bench routes SHALL require `admin` true (`contracts/domain/bench.md`). `PO
 
 #### Scenario: All maximal enqueues one job per jeu
 - **WHEN** an admin posts bench run `scope` `all` `search_effort` `maximal`
-- **THEN** the response is HTTP 202 with thirty `job_ids` and worker ticks (stubbed `run_bench`) insert thirty `bench_runs`
+- **THEN** the response is HTTP 202 with fifty `job_ids` and worker ticks (stubbed `run_bench`) insert fifty `bench_runs`
 
-#### Scenario: Category crafted enqueues six jobs
+#### Scenario: Category crafted enqueues twenty-six jobs
 - **WHEN** an admin posts bench run `scope` `category` `category` `crafted`
-- **THEN** the response is HTTP 202 with six `job_ids`
+- **THEN** the response is HTTP 202 with twenty-six `job_ids`
 
-#### Scenario: GET datasets lists thirty jeux
+#### Scenario: GET datasets lists fifty jeux
 - **WHEN** an admin gets `/v1/admin/bench/datasets`
-- **THEN** the response is HTTP 200 with thirty datasets and `engine_ref` `"core-2"`
+- **THEN** the response is HTTP 200 with fifty datasets and `engine_ref` `"core-2"`
+
+#### Scenario: Duplicate Maximal enqueue is idempotent
+- **WHEN** an admin posts the same dataset Maximal twice while the first job is still `queued`
+- **THEN** both responses share one `job_id`
 
 #### Scenario: Non-admin cannot run bench
 - **WHEN** a company session with `admin` false posts `/v1/admin/bench/run`
@@ -195,3 +199,18 @@ HTTP bench summaries, GET datasets, GET runs, and export MUST emit `engine_ref` 
 #### Scenario: Non-admin cannot read versions
 - **WHEN** a company session with `admin` false gets `/v1/admin/bench/versions`
 - **THEN** the response is HTTP 403 French
+
+### Requirement: Safe parallel workers
+Workers SHALL claim one job per process via `SKIP LOCKED`, beat `heartbeat_at` every 10 s on generate and bench, and reclaim only `running` rows whose heartbeat is NULL or older than 180 s. Start MUST NOT requeue every `running` job. `bench_jobs` MUST have a partial unique key on `(category, dataset_id, search_effort)` for `queued`/`running`. Generate 409 when a Maximal is already queued/running for the same company+team MUST stay unchanged.
+
+#### Scenario: Concurrent ticks claim distinct jobs
+- **WHEN** two worker ticks run at once against two `queued` bench jobs
+- **THEN** they claim two distinct job ids
+
+#### Scenario: Fresh heartbeat is not reclaimed
+- **WHEN** a `running` job has a fresh `heartbeat_at`
+- **THEN** reclaim returns 0
+
+#### Scenario: Stale heartbeat is requeued
+- **WHEN** a `running` job has `heartbeat_at` older than 180 s
+- **THEN** reclaim returns 1 and status is `queued`
