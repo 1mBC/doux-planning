@@ -24,40 +24,67 @@ data/bench/{category}/{id}/context.json
 data/bench/{category}/{id}/expected.json
 ```
 
-Catégories **figées** (ordre d’affichage) :
+Catégories **figées** (ordre d’affichage) — **30 jeux**. Les 7 anciens **inchangés** (fichiers + oracles).
 
 | `category` | `id` | Particularité |
 |---|---|---|
-| `tight` | `halles` | sous-effectif / couverture |
-| `clock` | `nocturne` | horloges 11 h (soir tard → midi tôt) |
-| `wishes` | `campus` | indispos + we + max services |
-| `ladder` | `brigade` | 1 senior, postes 2 |
-| `crafted` | `atelier` | témoin construit, globale 10 |
-| `crafted` | `rivoli` | témoin we pair / impair, globale 10 |
-| `crafted` | `marais` | témoin 0 dîner + repos collés, globale 10 |
+| `tight` | `halles` | sous-effectif (ancien) |
+| `tight` | `quai` | sous-effectif, **3 services** |
+| `tight` | `marche` | sous-effectif, L1–L3 |
+| `clock` | `nocturne` | 11 h (ancien) |
+| `clock` | `aube` | soir tard → **petit-déj**, 3 services |
+| `clock` | `brasserie` | 2 types midi (semaine / samedi) |
+| `wishes` | `campus` | indispos + we (ancien) |
+| `wishes` | `canal` | indispos + **L4+ à 0 dîner** |
+| `wishes` | `butte` | max services + we |
+| `ladder` | `brigade` | L3 vs L1 (ancien) |
+| `ladder` | `pyramide` | **L1→L6** |
+| `ladder` | `sommet` | un seul L6 |
+| `ladder` | `jumeaux` | deux L6 |
+| `ladder` | `trou` | L1–L6 **sans L3** |
+| `crafted` | `atelier` | témoin (ancien) |
+| `crafted` | `rivoli` | témoin we (ancien) |
+| `crafted` | `marais` | témoin 0 dîner (ancien) |
+| `crafted` | `temple` | oracle ≥ 9,5, **3 services** |
+| `crafted` | `republique` | oracle ≥ 9,5, **2 types midi** |
+| `crafted` | `opera` | oracle ≥ 9,5, **L1–L6** |
+| `hours` | `mixte` | 8 h / 24 h / 39 h |
+| `hours` | `petits` | beaucoup de petits contrats |
+| `size` | `studio` | 3 fiches |
+| `size` | `grande` | 8–10 fiches, 3 services |
+| `overqual` | `cadres` | trop de L5–L6 sur postes bas |
+| `closed` | `samedi` | samedi fermé |
+| `closed` | `lundi` | lundi fermé |
+| `shapes` | `week-we` | 2 types, même service (sem / we) |
+| `shapes` | `triple` | 3 types (lun–ven / sam / dim) |
+| `shapes` | `journee` | 3 services + 2 types |
 
-`crafted` = planning **d’abord**, contexte **déduit** (heures pile, souhaits déjà tenus). Oracle = **Manuel** (plus tard : plannings de restos réels).  
+`crafted` = planning **d’abord**, contexte **déduit**. Oracle = Manuel. `crafted` : `cycle_score` globale **≥ 9,5**.  
+Les autres nouveaux : manuel **0 interdit**, pas d’exigence 9,5.  
 Scan disque. Jeu sans les deux JSON → **omit**, pas 500.  
-`engine_ref()` = trim `data/bench/VERSION`.
+`engine_ref()` = trim `VERSION` — **reste `core-2`** (pas un change moteur).
+
+Parmi les **nouveaux** : ≥ 4 jeux à 3 services ; ≥ 4 à **2 types ou plus** sur le même `service_id` ; ≥ 4 avec un rôle **level ≥ 6**.
 
 ### `context.json`
-
-Contexte **live** (pas le snapshot Saint-Cloud) :
 
 ```
 {
   id, category, name, team: "salle", challenge_fr,
-  hours: { mode: "services", services: ["midday","evening"], closed_weekdays: ["sunday"] },
-  roles: [{ name, level, team: "salle" }],
+  hours: { mode: "services", services: ["morning"?,"midday","evening"], closed_weekdays },
+  roles: [{ name, level, team: "salle" }],          # level 1…6 autorisé
   types: [{ id, name, team, service_id, arrivals, departures }],
+  typical_week?: [{ weekday, service_id, type_id, closed, team }],
   employees: [{ id, name, role: {name, level, team}, team, contractual_hours_per_week,
                 unavailabilities?, wellbeing?, min_shift_hours? }]
 }
 ```
 
-Pas de `invite_token` (généré au load, ≠ id).  
-`typical_week` **dérivée** : pour chaque `roles.team` × `hours.services` × 7 weekdays — `closed` ssi weekday ∈ `closed_weekdays` ; sinon `type_id` = l’unique type `(team, service)`.  
-`team_ready(salle)` **vrai** après load. Cuisine absente.
+Pas de `invite_token`.  
+`typical_week` **absente** : dérivation actuelle (1 type par `(team, service)` — les 7 anciens).  
+`typical_week` **présente** : elle gagne ; **une** cellule par `team × service × weekday` ; `type_id` null ssi `closed`. Plusieurs types **peuvent** partager le même `service_id`.  
+`hours.services` peut être 2 ou **3** (`morning` autorisé).  
+`team_ready(salle)` **vrai**. Cuisine absente.
 
 ### `expected.json`
 
@@ -71,7 +98,7 @@ Planning **manuel**. `evaluate` → **0 interdit**. `crafted` : `cycle_score` gl
 
 ```
 engine_ref() -> str            # trim VERSION
-list_bench_datasets() -> [ … ]   # ordre : tight, clock, wishes, ladder, crafted (puis id)
+list_bench_datasets() -> [ … ]   # ordre : tight, clock, wishes, ladder, crafted, hours, size, overqual, closed, shapes (puis id)
 load_bench_dataset(category, id) -> BenchDataset
 run_bench(category, id, effort) -> BenchOutcome
 UnknownBenchDataset
@@ -246,9 +273,11 @@ Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
 ## Tests
 
-HTTP / Core **inchangés** (déjà landés).  
-UI : menu 2 entrées (plus Versions). Tableau Banc : 3 computes × (Manuel + une col par `engine_refs`). Deux refs → deux colonnes moteur **sous Minimal et sous Optimisé et sous Maximal**. Clic `core-0` Maximal ouvre `/admin/bench/run/{id}`. `/admin/bench/versions` ramène au Banc. Barre v0.34.0.
+HTTP / UI **inchangés** (liste = scan / `list_bench_datasets`).  
+Core catalogue : **30** jeux. Les 7 anciens loadent à l’identique. Tous les expected : 0 interdit. Les 6 `crafted` : globale ≥ 9,5.  
+≥ 4 nouveaux avec `morning` dans `hours.services` ; ≥ 4 avec 2 `types` le même `service_id` ; ≥ 4 avec un rôle `level >= 6`.  
+`engine_ref() == "core-2"`. `run_bench(tight, halles, minimal)` vert. Keep-best inchangé.
 
 ## Hors freeze
 
-Bouton revert. Deux fills dans le même process. `weekend-eve` / `eve-first`. Jeux cuisine. CSV/XLSX banc. Archive / sync.
+`weekend-eve` / `eve-first` (moteur). Fills vendored `core-0`/`core-1` sur les nouveaux jeux. Jeux cuisine. CSV/XLSX banc. Archive / sync.
