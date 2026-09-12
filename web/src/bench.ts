@@ -461,3 +461,80 @@ export function deltaBackground(value: number | null | undefined): string | unde
   }
   return `rgba(36, 86, 196, ${alpha})`;
 }
+
+export type BenchRecapEffort = {
+  effort: SearchEffort;
+  mean: number | null;
+  percent: number | null;
+  max: number | null;
+  min: number | null;
+};
+
+export type BenchModelRecap = {
+  ref: string;
+  prev: string;
+  efforts: BenchRecapEffort[];
+};
+
+function cellGlobal(dataset: BenchVersionDataset, ref: string, effort: SearchEffort): number | null {
+  const value = dataset.by_ref[ref]?.[effort]?.global;
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return null;
+  }
+  return value;
+}
+
+function recapForEffort(
+  datasets: BenchVersionDataset[],
+  ref: string,
+  prev: string,
+  effort: SearchEffort,
+): BenchRecapEffort {
+  const diffs: number[] = [];
+  for (const dataset of datasets) {
+    const current = cellGlobal(dataset, ref, effort);
+    const before = cellGlobal(dataset, prev, effort);
+    if (current !== null && before !== null) {
+      diffs.push(current - before);
+    }
+  }
+  if (diffs.length === 0) {
+    return { effort, mean: null, percent: null, max: null, min: null };
+  }
+  const mean = diffs.reduce((sum, item) => sum + item, 0) / diffs.length;
+  return {
+    effort,
+    mean,
+    percent: (100 * mean) / 10,
+    max: Math.max(...diffs),
+    min: Math.min(...diffs),
+  };
+}
+
+export function buildBenchRecaps(versions: BenchVersions): BenchModelRecap[] {
+  const recaps: BenchModelRecap[] = [];
+  for (let index = 1; index < versions.engine_refs.length; index += 1) {
+    const ref = versions.engine_refs[index];
+    const prev = versions.engine_refs[index - 1];
+    recaps.push({
+      ref,
+      prev,
+      efforts: BENCH_EFFORTS.map((effort) => recapForEffort(versions.datasets, ref, prev, effort)),
+    });
+  }
+  return recaps;
+}
+
+export function formatRecapPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  const abs = Math.abs(value).toFixed(1).replace(".", ",");
+  if (value > 0) {
+    return `+${abs} %`;
+  }
+  if (value < 0) {
+    return `−${abs} %`;
+  }
+  return "0,0 %";
+}

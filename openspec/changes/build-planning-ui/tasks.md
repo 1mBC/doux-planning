@@ -195,3 +195,8 @@
 
 - [x] 35.1 Manuel une fois à gauche ; familles engine_ref × 3 computes ; cellules = delta coloré ; bump web/ to 0.37.0
 - [x] 35.2 Verify npm run build ; /admin/bench 1 Manuel + familles modèle ; deltas colorés ; barre v0.37.0 ; sous-titre core-3
+
+## 36. Banc recap + lancer 2 lignes
+
+- [x] 36.1 Recap vs modèle précédent ; lancer 2 lignes (all + dropdowns catégorie) ; bump web/ to 0.38.0
+- [x] 36.2 Verify npm run build ; recap si 2 refs ; lancer 2 lignes ; dropdown Maximal crafted enqueue ; v0.38.0

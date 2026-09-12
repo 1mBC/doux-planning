@@ -421,3 +421,14 @@ The contrat pill SHALL be labeled **Contrat /10**. Axis titles SHALL be bold. Co
 - **WHEN** an engine cell has a delta of 0, a negative delta, or a positive delta
 - **THEN** the cell background is green, red-scaled, or blue-scaled respectively, and the label is the delta only
 
+### Requirement: Admin bench recap and two-line launch
+`/admin/bench` SHALL show a recap band after Launch and before the score table, one block per `engine_refs` value except the first, titled `{ref} vs {previous}`. Each block SHALL show, for Minimal / Optimisé / Maximal, a percent `100 × mean(global − prev.global) / 10`, plus max and min, over datasets where both globals are present. Empty intersection SHALL be a dash. Recap stat colors SHALL use the same delta rules as table cells. Launch SHALL have exactly two toolbar rows: all-categories × three efforts, and three effort dropdowns listing API categories; opening a dropdown SHALL NOT launch; choosing a category SHALL POST `scope=category` for that effort. There SHALL be no per-category launch row. The score table, export, and 50 rows stay unchanged.
+
+#### Scenario: Recap compares consecutive engine_refs
+- **WHEN** versions lists `core-2` then `core-3` and both have Maximal globals on the same datasets
+- **THEN** a `core-3 vs core-2` block shows percent / max / min for Maximal
+
+#### Scenario: Launch has two rows and category dropdowns
+- **WHEN** an admin opens `/admin/bench`
+- **THEN** Launch has two rows, no per-category row, and opening Maximal then choosing `crafted` enqueues that category
+

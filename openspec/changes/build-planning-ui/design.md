@@ -338,6 +338,16 @@ Suivre `bench.md` § UI — le suivre, ne pas le modifier.
 
 Version `0.37.0`.
 
+### 38. Banc recap vs modèle précédent + lancer 2 lignes
+
+Suivre `bench.md` § Recap + Lancer — les suivre, ne pas les modifier.
+
+- Après Lancer, avant le tableau : un bloc `{ref} vs {prev}` par `engine_ref` sauf le premier. Par effort : % `100 × mean(d) / 10`, max, min sur l’intersection des globales. Couleurs = mêmes deltas. Vide → tiret.
+- Lancer = 2 lignes : Toutes les catégories × 3 efforts ; 3 dropdowns d’effort → catégories (`scope=category`). Plus de rangée par catégorie.
+- Tableau / export / 50 lignes inchangés.
+
+Version `0.38.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.
