@@ -1506,6 +1506,69 @@ def _iter_service_windows(draft: PlanningDraft, start_day: int = 0):
                 yield day_index, weekday, service_id, team, windows
 
 
+@dataclass(frozen=True)
+class _FillWindowJob:
+    eligible_count: int
+    day_index: int
+    weekday: str
+    service_id: str
+    team: Team
+    window: PostWindow
+    cell_windows: tuple[PostWindow, ...]
+
+
+def _fill_window_jobs(
+    draft: PlanningDraft,
+    off_days: dict[str, set[int]],
+    employee_pool: list[Employee],
+    start_day: int = 0,
+) -> list[_FillWindowJob]:
+    """Windows ordered fewest static eligibles first (core-2)."""
+    service_rank = {service_id: index for index, service_id in enumerate(draft.hours.services)}
+    jobs: list[_FillWindowJob] = []
+    for day_index, weekday, service_id, team, windows in _iter_service_windows(draft, start_day):
+        cell_windows = tuple(windows)
+        for window in windows:
+            eligible = sum(
+                1
+                for employee in employee_pool
+                if _can_fill_window(
+                    draft,
+                    [],
+                    employee,
+                    window=window,
+                    day_index=day_index,
+                    weekday=weekday,
+                    service_id=service_id,
+                    team=team,
+                    off_days=off_days,
+                    employee_pool=employee_pool,
+                )
+            )
+            jobs.append(
+                _FillWindowJob(
+                    eligible_count=eligible,
+                    day_index=day_index,
+                    weekday=weekday,
+                    service_id=service_id,
+                    team=team,
+                    window=window,
+                    cell_windows=cell_windows,
+                )
+            )
+    jobs.sort(
+        key=lambda job: (
+            job.eligible_count,
+            job.day_index,
+            service_rank[job.service_id],
+            -job.window.level,
+            job.window.start_minutes,
+            job.team.value,
+        )
+    )
+    return jobs
+
+
 def _shift_covers_window(
     shift: Shift,
     window: PostWindow,
@@ -1578,36 +1641,40 @@ def _fill_assignments(
     start_day: int = 0,
 ) -> list[Shift]:
     assignments: list[Shift] = []
-    for day_index, weekday, service_id, team, windows in _iter_service_windows(draft, start_day):
-        pending = list(windows)
-        for window in windows:
-            picked = _pick_for_post(
-                draft,
-                assignments,
-                employee_pool=employee_pool,
-                window_level=window.level,
-                day_index=day_index,
-                weekday=weekday,
-                service_id=service_id,
-                team=team,
-                start_minutes=window.start_minutes,
-                end_minutes=window.end_minutes,
-                off_days=off_days,
-                remaining_windows=tuple(pending),
-            )
-            pending.remove(window)
-            if picked is None:
-                continue
-            chosen, assigned = picked
-            _append_shift(
-                assignments,
-                chosen,
-                day_index=day_index,
-                weekday=weekday,
-                service_id=service_id,
-                team=team,
-                window=assigned,
-            )
+    jobs = _fill_window_jobs(draft, off_days, employee_pool, start_day)
+    pending_by_cell: dict[tuple[int, str, Team], list[PostWindow]] = {}
+    for job in jobs:
+        cell = (job.day_index, job.service_id, job.team)
+        pending_by_cell.setdefault(cell, list(job.cell_windows))
+    for job in jobs:
+        pending = pending_by_cell[(job.day_index, job.service_id, job.team)]
+        picked = _pick_for_post(
+            draft,
+            assignments,
+            employee_pool=employee_pool,
+            window_level=job.window.level,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            start_minutes=job.window.start_minutes,
+            end_minutes=job.window.end_minutes,
+            off_days=off_days,
+            remaining_windows=tuple(pending),
+        )
+        pending.remove(job.window)
+        if picked is None:
+            continue
+        chosen, assigned = picked
+        _append_shift(
+            assignments,
+            chosen,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            window=assigned,
+        )
     _repair_holes(draft, assignments, off_days, employee_pool, start_day=start_day)
     return assignments
 
@@ -1703,51 +1770,54 @@ def _repair_holes(
     employee_pool: list[Employee],
     start_day: int = 0,
 ) -> None:
-    for day_index, weekday, service_id, team, windows in _iter_service_windows(draft, start_day):
+    for job in _fill_window_jobs(draft, off_days, employee_pool, start_day):
         taken = _taken_windows(
-            assignments, day_index=day_index, service_id=service_id, team=team, windows=windows
+            assignments,
+            day_index=job.day_index,
+            service_id=job.service_id,
+            team=job.team,
+            windows=job.cell_windows,
         )
-        pending = [window for window in windows if window not in taken]
-        for window in list(pending):
-            picked = _pick_for_post(
-                draft,
+        if job.window in taken:
+            continue
+        pending = [window for window in job.cell_windows if window not in taken]
+        picked = _pick_for_post(
+            draft,
+            assignments,
+            employee_pool=employee_pool,
+            window_level=job.window.level,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            start_minutes=job.window.start_minutes,
+            end_minutes=job.window.end_minutes,
+            off_days=off_days,
+            remaining_windows=tuple(pending),
+        )
+        if picked is not None:
+            chosen, assigned = picked
+            _append_shift(
                 assignments,
-                employee_pool=employee_pool,
-                window_level=window.level,
-                day_index=day_index,
-                weekday=weekday,
-                service_id=service_id,
-                team=team,
-                start_minutes=window.start_minutes,
-                end_minutes=window.end_minutes,
-                off_days=off_days,
-                remaining_windows=tuple(pending),
+                chosen,
+                day_index=job.day_index,
+                weekday=job.weekday,
+                service_id=job.service_id,
+                team=job.team,
+                window=assigned,
             )
-            if picked is not None:
-                chosen, assigned = picked
-                _append_shift(
-                    assignments,
-                    chosen,
-                    day_index=day_index,
-                    weekday=weekday,
-                    service_id=service_id,
-                    team=team,
-                    window=assigned,
-                )
-                pending.remove(window)
-                continue
-            if _displace_for_window(
-                draft,
-                assignments,
-                hole=window,
-                day_index=day_index,
-                weekday=weekday,
-                service_id=service_id,
-                team=team,
-                off_days=off_days,
-                employee_pool=employee_pool,
-            ):
-                pending.remove(window)
+            continue
+        _displace_for_window(
+            draft,
+            assignments,
+            hole=job.window,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            off_days=off_days,
+            employee_pool=employee_pool,
+        )
 
 
 def _hours_miss(draft: PlanningDraft, assignments: tuple[Shift, ...] | list[Shift]) -> float:
