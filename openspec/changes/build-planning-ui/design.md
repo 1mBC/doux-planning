@@ -306,6 +306,16 @@ Suivre `bench.md` § UI — le suivre, ne pas le modifier.
 
 Version `0.34.0`.
 
+### 35. Banc 30 jeux
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier. Liste = API.
+
+- Tableau + barre Lancer : **aucun** 7 / 4 catégories en dur. Source `GET /v1/admin/bench/datasets` / `GET /v1/admin/bench/versions` (30 lignes, ordre API).
+- Une rangée Lancer par catégorie listée (`hours`, `shapes`, …).
+- Compare / export / 3 computes × versions inchangés.
+
+Version `0.35.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

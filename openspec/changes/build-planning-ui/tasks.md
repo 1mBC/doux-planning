@@ -180,3 +180,8 @@
 
 - [x] 32.1 Menu Historique | Banc ; tableau 3 efforts × Manuel + engine_refs ; redirect /versions ; bump web/ to 0.34.0
 - [x] 32.2 Verify npm run build ; menu 2 ; Banc Manuel+core-0 sous 3 computes ; clic core-0 Maximal compare ; /versions → Banc ; v0.34.0
+
+## 33. Banc 30 jeux
+
+- [x] 33.1 Tableau + lancer depuis l’API (pas 7 / 4 en dur) ; 30 lignes ordre API ; bump web/ to 0.35.0
+- [x] 33.2 Verify npm run build ; /admin/bench 30 lignes ; hours size overqual closed shapes ; lancer shapes OK ; v0.35.0
