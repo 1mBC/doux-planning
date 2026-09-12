@@ -6,9 +6,11 @@ import {
   BENCH_EFFORTS,
   benchBelowManuelExportFilename,
   benchDatasetExportFilename,
+  buildBenchRecaps,
   downloadJsonFile,
   deltaBackground,
   formatDelta,
+  formatRecapPercent,
   loadBenchExport,
   loadBenchVersions,
   pollBenchJob,
@@ -35,6 +37,61 @@ function LaunchButtons({
         <button key={effort} type="button" className="choice" disabled={disabled} onClick={() => onLaunch(effort)}>
           {effortLabel(effort)}
         </button>
+      ))}
+    </div>
+  );
+}
+
+function RecapStat({ label, value, text }: { label: string; value: number | null; text: string }) {
+  const colored = value !== null && Number.isFinite(value);
+  return (
+    <span className="bench-recap-stat-wrap">
+      <span className="bench-recap-stat-label">{label}</span>
+      <span
+        className={colored ? "bench-recap-stat" : "bench-recap-stat bench-cell-empty"}
+        style={colored ? { backgroundColor: deltaBackground(value) } : undefined}
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function CategoryLaunch({
+  categories,
+  disabled,
+  onLaunch,
+}: {
+  categories: string[];
+  disabled: boolean;
+  onLaunch: (effort: SearchEffort, category: string) => void;
+}) {
+  return (
+    <div className="bench-toolbar-row">
+      {BENCH_EFFORTS.map((effort) => (
+        <details key={effort} className="bench-effort-menu">
+          <summary className="choice">{effortLabel(effort)}</summary>
+          <ul className="bench-category-list">
+            {categories.map((category) => (
+              <li key={category}>
+                <button
+                  type="button"
+                  className="choice"
+                  disabled={disabled}
+                  onClick={(event) => {
+                    const menu = event.currentTarget.closest("details");
+                    if (menu) {
+                      menu.open = false;
+                    }
+                    onLaunch(effort, category);
+                  }}
+                >
+                  {category}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
       ))}
     </div>
   );
@@ -192,6 +249,7 @@ export function BenchPage() {
   }
 
   const locked = busy || exporting;
+  const recaps = buildBenchRecaps(versions);
 
   return (
     <main className="page admin-page">
@@ -217,17 +275,36 @@ export function BenchPage() {
             <span>Toutes les catégories</span>
             <LaunchButtons disabled={locked} onLaunch={(effort) => void launch({ scope: "all", search_effort: effort })} />
           </div>
-          {categories.map((category) => (
-            <div key={category} className="bench-toolbar-row">
-              <span>{category}</span>
-              <LaunchButtons
-                disabled={locked}
-                onLaunch={(effort) => void launch({ scope: "category", category, search_effort: effort })}
-              />
-            </div>
-          ))}
+          <CategoryLaunch
+            categories={categories}
+            disabled={locked}
+            onLaunch={(effort, category) => void launch({ scope: "category", category, search_effort: effort })}
+          />
         </div>
       </section>
+
+      {recaps.length > 0 ? (
+        <section className="bench-recap">
+          <h2>Recap</h2>
+          {recaps.map((recap) => (
+            <article key={`${recap.prev}->${recap.ref}`} className="bench-recap-block">
+              <h3>
+                {recap.ref} vs {recap.prev}
+              </h3>
+              <div className="bench-recap-efforts">
+                {recap.efforts.map((item) => (
+                  <div key={item.effort} className="bench-recap-row">
+                    <span className="bench-recap-effort">{effortLabel(item.effort)}</span>
+                    <RecapStat label="%" value={item.mean} text={formatRecapPercent(item.percent)} />
+                    <RecapStat label="max" value={item.max} text={formatDelta(item.max)} />
+                    <RecapStat label="min" value={item.min} text={formatDelta(item.min)} />
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </section>
+      ) : null}
 
       <section>
         <h2>Derniers runs</h2>
