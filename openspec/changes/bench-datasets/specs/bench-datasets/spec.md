@@ -1,15 +1,15 @@
 ## Purpose
 
-Load the frozen salle bench datasets from disk (thirty games across ten categories) and run isolated generation against a human oracle, without touching a live restaurant or keep-best.
+Load the frozen salle bench datasets from disk (fifty games across ten categories, including 26 crafted oracles) and run isolated generation against a human oracle, without touching a live restaurant or keep-best.
 
 ## ADDED Requirements
 
 ### Requirement: List and load bench datasets
 The system SHALL scan `data/bench/{category}/{id}/` and list each dataset that has both `context.json` and `expected.json`. A folder missing either file MUST be omitted. `list_bench_datasets` MUST return `{ category, id, name, challenge_fr }` for each complete dataset in category order tight, clock, wishes, ladder, crafted, hours, size, overqual, closed, shapes (then id). `load_bench_dataset(category, id)` MUST build a disposable live restaurant context from `context.json` via services, role ladder, service types, typical week, and fiches, and MUST attach the oracle assignments from `expected.json`. After load, `team_ready(salle)` MUST be true and `team_ready(cuisine)` MUST be false. Unknown `(category, id)` MUST raise `UnknownBenchDataset`. Invite tokens MUST be generated at load and MUST differ from the employee id. When `typical_week` is present it MUST be used (one cell per team × service × weekday; several types may share a `service_id`). When it is absent the typical week MUST be derived: for each `roles.team` × `hours.services` × weekday, the cell is closed if the weekday is in `closed_weekdays`, otherwise `type_id` is the unique type for that `(team, service)`.
 
-#### Scenario: Thirty complete datasets
-- **WHEN** the repo contains the thirty frozen salle datasets
-- **THEN** `list_bench_datasets` returns thirty entries in order tight, clock, wishes, ladder, crafted, hours, size, overqual, closed, shapes
+#### Scenario: Fifty complete datasets
+- **WHEN** the repo contains the fifty frozen salle datasets
+- **THEN** `list_bench_datasets` returns fifty entries in order tight, clock, wishes, ladder, crafted, hours, size, overqual, closed, shapes
 
 #### Scenario: Stored typical week wins
 - **WHEN** `context.json` includes `typical_week`
@@ -35,8 +35,12 @@ The system SHALL implement `run_bench(category, id, effort)` that loads a dispos
 - **THEN** there are zero `interdit` warnings
 
 #### Scenario: Crafted witnesses score high
-- **WHEN** `load_bench_dataset("crafted", id)` expected assignments are scored for each of the six crafted games
+- **WHEN** `load_bench_dataset("crafted", id)` expected assignments are scored for each of the 26 crafted games
 - **THEN** `cycle_score` global is at least 9.5
+
+#### Scenario: New crafted oracles match hours and role
+- **WHEN** each of the 20 new crafted expected grids is evaluated
+- **THEN** hours miss is 0 and below_role is 0
 
 #### Scenario: Tight halles minimal run
 - **WHEN** `run_bench("tight", "halles", minimal)` completes

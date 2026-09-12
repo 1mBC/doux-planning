@@ -18,3 +18,8 @@
 - [x] 4.1 Extend `BENCH_CATEGORY_ORDER` and load `typical_week` from JSON when present, otherwise keep the derived week
 - [x] 4.2 Add the 23 freeze folders (context + expected), leave the 7 existing files bit-identical, keep `VERSION` `core-2`
 - [x] 4.3 Verify 30 listed pairs, every expected 0 `interdit`, six crafted global ≥ 9.5, coverage of morning / multi-type / L6, and `run_bench(tight, halles, minimal)` still green
+
+## 5. Crafted oracles
+
+- [x] 5.1 Add the 20 freeze `crafted` folders (grid first, then context), leave the 30 existing files bit-identical, keep `VERSION` `core-2`
+- [x] 5.2 Verify 50 listed pairs, every expected 0 `interdit`, 26 crafted global ≥ 9.5, the 20 new have 0 `hours_miss` and 0 `below_role`, coverage of morning / multi-type / L6 among the 20, and `run_bench(tight, halles, minimal)` still green
