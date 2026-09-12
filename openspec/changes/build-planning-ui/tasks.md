@@ -185,3 +185,8 @@
 
 - [x] 33.1 Tableau + lancer depuis l’API (pas 7 / 4 en dur) ; 30 lignes ordre API ; bump web/ to 0.35.0
 - [x] 33.2 Verify npm run build ; /admin/bench 30 lignes ; hours size overqual closed shapes ; lancer shapes OK ; v0.35.0
+
+## 34. Banc 50 jeux
+
+- [x] 34.1 Tableau + lancer depuis l’API (pas 30 / 7 / 6 en dur) ; 50 lignes dont 26 crafted ; bump web/ to 0.36.0
+- [x] 34.2 Verify npm run build ; /admin/bench 50 lignes ; 26 crafted ; lancer crafted Maximal enqueue OK ; v0.36.0

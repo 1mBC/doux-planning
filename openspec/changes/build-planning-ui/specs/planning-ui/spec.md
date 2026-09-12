@@ -399,3 +399,14 @@ The contrat pill SHALL be labeled **Contrat /10**. Axis titles SHALL be bold. Co
 - **WHEN** an admin launches category `shapes` at Minimal
 - **THEN** the page does not crash and stays on `/admin/bench`
 
+### Requirement: Admin bench lists fifty API datasets
+`/admin/bench` SHALL render one table row per dataset from `GET /v1/admin/bench/versions` (API order) and SHALL NOT hardcode a 30-dataset, 7-dataset, or 6-crafted catalogue. The list SHALL include 50 datasets of which 26 are `crafted`. Launch, compare, export, and the three-effort × engine_ref columns stay unchanged. The UI SHALL NOT show worker chrome.
+
+#### Scenario: Fifty rows including twenty-six crafted
+- **WHEN** an admin opens `/admin/bench`
+- **THEN** the table has 50 dataset rows and 26 of them have category `crafted`
+
+#### Scenario: Launch crafted Maximal enqueues
+- **WHEN** an admin launches category `crafted` at Maximal
+- **THEN** the page stays on `/admin/bench` without crashing while the jobs enqueue
+
