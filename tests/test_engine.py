@@ -6,7 +6,9 @@ from doux_planning.engine import (
     OPTIMIZED_CALENDAR_MULTIPLIER,
     REST_ENUMERATION_SECONDS,
     SEARCH_CALENDAR_LIMITS,
+    SEARCH_PROGRESS,
     SEARCH_SECONDS,
+    SEED_TIGHT_THRESHOLD,
     SEQUENTIAL_WEEK_SOLVE,
     EngineResult,
     PlanningDraft,
@@ -17,8 +19,12 @@ from doux_planning.engine import (
     rank_candidates,
     swap_shifts,
     _attempt_key,
+    _build_rest_model,
     _coupure_count_in_week,
     _enumerate_rest_days,
+    _fill_assignments,
+    _first_rest_calendar,
+    _lock_key,
     _pick_for_post,
     _plan_rest_days,
 )
@@ -524,7 +530,7 @@ def test_generate_keeps_opener_for_earlier_level1():
     assert l2[0].employee_id == "vlad"
 
 
-def test_prefer_completing_a_started_day():
+def test_prefer_not_creating_a_coupure():
     on_duty = employee("Aurore", "commis", hours=20, employee_id="aurore")
     idle = employee("Lucie", "plongeur", hours=15, employee_id="lucie")
     evening = ServiceStructure(
@@ -555,8 +561,48 @@ def test_prefer_completing_a_started_day():
     )
     assert picked is not None
     chosen, assigned = picked
-    assert chosen.id == "aurore"
+    assert chosen.id == "lucie"
     assert assigned.end_minutes - assigned.start_minutes >= 4 * 60
+
+
+def test_seed_tight_threshold_is_three():
+    assert SEED_TIGHT_THRESHOLD == 3
+
+
+def test_minimal_has_no_locks_and_at_most_sixteen_calendars():
+    generate_cycle(_draft(), SearchEffort.MINIMAL)
+    assert SEARCH_PROGRESS["calendars"] <= MINIMAL_CALENDARS == 16
+
+
+def test_fill_does_not_move_a_lock():
+    chef = employee("Chef", "chef", hours=39, employee_id="chef-a")
+    commis = employee("Sam", "commis", hours=39, employee_id="sam")
+    draft = _draft(employees=(chef, commis))
+    lock = _shift("chef-a", 0, 10 * 60, 16 * 60, 4)
+    off_days = _plan_rest_days(draft)
+    filled = _fill_assignments(draft, off_days, [chef, commis], locks=(lock,))
+    assert _lock_key(lock) in {_lock_key(shift) for shift in filled}
+    assert any(
+        shift.employee_id == "chef-a"
+        and shift.day_index == 0
+        and shift.start_minutes == 10 * 60
+        and shift.end_minutes == 16 * 60
+        and shift.post_level == 4
+        for shift in filled
+    )
+
+
+def test_infeasible_locked_seed_yields_no_calendar():
+    blocked = replace(
+        employee("Chef", "chef", hours=39, employee_id="chef-a"),
+        forced_off_days=frozenset({0}),
+    )
+    draft = _draft(employees=(blocked,))
+    lock = _shift("chef-a", 0, 10 * 60, 16 * 60, 4)
+    model, work, _unders = _build_rest_model(draft, hard_coverage=True, locks=(lock,))
+    assert _first_rest_calendar(model, work, draft, 1.0) is None
+    result = generate_cycle(draft, SearchEffort.MINIMAL)
+    assert result is not None
 
 
 def test_generate_does_not_exceed_weekly_coupure_cap():
