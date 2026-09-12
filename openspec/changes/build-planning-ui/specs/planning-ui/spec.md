@@ -410,3 +410,14 @@ The contrat pill SHALL be labeled **Contrat /10**. Axis titles SHALL be bold. Co
 - **WHEN** an admin launches category `crafted` at Maximal
 - **THEN** the page stays on `/admin/bench` without crashing while the jobs enqueue
 
+### Requirement: Admin bench table grouped by engine model
+`/admin/bench` SHALL render one Manuel column at the left of the score cells (`dataset.manual.global`, dash if null). A click on Manuel SHALL open the path compare for `optimized` of the current engine. Each `engine_refs` value SHALL then be a family of three compute columns (Minimal, Optimisé, Maximal). An engine×compute cell SHALL show only the delta vs Manuel (dash if no run) and SHALL color it: green when the delta is 0, a red crescendo when negative (clamped at −1), a blue crescendo when positive (clamped at +1). A click SHALL open `/admin/bench/run/{run_id}`. Launch, export, and the 50-row list stay unchanged. The subtitle SHALL show the current VERSION `engine_ref`.
+
+#### Scenario: One Manuel then families of three computes
+- **WHEN** an admin opens `/admin/bench`
+- **THEN** the table has a single Manuel column and each engine_ref has Minimal, Optimisé, and Maximal subcolumns
+
+#### Scenario: Delta cells are colored
+- **WHEN** an engine cell has a delta of 0, a negative delta, or a positive delta
+- **THEN** the cell background is green, red-scaled, or blue-scaled respectively, and the label is the delta only
+

@@ -190,3 +190,8 @@
 
 - [x] 34.1 Tableau + lancer depuis l’API (pas 30 / 7 / 6 en dur) ; 50 lignes dont 26 crafted ; bump web/ to 0.36.0
 - [x] 34.2 Verify npm run build ; /admin/bench 50 lignes ; 26 crafted ; lancer crafted Maximal enqueue OK ; v0.36.0
+
+## 35. Banc inversé + deltas colorés
+
+- [x] 35.1 Manuel une fois à gauche ; familles engine_ref × 3 computes ; cellules = delta coloré ; bump web/ to 0.37.0
+- [x] 35.2 Verify npm run build ; /admin/bench 1 Manuel + familles modèle ; deltas colorés ; barre v0.37.0 ; sous-titre core-3

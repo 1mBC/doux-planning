@@ -445,3 +445,19 @@ export function formatDelta(value: number | null | undefined): string {
   }
   return "0,0";
 }
+
+/** Green at 0. Red crescendo when negative, blue when positive. Intensity clamped at |delta| = 1. */
+export function deltaBackground(value: number | null | undefined): string | undefined {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return undefined;
+  }
+  if (value === 0) {
+    return "#c6e8c9";
+  }
+  const intensity = Math.min(1, Math.abs(value));
+  const alpha = 0.18 + 0.67 * intensity;
+  if (value < 0) {
+    return `rgba(196, 48, 48, ${alpha})`;
+  }
+  return `rgba(36, 86, 196, ${alpha})`;
+}
