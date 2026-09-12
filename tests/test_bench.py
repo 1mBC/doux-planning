@@ -759,6 +759,21 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert forbidden_run.status_code == 403
     assert forbidden_run.json()["detail"] == DETAIL_ADMIN
 
+    first_maximal = client.post(
+        "/v1/admin/bench/run",
+        headers=headers,
+        json={"scope": "dataset", "category": "tight", "dataset_id": "halles", "search_effort": "maximal"},
+    )
+    assert first_maximal.status_code == 202
+    second_maximal = client.post(
+        "/v1/admin/bench/run",
+        headers=headers,
+        json={"scope": "dataset", "category": "tight", "dataset_id": "halles", "search_effort": "maximal"},
+    )
+    assert second_maximal.status_code == 202
+    assert first_maximal.json()["job_ids"] == second_maximal.json()["job_ids"]
+    assert len(first_maximal.json()["job_ids"]) == 1
+
     queued = client.post(
         "/v1/admin/bench/run",
         headers=headers,
@@ -770,7 +785,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert len(job_ids) == 50
     runs_before_tick = _count_rows(BenchRun)
     remaining = set(job_ids)
-    for _ in range(50):
+    for _ in range(60):
         if not remaining:
             break
         job_id = tick_bench_job(run_bench_fn=_stub_run_bench)
