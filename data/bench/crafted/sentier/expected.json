@@ -1,0 +1,364 @@
+{
+  "assignments": [
+    {
+      "employee_id": "cam",
+      "day_index": 1,
+      "weekday": "tuesday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "ada",
+      "day_index": 1,
+      "weekday": "tuesday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "ben",
+      "day_index": 1,
+      "weekday": "tuesday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "cam",
+      "day_index": 2,
+      "weekday": "wednesday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "ada",
+      "day_index": 2,
+      "weekday": "wednesday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "ben",
+      "day_index": 2,
+      "weekday": "wednesday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "cam",
+      "day_index": 3,
+      "weekday": "thursday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "ada",
+      "day_index": 3,
+      "weekday": "thursday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "ben",
+      "day_index": 3,
+      "weekday": "thursday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "cam",
+      "day_index": 4,
+      "weekday": "friday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "ada",
+      "day_index": 4,
+      "weekday": "friday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "ben",
+      "day_index": 4,
+      "weekday": "friday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "cam",
+      "day_index": 5,
+      "weekday": "saturday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "ada",
+      "day_index": 5,
+      "weekday": "saturday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "ben",
+      "day_index": 5,
+      "weekday": "saturday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "cam",
+      "day_index": 8,
+      "weekday": "tuesday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "ada",
+      "day_index": 8,
+      "weekday": "tuesday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "ben",
+      "day_index": 8,
+      "weekday": "tuesday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "cam",
+      "day_index": 9,
+      "weekday": "wednesday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "ada",
+      "day_index": 9,
+      "weekday": "wednesday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "ben",
+      "day_index": 9,
+      "weekday": "wednesday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "cam",
+      "day_index": 10,
+      "weekday": "thursday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "ada",
+      "day_index": 10,
+      "weekday": "thursday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "ben",
+      "day_index": 10,
+      "weekday": "thursday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "cam",
+      "day_index": 11,
+      "weekday": "friday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "ada",
+      "day_index": 11,
+      "weekday": "friday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "ben",
+      "day_index": 11,
+      "weekday": "friday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "cam",
+      "day_index": 12,
+      "weekday": "saturday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "ada",
+      "day_index": 12,
+      "weekday": "saturday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "ben",
+      "day_index": 12,
+      "weekday": "saturday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "els",
+      "day_index": 0,
+      "weekday": "monday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "die",
+      "day_index": 0,
+      "weekday": "monday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "die",
+      "day_index": 0,
+      "weekday": "monday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    },
+    {
+      "employee_id": "els",
+      "day_index": 7,
+      "weekday": "monday",
+      "service_id": "morning",
+      "team": "salle",
+      "start_minutes": 420,
+      "end_minutes": 660,
+      "post_level": 1
+    },
+    {
+      "employee_id": "die",
+      "day_index": 7,
+      "weekday": "monday",
+      "service_id": "midday",
+      "team": "salle",
+      "start_minutes": 720,
+      "end_minutes": 960,
+      "post_level": 2
+    },
+    {
+      "employee_id": "die",
+      "day_index": 7,
+      "weekday": "monday",
+      "service_id": "evening",
+      "team": "salle",
+      "start_minutes": 1140,
+      "end_minutes": 1380,
+      "post_level": 2
+    }
+  ]
+}

@@ -1,0 +1,206 @@
+{
+  "id": "vaugirard",
+  "category": "crafted",
+  "name": "Vaugirard",
+  "team": "salle",
+  "challenge_fr": "Oracle : 9 fiches, 3 services, couverture pleine.",
+  "hours": {
+    "mode": "services",
+    "services": [
+      "morning",
+      "midday",
+      "evening"
+    ],
+    "closed_weekdays": [
+      "sunday"
+    ]
+  },
+  "roles": [
+    {
+      "name": "EQUIPIER",
+      "level": 1,
+      "team": "salle"
+    },
+    {
+      "name": "SERVEUR",
+      "level": 2,
+      "team": "salle"
+    }
+  ],
+  "types": [
+    {
+      "id": "matin",
+      "name": "Matin",
+      "team": "salle",
+      "service_id": "morning",
+      "arrivals": [
+        {
+          "time_minutes": 420,
+          "post_levels": [
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 660,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "midi",
+      "name": "Midi",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 720,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir",
+      "name": "Soir",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1380,
+          "remaining_post_levels": []
+        }
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "d1",
+      "name": "Dana",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "d2",
+      "name": "Dorian",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "e1",
+      "name": "Elena",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "e2",
+      "name": "Enzo",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "m1",
+      "name": "Manon",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "m2",
+      "name": "Milo",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "x1",
+      "name": "Iris",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "x2",
+      "name": "Ilan",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "x3",
+      "name": "Ivy",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "x4",
+      "name": "Ivo",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    }
+  ]
+}

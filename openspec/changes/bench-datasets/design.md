@@ -1,16 +1,17 @@
 ## Context
 
-See proposal.md. Freeze: `contracts/domain/bench.md` (follow, do not edit). Thirty salle datasets live under `data/bench/` (7 existing + 23 new). Live context helpers already exist. `generate_cycle` keep-best stays untouched. `VERSION` stays `core-2`.
+See proposal.md. Freeze: `contracts/domain/bench.md` (follow, do not edit). Fifty salle datasets live under `data/bench/` (30 existing bit-identical + 20 new crafted oracles). Live context helpers already exist. `generate_cycle` keep-best stays untouched. `VERSION` stays `core-2`.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Scan disk (30 pairs), load a disposable live context (`typical_week` when present), run generate vs oracle scores.
+- Scan disk (50 pairs), load a disposable live context (`typical_week` when present), run generate vs oracle scores.
+- Add 20 planning-first crafted oracles (grid first, then deduced fiches) with 0 interdit / hours_miss / below_role and global ≥ 9.5.
 - Isolation: never write `published_cycles`; never call `generate_team` on a persisted restaurant.
 
 **Non-Goals:**
 - HTTP / `bench_jobs` / `VERSION` persistence (Infra).
-- HTTP / UI. Cuisine datasets. Rewriting the 7 existing dataset files, `engine.py`, or Saint-Cloud. Changing `VERSION`.
+- HTTP / UI. Cuisine datasets. Rewriting the 30 existing dataset folders, `engine.py`, or Saint-Cloud. Changing `VERSION`. Changing `BENCH_CATEGORY_ORDER`.
 
 ## Decisions
 
@@ -36,7 +37,11 @@ Core may ignore the file. Infra persists `app_version` later.
 
 ### 6. Catalogue order includes the new families
 
-`BENCH_CATEGORY_ORDER = ("tight", "clock", "wishes", "ladder", "crafted", "hours", "size", "overqual", "closed", "shapes")`. Scan still omits incomplete folders. Load / `run_bench` stay the same functions. Existing 7 JSON files are not rewritten.
+`BENCH_CATEGORY_ORDER = ("tight", "clock", "wishes", "ladder", "crafted", "hours", "size", "overqual", "closed", "shapes")`. Scan still omits incomplete folders. Load / `run_bench` stay the same functions. The 30 existing folders are not rewritten.
+
+### 8. New crafted oracles are planning-first
+
+Write the 14-day `expected.json` that covers every open service, then deduce context so that grid is legal. `evaluate` must yield 0 `interdit`, `_hours_miss` 0, `_below_role_count` 0 (level == post). `cycle_score` global ≥ 9.5 (aim 10). The freeze table particularity is a constraint inside the oracle, not decoration.
 
 ### 7. Wider salle shapes, same engine
 
