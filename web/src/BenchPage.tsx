@@ -7,12 +7,14 @@ import {
   benchBelowManuelExportFilename,
   benchDatasetExportFilename,
   downloadJsonFile,
+  deltaBackground,
   formatDelta,
   loadBenchExport,
   loadBenchVersions,
   pollBenchJob,
   postBenchRun,
   type BenchScope,
+  type BenchVersionCell,
   type BenchVersionDataset,
   type BenchVersions,
 } from "./bench";
@@ -38,24 +40,21 @@ function LaunchButtons({
   );
 }
 
-function EngineCell({
-  cell,
-}: {
-  cell: { run_id: string; global: number | null; deltas: { global: number | null } } | null;
-}) {
-  if (!cell) {
+function EngineCell({ cell }: { cell: BenchVersionCell | null }) {
+  const delta = cell?.deltas.global;
+  if (!cell || delta === null || delta === undefined || !Number.isFinite(delta)) {
     return <span className="bench-cell-empty">—</span>;
   }
-  const label = `${formatCycleNote(cell.global)} ${formatDelta(cell.deltas.global)}`;
+  const label = formatDelta(delta);
   return (
     <button
       type="button"
-      className="bench-cell bench-version-cell"
+      className="bench-cell bench-delta-cell"
       title={label}
+      style={{ backgroundColor: deltaBackground(delta) }}
       onClick={() => go(`/admin/bench/run/${encodeURIComponent(cell.run_id)}`)}
     >
-      <span>{formatCycleNote(cell.global)}</span>
-      <span className="bench-version-delta">{formatDelta(cell.deltas.global)}</span>
+      {label}
     </button>
   );
 }
@@ -193,7 +192,6 @@ export function BenchPage() {
   }
 
   const locked = busy || exporting;
-  const effortColSpan = 1 + versions.engine_refs.length;
 
   return (
     <main className="page admin-page">
@@ -245,19 +243,19 @@ export function BenchPage() {
               <th rowSpan={2}>Jeu</th>
               <th rowSpan={2}>Défi</th>
               <th rowSpan={2}>Lancer</th>
-              {BENCH_EFFORTS.map((effort) => (
-                <th key={effort} colSpan={effortColSpan}>
-                  {effortLabel(effort)}
+              <th rowSpan={2}>Manuel</th>
+              {versions.engine_refs.map((ref) => (
+                <th key={ref} colSpan={3}>
+                  {ref}
                 </th>
               ))}
             </tr>
             <tr>
-              {BENCH_EFFORTS.flatMap((effort) => [
-                <th key={`${effort}-manuel`}>Manuel</th>,
-                ...versions.engine_refs.map((ref) => (
-                  <th key={`${effort}-${ref}`}>{ref}</th>
+              {versions.engine_refs.flatMap((ref) =>
+                BENCH_EFFORTS.map((effort) => (
+                  <th key={`${ref}-${effort}`}>{effortLabel(effort)}</th>
                 )),
-              ])}
+              )}
             </tr>
           </thead>
           <tbody>
@@ -287,21 +285,22 @@ export function BenchPage() {
                     </button>
                   </div>
                 </td>
-                {BENCH_EFFORTS.flatMap((effort) => {
-                  const openPath = () => go(`/admin/bench/${dataset.category}/${dataset.id}/${effort}`);
-                  return [
-                    <td key={`${effort}-manuel`}>
-                      <button type="button" className="bench-cell" onClick={openPath}>
-                        {formatCycleNote(dataset.manual?.global)}
-                      </button>
-                    </td>,
-                    ...versions.engine_refs.map((ref) => (
-                      <td key={`${effort}-${ref}`}>
-                        <EngineCell cell={dataset.by_ref[ref]?.[effort] ?? null} />
-                      </td>
-                    )),
-                  ];
-                })}
+                <td>
+                  <button
+                    type="button"
+                    className="bench-cell"
+                    onClick={() => go(`/admin/bench/${dataset.category}/${dataset.id}/optimized`)}
+                  >
+                    {formatCycleNote(dataset.manual?.global)}
+                  </button>
+                </td>
+                {versions.engine_refs.flatMap((ref) =>
+                  BENCH_EFFORTS.map((effort) => (
+                    <td key={`${ref}-${effort}`}>
+                      <EngineCell cell={dataset.by_ref[ref]?.[effort] ?? null} />
+                    </td>
+                  )),
+                )}
               </tr>
             ))}
           </tbody>

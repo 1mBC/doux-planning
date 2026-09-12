@@ -326,6 +326,18 @@ Suivre `bench.md` § UI — le suivre, ne pas le modifier. Liste = API.
 
 Version `0.36.0`.
 
+### 37. Banc inversé + deltas colorés
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier.
+
+- **Un** Manuel à gauche (`dataset.manual.global`). Clic → compare-chemin `optimized` moteur courant.
+- Une famille par `engine_ref`, sous-colonnes Minimal | Optimisé | Maximal.
+- Cellule = **delta seul** vs Manuel. Tiret si pas de run. Clic → `/admin/bench/run/{run_id}`.
+- Couleur : delta 0 = vert ; négatif = crescendo rouge (clamp −1) ; positif = crescendo bleu (clamp +1).
+- Lancer / export / 50 lignes inchangés. Sous-titre `moteur {engine_ref}`.
+
+Version `0.37.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

@@ -653,6 +653,11 @@ table.plan td.empty-slot {
   font-size: 12px;
 }
 
+.bench-delta-cell {
+  text-align: center;
+  font-weight: 650;
+}
+
 .bench-cell-empty {
   color: #888;
 }
