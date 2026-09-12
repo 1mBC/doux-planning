@@ -1,16 +1,16 @@
 ## Context
 
-See proposal.md. Freeze: `contracts/domain/bench.md` (follow, do not edit). Seven salle datasets live under `data/bench/` including `crafted/{atelier,rivoli,marais}`. Live context helpers already exist. `generate_cycle` keep-best stays untouched.
+See proposal.md. Freeze: `contracts/domain/bench.md` (follow, do not edit). Thirty salle datasets live under `data/bench/` (7 existing + 23 new). Live context helpers already exist. `generate_cycle` keep-best stays untouched. `VERSION` stays `core-2`.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Scan disk, load a disposable live context, run generate vs oracle scores.
+- Scan disk (30 pairs), load a disposable live context (`typical_week` when present), run generate vs oracle scores.
 - Isolation: never write `published_cycles`; never call `generate_team` on a persisted restaurant.
 
 **Non-Goals:**
 - HTTP / `bench_jobs` / `VERSION` persistence (Infra).
-- UI. Cuisine datasets. Rewriting `data/bench/**` or Saint-Cloud.
+- HTTP / UI. Cuisine datasets. Rewriting the 7 existing dataset files, `engine.py`, or Saint-Cloud. Changing `VERSION`.
 
 ## Decisions
 
@@ -18,9 +18,9 @@ See proposal.md. Freeze: `contracts/domain/bench.md` (follow, do not edit). Seve
 
 Keeps scan / derive-week / `run_bench` off `context.py`. Reuses hydrate `_employee` / `_shift` so wellbeing and indispos match live fiches. Invite tokens come from `Employee` construction (generated, ≠ id).
 
-### 2. Typical week is derived, not stored
+### 2. Typical week from JSON when present, else derived
 
-`context.json` has no `typical_week`. Cells = each `roles.team` × `hours.services` × 7 weekdays. Closed iff weekday ∈ `closed_weekdays`. Otherwise the unique type `(team, service_id)`. Cuisine stays absent (no ladder, no fiches, no cells).
+If `context.json` has `typical_week`, those cells win (one per `team × service × weekday`; `type_id` null iff closed). Several types may share a `service_id`. If the key is absent, keep the current derivation: one type per `(team, service)` — the 7 existing files stay on that path. Cuisine stays absent.
 
 ### 3. Hours closed days after `set_services`
 
@@ -34,9 +34,13 @@ Keeps scan / derive-week / `run_bench` off `context.py`. Reuses hydrate `_employ
 
 Core may ignore the file. Infra persists `app_version` later.
 
-### 6. Catalogue order includes `crafted`
+### 6. Catalogue order includes the new families
 
-`BENCH_CATEGORY_ORDER = ("tight", "clock", "wishes", "ladder", "crafted")`. Scan still omits incomplete folders. Load / `run_bench` stay the same functions.
+`BENCH_CATEGORY_ORDER = ("tight", "clock", "wishes", "ladder", "crafted", "hours", "size", "overqual", "closed", "shapes")`. Scan still omits incomplete folders. Load / `run_bench` stay the same functions. Existing 7 JSON files are not rewritten.
+
+### 7. Wider salle shapes, same engine
+
+`hours.services` may include `morning`. Role `level` may be 1…6. Oracle rules unchanged: every expected has 0 `interdit`; each `crafted` expected `cycle_score` global ≥ 9.5. No fill / SAT / `SEARCH_*` change.
 
 ## Risks / Trade-offs
 

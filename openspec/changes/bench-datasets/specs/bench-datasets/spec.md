@@ -1,15 +1,23 @@
 ## Purpose
 
-Load the frozen salle bench datasets from disk (four challenge games plus three crafted witnesses) and run isolated generation against a human oracle, without touching a live restaurant or keep-best.
+Load the frozen salle bench datasets from disk (thirty games across ten categories) and run isolated generation against a human oracle, without touching a live restaurant or keep-best.
 
 ## ADDED Requirements
 
 ### Requirement: List and load bench datasets
-The system SHALL scan `data/bench/{category}/{id}/` and list each dataset that has both `context.json` and `expected.json`. A folder missing either file MUST be omitted. `list_bench_datasets` MUST return `{ category, id, name, challenge_fr }` for each complete dataset. `load_bench_dataset(category, id)` MUST build a disposable live restaurant context from `context.json` via services, role ladder, service types, a derived typical week, and fiches, and MUST attach the oracle assignments from `expected.json`. After load, `team_ready(salle)` MUST be true and `team_ready(cuisine)` MUST be false. Unknown `(category, id)` MUST raise `UnknownBenchDataset`. Invite tokens MUST be generated at load and MUST differ from the employee id. The typical week MUST be derived: for each `roles.team` × `hours.services` × weekday, the cell is closed if the weekday is in `closed_weekdays`, otherwise `type_id` is the unique type for that `(team, service)`.
+The system SHALL scan `data/bench/{category}/{id}/` and list each dataset that has both `context.json` and `expected.json`. A folder missing either file MUST be omitted. `list_bench_datasets` MUST return `{ category, id, name, challenge_fr }` for each complete dataset in category order tight, clock, wishes, ladder, crafted, hours, size, overqual, closed, shapes (then id). `load_bench_dataset(category, id)` MUST build a disposable live restaurant context from `context.json` via services, role ladder, service types, typical week, and fiches, and MUST attach the oracle assignments from `expected.json`. After load, `team_ready(salle)` MUST be true and `team_ready(cuisine)` MUST be false. Unknown `(category, id)` MUST raise `UnknownBenchDataset`. Invite tokens MUST be generated at load and MUST differ from the employee id. When `typical_week` is present it MUST be used (one cell per team × service × weekday; several types may share a `service_id`). When it is absent the typical week MUST be derived: for each `roles.team` × `hours.services` × weekday, the cell is closed if the weekday is in `closed_weekdays`, otherwise `type_id` is the unique type for that `(team, service)`.
 
-#### Scenario: Seven complete datasets
-- **WHEN** the repo contains the seven frozen salle datasets
-- **THEN** `list_bench_datasets` returns seven entries in order tight, clock, wishes, ladder, crafted
+#### Scenario: Thirty complete datasets
+- **WHEN** the repo contains the thirty frozen salle datasets
+- **THEN** `list_bench_datasets` returns thirty entries in order tight, clock, wishes, ladder, crafted, hours, size, overqual, closed, shapes
+
+#### Scenario: Stored typical week wins
+- **WHEN** `context.json` includes `typical_week`
+- **THEN** load uses those cells and may attach several types to the same service_id
+
+#### Scenario: Derived typical week when omitted
+- **WHEN** `context.json` has no `typical_week`
+- **THEN** load derives one type per team × service as before
 
 #### Scenario: Halles is salle-ready
 - **WHEN** `load_bench_dataset("tight", "halles")` succeeds
@@ -27,7 +35,7 @@ The system SHALL implement `run_bench(category, id, effort)` that loads a dispos
 - **THEN** there are zero `interdit` warnings
 
 #### Scenario: Crafted witnesses score high
-- **WHEN** `load_bench_dataset("crafted", "atelier"|"rivoli"|"marais")` expected assignments are scored
+- **WHEN** `load_bench_dataset("crafted", id)` expected assignments are scored for each of the six crafted games
 - **THEN** `cycle_score` global is at least 9.5
 
 #### Scenario: Tight halles minimal run

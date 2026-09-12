@@ -1,12 +1,13 @@
 ## Why
 
-The restaurateur (admin) needs the salle bench catalogue on disk (four challenge games plus three crafted witnesses) so generation can be scored against a human oracle without touching a live restaurant, `published_cycles`, or keep-best.
+The restaurateur (admin) needs the salle bench catalogue on disk (~30 games: challenge families plus crafted witnesses) so generation can be scored against a human oracle without touching a live restaurant, `published_cycles`, or keep-best.
 
 ## What Changes
 
 - Add `list_bench_datasets`, `load_bench_dataset`, `run_bench`, and `UnknownBenchDataset`.
 - Scan `data/bench/{category}/{id}/` ; omit a dataset that lacks both JSON files.
-- Load as live context (`set_services`, ladder, types, derived typical week, fiches). `team_ready(salle)` is true; cuisine is absent.
+- Load as live context (`set_services`, ladder, types, typical week from JSON when present else derived 1 type per service, fiches). `team_ready(salle)` is true; cuisine is absent.
+- Widen the on-disk catalogue to the 30 freeze pairs (7 existing files bit-identical). Categories add `hours`, `size`, `overqual`, `closed`, `shapes`. Morning service, several types per `service_id`, roles through L6. `VERSION` stays `core-2`.
 - `run_bench` uses a disposable copy, `generate_cycle` + `cycle_score` twice (generated vs expected), and `deltas`. Zero writes to `published_cycles`.
 - Do not persist `data/bench/VERSION` (Infra). Do not change `SEARCH_*`, `_attempt_key`, or `generate_cycle` keep-best.
 - No HTTP, no `web/` / `api/` / `contracts/` / `data/bench/**` / `saint-cloud.json` edits.
@@ -15,7 +16,7 @@ The restaurateur (admin) needs the salle bench catalogue on disk (four challenge
 
 ### New Capabilities
 
-- `bench-datasets`: load the salle bench datasets from `data/bench/` (tight, clock, wishes, ladder, crafted) and run isolated generate vs oracle scores.
+- `bench-datasets`: load the salle bench datasets from `data/bench/` (tight, clock, wishes, ladder, crafted, hours, size, overqual, closed, shapes) and run isolated generate vs oracle scores.
 
 ### Modified Capabilities
 
@@ -23,4 +24,4 @@ The restaurateur (admin) needs the salle bench catalogue on disk (four challenge
 
 ## Impact
 
-- New `src/doux_planning/bench.py` plus tests. Reuses `set_services` / `cycle_score` / `generate_cycle`. Do not edit `web/`, `api/`, `contracts/`, `engine.py` keep-best, or the bench JSON files.
+- `src/doux_planning/bench.py` plus 23 new `data/bench/**` folders and tests. Reuses `set_services` / `cycle_score` / `generate_cycle`. Do not edit `web/`, `api/`, `contracts/`, or `engine.py`. Do not rewrite the 7 existing dataset files.

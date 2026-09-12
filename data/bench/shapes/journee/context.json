@@ -1,0 +1,349 @@
+{
+  "id": "journee",
+  "category": "shapes",
+  "name": "Journée Complète",
+  "team": "salle",
+  "challenge_fr": "3 services et 2 types midi (semaine / samedi).",
+  "hours": {
+    "mode": "services",
+    "services": [
+      "morning",
+      "midday",
+      "evening"
+    ],
+    "closed_weekdays": [
+      "sunday"
+    ]
+  },
+  "roles": [
+    {
+      "name": "RESPONSABLE",
+      "level": 3,
+      "team": "salle"
+    },
+    {
+      "name": "SERVEUR",
+      "level": 2,
+      "team": "salle"
+    },
+    {
+      "name": "EQUIPIER",
+      "level": 1,
+      "team": "salle"
+    }
+  ],
+  "types": [
+    {
+      "id": "matin",
+      "name": "Matin",
+      "team": "salle",
+      "service_id": "morning",
+      "arrivals": [
+        {
+          "time_minutes": 420,
+          "post_levels": [
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 660,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "midi-sem",
+      "name": "Midi semaine",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 720,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "midi-sam",
+      "name": "Midi samedi",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 660,
+          "post_levels": [
+            2,
+            1,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir",
+      "name": "Soir",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1380,
+          "remaining_post_levels": []
+        }
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "a",
+      "name": "Ada",
+      "role": {
+        "name": "RESPONSABLE",
+        "level": 3,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "b",
+      "name": "Benoît",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "c",
+      "name": "Camille",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "d",
+      "name": "Diego",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "e",
+      "name": "Elsa",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "f",
+      "name": "Farid",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 24
+    },
+    {
+      "id": "g",
+      "name": "Gina",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 24
+    }
+  ],
+  "typical_week": [
+    {
+      "weekday": "monday",
+      "service_id": "morning",
+      "type_id": "matin",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "monday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "monday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "tuesday",
+      "service_id": "morning",
+      "type_id": "matin",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "tuesday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "tuesday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "wednesday",
+      "service_id": "morning",
+      "type_id": "matin",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "wednesday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "wednesday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "thursday",
+      "service_id": "morning",
+      "type_id": "matin",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "thursday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "thursday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "friday",
+      "service_id": "morning",
+      "type_id": "matin",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "friday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "friday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "saturday",
+      "service_id": "morning",
+      "type_id": "matin",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "saturday",
+      "service_id": "midday",
+      "type_id": "midi-sam",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "saturday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "sunday",
+      "service_id": "morning",
+      "type_id": null,
+      "closed": true,
+      "team": "salle"
+    },
+    {
+      "weekday": "sunday",
+      "service_id": "midday",
+      "type_id": null,
+      "closed": true,
+      "team": "salle"
+    },
+    {
+      "weekday": "sunday",
+      "service_id": "evening",
+      "type_id": null,
+      "closed": true,
+      "team": "salle"
+    }
+  ]
+}
