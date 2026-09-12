@@ -27,6 +27,12 @@ The system SHALL store wellbeing as consecutive rest, at most one weekend choice
 - **WHEN** `max_services` has no key for that service
 - **THEN** fill does not treat that service as capped
 
+#### Scenario: Fill scarce windows first
+- **WHEN** two open windows have different static eligible counts
+- **THEN** fill and hole-repair visit the window with fewer eligible people first
+- **WHEN** eligible counts are equal
+- **THEN** order is day_index, then restaurant service order, then post level descending
+
 #### Scenario: Unavailability is only the day-service pair
 - **WHEN** a fiche has an unavailability for Tuesday midday
 - **THEN** only that weekday and service is blocked

@@ -252,9 +252,9 @@ def test_saint_cloud_recap_facts_are_evaluate_misses_then_hits():
     recap = cycle_recap(state, Team.SALLE)
     evaluate_misses = [fact for fact in recap.facts if fact.polarity == "miss" and fact.kind != "role_gap"]
     assert len(result.assignments) == 92
-    assert len(evaluate_misses) == 17
+    assert len(evaluate_misses) == 13
     assert [fact.kind for fact in evaluate_misses] == [item.code for item in result.warnings]
-    assert recap.stats.below_role == 47
+    assert recap.stats.below_role == 46
     assert recap.stats.wellbeing.held == 10
     assert recap.stats.wellbeing.total == 12
     diane = next(row for row in recap.wish_rows if row.employee_id == "diane")

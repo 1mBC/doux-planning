@@ -241,7 +241,7 @@ def _assert_saint_cloud_contract(body: dict) -> None:
         "assignments": 92,
         "empty": 0,
         "interdit": 0,
-        "below_role": 47,
+        "below_role": 46,
         "hours": {
             "assigned": 416.0,
             "contracted": 494.0,
@@ -256,7 +256,7 @@ def _assert_saint_cloud_contract(body: dict) -> None:
     evaluate_misses = [
         item for item in planning["facts"] if item["polarity"] == "miss" and item["kind"] != "role_gap"
     ]
-    assert len(evaluate_misses) == 17
+    assert len(evaluate_misses) == 13
     theo = next(
         item
         for item in planning["assignments"]

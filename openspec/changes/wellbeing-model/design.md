@@ -38,6 +38,10 @@ Compare `generate_cycle(..., optimized)` assignments to the file. Identical → 
 
 If the key is present, a trial that would make that week's count (evaluate `_service_count` + the trial) exceed the limit is skipped like an overlap. It is no longer the 5th `_soft_penalty` tie-break. SAT rest, keep-best, `_attempt_key`, and `SEARCH_*` stay unchanged. Evaluate still emits `max_*` souhait facts.
 
+### 7. Fill and repair use the same `fewest` window order (`core-2`)
+
+`_fill_assignments` and `_repair_holes` share one job list. Eligible count is **static**: `_can_fill_window` on an empty assignment board (rest calendar + unavailabilities + hard `max_services` + legal), not already-placed shifts. Sort: `eligible_count` ascending, then `day_index`, then restaurant `hours.services` order, then post level descending (then `start_minutes` for stability). One strategy only — not `weekend-eve` or `eve-first`. Keep-best / SAT / hard caps stay unchanged.
+
 ## Risks / Trade-offs
 
 - [HTTP api still sends `wellbeing: []`] → Do not patch `api/`; list failing tests.

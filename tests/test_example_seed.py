@@ -79,7 +79,7 @@ def test_saint_cloud_snapshot_has_typed_facts_recap():
     evaluate_misses = [
         item for item in planning["facts"] if item["polarity"] == "miss" and item["kind"] != "role_gap"
     ]
-    assert len(evaluate_misses) == 17
+    assert len(evaluate_misses) == 13
     assert any(item["kind"] == "contract_hours" and item["polarity"] == "miss" for item in evaluate_misses)
     assert any(item["kind"] == "consecutive_rest_days" and item["polarity"] == "miss" for item in evaluate_misses)
     for row in planning["legal_rows"] + planning["wish_rows"]:

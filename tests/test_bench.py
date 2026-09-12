@@ -240,16 +240,30 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
         fact.polarity == "hit" and fact.kind in {"post_held", "role_gap"}
         for fact in (*outcome.facts, *outcome.expected_facts)
     )
-    assert outcome.engine_ref == "core-1"
+    assert outcome.engine_ref == "core-2"
 
 
-def test_engine_ref_is_core_one():
-    assert engine_ref() == "core-1"
+def test_engine_ref_is_core_two():
+    assert engine_ref() == "core-2"
+
+
+def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
+    outcome = run_bench("crafted", "atelier", SearchEffort.MINIMAL)
+    assert outcome.engine_ref == "core-2"
+    saturday_evening_empties = [
+        fact
+        for fact in outcome.facts
+        if fact.polarity == "miss"
+        and fact.kind == "empty_post"
+        and fact.payload.get("weekday") == "saturday"
+        and fact.payload.get("service_id") == "evening"
+    ]
+    assert len(saturday_evening_empties) < 4
 
 
 def test_run_bench_marais_minimal_hard_max_evenings():
     outcome = run_bench("crafted", "marais", SearchEffort.MINIMAL)
-    assert outcome.engine_ref == "core-1"
+    assert outcome.engine_ref == "core-2"
     assert not any(fact.polarity == "miss" and fact.kind == "max_evenings" for fact in outcome.facts)
     assert not any(shift.employee_id == "e" and shift.service_id == "evening" for shift in outcome.assignments)
 
@@ -265,7 +279,7 @@ def test_run_bench_rivoli_minimal_expected_zero_interdit():
 
 def test_run_bench_campus_minimal_runs():
     outcome = run_bench("wishes", "campus", SearchEffort.MINIMAL)
-    assert outcome.engine_ref == "core-1"
+    assert outcome.engine_ref == "core-2"
     assert outcome.search_effort == SearchEffort.MINIMAL
 
 
