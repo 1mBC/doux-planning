@@ -110,6 +110,26 @@ Clé **absente** = pas de plafond.
 SAT repos / keep-best / `_attempt_key` / `SEARCH_*` **inchangés**.  
 Evaluate + facts `max_mornings` / `max_middays` / `max_evenings` restent des **souhaits** (un edit sandbox peut encore violer).
 
+## Fill — créneaux rares d’abord (`core-2`)
+
+Aujourd’hui le fill parcourt jour 0→13, puis l’ordre des services du resto (midi avant soir).  
+**Cette file = une** stratégie, pas la série entière. On compare sur le banc (`engine_ref`), puis on en tente une autre.
+
+`core-2` = **`fewest`** : on remplit d’abord les fenêtres avec le **moins de gens éligibles**.
+
+Éligible (comptage **statique**, calendrier de repos + indispos + `max_services` dur + légal, **sans** les shifts déjà posés) : `_can_fill_window` sur un board vide.  
+Ordre : `eligible_count` croissant, puis `day_index`, puis ordre des services du resto, puis niveau de poste décroissant.  
+`_fill_assignments` **et** `_repair_holes` utilisent **le même** ordre.
+
+Keep-best / SAT / plafonds durs `core-1` **inchangés**.
+
+Série à tester **après** (files suivantes, un `engine_ref` chacune) :
+
+- `weekend-eve` : soirs de week-end (sam, dim si ouvert) avant le reste, puis chrono.  
+- `eve-first` : tous les soirs avant les midis, puis chrono.  
+
+Pas les trois dans `core-2`. Pas de binômes nommés.
+
 ## `employee_board` — `wishes`
 
 Une entrée **par souhait posé** sur la fiche (pas les absents) :
@@ -160,4 +180,4 @@ Régression wellbeing-model (déjà landed) : repos consécutifs, we even/odd/ev
 
 ## Hors freeze
 
-Atelier / réserver les créneaux rares. `max_services` dans le SAT repos. Archive / sync. Wizard / types = `contracts/domain/wizard-ui.md`.
+`weekend-eve` / `eve-first` (files suivantes). `max_services` dans le SAT repos. Archive / sync. Wizard / types = `contracts/domain/wizard-ui.md`.

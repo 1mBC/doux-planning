@@ -49,6 +49,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 36 — banc versions | `domain/bench.md` ; briefs `core-bench-versions.md`, `infra-bench-versions.md`, `ui-bench-versions.md` | **landed** `fc1f8cb` (UI v0.33.0) |
 | 37 — banc tableau versions | `domain/bench.md` ; brief `ui-bench-table-versions.md` | **landed** `84e0a9b` (UI v0.34.0) |
 | 38 — plafonds durs | `domain/wellbeing.md` ; brief `core-max-services-hard.md` | **landed** `e10a434` (Core `core-1`) |
+| 39 — fill fewest | `domain/wellbeing.md` ; brief `core-fill-fewest.md` | **freeze** — pas landé |
 
 ## Ownership git (ne pas croiser)
 
