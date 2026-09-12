@@ -24,7 +24,7 @@ data/bench/{category}/{id}/context.json
 data/bench/{category}/{id}/expected.json
 ```
 
-Catégories **figées** (ordre d’affichage) — **30 jeux**. Les 7 anciens **inchangés** (fichiers + oracles).
+Catégories **figées** (ordre d’affichage) — **50 jeux**. Les **30** déjà au catalogue **bit-à-bit inchangés** (fichiers + oracles). **+ 20** `crafted` (oracles).
 
 | `category` | `id` | Particularité |
 |---|---|---|
@@ -48,6 +48,26 @@ Catégories **figées** (ordre d’affichage) — **30 jeux**. Les 7 anciens **i
 | `crafted` | `temple` | oracle ≥ 9,5, **3 services** |
 | `crafted` | `republique` | oracle ≥ 9,5, **2 types midi** |
 | `crafted` | `opera` | oracle ≥ 9,5, **L1–L6** |
+| `crafted` | `bastille` | oracle, repos we pairé |
+| `crafted` | `nation` | oracle, un senior **0 dîner** |
+| `crafted` | `sentier` | oracle, **3 services** (morning) |
+| `crafted` | `bourse` | oracle, **2 types midi** sem / sam |
+| `crafted` | `madeleine` | oracle, échelle **L1–L6** |
+| `crafted` | `concorde` | oracle, 5 fiches juste assez |
+| `crafted` | `tuileries` | oracle, **samedi fermé** |
+| `crafted` | `palais` | oracle, **lundi fermé** |
+| `crafted` | `luxembourg` | oracle, `max_services` serré |
+| `crafted` | `odeon` | oracle, 24 h après un soir |
+| `crafted` | `montparnasse` | oracle, contrats 8 / 24 / 39 |
+| `crafted` | `denfert` | oracle, petits contrats |
+| `crafted` | `vaugirard` | oracle, 8–10 fiches, **3 services** |
+| `crafted` | `grenelle` | oracle, tentation overqual (grille l’évite) |
+| `crafted` | `passy` | oracle, beaucoup d’indispos |
+| `crafted` | `auteuil` | oracle, we pair / impair |
+| `crafted` | `monceau` | oracle, **deux L6** |
+| `crafted` | `pigalle` | oracle, soir tard → **morning** lendemain |
+| `crafted` | `abbesses` | oracle, L1–L6 **sans L3** |
+| `crafted` | `clichy` | oracle, **3 types** lun–ven / sam / dim |
 | `hours` | `mixte` | 8 h / 24 h / 39 h |
 | `hours` | `petits` | beaucoup de petits contrats |
 | `size` | `studio` | 3 fiches |
@@ -59,12 +79,14 @@ Catégories **figées** (ordre d’affichage) — **30 jeux**. Les 7 anciens **i
 | `shapes` | `triple` | 3 types (lun–ven / sam / dim) |
 | `shapes` | `journee` | 3 services + 2 types |
 
-`crafted` = planning **d’abord**, contexte **déduit**. Oracle = Manuel. `crafted` : `cycle_score` globale **≥ 9,5**.  
-Les autres nouveaux : manuel **0 interdit**, pas d’exigence 9,5.  
+`crafted` = planning **d’abord**, contexte **déduit**. Oracle = Manuel. `crafted` : `cycle_score` globale **≥ 9,5** (viser **10**).  
+Les 24 non-`crafted` (déjà au catalogue) : manuel **0 interdit** seulement — **on ne les retire pas**, on ne les réécrit pas.  
+Les **20** nouveaux sont **tous** `crafted` (pas de diversité-de-forme sans oracle).  
 Scan disque. Jeu sans les deux JSON → **omit**, pas 500.  
 `engine_ref()` = trim `VERSION` — **reste `core-2`** (pas un change moteur).
 
-Parmi les **nouveaux** : ≥ 4 jeux à 3 services ; ≥ 4 à **2 types ou plus** sur le même `service_id` ; ≥ 4 avec un rôle **level ≥ 6**.
+Parmi les **20** nouveaux : ≥ 4 à 3 services (`morning`) ; ≥ 4 à **2 types ou plus** sur le même `service_id` ; ≥ 4 avec un rôle **level ≥ 6**.  
+Méthode **obligatoire** pour chaque nouveau : écrire `expected.json` (grille 14 j) **avant** de figer `context.json` ; `evaluate` → **0 interdit**, **0 hours_miss**, **0 below_role**.
 
 ### `context.json`
 
@@ -92,7 +114,7 @@ Pas de `invite_token`.
 { assignments: [{ employee_id, day_index, weekday, service_id, team, start_minutes, end_minutes, post_level }] }
 ```
 
-Planning **manuel**. `evaluate` → **0 interdit**. `crafted` : `cycle_score` globale **≥ 9,5**. Notes recalculées au run.
+Planning **manuel**. `evaluate` → **0 interdit**. `crafted` (26, dont les 6 déjà là) : `cycle_score` globale **≥ 9,5**. Notes recalculées au run.
 
 ## Core
 
@@ -121,8 +143,9 @@ Banc : `run_bench` l’appelle sur le draft généré **et** sur `expected` (`ev
 
 ## HTTP (admin)
 
-Routes run / jobs / datasets **inchangées** (plus `engine_ref` / `app_version` alias sur summaries). `POST all` / `category=crafted` = un job par jeu.  
-Persist : colonne existante `bench_runs.app_version` = `outcome.engine_ref`. **Pas** d’Alembic.
+Routes run / jobs / datasets **inchangées** (plus `engine_ref` / `app_version` alias sur summaries). `POST all` / `category=crafted` = un job par jeu **listé** (`all` = **50**, `crafted` = **26**).  
+Dédup / heartbeat / N workers : **`contracts/domain/worker-queue.md`**.  
+Persist : colonne existante `bench_runs.app_version` = `outcome.engine_ref`. Alembic **seulement** `heartbeat_at` + unique partiel jobs (`worker-queue.md`).
 
 **Last-run** = le plus récent par `(category, dataset_id, search_effort, engine_ref)`.  
 Export / compare-chemin = last-run du **`engine_ref` courant** (VERSION).  
@@ -269,13 +292,13 @@ Compare : **même** `CycleScoreNotes` des deux côtés, avec `facts` + `stats` +
 
 Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
-**`0.34.0`**, note FR : banc, tous les computes, une colonne par version moteur.
+**`0.36.0`**, note FR : banc 50 jeux, 20 oracles crafted.
 
 ## Tests
 
 HTTP / UI **inchangés** (liste = scan / `list_bench_datasets`).  
-Core catalogue : **30** jeux. Les 7 anciens loadent à l’identique. Tous les expected : 0 interdit. Les 6 `crafted` : globale ≥ 9,5.  
-≥ 4 nouveaux avec `morning` dans `hours.services` ; ≥ 4 avec 2 `types` le même `service_id` ; ≥ 4 avec un rôle `level >= 6`.  
+Core catalogue : **50** jeux. Les **30** déjà là loadent **bit-à-bit**. Tous les expected : 0 interdit. Les **26** `crafted` : globale ≥ 9,5. Les 20 nouveaux : aussi 0 `hours_miss`, 0 `below_role`.  
+≥ 4 des 20 avec `morning` ; ≥ 4 avec 2 `types` le même `service_id` ; ≥ 4 avec un rôle `level >= 6`.  
 `engine_ref() == "core-2"`. `run_bench(tight, halles, minimal)` vert. Keep-best inchangé.
 
 ## Hors freeze

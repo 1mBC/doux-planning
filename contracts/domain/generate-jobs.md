@@ -42,18 +42,20 @@ Bearer company, **même** resto. Autre company / id inconnu → 404. Employee �
 
 ## Worker
 
-Process **à part** (Compose `worker`, Railway 2ᵉ service, **même** image / `DATABASE_URL`).  
-Boucle : `SELECT … FOR UPDATE SKIP LOCKED` un `queued` → `running` → `generate_team(…, maximal)` → persist `published_cycles` **comme** le 200 sync → `done`. Exception → `failed` + `error` FR.
+Process **à part** (Compose `worker`, Railway service worker **N replicas**, **même** image / `DATABASE_URL`).  
+Pile, heartbeat, reclaim stale-only, priorité resto → banc : **`contracts/domain/worker-queue.md`** (gagne).
+
+Boucle : `SELECT … FOR UPDATE SKIP LOCKED` un `queued` → `running` + heartbeat → `generate_team(…, maximal)` → persist `published_cycles` **comme** le 200 sync → `done`. Exception → `failed` + `error` FR.
 
 Succès → **une** ligne `generate_logs` (même règle que POST 200). Échec / 409 : pas de log.
 
-Pytest : **ne pas** attendre 600 s. Après POST 202, appeler **un tick** worker (fonction exportée) avec `generate_team` **stubbé** (cycle instantané). Pas de boucle sleep dans les tests.
+Pytest : **ne pas** attendre 600 s. Après POST 202, appeler **un tick** worker (fonction exportée) avec `generate_team` **stubbé** (cycle instantané). Pas de boucle sleep dans les tests. Tests pile = `worker-queue.md`.
 
 ## Deploy
 
-`docker-compose.yml` : service `worker` (même build, commande worker, `depends_on` db).  
+`docker-compose.yml` : service `worker` (même build, commande worker, `depends_on` db). Scale local : `docker compose up --scale worker=N`.  
 `Dockerfile` : garder uvicorn par défaut ; commande worker documentée (`python -m doux_planning.api.worker` ou équivalent).  
-Railway : **2ᵉ service** même image, start = worker, **pas** de domaine public, mêmes `DATABASE_URL` / `ADMIN_EMAIL`. Alembic **OK** (table `generate_jobs`).
+Railway : service worker, start = worker, **pas** de domaine public, `DATABASE_URL` partagé. **Replicas N** du **même** commit. Alembic **sur le web** (`heartbeat_at`, table `generate_jobs`). **Pas** d’Alembic dans le worker.
 
 ## Hors freeze
 
