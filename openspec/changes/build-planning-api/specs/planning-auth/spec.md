@@ -140,11 +140,15 @@ Admin bench routes SHALL require `admin` true (`contracts/domain/bench.md`). `PO
 
 #### Scenario: All maximal enqueues one job per jeu
 - **WHEN** an admin posts bench run `scope` `all` `search_effort` `maximal`
-- **THEN** the response is HTTP 202 with seven `job_ids` and worker ticks (stubbed `run_bench`) insert seven `bench_runs`
+- **THEN** the response is HTTP 202 with thirty `job_ids` and worker ticks (stubbed `run_bench`) insert thirty `bench_runs`
 
-#### Scenario: Category crafted enqueues three jobs
+#### Scenario: Category crafted enqueues six jobs
 - **WHEN** an admin posts bench run `scope` `category` `category` `crafted`
-- **THEN** the response is HTTP 202 with three `job_ids`
+- **THEN** the response is HTTP 202 with six `job_ids`
+
+#### Scenario: GET datasets lists thirty jeux
+- **WHEN** an admin gets `/v1/admin/bench/datasets`
+- **THEN** the response is HTTP 200 with thirty datasets and `engine_ref` `"core-2"`
 
 #### Scenario: Non-admin cannot run bench
 - **WHEN** a company session with `admin` false posts `/v1/admin/bench/run`
@@ -172,9 +176,9 @@ GET `/v1/admin/bench/compare/{category}/{dataset_id}/{search_effort}` MUST retur
 ### Requirement: Admin bench engine_ref versions and run compare
 HTTP bench summaries, GET datasets, GET runs, and export MUST emit `engine_ref` and `app_version` as the same string (`outcome.engine_ref` on persist; current `engine_ref()` on datasets / pack root). A stored `app_version` `"0.27.0"` MUST read as `"core-0"`. Last-run MUST be the newest row per `(category, dataset_id, search_effort, engine_ref)` so a `core-1` run MUST NOT replace a `core-0` last-run. GET compare by path MUST return the last-run of the current VERSION and HTTP 404 when that current last-run is missing. GET `/v1/admin/bench/runs/{run_id}` MUST return the same 200 shape as compare (`employees`, `model`, `manual`) and MUST NOT emit top-level `assignments` or `facts`. GET `/v1/admin/bench/versions` MUST return `{ engine_ref, engine_refs, datasets }` with merged refs (first appearance), three effort keys always present (`null` if no run), and `manual.global` from the first known run. Export dataset / `below_manuel` MUST use current last-runs only and include `engine_ref` plus `run_id` on the pack and each effort. SPA `/admin/bench/versions` and `/admin/bench/run/{run_id}` MUST serve `index.html`. A company or employee session with `admin` false MUST receive HTTP 403 `Action réservée à l’admin.`
 
-#### Scenario: Halles minimal summaries use core-0
+#### Scenario: Halles minimal summaries use current engine_ref
 - **WHEN** an admin runs halles `minimal` on the current engine
-- **THEN** summaries, datasets, and export have `engine_ref` equal to `app_version` equal to `"core-0"`
+- **THEN** summaries, datasets, and export have `engine_ref` equal to `app_version` equal to `"core-2"`
 
 #### Scenario: GET run is compare shape
 - **WHEN** an admin gets `/v1/admin/bench/runs/{id}` after that halles run
@@ -182,7 +186,7 @@ HTTP bench summaries, GET datasets, GET runs, and export MUST emit `engine_ref` 
 
 #### Scenario: Other engine_ref does not steal current compare
 - **WHEN** a second row is inserted for the same jeu/effort with `app_version` `"core-1"`
-- **THEN** GET versions lists both refs and GET compare path still returns the current `core-0` run
+- **THEN** GET versions lists both refs and GET compare path still returns the current `core-2` run
 
 #### Scenario: Legacy 0.27.0 reads as core-0
 - **WHEN** a stored run has `app_version` `"0.27.0"`

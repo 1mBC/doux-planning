@@ -112,7 +112,7 @@ def _stub_run_bench(category, dataset_id, effort):
         score=score,
         expected_score=score,
         deltas={"couverture": 0.0, "legal": 0.0, "contrat": 0.0, "wellbeing": None, "roles": 0.0, "global": 0.0},
-        engine_ref="core-1",
+        engine_ref=engine_ref(),
     )
 
 
@@ -450,7 +450,8 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
 
     datasets = client.get("/v1/admin/bench/datasets", headers=headers)
     assert datasets.status_code == 200
-    assert datasets.json()["engine_ref"] == datasets.json()["app_version"] == "core-0"
+    assert datasets.json()["engine_ref"] == datasets.json()["app_version"] == "core-2"
+    assert len(datasets.json()["datasets"]) == 30
     assert {(item["category"], item["id"]) for item in datasets.json()["datasets"]} == FROZEN_BENCH_PAIRS
 
     logs_before = _count_rows(GenerateLog)
@@ -467,7 +468,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert first["category"] == "tight"
     assert first["dataset_id"] == "halles"
     assert first["search_effort"] == "minimal"
-    assert first["engine_ref"] == first["app_version"] == "core-0"
+    assert first["engine_ref"] == first["app_version"] == "core-2"
     assert "notes" in first["score"] and "resumes" not in first["score"]
     assert "assignments" not in first
     assert _count_rows(GenerateLog) == logs_before
@@ -506,7 +507,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert pack["export_version"] == 1
     assert pack["kind"] == "bench-pack"
     assert pack["scope"] == "dataset"
-    assert pack["engine_ref"] == pack["app_version"] == "core-0"
+    assert pack["engine_ref"] == pack["app_version"] == "core-2"
     assert pack["exported_at"]
     assert len(pack["datasets"]) == 1
     halles_pack = pack["datasets"][0]
@@ -517,7 +518,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert halles_pack["manual"]["facts"]
     assert halles_pack["efforts"][0]["search_effort"] == "minimal"
     assert halles_pack["efforts"][0]["run_id"] == first["id"]
-    assert halles_pack["efforts"][0]["engine_ref"] == "core-0"
+    assert halles_pack["efforts"][0]["engine_ref"] == "core-2"
     assert "below_manuel" in halles_pack["efforts"][0]
     assert halles_pack["efforts"][0]["model"]["facts"]
 
@@ -538,7 +539,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     by_id = client.get(f"/v1/admin/bench/runs/{first['id']}", headers=headers)
     assert by_id.status_code == 200
     assert by_id.json()["id"] == first["id"]
-    assert by_id.json()["engine_ref"] == by_id.json()["app_version"] == "core-0"
+    assert by_id.json()["engine_ref"] == by_id.json()["app_version"] == "core-2"
     assert "model" in by_id.json() and "manual" in by_id.json()
     assert any(item.get("polarity") == "hit" for item in by_id.json()["model"]["facts"])
     assert any(item.get("polarity") == "hit" for item in by_id.json()["manual"]["facts"])
@@ -557,20 +558,20 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     )
     versions = client.get("/v1/admin/bench/versions", headers=headers)
     assert versions.status_code == 200
-    assert versions.json()["engine_ref"] == "core-0"
-    assert "core-0" in versions.json()["engine_refs"]
+    assert versions.json()["engine_ref"] == "core-2"
+    assert "core-2" in versions.json()["engine_refs"]
     assert "core-1" in versions.json()["engine_refs"]
     assert "0.27.0" not in versions.json()["engine_refs"]
     halles_row = next(item for item in versions.json()["datasets"] if item["id"] == "halles")
-    assert set(halles_row["by_ref"]) >= {"core-0", "core-1"}
-    assert halles_row["by_ref"]["core-0"]["minimal"]["run_id"] == first["id"]
+    assert set(halles_row["by_ref"]) >= {"core-2", "core-1"}
+    assert halles_row["by_ref"]["core-2"]["minimal"]["run_id"] == first["id"]
     assert halles_row["by_ref"]["core-1"]["minimal"]["run_id"]
     assert halles_row["by_ref"]["core-1"]["minimal"]["run_id"] != first["id"]
-    assert set(halles_row["by_ref"]["core-0"]) == {"minimal", "optimized", "maximal"}
+    assert set(halles_row["by_ref"]["core-2"]) == {"minimal", "optimized", "maximal"}
     current_compare = client.get("/v1/admin/bench/compare/tight/halles/minimal", headers=headers)
     assert current_compare.status_code == 200
     assert current_compare.json()["id"] == first["id"]
-    assert current_compare.json()["engine_ref"] == "core-0"
+    assert current_compare.json()["engine_ref"] == "core-2"
 
     legacy_id = _insert_bench_run(
         app_version="0.27.0",
@@ -605,7 +606,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert len(job_ids) == 30
     runs_before_tick = _count_rows(BenchRun)
     remaining = set(job_ids)
-    for _ in range(40):
+    for _ in range(50):
         if not remaining:
             break
         job_id = tick_bench_job(run_bench_fn=_stub_run_bench)
@@ -620,8 +621,8 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
         assert done.json()["status"] == "done"
         assert done.json()["run_id"]
         run_ids.append(done.json()["run_id"])
-    assert len(set(run_ids)) == 7
-    assert _count_rows(BenchRun) >= runs_before_tick + 7
+    assert len(set(run_ids)) == 30
+    assert _count_rows(BenchRun) >= runs_before_tick + 30
     crafted = client.post(
         "/v1/admin/bench/run",
         headers=headers,
@@ -629,7 +630,14 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     )
     assert crafted.status_code == 202
     assert crafted.json()["status"] == "queued"
-    assert len(crafted.json()["job_ids"]) == 3
+    assert len(crafted.json()["job_ids"]) == 6
+    hours = client.post(
+        "/v1/admin/bench/run",
+        headers=headers,
+        json={"scope": "category", "category": "hours", "search_effort": "maximal"},
+    )
+    assert hours.status_code == 202
+    assert len(hours.json()["job_ids"]) == 2
     maximal = client.get("/v1/admin/bench/compare/tight/halles/maximal", headers=headers)
     assert maximal.status_code == 200
     assert maximal.json()["search_effort"] == "maximal"
