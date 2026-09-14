@@ -355,11 +355,11 @@ Plus une rangée par catégorie.
 2. **Par compute** : 3 contrôles (Minimal / Optimisé / Maximal) → catégories → `scope=category`.  
 3. **Compléter les trous** : `scope=gaps`. Un clic, **une** pile (Minimal + Opti + Maximal × tous les refs). Quitter la page = OK.
 
-Loader (overlay) dès qu’un batch est actif (`GET …/batches/active` au mount + après un lancer lot / gaps) :
+Loader **inline sous le titre « Lancer »** (pas d’overlay, **pas** de flou sur la page) dès qu’un batch est actif (`GET …/batches/active` au mount + après un lancer lot / gaps) :
 
 - **%** = `pct`  
 - **temps max restant** = `eta_max_seconds` formaté (ex. `~ 12 min`)  
-Poll ~2 s jusqu’à `pct == 100` puis refresh versions. Pas besoin de rester sur la page pour que ça tourne.
+Poll ~2 s jusqu’à `pct == 100` puis refresh versions. Tableau / recap / export **restent utilisables**. Le overlay `calc-overlay` du planning resto **ne s’applique pas** au Banc. Pas besoin de rester sur la page pour que ça tourne.
 
 Export : **Exporter tout le banc** → `scope=bank` (`bench-bank.json`) en plus des deux exports existants.
 
@@ -381,7 +381,7 @@ Compare : **même** `CycleScoreNotes` des deux côtés, avec `facts` + `stats` +
 
 Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
-**`0.39.0`**, note FR : banc, pack complet + trous + loader.
+**`0.40.0`**, note FR : banc, loader sous Lancer, page lisible.
 
 ## Tests
 
