@@ -328,7 +328,7 @@ Lancer     | Manuel | {engine_ref} | {engine_ref} | …
 Colonne **Lancer** (par jeu) : les 3 boutons effort **puis** Exporter, **pile verticale** (plus de wrap horizontal des 3 efforts). Même ordre que les deltas dans la cellule modèle.
 
 - **Manuel** : `dataset.manual.global` **une fois**. Clic → compare-chemin `optimized` moteur **courant**.  
-- **Chaque ligne** dans la cellule modèle : **uniquement** le delta vs Manuel, petit libellé d’effort. **Pas** la note absolue. Tiret si pas de run.  
+- **Chaque ligne** dans la cellule modèle : **uniquement** le delta vs Manuel. **Pas** de libellé Mini / Opti / Max (l’ordre = Lancer). **Pas** la note absolue. Tiret si pas de run.  
 - Clic delta → `/admin/bench/run/{run_id}` (compare de **ce** run).  
 - Couleur delta (globale) : **0 = vert**. Négatif = crescendo **rouge** (clamp −1). Positif = crescendo **bleu** (clamp +1). Tiret = pas de couleur.
 
@@ -386,7 +386,7 @@ Compare : **même** `CycleScoreNotes` des deux côtés, avec `facts` + `stats` +
 
 Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
-**`0.41.0`**, note FR : banc, computes empilés par modèle.
+**`0.42.0`**, note FR : banc sans libellés d’effort, wizard rôles, colonne H plus pâle.
 
 ## Tests
 
