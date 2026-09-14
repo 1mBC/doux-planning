@@ -348,6 +348,17 @@ Suivre `bench.md` § Recap + Lancer — les suivre, ne pas les modifier.
 
 Version `0.38.0`.
 
+### 39. Banc trous + loader + export bank
+
+Suivre `bench.md` § Lancer + loader + export — les suivre, ne pas les modifier.
+
+- **Compléter les trous** → `POST scope=gaps`. Pile unique, quitter = OK.
+- Loader si batch actif (`GET /batches/active` au mount + `batch_id` après lot / gaps) : `pct` + `eta_max_seconds` (`~ 12 min`). Poll ~2 s jusqu’à 100 % puis refresh versions.
+- **Exporter tout le banc** → `scope=bank`, `bench-bank.json`.
+- Tableau / recap / lancer 2 lignes inchangés.
+
+Version `0.39.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

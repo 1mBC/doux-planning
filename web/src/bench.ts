@@ -10,9 +10,10 @@ import {
 } from "./api";
 import { sendAuth } from "./auth";
 import { parseCycleSlice, type CycleSlice, type SearchEffort } from "./generate";
+import { ApiHttpError } from "./sandbox";
 import type { CycleScore, Employee } from "./types";
 
-export type BenchScope = "all" | "category" | "dataset";
+export type BenchScope = "all" | "category" | "dataset" | "gaps";
 
 export type BenchDataset = {
   category: string;
@@ -84,13 +85,42 @@ export type BenchJob = {
   run_id?: string;
 };
 
+export type BenchBatch = {
+  batch_id: string;
+  total: number;
+  queued: number;
+  running: number;
+  done: number;
+  failed: number;
+  pct: number;
+  eta_max_seconds: number;
+};
+
+export type BenchRunQueued = {
+  kind: "queued";
+  job_ids: string[];
+  batch_id: string;
+  total: number;
+  status: "queued";
+};
+
+export type BenchRunDone = {
+  kind: "done";
+  job_ids: string[];
+  batch_id: string;
+  total: number;
+  status: "done";
+};
+
+export type BenchRunResult = { kind: "runs"; runs: BenchRunSummary[] } | BenchRunQueued | BenchRunDone;
+
 export type BenchCompare = BenchRunSummary & {
   employees: Employee[];
   model: CycleSlice;
   manual: CycleSlice;
 };
 
-export type BenchExportScope = "dataset" | "below_manuel";
+export type BenchExportScope = "dataset" | "below_manuel" | "bank";
 
 const DELTA_KEYS = ["couverture", "legal", "contrat", "wellbeing", "roles", "global"] as const;
 export const BENCH_EFFORTS: SearchEffort[] = ["minimal", "optimized", "maximal"];
@@ -212,9 +242,7 @@ export function parseBenchJob(value: unknown): BenchJob {
   return job;
 }
 
-export function parseBenchRunResponse(
-  value: unknown,
-): { kind: "runs"; runs: BenchRunSummary[] } | { kind: "queued"; job_ids: string[] } {
+export function parseBenchRunResponse(value: unknown): BenchRunResult {
   if (!isRecord(value)) {
     throw new PayloadError("réponse bench run invalide");
   }
@@ -225,9 +253,33 @@ export function parseBenchRunResponse(
       }
       return item;
     });
-    return { kind: "queued", job_ids: ids };
+    const batch_id = requireString(value, "batch_id", "bench");
+    const total = requireNumber(value, "total", "bench");
+    if (value.status === "done") {
+      return { kind: "done", job_ids: ids, batch_id, total, status: "done" };
+    }
+    if (value.status !== "queued") {
+      throw new PayloadError("status inattendu : bench.status");
+    }
+    return { kind: "queued", job_ids: ids, batch_id, total, status: "queued" };
   }
   return { kind: "runs", runs: parseBenchRuns(value).runs };
+}
+
+export function parseBenchBatch(value: unknown): BenchBatch {
+  if (!isRecord(value)) {
+    throw new PayloadError("réponse bench batch invalide");
+  }
+  return {
+    batch_id: requireString(value, "batch_id", "batch"),
+    total: requireNumber(value, "total", "batch"),
+    queued: requireNumber(value, "queued", "batch"),
+    running: requireNumber(value, "running", "batch"),
+    done: requireNumber(value, "done", "batch"),
+    failed: requireNumber(value, "failed", "batch"),
+    pct: requireNumber(value, "pct", "batch"),
+    eta_max_seconds: requireNumber(value, "eta_max_seconds", "batch"),
+  };
 }
 
 export function parseBenchCompare(value: unknown): BenchCompare {
@@ -253,6 +305,10 @@ export function benchBelowManuelExportFilename(): string {
   return "bench-below-manuel.json";
 }
 
+export function benchBankExportFilename(): string {
+  return "bench-bank.json";
+}
+
 export function downloadJsonFile(payload: unknown, filename: string): void {
   const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -271,6 +327,7 @@ export async function loadBenchExport(params: {
   dataset_id: string;
 }): Promise<unknown>;
 export async function loadBenchExport(params: { scope: "below_manuel" }): Promise<unknown>;
+export async function loadBenchExport(params: { scope: "bank" }): Promise<unknown>;
 export async function loadBenchExport(params: {
   scope: BenchExportScope;
   category?: string;
@@ -382,8 +439,8 @@ export async function postBenchRun(body: {
   scope: BenchScope;
   category?: string;
   dataset_id?: string;
-  search_effort: SearchEffort;
-}): Promise<{ kind: "runs"; runs: BenchRunSummary[] } | { kind: "queued"; job_ids: string[] }> {
+  search_effort?: SearchEffort;
+}): Promise<BenchRunResult> {
   const raw = await sendAuth(
     "/v1/admin/bench/run",
     {
@@ -393,14 +450,46 @@ export async function postBenchRun(body: {
     },
     true,
   );
-  const parsed = parseBenchRunResponse(raw);
-  return parsed;
+  return parseBenchRunResponse(raw);
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+export async function loadBenchBatch(batchId: string): Promise<BenchBatch> {
+  return parseBenchBatch(await sendAuth(`/v1/admin/bench/batches/${encodeURIComponent(batchId)}`, { method: "GET" }, true));
+}
+
+export async function loadActiveBenchBatch(): Promise<BenchBatch | null> {
+  try {
+    return parseBenchBatch(await sendAuth("/v1/admin/bench/batches/active", { method: "GET" }, true));
+  } catch (err: unknown) {
+    if (err instanceof ApiHttpError && err.status === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export async function pollBenchBatch(
+  batchId: string,
+  cancelled: () => boolean,
+  onProgress: (batch: BenchBatch) => void,
+): Promise<void> {
+  for (;;) {
+    if (cancelled()) {
+      throw new Error("annulé");
+    }
+    const progress = await loadBenchBatch(batchId);
+    onProgress(progress);
+    if (progress.pct >= 100) {
+      return;
+    }
+    await sleep(2000);
+  }
 }
 
 export async function pollBenchJob(jobId: string, cancelled: () => boolean): Promise<BenchJob> {

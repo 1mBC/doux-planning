@@ -200,3 +200,8 @@
 
 - [x] 36.1 Recap vs modèle précédent ; lancer 2 lignes (all + dropdowns catégorie) ; bump web/ to 0.38.0
 - [x] 36.2 Verify npm run build ; recap si 2 refs ; lancer 2 lignes ; dropdown Maximal crafted enqueue ; v0.38.0
+
+## 37. Banc trous + loader + export bank
+
+- [x] 37.1 Compléter les trous ; loader % / eta_max ; export bank ; bump web/ to 0.39.0
+- [x] 37.2 Verify npm run build ; bouton trous ; overlay % + eta ; download bench-bank.json ; v0.39.0

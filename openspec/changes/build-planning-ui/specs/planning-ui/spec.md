@@ -432,3 +432,14 @@ The contrat pill SHALL be labeled **Contrat /10**. Axis titles SHALL be bold. Co
 - **WHEN** an admin opens `/admin/bench`
 - **THEN** Launch has two rows, no per-category row, and opening Maximal then choosing `crafted` enqueues that category
 
+### Requirement: Admin bench gaps loader and bank export
+`/admin/bench` SHALL include **Compléter les trous**, which POSTs `scope=gaps`. Leaving the page SHALL be safe. When a batch is active (`GET /v1/admin/bench/batches/active` on mount, or `batch_id` from a 202 lot / gaps launch), an overlay SHALL show `pct` and remaining `eta_max_seconds` formatted as `~ {duration}`, polling about every 2 seconds until `pct` is 100, then reload `/versions`. **Exporter tout le banc** SHALL GET `scope=bank` and download `bench-bank.json`. Recap, the two launch rows, and the score table stay otherwise unchanged.
+
+#### Scenario: Gaps overlay shows percent and eta
+- **WHEN** an admin clicks Compléter les trous and jobs are queued
+- **THEN** the overlay shows a percent and a max remaining time, and the page stays on `/admin/bench`
+
+#### Scenario: Bank export downloads
+- **WHEN** an admin clicks Exporter tout le banc
+- **THEN** the browser downloads `bench-bank.json`
+
