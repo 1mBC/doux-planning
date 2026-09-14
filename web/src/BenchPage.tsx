@@ -119,6 +119,25 @@ function EngineCell({ cell }: { cell: BenchVersionCell | null }) {
   );
 }
 
+function EngineStack({
+  dataset,
+  engineRef,
+}: {
+  dataset: BenchVersionDataset;
+  engineRef: string;
+}) {
+  return (
+    <div className="bench-engine-stack">
+      {BENCH_EFFORTS.map((effort) => (
+        <div key={effort} className="bench-engine-line">
+          <span className="bench-engine-effort">{effortLabel(effort)}</span>
+          <EngineCell cell={dataset.by_ref[engineRef]?.[effort] ?? null} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function BenchPage() {
   const [versions, setVersions] = useState<BenchVersions | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -392,23 +411,14 @@ export function BenchPage() {
         <table className="admin-table bench-table">
           <thead>
             <tr>
-              <th rowSpan={2}>Catégorie</th>
-              <th rowSpan={2}>Jeu</th>
-              <th rowSpan={2}>Défi</th>
-              <th rowSpan={2}>Lancer</th>
-              <th rowSpan={2}>Manuel</th>
+              <th>Catégorie</th>
+              <th>Jeu</th>
+              <th>Défi</th>
+              <th>Lancer</th>
+              <th>Manuel</th>
               {versions.engine_refs.map((ref) => (
-                <th key={ref} colSpan={3}>
-                  {ref}
-                </th>
+                <th key={ref}>{ref}</th>
               ))}
-            </tr>
-            <tr>
-              {versions.engine_refs.flatMap((ref) =>
-                BENCH_EFFORTS.map((effort) => (
-                  <th key={`${ref}-${effort}`}>{effortLabel(effort)}</th>
-                )),
-              )}
             </tr>
           </thead>
           <tbody>
@@ -447,13 +457,11 @@ export function BenchPage() {
                     {formatCycleNote(dataset.manual?.global)}
                   </button>
                 </td>
-                {versions.engine_refs.flatMap((ref) =>
-                  BENCH_EFFORTS.map((effort) => (
-                    <td key={`${ref}-${effort}`}>
-                      <EngineCell cell={dataset.by_ref[ref]?.[effort] ?? null} />
-                    </td>
-                  )),
-                )}
+                {versions.engine_refs.map((ref) => (
+                  <td key={ref}>
+                    <EngineStack dataset={dataset} engineRef={ref} />
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>

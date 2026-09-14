@@ -369,6 +369,17 @@ Suivre `bench.md` § Loader inline — le suivre, ne pas le modifier.
 
 Version `0.40.0`.
 
+### 41. Banc computes empilés par modèle
+
+Suivre `bench.md` § UI tableau — le suivre, ne pas le modifier.
+
+- En-tête **une** ligne : une colonne par `engine_ref` (plus de `colSpan=3` / 2ᵉ rangée Mini|Opti|Max).
+- Cellule modèle = 3 deltas verticaux (Minimal, Optimisé, Maximal), petit libellé, même ordre que Lancer. Clic = compare de ce `run_id`.
+- Colonne Lancer (par jeu) : `.bench-launch` en colonne + Exporter en dessous.
+- Toolbar globale Lancer inchangée (rangées horizontales). Manuel / recap / loader / gaps / export inchangés.
+
+Version `0.41.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.
