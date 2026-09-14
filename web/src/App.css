@@ -258,8 +258,16 @@ table.plan td.work {
   background: color-mix(in srgb, var(--ink, #c8ccd0) 32%, #fff);
 }
 
+table.plan td.work.h {
+  background: color-mix(in srgb, var(--ink, #c8ccd0) 18%, #fff);
+}
+
 table.plan tr.soir td.work {
   background: color-mix(in srgb, var(--ink, #c8ccd0) 26%, #fff);
+}
+
+table.plan tr.soir td.work.h {
+  background: color-mix(in srgb, var(--ink, #c8ccd0) 14%, #fff);
 }
 
 .warnings {

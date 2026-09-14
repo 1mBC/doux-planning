@@ -129,10 +129,7 @@ function EngineStack({
   return (
     <div className="bench-engine-stack">
       {BENCH_EFFORTS.map((effort) => (
-        <div key={effort} className="bench-engine-line">
-          <span className="bench-engine-effort">{effortLabel(effort)}</span>
-          <EngineCell cell={dataset.by_ref[engineRef]?.[effort] ?? null} />
-        </div>
+        <EngineCell key={effort} cell={dataset.by_ref[engineRef]?.[effort] ?? null} />
       ))}
     </div>
   );

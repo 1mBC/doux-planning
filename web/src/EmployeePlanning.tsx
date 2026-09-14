@@ -141,7 +141,7 @@ function EmployeeSheet({
                       return (["start", "end", "hours"] as const).map((field, fieldIndex) => (
                         <td
                           key={`${person.id}-${service.id}-${day}-${field}`}
-                          className={[fieldIndex === 0 ? "d" : "", worked ? "work" : "rest"].filter(Boolean).join(" ")}
+                          className={[fieldIndex === 0 ? "d" : "", field === "hours" ? "h" : "", worked ? "work" : "rest"].filter(Boolean).join(" ")}
                         >
                           {shift
                             ? field === "start"
