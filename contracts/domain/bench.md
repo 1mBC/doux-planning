@@ -315,16 +315,21 @@ Menu **à plat** : **Historique des computes | Banc**. **Plus** d’entrée Vers
 
 **Un seul tableau** (Banc). Source : `GET /v1/admin/bench/versions` (plus le last-run courant seul).
 
-**Un** Manuel à gauche, puis **une** colonne par `engine_ref`, déclinée en 3 computes (**inverse** de l’ancien : plus de Manuel × 3).
+**Un** Manuel à gauche, puis **une** colonne par `engine_ref`. Les 3 computes sont **empilés** dans la cellule (Minimal, Optimisé, Maximal) — plus de sous-colonnes / 2ᵉ ligne d’en-tête.
 
 ```
-Manuel | {engine_ref}                    | {engine_ref} | …
-         Minimal | Optimisé | Maximal
+Lancer     | Manuel | {engine_ref} | {engine_ref} | …
+  Minimal             Mini
+  Optimisé            Opti
+  Maximal             Max
+  Exporter
 ```
+
+Colonne **Lancer** (par jeu) : les 3 boutons effort **puis** Exporter, **pile verticale** (plus de wrap horizontal des 3 efforts). Même ordre que les deltas dans la cellule modèle.
 
 - **Manuel** : `dataset.manual.global` **une fois**. Clic → compare-chemin `optimized` moteur **courant**.  
-- **Chaque cellule modèle × compute** : **uniquement** le delta vs Manuel (`deltas.global`). **Pas** la note absolue. Tiret si pas de run.  
-- Clic cellule → `/admin/bench/run/{run_id}` (compare de **ce** run).  
+- **Chaque ligne** dans la cellule modèle : **uniquement** le delta vs Manuel, petit libellé d’effort. **Pas** la note absolue. Tiret si pas de run.  
+- Clic delta → `/admin/bench/run/{run_id}` (compare de **ce** run).  
 - Couleur delta (globale) : **0 = vert**. Négatif = crescendo **rouge** (clamp −1). Positif = crescendo **bleu** (clamp +1). Tiret = pas de couleur.
 
 Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu’on lance). Pas de bouton revert.
@@ -381,7 +386,7 @@ Compare : **même** `CycleScoreNotes` des deux côtés, avec `facts` + `stats` +
 
 Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
-**`0.40.0`**, note FR : banc, loader sous Lancer, page lisible.
+**`0.41.0`**, note FR : banc, computes empilés par modèle.
 
 ## Tests
 
