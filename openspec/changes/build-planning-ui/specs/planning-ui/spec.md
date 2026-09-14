@@ -443,3 +443,10 @@ The contrat pill SHALL be labeled **Contrat /10**. Axis titles SHALL be bold. Co
 - **WHEN** an admin clicks Exporter tout le banc
 - **THEN** the browser downloads `bench-bank.json`
 
+### Requirement: Admin bench loader is inline under Launch
+`/admin/bench` SHALL show batch `%` and remaining `eta_max_seconds` (`~ {duration}`) in the Launch section, immediately under the `h2`. The page SHALL NOT use `calc-overlay` or a page-wide blur/veil on `/admin/bench`. Table cells, recap, and export controls SHALL remain usable while a batch is active. Company `/planning` calc overlay SHALL stay unchanged. Polling `GET /v1/admin/bench/batches/active`, `batch_id` watch, and `scope=gaps` stay as in the previous requirement.
+
+#### Scenario: Inline loader without veil
+- **WHEN** an admin has an active bench batch on `/admin/bench`
+- **THEN** percent and max remaining time appear under Launch, the page has no white overlay, and recap / table / export stay clickable
+

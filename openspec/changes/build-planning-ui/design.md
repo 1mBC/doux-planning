@@ -359,6 +359,16 @@ Suivre `bench.md` § Lancer + loader + export — les suivre, ne pas les modifie
 
 Version `0.39.0`.
 
+### 40. Banc loader inline sous Lancer
+
+Suivre `bench.md` § Loader inline — le suivre, ne pas le modifier.
+
+- `%` + temps max restant **dans** Lancer, juste sous le `h2`.
+- Plus de `calc-overlay` / flou sur `/admin/bench`. Tableau, recap, export restent cliquables pendant le batch.
+- Overlay planning resto inchangé. Poll / `batches/active` / gaps inchangés.
+
+Version `0.40.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

@@ -205,3 +205,8 @@
 
 - [x] 37.1 Compléter les trous ; loader % / eta_max ; export bank ; bump web/ to 0.39.0
 - [x] 37.2 Verify npm run build ; bouton trous ; overlay % + eta ; download bench-bank.json ; v0.39.0
+
+## 38. Banc loader inline sous Lancer
+
+- [x] 38.1 Loader % + eta sous le h2 Lancer ; plus de calc-overlay Banc ; tableau / recap / export cliquables ; bump web/ to 0.40.0
+- [x] 38.2 Verify npm run build ; /admin/bench batch actif : barre sous Lancer, pas de voile ; v0.40.0

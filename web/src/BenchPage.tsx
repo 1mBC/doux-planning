@@ -329,19 +329,15 @@ export function BenchPage() {
           {error}
         </p>
       ) : null}
-      {batch ? (
-        <div className="calc-overlay" role="status" aria-live="polite">
-          <p>{`${Math.round(batch.pct)} %`}</p>
-          <p>{`~ ${formatSolveDuration(batch.eta_max_seconds)}`}</p>
-        </div>
-      ) : busy ? (
-        <div className="calc-overlay" role="status" aria-live="polite">
-          <p>Calcul en cours…</p>
-        </div>
-      ) : null}
 
       <section>
         <h2>Lancer</h2>
+        {batch ? (
+          <div className="bench-batch-status" role="status" aria-live="polite">
+            <p>{`${Math.round(batch.pct)} %`}</p>
+            <p>{`~ ${formatSolveDuration(batch.eta_max_seconds)}`}</p>
+          </div>
+        ) : null}
         <div className="bench-toolbar">
           <div className="bench-toolbar-row">
             <span>Toutes les catégories</span>
@@ -386,10 +382,10 @@ export function BenchPage() {
       <section>
         <h2>Derniers runs</h2>
         <div className="bench-toolbar-row">
-          <button type="button" className="choice" disabled={locked} onClick={() => void exportBelowManuel()}>
+          <button type="button" className="choice" disabled={exporting} onClick={() => void exportBelowManuel()}>
             Exporter sous le Manuel
           </button>
-          <button type="button" className="choice" disabled={locked} onClick={() => void exportBank()}>
+          <button type="button" className="choice" disabled={exporting} onClick={() => void exportBank()}>
             Exporter tout le banc
           </button>
         </div>
@@ -437,7 +433,7 @@ export function BenchPage() {
                         })
                       }
                     />
-                    <button type="button" className="choice" disabled={locked} onClick={() => void exportDataset(dataset)}>
+                    <button type="button" className="choice" disabled={exporting} onClick={() => void exportDataset(dataset)}>
                       Exporter ce jeu
                     </button>
                   </div>
