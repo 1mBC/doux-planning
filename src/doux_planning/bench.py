@@ -17,7 +17,8 @@ from doux_planning.context import (
     upsert_employee,
     upsert_service_type,
 )
-from doux_planning.engine import PlanningDraft, Shift, evaluate, generate_cycle
+from doux_planning.engine import PlanningDraft, SearchTrace, Shift, evaluate
+from doux_planning.engines.registry import generate_for, list_engine_refs
 from doux_planning.warnings import ScoreFact
 from doux_planning.hydrate import _employee, _shift, data_dir
 from doux_planning.planning import RestaurantState
@@ -79,6 +80,7 @@ class BenchOutcome:
     expected_score: CycleScore
     deltas: dict[str, float | None]
     engine_ref: str
+    trace: SearchTrace
 
 
 def bench_dir() -> Path:
@@ -137,7 +139,14 @@ def load_bench_dataset(category: str, dataset_id: str) -> BenchDataset:
     )
 
 
-def run_bench(category: str, dataset_id: str, effort: SearchEffort) -> BenchOutcome:
+def _resolve_engine_ref(requested: str | None) -> str:
+    return requested if requested is not None else engine_ref()
+
+
+def run_bench(
+    category: str, dataset_id: str, effort: SearchEffort, engine_ref: str | None = None
+) -> BenchOutcome:
+    requested = _resolve_engine_ref(engine_ref)
     dataset = load_bench_dataset(category, dataset_id)
     state = dataset.state
     published_before = dict(state.published_cycles)
@@ -151,7 +160,7 @@ def run_bench(category: str, dataset_id: str, effort: SearchEffort) -> BenchOutc
         search_effort=effort,
     )
     started = time.perf_counter()
-    result = generate_cycle(draft, effort)
+    result, trace = generate_for(requested, draft, effort)
     duration = time.perf_counter() - started
     if state.published_cycles != published_before:
         raise RuntimeError("run_bench must not write published_cycles")
@@ -171,7 +180,8 @@ def run_bench(category: str, dataset_id: str, effort: SearchEffort) -> BenchOutc
         score=recap.score,
         expected_score=expected_recap.score,
         deltas=_score_deltas(recap.score, expected_recap.score),
-        engine_ref=engine_ref(),
+        engine_ref=requested,
+        trace=trace,
     )
 
 
