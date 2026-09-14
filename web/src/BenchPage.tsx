@@ -4,6 +4,7 @@ import { AdminNav } from "./AdminPage";
 import { go } from "./AuthScreens";
 import {
   BENCH_EFFORTS,
+  benchBankExportFilename,
   benchBelowManuelExportFilename,
   benchDatasetExportFilename,
   buildBenchRecaps,
@@ -11,16 +12,18 @@ import {
   deltaBackground,
   formatDelta,
   formatRecapPercent,
+  loadActiveBenchBatch,
   loadBenchExport,
   loadBenchVersions,
-  pollBenchJob,
+  pollBenchBatch,
   postBenchRun,
+  type BenchBatch,
   type BenchScope,
   type BenchVersionCell,
   type BenchVersionDataset,
   type BenchVersions,
 } from "./bench";
-import { formatCycleNote } from "./format";
+import { formatCycleNote, formatSolveDuration } from "./format";
 import { ApiHttpError } from "./sandbox";
 import type { SearchEffort } from "./generate";
 
@@ -121,15 +124,55 @@ export function BenchPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [batch, setBatch] = useState<BenchBatch | null>(null);
   const cancelled = useRef(false);
+
+  async function refreshVersions() {
+    const next = await loadBenchVersions();
+    if (!cancelled.current) {
+      setVersions(next);
+    }
+  }
+
+  async function watchBatch(batchId: string) {
+    setBusy(true);
+    try {
+      await pollBenchBatch(batchId, () => cancelled.current, (progress) => {
+        if (!cancelled.current) {
+          setBatch(progress);
+        }
+      });
+      if (cancelled.current) {
+        return;
+      }
+      setBatch(null);
+      await refreshVersions();
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === "annulé") {
+        return;
+      }
+      throw err;
+    } finally {
+      if (!cancelled.current) {
+        setBusy(false);
+      }
+    }
+  }
 
   useEffect(() => {
     cancelled.current = false;
     loadBenchVersions()
-      .then((next) => {
-        if (!cancelled.current) {
-          setVersions(next);
+      .then(async (next) => {
+        if (cancelled.current) {
+          return;
         }
+        setVersions(next);
+        const active = await loadActiveBenchBatch();
+        if (cancelled.current || !active || active.pct >= 100) {
+          return;
+        }
+        setBatch(active);
+        await watchBatch(active.batch_id);
       })
       .catch((err: unknown) => {
         if (!cancelled.current) {
@@ -151,20 +194,24 @@ export function BenchPage() {
     return seen;
   }, [versions]);
 
-  async function refreshVersions() {
-    const next = await loadBenchVersions();
-    if (!cancelled.current) {
-      setVersions(next);
-    }
-  }
-
-  async function launch(body: { scope: BenchScope; category?: string; dataset_id?: string; search_effort: SearchEffort }) {
+  async function launch(body: { scope: BenchScope; category?: string; dataset_id?: string; search_effort?: SearchEffort }) {
     setBusy(true);
     setError(null);
     try {
       const result = await postBenchRun(body);
       if (result.kind === "queued") {
-        await Promise.all(result.job_ids.map((id) => pollBenchJob(id, () => cancelled.current)));
+        setBatch({
+          batch_id: result.batch_id,
+          total: result.total,
+          queued: result.total,
+          running: 0,
+          done: 0,
+          failed: 0,
+          pct: 0,
+          eta_max_seconds: 0,
+        });
+        await watchBatch(result.batch_id);
+        return;
       }
       if (cancelled.current) {
         return;
@@ -198,6 +245,26 @@ export function BenchPage() {
         return;
       }
       downloadJsonFile(pack, benchDatasetExportFilename(dataset.category, dataset.id));
+    } catch (err: unknown) {
+      if (!cancelled.current) {
+        setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+      }
+    } finally {
+      if (!cancelled.current) {
+        setExporting(false);
+      }
+    }
+  }
+
+  async function exportBank() {
+    setExporting(true);
+    setError(null);
+    try {
+      const pack = await loadBenchExport({ scope: "bank" });
+      if (cancelled.current) {
+        return;
+      }
+      downloadJsonFile(pack, benchBankExportFilename());
     } catch (err: unknown) {
       if (!cancelled.current) {
         setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
@@ -262,7 +329,12 @@ export function BenchPage() {
           {error}
         </p>
       ) : null}
-      {busy ? (
+      {batch ? (
+        <div className="calc-overlay" role="status" aria-live="polite">
+          <p>{`${Math.round(batch.pct)} %`}</p>
+          <p>{`~ ${formatSolveDuration(batch.eta_max_seconds)}`}</p>
+        </div>
+      ) : busy ? (
         <div className="calc-overlay" role="status" aria-live="polite">
           <p>Calcul en cours…</p>
         </div>
@@ -280,6 +352,11 @@ export function BenchPage() {
             disabled={locked}
             onLaunch={(effort, category) => void launch({ scope: "category", category, search_effort: effort })}
           />
+          <div className="bench-toolbar-row">
+            <button type="button" className="choice" disabled={locked} onClick={() => void launch({ scope: "gaps" })}>
+              Compléter les trous
+            </button>
+          </div>
         </div>
       </section>
 
@@ -311,6 +388,9 @@ export function BenchPage() {
         <div className="bench-toolbar-row">
           <button type="button" className="choice" disabled={locked} onClick={() => void exportBelowManuel()}>
             Exporter sous le Manuel
+          </button>
+          <button type="button" className="choice" disabled={locked} onClick={() => void exportBank()}>
+            Exporter tout le banc
           </button>
         </div>
         <table className="admin-table bench-table">
