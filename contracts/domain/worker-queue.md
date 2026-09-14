@@ -36,9 +36,9 @@ Chaque replica, en boucle :
 4. sinon sleep 1 s.
 
 Resto Maximal **avant** le banc (un tick resto si un `queued` existe).  
-Un process = un solve. N replicas ⇒ N solves concurrents, même `engine_ref`.
+Un process = un solve. N replicas ⇒ N solves concurrents. Job banc porte **`engine_ref`** (moteur vendored ou live) — plus « forcément VERSION ».
 
-Claim : `queued` → `running` + `heartbeat_at = now()`.
+Claim : `queued` → `running` + `heartbeat_at = now()` + **`started_at = now()`**.
 
 ## Heartbeat
 
@@ -58,21 +58,29 @@ Stale → `queued`, `error = null`. **Uniquement** ceux-là.
 
 Reclaim au start **et** à chaque tour de boucle (requête indexée, pas cher).
 
-Alembic : ajouter `heartbeat_at` aux deux tables. Backfill `heartbeat_at = now()` pour les `running` existants (ils ont 180 s de plus, pas un steal immédiat au deploy).
+Alembic **cette file** : `bench_runs.trace` JSONB ; `bench_jobs.engine_ref`, `batch_id`, `started_at` ; unique partiel 4-clés (drop l’ancien 3-clés). `heartbeat_at` **déjà** landed.
 
 ## Dédup banc
 
 Index unique partiel :
 
 ```
-UNIQUE (category, dataset_id, search_effort)
+UNIQUE (category, dataset_id, search_effort, engine_ref)
   WHERE status IN ('queued', 'running')
 ```
 
-`POST /v1/admin/bench/run` : si un job `queued`/`running` existe déjà pour cette clé → **renvoyer son `job_id`**, pas de 2ᵉ ligne.  
-Deux clics « Lancer les 50 Maximal » = **50** jobs, pas 100.
+`engine_ref` **obligatoire** sur chaque `bench_jobs` (défaut VERSION à l’enqueue habituel).  
+Enqueue : si un job `queued`/`running` existe déjà pour cette clé → **renvoyer son `job_id`**, pas de 2ᵉ ligne.  
+`core-2` Maximal et `core-3` Maximal du même jeu : **deux** jobs OK.
 
-`done` / `failed` libèrent la clé : relancer = nouveau job (nouveau run).
+`done` / `failed` libèrent la clé.
+
+## Batch
+
+Colonne `batch_id` (string) sur `bench_jobs`. Un POST async (`all` / `category` / `dataset` Maximal / `gaps`) = **un** `batch_id` partagé.  
+`started_at` timestamptz null tant que `queued`.
+
+Progress / eta : `contracts/domain/bench.md` GET batches.
 
 Generate resto : 409 si `queued`/`running` même company+team — **inchangé**.
 
@@ -92,10 +100,12 @@ Service **web** : ne lance **pas** la boucle worker. Replicas web OK (stateless)
 - `running` + `heartbeat_at` frais → reclaim **0**.
 - `running` + heartbeat trop vieux → reclaim **1**, status `queued`.
 - Start worker + job `running` frais → **pas** requeue.
-- 2× enqueue même `(category, id, effort)` tant que `queued` → **même** `job_id`.
+- 2× enqueue même `(category, id, effort, engine_ref)` tant que `queued` → **même** `job_id`.
+- 2 refs différents → 2 jobs.
+- POST gaps stub → un `batch_id`, jobs = nombre de trous ; GET batch `pct` / `eta_max_seconds`.
 - Generate 409 maximal déjà en cours **inchangé**.
 - Pas d’attente 600 s.
 
 ## Hors freeze
 
-Un worker par SHA (`core-0` / `core-1` sur de nouveaux JSON). Redis. HTTP interne worker. Cuisine banc.
+Redis. HTTP interne worker. Cuisine banc. Un process par SHA git.

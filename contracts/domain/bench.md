@@ -14,7 +14,7 @@ HTTP et rows émettent `engine_ref` **et** `app_version` = **le même string** (
 
 Vieux runs `app_version = "0.27.0"` : à la **lecture** `engine_ref = "core-0"` (même moteur). On n’écrit plus `0.27.0`.
 
-Retour arrière = revert git du land Core, puis relancer. **Pas** de bouton, **pas** de second fill dans le process.
+Live resto (`POST /v1/generate`) = **toujours** `VERSION`. Banc : moteurs **vendored** (`contracts/domain/engines.md`) — on peut relancer `core-0`…`core-2` sans revert.
 
 ## Catalogue (repo)
 
@@ -119,16 +119,18 @@ Planning **manuel**. `evaluate` → **0 interdit**. `crafted` (26, dont les 6 d�
 ## Core
 
 ```
-engine_ref() -> str            # trim VERSION
-list_bench_datasets() -> [ … ]   # ordre : tight, clock, wishes, ladder, crafted, hours, size, overqual, closed, shapes (puis id)
+engine_ref() -> str            # trim VERSION (live)
+list_engine_refs() -> [str]    # core-0 … VERSION, ordre chrono
+list_bench_datasets() -> [ … ]
 load_bench_dataset(category, id) -> BenchDataset
-run_bench(category, id, effort) -> BenchOutcome
+run_bench(category, id, effort, engine_ref: str | None = None) -> BenchOutcome
 UnknownBenchDataset
+UnknownEngineRef
 ```
 
-`run_bench` : copie jetable + `generate_cycle` + **le même recap que le live** ×2 (Modèle + Manuel) + `deltas` (Modèle − Manuel).  
-`BenchOutcome.engine_ref` = `engine_ref()` au moment du run.  
-**Zéro** `published_cycles`. Keep-best / `SEARCH_*` inchangés. Tests generate = **`minimal`**.
+`run_bench` : `engine_ref` omis = `VERSION`. Dispatch `list_engine_refs` → `generate_cycle` figé ou live. Recap ×2 + `deltas` inchangés.  
+`BenchOutcome.engine_ref` = le ref **demandé**. `BenchOutcome.trace` = `SearchTrace` (toujours présent).  
+**Zéro** `published_cycles`. Keep-best / `SEARCH_*` / pipe `core-3` **inchangés**. Tests generate = **`minimal`**.
 
 ### Recap unique
 
@@ -143,9 +145,9 @@ Banc : `run_bench` l’appelle sur le draft généré **et** sur `expected` (`ev
 
 ## HTTP (admin)
 
-Routes run / jobs / datasets **inchangées** (plus `engine_ref` / `app_version` alias sur summaries). `POST all` / `category=crafted` = un job par jeu **listé** (`all` = **50**, `crafted` = **26**).  
-Dédup / heartbeat / N workers : **`contracts/domain/worker-queue.md`**.  
-Persist : colonne existante `bench_runs.app_version` = `outcome.engine_ref`. Alembic **seulement** `heartbeat_at` + unique partiel jobs (`worker-queue.md`).
+Routes run / jobs / datasets **plus** gaps / batch / export `bank`. `POST all` / `category=crafted` = un job par jeu **listé**, `engine_ref` = **VERSION** (lancer habituel = moteur courant).  
+Dédup / heartbeat / batch / N workers : **`contracts/domain/worker-queue.md`**.  
+Persist : `bench_runs.app_version` = `outcome.engine_ref` ; JSONB **`trace`**. Alembic : `trace`, jobs `engine_ref` + `batch_id` + `started_at`, unique partiel élargi.
 
 **Last-run** = le plus récent par `(category, dataset_id, search_effort, engine_ref)`.  
 Export / compare-chemin = last-run du **`engine_ref` courant** (VERSION).  
@@ -177,7 +179,7 @@ Libellés UI : Modèle / Manuel. Clés JSON `model` / `manual`. Plus d’alias p
 
 `GET /v1/admin/bench/runs/{run_id}`
 
-Route **déjà là**. 200 = **même forme que compare** (`employees`, `model`, `manual` + summary `engine_ref` / `app_version`). Plus d’alias plats `assignments` / `facts` au top-level. 404 si id inconnu.
+Route **déjà là**. 200 = **même forme que compare** + **`trace`** (`SearchTrace` ou `null` si vieux run). 404 si id inconnu.
 
 ### GET versions (matrice)
 
@@ -186,7 +188,8 @@ Route **déjà là**. 200 = **même forme que compare** (`employees`, `model`, `
 ```
 {
   engine_ref,                    # VERSION courant
-  engine_refs: ["core-0", …],    # refs qui ont ≥1 run ; 0.27.0 fusionné en core-0 ; ordre = 1re apparition
+  engine_refs: ["core-0", "core-1", "core-2", "core-3"],
+  # = list_engine_refs() (registre) ∪ refs déjà en base ; ordre registre puis extras
   datasets: [
     {
       category, id, name, challenge_fr,
@@ -211,10 +214,11 @@ Ordre `datasets` = `list_bench_datasets`. Clés d’effort toujours les trois, `
 ```
 GET /v1/admin/bench/export?scope=dataset&category=&dataset_id=
 GET /v1/admin/bench/export?scope=below_manuel
+GET /v1/admin/bench/export?scope=bank
 ```
 
 Bearer admin. 403 / 401 / 503 comme le reste.  
-`scope=dataset` sans run → 404. `below_manuel` vide → 200 `{ … datasets: [] }`.
+`scope=dataset` sans run → 404. `below_manuel` vide → 200 `{ … datasets: [] }`. `bank` vide → 200 `{ … datasets: [] }`.
 
 **below_manuel** / export dataset = last-run du **`engine_ref` courant** seulement.  
 `score.global < expected_score.global` (les deux non null). Un jeu entre dans le pack s’il a **au moins un** effort courant sous le Manuel. Pour ces jeux : **tous** les efforts courants qui ont un run. Chaque effort a `below_manuel: bool` + `engine_ref` + `run_id`.
@@ -228,7 +232,7 @@ Bearer admin. 403 / 401 / 503 comme le reste.
   engine_ref,                  # courant
   app_version,                 # = engine_ref
   exported_at,                 # ISO UTC
-  scope: "dataset" | "below_manuel",
+  scope: "dataset" | "below_manuel" | "bank",
   datasets: [
     {
       category, id, name, challenge_fr,
@@ -242,7 +246,8 @@ Bearer admin. 403 / 401 / 503 comme le reste.
           duration_seconds,
           below_manuel,
           model: CycleSlice,
-          deltas
+          deltas,
+          trace                 # SearchTrace ; null si vieux run sans colonne
         }
       ]
     }
@@ -251,7 +256,57 @@ Bearer admin. 403 / 401 / 503 comme le reste.
 ```
 
 Ordre datasets = `list_bench_datasets`. Efforts = minimal → optimized → maximal s’ils existent.  
-Pas d’Alembic (recompute). Keep-best inchangé.
+`scope=bank` : **tous** les last-run de **tous** les `engine_ref` (registre), pas seulement VERSION. Un jeu entre s’il a **au moins un** run. Chaque effort d’un ref = une entrée dans `efforts` (tri ref puis effort). `below_manuel` = vs Manuel de ce run. `trace` inclus.  
+Fichier UI : `bench-bank.json`.
+
+Pas d’Alembic (recompute) pour dataset / below_manuel. `bank` lit `trace` persisté. Keep-best inchangé.
+
+### POST gaps (trous)
+
+`POST /v1/admin/bench/run` `{ "scope": "gaps" }`
+
+202 :
+
+```
+{ batch_id, job_ids, total, status: "queued" }
+```
+
+`total` = nombre de jobs **créés ou réutilisés** (dédup). 0 trou → 200 `{ batch_id, job_ids: [], total: 0, status: "done" }` (pas de worker).
+
+Trou = pour chaque `list_bench_datasets` × `{minimal,optimized,maximal}` × `list_engine_refs` :
+- pas de last-run, **ou**
+- last-run sans `trace` complète (`seeder`, `seed_index`, `n_locks`, `calendars_by_seeder`, `calendars_total`, `seeds_infeasible`, `attempt_key`).
+
+Un job par trou : `(category, dataset_id, search_effort, engine_ref)`. Tous le **même** `batch_id`. File unique, partir = OK.
+
+`POST all` / `category` / `dataset` async : **aussi** un `batch_id` (loader). 202 `{ batch_id, job_ids, total, status: queued }` — `job_ids` **reste**. UI actuelle peut ignorer `batch_id` jusqu’au land UI.
+
+### GET batch / progress
+
+`GET /v1/admin/bench/batches/{batch_id}`  
+`GET /v1/admin/bench/batches/active`  → le batch **incomplet** le plus récent, ou 404
+
+200 :
+
+```
+{
+  batch_id,
+  total,
+  queued, running, done, failed,
+  pct,                 # 100 * (done+failed) / total ; 100 si total=0
+  eta_max_seconds      # entier ≥ 0 ; 0 si plus rien à faire
+}
+```
+
+**Temps max restant** (pessimiste) :
+
+- plafond job = `SEARCH_SECONDS` (3 / 30 / 600) selon `search_effort`
+- `n` = max(1, nombre `running` de ce batch)
+- `running` : `max(0, plafond − (now − started_at))` ; `started_at` null → plafond plein
+- `queued` FIFO `created_at`, round-robin sur `n` workers (charge = restant du running + plafonds suivants)
+- `eta_max_seconds` = max des charges
+
+`pct` / eta **ne font qu’avancer** (recalcul poll). 403 / 401 / 503. Batch inconnu → 404.
 
 ## UI
 
@@ -296,10 +351,17 @@ Premier `engine_ref` : **pas** de bloc (rien à comparer).
 
 Plus une rangée par catégorie.
 
-1. **Global** (inchangé) : « Toutes les catégories » + 3 boutons effort → `scope=all`.  
-2. **Par compute** : 3 contrôles (Minimal / Optimisé / Maximal). Clic → **liste des catégories** (`list` / versions, ordre API). Clic une catégorie → `scope=category` + cet effort. Ouvrir la liste **ne** lance pas.
+1. **Global** (inchangé) : « Toutes les catégories » + 3 boutons effort → `scope=all` (moteur **courant**).  
+2. **Par compute** : 3 contrôles (Minimal / Optimisé / Maximal) → catégories → `scope=category`.  
+3. **Compléter les trous** : `scope=gaps`. Un clic, **une** pile (Minimal + Opti + Maximal × tous les refs). Quitter la page = OK.
 
-Export inchangé.
+Loader (overlay) dès qu’un batch est actif (`GET …/batches/active` au mount + après un lancer lot / gaps) :
+
+- **%** = `pct`  
+- **temps max restant** = `eta_max_seconds` formaté (ex. `~ 12 min`)  
+Poll ~2 s jusqu’à `pct == 100` puis refresh versions. Pas besoin de rester sur la page pour que ça tourne.
+
+Export : **Exporter tout le banc** → `scope=bank` (`bench-bank.json`) en plus des deux exports existants.
 
 Compare chemin existant = last-run courant, inchangé.
 
@@ -319,15 +381,15 @@ Compare : **même** `CycleScoreNotes` des deux côtés, avec `facts` + `stats` +
 
 Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
-**`0.38.0`**, note FR : banc, recap vs modèle précédent + lancer 2 lignes.
+**`0.39.0`**, note FR : banc, pack complet + trous + loader.
 
 ## Tests
 
 HTTP / UI **inchangés** (liste = scan / `list_bench_datasets`).  
 Core catalogue : **50** jeux. Les **30** déjà là loadent **bit-à-bit**. Tous les expected : 0 interdit. Les **26** `crafted` : globale ≥ 9,5. Les 20 nouveaux : aussi 0 `hours_miss`, 0 `below_role`.  
 ≥ 4 des 20 avec `morning` ; ≥ 4 avec 2 `types` le même `service_id` ; ≥ 4 avec un rôle `level >= 6`.  
-`engine_ref() == "core-3"` (après land Core). `run_bench(tight, halles, minimal)` vert. Keep-best inchangé. Catalogue 50 inchangé.
+`engine_ref() == "core-3"`. `list_engine_refs()` contient `core-0`…`core-3`. `run_bench(tight, halles, minimal)` et `run_bench(..., engine_ref="core-2")` verts + `trace`. Keep-best inchangé. Catalogue 50 inchangé.
 
 ## Hors freeze
 
-`weekend-eve` / `eve-first` (moteur). Fills vendored `core-0`/`core-1` sur les nouveaux jeux. Jeux cuisine. CSV/XLSX banc. Archive / sync.
+`weekend-eve` / `eve-first` (moteur). Relance **globale** (écraser les runs complets). Jeux cuisine. CSV/XLSX banc. Archive / sync.
