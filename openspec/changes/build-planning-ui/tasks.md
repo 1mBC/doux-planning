@@ -210,3 +210,8 @@
 
 - [x] 38.1 Loader % + eta sous le h2 Lancer ; plus de calc-overlay Banc ; tableau / recap / export cliquables ; bump web/ to 0.40.0
 - [x] 38.2 Verify npm run build ; /admin/bench batch actif : barre sous Lancer, pas de voile ; v0.40.0
+
+## 39. Banc computes empilés par modèle
+
+- [x] 39.1 Une colonne par engine_ref ; 3 deltas verticaux + libellé ; Lancer jeu en colonne ; bump web/ to 0.41.0
+- [x] 39.2 Verify npm run build ; /admin/bench 1 colonne core-3 / 3 lignes alignées Lancer ; v0.41.0

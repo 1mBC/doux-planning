@@ -450,3 +450,10 @@ The contrat pill SHALL be labeled **Contrat /10**. Axis titles SHALL be bold. Co
 - **WHEN** an admin has an active bench batch on `/admin/bench`
 - **THEN** percent and max remaining time appear under Launch, the page has no white overlay, and recap / table / export stay clickable
 
+### Requirement: Admin bench stacked computes per model
+`/admin/bench` SHALL use a single header row: one column per `engine_refs` value, with no `colSpan` and no second header row of Minimal | Optimisé | Maximal. Each model cell SHALL stack three deltas vertically in that order, each with a small effort label; a click SHALL open `/admin/bench/run/{run_id}`. Per-dataset Launch SHALL be a vertical `.bench-launch` stack (Minimal, Optimisé, Maximal) with Exporter ce jeu below. The global Launch toolbar rows SHALL stay horizontal. Manuel, recap, loader, gaps, export, and launch `locked = busy || exporting` stay unchanged.
+
+#### Scenario: One column per engine_ref with three stacked deltas
+- **WHEN** an admin opens `/admin/bench`
+- **THEN** `core-3` is a single column whose cell shows Minimal, Optimisé, and Maximal deltas stacked, aligned with the row Launch buttons
+
