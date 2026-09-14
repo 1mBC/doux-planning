@@ -600,6 +600,18 @@ table.plan td.empty-slot {
   margin-bottom: 16px;
 }
 
+.bench-batch-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 12px;
+  font-weight: 650;
+}
+
+.bench-batch-status p {
+  margin: 0;
+}
+
 .bench-toolbar-row,
 .bench-launch {
   display: flex;
