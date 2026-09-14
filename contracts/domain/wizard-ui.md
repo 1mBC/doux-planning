@@ -7,6 +7,8 @@ Freeze **UI**. HTTP / moteur inchangés. Persist `types[]` = `contracts/http/v1-
 **Services → Rôles → Équipe → Souhaits bien-être → Services types → Semaine type.**
 
 - **Services** : une fois, tout le resto (petit-déj / déj / dîner). Si la liste est vide, on reste ici.
+
+**Ordre d’affichage** des services **partout** (Services types, semaine type, souhaits, planning) : `morning` → `midday` → `evening` (petit-déj, déj, dîner). **Pas** l’ordre des clics / du tableau `services` persisté. Pas de `continuous` / `chambres` (hors freeze).
 - Rôles / Équipe / Souhaits / Services types / Semaine type : **par équipe** (salle / cuisine), comme aujourd’hui.
 - Souhaits **n’est pas** un cran de `ready` : on peut les laisser vides et continuer.
 - Déblocage : services choisis → rôles ; échelle → équipe ; ≥1 fiche → souhaits **et** types ; types de l’équipe → semaine type.
@@ -92,9 +94,14 @@ Même composant : rôles, types (niveaux), overlay sandbox, ±15.
 
 ## Rôles
 
-`<table>` **Nom** / **Niveau** (stepper) / poubelle. Pas de nouvelle clé persistée.
+`<table>` **Rôle** / **Niveau de compétence** (stepper) / poubelle. Pas de nouvelle clé persistée.  
+Sous-titre : **« Un niveau plus élevé est capable de tenir un poste de niveau inférieur. »** (plus « peut tenir un poste inférieur »).
 
 Supprimer un rôle → **confirm FR** : lister les **fiches** qui ont ce rôle, dire qu’il faudra les revoir / recalculer, **conseiller de renommer** plutôt que supprimer. Si confirmé : retire la ligne (fiches inchangées jusqu’au save).
+
+## Grille planning (company / exemple / salarié)
+
+Cellules **H** (durée du shift, 3ᵉ colonne par jour) : même `--ink` que la personne, **plus pâle** que Début / Fin (`td.work`). Total heures **semaine** à droite : inchangé.
 
 ## Copies à retirer (cette tranche)
 
@@ -110,4 +117,5 @@ Les `invite_token` restent dans l’API / les fiches — **masqués** seulement.
 
 ## Hors freeze
 
-Supprimer un salarié / unlink / panneau compte (**annulé**). Archive / sync.
+Supprimer un salarié / unlink / panneau compte (**annulé**). Archive / sync.  
+`continuous` / chambres (moteur pas prêt).
