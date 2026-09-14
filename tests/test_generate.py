@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm.attributes import flag_modified
 
 from doux_planning.api.app import app
@@ -453,6 +454,7 @@ def test_generate_maximal_job_tick_stub_and_auth(capsys):
     from doux_planning.api.worker import tick_generate_job
 
     client = _client()
+    _clear_active_generate_jobs()
     registered = client.post(
         "/v1/auth/register",
         json={"kind": "company", "email": f"job-{secrets.token_hex(4)}@example.com", "password": "password1"},
@@ -691,6 +693,7 @@ def test_worker_requeues_stale_running_and_logs_progress(capsys, monkeypatch):
     from doux_planning.api.worker import reclaim_stale_running_jobs, tick_generate_job
 
     client = _client()
+    _clear_active_generate_jobs()
     registered = client.post(
         "/v1/auth/register",
         json={"kind": "company", "email": f"stale-{secrets.token_hex(4)}@example.com", "password": "password1"},
@@ -747,14 +750,23 @@ def test_worker_requeues_stale_running_and_logs_progress(capsys, monkeypatch):
     assert "generate end" in progress
 
 
-def _insert_generate_job(restaurant_id: str, *, status: str, heartbeat_at, job_id: str | None = None) -> str:
+def _clear_active_generate_jobs() -> None:
+    with session_scope() as session:
+        for job in session.scalars(select(GenerateJob).where(GenerateJob.status.in_(("queued", "running")))):
+            job.status = "failed"
+            job.error = "test cleanup"
+
+
+def _insert_generate_job(
+    restaurant_id: str, *, status: str, heartbeat_at, job_id: str | None = None, team: str = "salle"
+) -> str:
     job_id = job_id or f"hb-{secrets.token_hex(4)}"
     with session_scope() as session:
         session.add(
             GenerateJob(
                 id=job_id,
                 restaurant_id=restaurant_id,
-                team="salle",
+                team=team,
                 search_effort="maximal",
                 status=status,
                 estimated_seconds=600,
@@ -780,6 +792,9 @@ def _insert_bench_job(*, status: str, heartbeat_at=None, effort: str = "maximal"
                 run_id=None,
                 created_at=datetime.now(timezone.utc),
                 heartbeat_at=heartbeat_at,
+                engine_ref="core-3",
+                batch_id=None,
+                started_at=None,
             )
         )
     return job_id
@@ -802,6 +817,11 @@ def test_worker_queue_reclaim_stale_only_and_parallel_ticks():
     )
     assert registered.status_code == 201
     restaurant_id = registered.json()["me"]["restaurant_id"]
+    _clear_active_generate_jobs()
+    with session_scope() as session:
+        for job in session.scalars(select(BenchJob).where(BenchJob.status.in_(("queued", "running")))):
+            job.status = "failed"
+            job.error = "test cleanup"
     fresh_id = _insert_generate_job(
         restaurant_id,
         status="running",
@@ -812,11 +832,13 @@ def test_worker_queue_reclaim_stale_only_and_parallel_ticks():
         fresh = session.get(GenerateJob, fresh_id)
         assert fresh is not None
         assert fresh.status == "running"
+        fresh.status = "done"
 
     stale_id = _insert_generate_job(
         restaurant_id,
         status="running",
         heartbeat_at=datetime.now(timezone.utc) - timedelta(seconds=181),
+        team="cuisine",
     )
     assert reclaim_stale_running_jobs() == 1
     with session_scope() as session:
@@ -842,6 +864,7 @@ def test_worker_queue_reclaim_stale_only_and_parallel_ticks():
     assert reclaim_stale_bench_jobs() == 1
     with session_scope() as session:
         assert session.get(BenchJob, old_bench).status == "queued"
+        session.get(BenchJob, old_bench).status = "failed"
 
     first = _insert_bench_job(status="queued")
     second = _insert_bench_job(status="queued")

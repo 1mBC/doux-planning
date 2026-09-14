@@ -102,6 +102,8 @@ def _reclaim_table(model, event: str) -> int:
         for job in jobs:
             job.status = "queued"
             job.error = None
+            if hasattr(job, "started_at"):
+                job.started_at = None
             n += 1
             extra = {"job_id": job.id, "reason": "stale_running", "worker": _worker_id()}
             if hasattr(job, "team"):
@@ -213,17 +215,21 @@ def tick_bench_job(*, run_bench_fn: GenerateFn | None = None) -> str | None:
         ).first()
         if job is None:
             return None
+        now = _now()
         job.status = "running"
-        job.heartbeat_at = _now()
+        job.heartbeat_at = now
+        job.started_at = now
         job_id = job.id
         category = job.category
         dataset_id = job.dataset_id
         effort = job.search_effort
+        requested_ref = job.engine_ref
     iso_log(
         "bench job taken",
         job_id=job_id,
         category=category,
         dataset_id=dataset_id,
+        engine_ref=requested_ref,
         worker=_worker_id(),
     )
     started = time.perf_counter()
@@ -231,7 +237,7 @@ def tick_bench_job(*, run_bench_fn: GenerateFn | None = None) -> str | None:
     beat = threading.Thread(target=_bench_heartbeat, args=(stop, started, job_id), daemon=True)
     beat.start()
     try:
-        outcome = run_fn(category, dataset_id, SearchEffort(effort))
+        outcome = run_fn(category, dataset_id, SearchEffort(effort), engine_ref=requested_ref)
         row = persist_bench_outcome(outcome)
     except UnknownBenchDataset:
         iso_log(

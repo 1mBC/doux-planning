@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import secrets
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -22,21 +23,32 @@ from doux_planning.bench import (
     bench_dir,
     engine_ref,
     list_bench_datasets,
+    list_engine_refs,
     load_bench_dataset,
     run_bench,
 )
 from doux_planning.context import cycle_recap_from_draft, expand_typical_week
-from doux_planning.engine import PlanningDraft, evaluate
+from doux_planning.engine import SEARCH_SECONDS, PlanningDraft, evaluate
 from doux_planning.staff import default_legal_rules
 from doux_planning.types import SearchEffort, Team
 
 SCOPES = ("all", "category", "dataset")
-EXPORT_SCOPES = ("dataset", "below_manuel")
+EXPORT_SCOPES = ("dataset", "below_manuel", "bank")
 EFFORTS = ("minimal", "optimized", "maximal")
 SYNC_EFFORTS = ("minimal", "optimized")
+TRACE_KEYS = (
+    "seeder",
+    "seed_index",
+    "n_locks",
+    "calendars_by_seeder",
+    "calendars_total",
+    "seeds_infeasible",
+    "attempt_key",
+)
 DETAIL_BENCH_MISSING = "Jeu introuvable."
 DETAIL_BENCH_RUN_MISSING = "Aucun run pour ce jeu."
 DETAIL_BENCH_JOB_MISSING = "Calcul introuvable."
+DETAIL_BENCH_BATCH_MISSING = "Calcul introuvable."
 DETAIL_BENCH_FAILED = "Le calcul a échoué."
 LEGACY_ENGINE_REF = "0.27.0"
 CANONICAL_CORE_ZERO = "core-0"
@@ -84,6 +96,7 @@ def persist_bench_outcome(outcome: BenchOutcome) -> BenchRun:
         deltas=dict(outcome.deltas),
         assignments=[_shift_json(shift) for shift in outcome.assignments],
         warnings=[_fact_json(item) for item in outcome.facts],
+        trace=asdict(outcome.trace) if outcome.trace is not None else None,
     )
     with session_scope() as db:
         db.add(row)
@@ -95,22 +108,42 @@ def persist_bench_outcome(outcome: BenchOutcome) -> BenchRun:
         return stored
 
 
-def _active_bench_job(db, category: str, dataset_id: str, effort: str) -> BenchJob | None:
+def _trace_json(row: BenchRun) -> dict[str, Any] | None:
+    trace = row.trace
+    if not isinstance(trace, dict):
+        return None
+    return dict(trace)
+
+
+def _trace_complete(trace: Any) -> bool:
+    return isinstance(trace, dict) and all(key in trace for key in TRACE_KEYS)
+
+
+def _active_bench_job(db, category: str, dataset_id: str, effort: str, engine_ref_value: str) -> BenchJob | None:
     return db.scalars(
         select(BenchJob).where(
             BenchJob.category == category,
             BenchJob.dataset_id == dataset_id,
             BenchJob.search_effort == effort,
+            BenchJob.engine_ref == engine_ref_value,
             BenchJob.status.in_(("queued", "running")),
         )
     ).first()
 
 
-def _enqueue_bench_job(category: str, dataset_id: str, effort: str) -> str:
+def _enqueue_bench_job(
+    category: str,
+    dataset_id: str,
+    effort: str,
+    engine_ref_value: str,
+    batch_id: str,
+) -> str:
     try:
         with session_scope() as db:
-            existing = _active_bench_job(db, category, dataset_id, effort)
+            existing = _active_bench_job(db, category, dataset_id, effort, engine_ref_value)
             if existing is not None:
+                existing.batch_id = batch_id
+                db.flush()
                 return existing.id
             job_id = secrets.token_urlsafe(12)
             db.add(
@@ -119,20 +152,25 @@ def _enqueue_bench_job(category: str, dataset_id: str, effort: str) -> str:
                     category=category,
                     dataset_id=dataset_id,
                     search_effort=effort,
+                    engine_ref=engine_ref_value,
                     status="queued",
                     error=None,
                     run_id=None,
+                    batch_id=batch_id,
                     created_at=datetime.now(timezone.utc),
                     heartbeat_at=None,
+                    started_at=None,
                 )
             )
             db.flush()
             return job_id
     except IntegrityError:
         with session_scope() as db:
-            existing = _active_bench_job(db, category, dataset_id, effort)
+            existing = _active_bench_job(db, category, dataset_id, effort, engine_ref_value)
             if existing is None:
                 raise
+            existing.batch_id = batch_id
+            db.flush()
             return existing.id
 
 
@@ -259,7 +297,7 @@ def get_run(authorization: str | None, run_id: str) -> dict[str, Any]:
         row = db.get(BenchRun, run_id)
         if row is None:
             raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
-        return _compare_body(row)
+        return _compare_body(row) | {"trace": _trace_json(row)}
 
 
 def get_job(authorization: str | None, job_id: str) -> dict[str, Any]:
@@ -349,11 +387,15 @@ def list_versions(authorization: str | None) -> dict[str, Any]:
     require_admin(authorization)
     newest = _runs_newest()
     oldest = list(reversed(newest))
-    engine_refs: list[str] = []
+    registre = list(list_engine_refs())
+    extras: list[str] = []
+    seen = set(registre)
     for row in oldest:
         ref = _display_engine_ref(row.app_version)
-        if ref and ref not in engine_refs:
-            engine_refs.append(ref)
+        if ref and ref not in seen:
+            extras.append(ref)
+            seen.add(ref)
+    engine_refs = registre + extras
     latest: dict[tuple[str, str, str, str], BenchRun] = {}
     first_run: dict[tuple[str, str], BenchRun] = {}
     for row in newest:
@@ -422,8 +464,56 @@ def _dataset_pack_entry(listing: BenchListing, latest: dict[str, BenchRun]) -> d
                 "below_manuel": _below_manuel(row),
                 "model": _cycle_slice(dataset, row.assignments),
                 "deltas": dict(row.deltas),
+                "trace": _trace_json(row),
             }
         )
+    return {
+        "category": listing.category,
+        "id": listing.id,
+        "name": listing.name,
+        "challenge_fr": listing.challenge_fr,
+        "context": _context_json(listing.category, listing.id),
+        "manual": _cycle_slice(dataset, dataset.expected),
+        "efforts": efforts,
+    }
+
+
+def _latest_runs_by_quad() -> dict[tuple[str, str, str, str], BenchRun]:
+    latest: dict[tuple[str, str, str, str], BenchRun] = {}
+    for row in _runs_newest():
+        key = (
+            row.category,
+            row.dataset_id,
+            _display_engine_ref(row.app_version),
+            row.search_effort,
+        )
+        latest.setdefault(key, row)
+    return latest
+
+
+def _bank_pack_entry(listing: BenchListing, latest: dict[tuple[str, str, str, str], BenchRun]) -> dict[str, Any] | None:
+    rows: list[tuple[str, str, BenchRun]] = []
+    for ref in list_engine_refs():
+        for effort in EFFORTS:
+            row = latest.get((listing.category, listing.id, ref, effort))
+            if row is not None:
+                rows.append((ref, effort, row))
+    if not rows:
+        return None
+    dataset = load_bench_dataset(listing.category, listing.id)
+    efforts = [
+        {
+            "search_effort": effort,
+            "run_id": row.id,
+            "engine_ref": ref,
+            "duration_seconds": row.duration_seconds,
+            "below_manuel": _below_manuel(row),
+            "model": _cycle_slice(dataset, row.assignments),
+            "deltas": dict(row.deltas),
+            "trace": _trace_json(row),
+        }
+        for ref, effort, row in rows
+    ]
     return {
         "category": listing.category,
         "id": listing.id,
@@ -447,26 +537,33 @@ def export_pack(
     if scope not in EXPORT_SCOPES:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
     listed = {(item.category, item.id): item for item in list_bench_datasets()}
-    grouped = _latest_current_runs_map()
     datasets: list[dict[str, Any]] = []
-    if scope == "dataset":
-        if not isinstance(category, str) or not category or not isinstance(dataset_id, str) or not dataset_id:
-            raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
-        listing = listed.get((category, dataset_id))
-        if listing is None:
-            raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING)
-        latest = grouped.get((category, dataset_id)) or {}
-        if not latest:
-            raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
-        datasets.append(_dataset_pack_entry(listing, latest))
-    else:
+    if scope == "bank":
+        latest = _latest_runs_by_quad()
         for item in list_bench_datasets():
-            latest = grouped.get((item.category, item.id)) or {}
+            entry = _bank_pack_entry(item, latest)
+            if entry is not None:
+                datasets.append(entry)
+    else:
+        grouped = _latest_current_runs_map()
+        if scope == "dataset":
+            if not isinstance(category, str) or not category or not isinstance(dataset_id, str) or not dataset_id:
+                raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+            listing = listed.get((category, dataset_id))
+            if listing is None:
+                raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING)
+            latest = grouped.get((category, dataset_id)) or {}
             if not latest:
-                continue
-            if not any(_below_manuel(row) for row in latest.values()):
-                continue
-            datasets.append(_dataset_pack_entry(item, latest))
+                raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
+            datasets.append(_dataset_pack_entry(listing, latest))
+        else:
+            for item in list_bench_datasets():
+                latest = grouped.get((item.category, item.id)) or {}
+                if not latest:
+                    continue
+                if not any(_below_manuel(row) for row in latest.values()):
+                    continue
+                datasets.append(_dataset_pack_entry(item, latest))
     ref = engine_ref()
     return {
         "export_version": 1,
@@ -479,14 +576,53 @@ def export_pack(
     }
 
 
+def _gap_targets() -> list[tuple[str, str, str, str]]:
+    latest = _latest_runs_by_quad()
+    holes: list[tuple[str, str, str, str]] = []
+    for item in list_bench_datasets():
+        for effort in EFFORTS:
+            for ref in list_engine_refs():
+                row = latest.get((item.category, item.id, ref, effort))
+                if row is None or not _trace_complete(row.trace):
+                    holes.append((item.category, item.id, effort, ref))
+    return holes
+
+
+def _queued_response(batch_id: str, job_ids: list[str]) -> JSONResponse:
+    return JSONResponse(
+        status_code=202,
+        content={
+            "batch_id": batch_id,
+            "job_ids": job_ids,
+            "total": len(job_ids),
+            "status": "queued",
+        },
+    )
+
+
 def post_run(authorization: str | None, body: dict[str, Any]) -> dict[str, Any] | JSONResponse:
     require_admin(authorization)
     require_database()
+    if isinstance(body, dict) and body.get("scope") == "gaps":
+        batch_id = secrets.token_urlsafe(12)
+        targets = _gap_targets()
+        if not targets:
+            return {"batch_id": batch_id, "job_ids": [], "total": 0, "status": "done"}
+        job_ids = [
+            _enqueue_bench_job(category, dataset_id, effort, ref, batch_id)
+            for category, dataset_id, effort, ref in targets
+        ]
+        return _queued_response(batch_id, job_ids)
     scope, effort, targets = _parse_run_body(body)
     async_run = scope in ("all", "category") or effort == "maximal"
     if async_run:
-        job_ids = [_enqueue_bench_job(category, dataset_id, effort) for category, dataset_id in targets]
-        return JSONResponse(status_code=202, content={"job_ids": job_ids, "status": "queued"})
+        batch_id = secrets.token_urlsafe(12)
+        current = engine_ref()
+        job_ids = [
+            _enqueue_bench_job(category, dataset_id, effort, current, batch_id)
+            for category, dataset_id in targets
+        ]
+        return _queued_response(batch_id, job_ids)
     category, dataset_id = targets[0]
     try:
         outcome = run_bench(category, dataset_id, SearchEffort(effort))
@@ -494,3 +630,83 @@ def post_run(authorization: str | None, body: dict[str, Any]) -> dict[str, Any] 
         raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING) from exc
     row = persist_bench_outcome(outcome)
     return {"runs": [_run_summary(row)]}
+
+
+def _effort_cap(effort: str) -> float:
+    return float(SEARCH_SECONDS[SearchEffort(effort)])
+
+
+def _remaining_running(job: BenchJob, now: datetime) -> float:
+    cap = _effort_cap(job.search_effort)
+    if job.started_at is None:
+        return cap
+    started = job.started_at
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    return max(0.0, cap - (now - started).total_seconds())
+
+
+def _eta_max_seconds(jobs: list[BenchJob], now: datetime) -> int:
+    running = [job for job in jobs if job.status == "running"]
+    queued = sorted(
+        (job for job in jobs if job.status == "queued"),
+        key=lambda job: job.created_at,
+    )
+    if not running and not queued:
+        return 0
+    n = max(1, len(running))
+    loads = [0.0] * n
+    for index, job in enumerate(running):
+        loads[index] = _remaining_running(job, now)
+    for index, job in enumerate(queued):
+        loads[index % n] += _effort_cap(job.search_effort)
+    return int(max(loads))
+
+
+def _batch_body(batch_id: str, jobs: list[BenchJob], now: datetime) -> dict[str, Any]:
+    total = len(jobs)
+    queued = sum(1 for job in jobs if job.status == "queued")
+    running = sum(1 for job in jobs if job.status == "running")
+    done = sum(1 for job in jobs if job.status == "done")
+    failed = sum(1 for job in jobs if job.status == "failed")
+    pct = 100.0 if total == 0 else 100.0 * (done + failed) / total
+    return {
+        "batch_id": batch_id,
+        "total": total,
+        "queued": queued,
+        "running": running,
+        "done": done,
+        "failed": failed,
+        "pct": pct,
+        "eta_max_seconds": _eta_max_seconds(jobs, now),
+    }
+
+
+def get_batch(authorization: str | None, batch_id: str) -> dict[str, Any]:
+    require_admin(authorization)
+    with session_scope() as db:
+        jobs = list(db.scalars(select(BenchJob).where(BenchJob.batch_id == batch_id)))
+    if not jobs:
+        raise HTTPException(status_code=404, detail=DETAIL_BENCH_BATCH_MISSING)
+    return _batch_body(batch_id, jobs, datetime.now(timezone.utc))
+
+
+def get_active_batch(authorization: str | None) -> dict[str, Any]:
+    require_admin(authorization)
+    with session_scope() as db:
+        jobs = list(db.scalars(select(BenchJob).where(BenchJob.batch_id.is_not(None))))
+    grouped: dict[str, list[BenchJob]] = {}
+    for job in jobs:
+        assert job.batch_id is not None
+        grouped.setdefault(job.batch_id, []).append(job)
+    incomplete: list[tuple[datetime, str, list[BenchJob]]] = []
+    for batch_id, group in grouped.items():
+        finished = sum(1 for job in group if job.status in ("done", "failed"))
+        if finished < len(group):
+            newest = max(job.created_at for job in group)
+            incomplete.append((newest, batch_id, group))
+    if not incomplete:
+        raise HTTPException(status_code=404, detail=DETAIL_BENCH_BATCH_MISSING)
+    incomplete.sort(key=lambda item: item[0], reverse=True)
+    _, batch_id, group = incomplete[0]
+    return _batch_body(batch_id, group, datetime.now(timezone.utc))

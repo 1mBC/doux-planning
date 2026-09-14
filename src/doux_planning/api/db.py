@@ -137,11 +137,14 @@ class BenchJob(Base):
     category: Mapped[str] = mapped_column(String, nullable=False)
     dataset_id: Mapped[str] = mapped_column(String, nullable=False)
     search_effort: Mapped[str] = mapped_column(String, nullable=False)
+    engine_ref: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
     error: Mapped[str | None] = mapped_column(String, nullable=True)
     run_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    batch_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class BenchRun(Base):
@@ -159,6 +162,7 @@ class BenchRun(Base):
     deltas: Mapped[dict] = mapped_column(JSONB, nullable=False)
     assignments: Mapped[list] = mapped_column(JSONB, nullable=False)
     warnings: Mapped[list] = mapped_column(JSONB, nullable=False)
+    trace: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class EmployeeAccountRow(Base):
