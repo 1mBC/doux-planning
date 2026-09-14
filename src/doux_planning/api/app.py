@@ -202,6 +202,20 @@ def admin_bench_export(
     return export_pack(authorization, scope=scope, category=category, dataset_id=dataset_id)
 
 
+@app.get("/v1/admin/bench/batches/active")
+def admin_bench_batch_active(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import get_active_batch
+
+    return get_active_batch(authorization)
+
+
+@app.get("/v1/admin/bench/batches/{batch_id}")
+def admin_bench_batch(batch_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import get_batch
+
+    return get_batch(authorization, batch_id)
+
+
 @app.post("/v1/generate")
 def post_generate(
     body: dict[str, Any], authorization: str | None = Header(default=None)
