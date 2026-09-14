@@ -13,7 +13,14 @@ from sqlalchemy import func, select
 from doux_planning.api.app import app
 from doux_planning.api.auth import DETAIL_ADMIN, promote_admin_email
 from doux_planning.api.db import BenchRun, GenerateLog, reset_engine, session_scope
-from doux_planning.bench import BenchOutcome, engine_ref, list_bench_datasets, load_bench_dataset, run_bench
+from doux_planning.bench import (
+    BenchOutcome,
+    engine_ref,
+    list_bench_datasets,
+    list_engine_refs,
+    load_bench_dataset,
+    run_bench,
+)
 from doux_planning.context import (
     SCORE_WEIGHTS,
     CycleScore,
@@ -23,7 +30,8 @@ from doux_planning.context import (
     team_ready,
     upsert_employee,
 )
-from doux_planning.engine import PlanningDraft, _below_role_count, _hours_miss, evaluate
+from doux_planning.engine import PlanningDraft, SearchTrace, _below_role_count, _hours_miss, evaluate
+from doux_planning.engines.registry import UnknownEngineRef
 from doux_planning.staff import default_legal_rules
 from doux_planning.types import SearchEffort, Team, WEEKDAYS, WarningSeverity
 from tests.fixtures import employee
@@ -113,6 +121,22 @@ def _stub_run_bench(category, dataset_id, effort):
         expected_score=score,
         deltas={"couverture": 0.0, "legal": 0.0, "contrat": 0.0, "wellbeing": None, "roles": 0.0, "global": 0.0},
         engine_ref=engine_ref(),
+        trace=SearchTrace(
+            seeder="empty",
+            seed_index=0,
+            n_locks=0,
+            calendars_by_seeder={"empty": 0},
+            calendars_total=0,
+            seeds_infeasible=0,
+            attempt_key={
+                "empty": 0,
+                "interdit": 0,
+                "hours_miss": 0.0,
+                "souhait": 0,
+                "below_role": 0,
+                "overqual": 0,
+            },
+        ),
     )
 
 
@@ -493,10 +517,66 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
         for fact in (*outcome.facts, *outcome.expected_facts)
     )
     assert outcome.engine_ref == "core-3"
-
-
-def test_engine_ref_is_core_three():
+    _assert_complete_trace(outcome.trace, frozen=False)
     assert engine_ref() == "core-3"
+
+
+def test_list_engine_refs_is_core_zero_through_three():
+    assert list_engine_refs() == ("core-0", "core-1", "core-2", "core-3")
+
+
+def _assert_complete_trace(trace: SearchTrace, *, frozen: bool) -> None:
+    assert isinstance(trace, SearchTrace)
+    assert trace.seeder
+    assert isinstance(trace.seed_index, int)
+    assert isinstance(trace.n_locks, int) and trace.n_locks >= 0
+    assert isinstance(trace.calendars_by_seeder, dict)
+    assert trace.calendars_total == sum(trace.calendars_by_seeder.values())
+    assert isinstance(trace.seeds_infeasible, int) and trace.seeds_infeasible >= 0
+    assert set(trace.attempt_key) == {
+        "empty",
+        "interdit",
+        "hours_miss",
+        "souhait",
+        "below_role",
+        "overqual",
+    }
+    if frozen:
+        assert trace.seeder == "empty"
+        assert trace.seed_index == 0
+        assert trace.n_locks == 0
+        assert set(trace.calendars_by_seeder) == {"empty"}
+        assert trace.seeds_infeasible == 0
+
+
+@pytest.mark.parametrize("ref", ["core-0", "core-1", "core-2", "core-3"])
+def test_run_bench_halles_minimal_trace_for_each_engine_ref(ref):
+    outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref=ref)
+    assert outcome.engine_ref == ref
+    assert outcome.score is not None
+    _assert_complete_trace(outcome.trace, frozen=ref != "core-3")
+    assert all(
+        fact.severity is not WarningSeverity.INTERDIT
+        for fact in outcome.expected_facts
+        if fact.polarity == "miss"
+    )
+
+
+def test_core_two_does_not_call_live_seeders(monkeypatch):
+    from doux_planning import engine as live
+
+    calls: list[object] = []
+    monkeypatch.setattr(live, "_build_seed", lambda *args, **kwargs: calls.append(True) or ())
+    outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref="core-2")
+    assert calls == []
+    assert outcome.engine_ref == "core-2"
+    assert outcome.trace.seeder == "empty"
+    assert outcome.trace.n_locks == 0
+
+
+def test_unknown_engine_ref_raises():
+    with pytest.raises(UnknownEngineRef):
+        run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref="core-9")
 
 
 def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():

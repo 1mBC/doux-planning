@@ -1,0 +1,55 @@
+from __future__ import annotations
+
+from doux_planning.engine import EngineResult, PlanningDraft, SearchTrace, _attempt_key, generate_cycle
+from doux_planning.engines import core_0, core_1, core_2
+from doux_planning.types import SearchEffort
+
+ENGINE_REFS = ("core-0", "core-1", "core-2", "core-3")
+_FROZEN = {
+    "core-0": core_0,
+    "core-1": core_1,
+    "core-2": core_2,
+}
+
+
+class UnknownEngineRef(KeyError):
+    def __init__(self, engine_ref: str) -> None:
+        self.engine_ref = engine_ref
+        super().__init__(engine_ref)
+
+
+def list_engine_refs() -> tuple[str, ...]:
+    return ENGINE_REFS
+
+
+def generate_for(
+    engine_ref: str, draft: PlanningDraft, search: SearchEffort | None = None
+) -> tuple[EngineResult, SearchTrace]:
+    if engine_ref not in ENGINE_REFS:
+        raise UnknownEngineRef(engine_ref)
+    if engine_ref == "core-3":
+        result = generate_cycle(draft, search)
+        assert result.trace is not None
+        return result, result.trace
+    module = _FROZEN[engine_ref]
+    result = module.generate_cycle(draft, search)
+    filled = int(module.SEARCH_PROGRESS.get("calendars", 0))
+    key = _attempt_key(draft, result)
+    empty, interdit, hours_miss, souhait, below_role, overqual = key
+    trace = SearchTrace(
+        seeder="empty",
+        seed_index=0,
+        n_locks=0,
+        calendars_by_seeder={"empty": filled},
+        calendars_total=filled,
+        seeds_infeasible=0,
+        attempt_key={
+            "empty": empty,
+            "interdit": interdit,
+            "hours_miss": hours_miss,
+            "souhait": souhait,
+            "below_role": below_role,
+            "overqual": overqual,
+        },
+    )
+    return result, trace

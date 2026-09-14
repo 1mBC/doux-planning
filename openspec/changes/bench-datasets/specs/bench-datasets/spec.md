@@ -28,7 +28,7 @@ The system SHALL scan `data/bench/{category}/{id}/` and list each dataset that h
 - **THEN** that dataset is absent from `list_bench_datasets`
 
 ### Requirement: Isolated bench run scores generated vs oracle
-The system SHALL implement `run_bench(category, id, effort)` that loads a disposable copy, expands the typical week into a salle draft, calls `generate_cycle` with that effort, and computes `cycle_score` on the generated result and on the oracle assignments (same draft). `deltas[axe]` MUST be `note_generated − note_expected`, or `null` if either note is `null`, including `global`. The outcome MUST include `category`, `id`, `search_effort`, `duration_seconds`, `assignments`, `warnings`, `score`, `expected_score`, and `deltas`. `run_bench` MUST NOT write `published_cycles` on any live `RestaurantState`. Keep-best (`_attempt_key`, `SEARCH_*`, `generate_cycle`) MUST stay unchanged. Tests MUST use `minimal` only.
+The system SHALL implement `run_bench(category, id, effort, engine_ref=None)` that loads a disposable copy, expands the typical week into a salle draft, calls `generate_for` with that effort and ref (omitted ref = `VERSION`), and computes recap scores on the generated result and on the oracle assignments (same draft). `deltas[axe]` MUST be `note_generated − note_expected`, or `null` if either note is `null`, including `global`. The outcome MUST include `category`, `id`, `search_effort`, `duration_seconds`, `assignments`, `warnings`, `score`, `expected_score`, `deltas`, `engine_ref`, and `trace`. `run_bench` MUST NOT write `published_cycles` on any live `RestaurantState`. Keep-best (`_attempt_key`, `SEARCH_*`, seeds) MUST stay unchanged. Tests MUST use `minimal` only.
 
 #### Scenario: Expected assignments have no interdit
 - **WHEN** each listed dataset’s expected assignments is evaluated
@@ -44,7 +44,15 @@ The system SHALL implement `run_bench(category, id, effort)` that loads a dispos
 
 #### Scenario: Tight halles minimal run
 - **WHEN** `run_bench("tight", "halles", minimal)` completes
-- **THEN** the outcome has `score`, `expected_score`, and `deltas`
+- **THEN** the outcome has `score`, `expected_score`, `deltas`, and a complete `trace`
+
+#### Scenario: Replay a vendored engine
+- **WHEN** `run_bench("tight", "halles", minimal, engine_ref="core-2")` completes
+- **THEN** `outcome.engine_ref` is `core-2`, `trace.seeder` is `empty`, and `trace.n_locks` is 0
+
+#### Scenario: Unknown engine ref
+- **WHEN** `generate_for` is called with a ref not in `list_engine_refs`
+- **THEN** it raises `UnknownEngineRef`
 
 #### Scenario: Live restaurant unchanged
 - **WHEN** `run_bench` is called while a live `RestaurantState` holds fiches
