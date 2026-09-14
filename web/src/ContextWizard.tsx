@@ -544,12 +544,12 @@ function RolesStep({
   return (
     <section>
       <h2>Rôles</h2>
-      <p className="sub">Un niveau plus élevé peut tenir un poste inférieur.</p>
+      <p className="sub">Un niveau plus élevé est capable de tenir un poste de niveau inférieur.</p>
       <table className="roles-sheet">
         <thead>
           <tr>
-            <th>Nom</th>
-            <th>Niveau</th>
+            <th>Rôle</th>
+            <th>Niveau de compétence</th>
             <th />
           </tr>
         </thead>
@@ -567,7 +567,7 @@ function RolesStep({
               </td>
               <td>
                 <Stepper
-                  label="Niveau"
+                  label="Niveau de compétence"
                   value={row.level}
                   min={1}
                   onChange={(level) =>

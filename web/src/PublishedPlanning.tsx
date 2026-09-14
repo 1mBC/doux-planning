@@ -189,6 +189,7 @@ export function PublishedSheet({
                           key={`${person.id}-${service.id}-${day}-${field}`}
                           className={[
                             fieldIndex === 0 ? "d" : "",
+                            field === "hours" ? "h" : "",
                             worked ? "work" : "rest",
                             worked && onOccupiedClick ? "slot" : "",
                             !worked && onEmptyClick ? "empty-slot" : "",
