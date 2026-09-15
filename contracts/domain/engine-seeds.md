@@ -1,5 +1,7 @@
 # Moteur `core-3` — seeds → SAT → fill
 
+**Figé.** Live = `contracts/domain/engine-core-4.md`.
+
 Freeze **Core**. Keep-best **inchangé** : `_attempt_key` = `(empty, interdit, hours_miss, souhait, below_role, overqual)`.  
 `weekend-eve` / `eve-first` **reportés** (pas cette file).
 
