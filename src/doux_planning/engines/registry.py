@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from doux_planning.engine import EngineResult, PlanningDraft, SearchTrace, _attempt_key, generate_cycle
-from doux_planning.engines import core_0, core_1, core_2
+from doux_planning.engines import core_0, core_1, core_2, core_3
 from doux_planning.types import SearchEffort
 
-ENGINE_REFS = ("core-0", "core-1", "core-2", "core-3")
+ENGINE_REFS = ("core-0", "core-1", "core-2", "core-3", "core-4")
 _FROZEN = {
     "core-0": core_0,
     "core-1": core_1,
     "core-2": core_2,
+    "core-3": core_3,
 }
 
 
@@ -27,7 +28,7 @@ def generate_for(
 ) -> tuple[EngineResult, SearchTrace]:
     if engine_ref not in ENGINE_REFS:
         raise UnknownEngineRef(engine_ref)
-    if engine_ref == "core-3":
+    if engine_ref == "core-4":
         result = generate_cycle(draft, search)
         assert result.trace is not None
         return result, result.trace

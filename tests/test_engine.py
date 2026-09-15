@@ -565,6 +565,37 @@ def test_prefer_not_creating_a_coupure():
     assert assigned.end_minutes - assigned.start_minutes >= 4 * 60
 
 
+def test_core_4_places_only_candidate_even_with_coupure():
+    """core-4: when no alternative exists, place even if it creates a coupure."""
+    only_choice = employee("Only", "commis", hours=39, employee_id="only")
+    evening = ServiceStructure(
+        id="eve-test",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(18 * 60, (1,)),),
+        departures=(DepartureWave(22 * 60, ()),),
+    )
+    draft = _draft(employees=(only_choice,), extra_structures=(evening,))
+    midday_shift = _shift("only", 0, 10 * 60, 14 * 60, 1)
+    picked = _pick_for_post(
+        draft,
+        [midday_shift],
+        employee_pool=[only_choice],
+        window_level=1,
+        day_index=0,
+        weekday="monday",
+        service_id=ServiceName.EVENING.value,
+        team=Team.CUISINE,
+        start_minutes=18 * 60,
+        end_minutes=22 * 60,
+        off_days={"only": set()},
+    )
+    assert picked is not None, "only candidate must be placed even with coupure"
+    chosen, _ = picked
+    assert chosen.id == "only"
+
+
 def test_seed_tight_threshold_is_three():
     assert SEED_TIGHT_THRESHOLD == 3
 
