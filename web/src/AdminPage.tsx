@@ -49,7 +49,7 @@ function AdminChrome({ children }: { children?: ReactNode }) {
   );
 }
 
-export type AdminNavCurrent = "history" | "bench";
+export type AdminNavCurrent = "history" | "bench" | "bench-stats";
 
 export function AdminNav({ current }: { current: AdminNavCurrent }) {
   return (
@@ -69,6 +69,14 @@ export function AdminNav({ current }: { current: AdminNavCurrent }) {
         onClick={() => go("/admin/bench")}
       >
         Banc
+      </button>
+      <button
+        type="button"
+        className={current === "bench-stats" ? "choice active" : "choice"}
+        disabled={current === "bench-stats"}
+        onClick={() => go("/admin/bench/stats")}
+      >
+        Stats banc
       </button>
     </nav>
   );
