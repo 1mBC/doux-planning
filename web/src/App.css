@@ -765,9 +765,12 @@ table.plan td.empty-slot {
   font-size: 12px;
 }
 
-.bench-delta-cell {
-  text-align: center;
-  font-weight: 650;
+.bench-delta-cell-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
 }
 
 .bench-engine-stack {
@@ -806,15 +809,13 @@ table.plan td.empty-slot {
   color: #888;
 }
 
-.bench-delta-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.bench-delta-value {
+.bench-delta-bubble {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
   font-weight: 650;
+  text-align: center;
+  min-width: 2rem;
 }
 
 .bench-indicator {

@@ -149,12 +149,13 @@ function EngineCell({
   return (
     <button
       type="button"
-      className="bench-cell bench-delta-cell"
+      className="bench-cell bench-delta-cell-wrap"
       title={`${label} (×10)`}
-      style={{ backgroundColor: deltaBackground(delta) }}
       onClick={() => go(`/admin/bench/run/${encodeURIComponent(cell.run_id)}`)}
     >
-      <span className="bench-delta-value">{label}</span>
+      <span className="bench-delta-bubble" style={{ backgroundColor: deltaBackground(delta) }}>
+        {label}
+      </span>
       {!isFirst && <DeltaIndicator current={cell.global} previous={prevCell?.global ?? null} />}
     </button>
   );
