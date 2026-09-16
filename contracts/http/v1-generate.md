@@ -37,7 +37,7 @@ Omis → `optimized` (200). `TeamNotReady` → 409. Effort / team invalide → 4
   "published": {
     "salle": {
       "versions": {
-        "minimal": { assignments, facts, stats, legal_*, wish_*, score, generated_at, search_effort, duration_seconds },
+        "minimal": { assignments, facts, stats, legal_*, wish_*, score, generated_at, search_effort, duration_seconds, engine_ref },
         "optimized": null,
         "maximal": null
       },
@@ -63,7 +63,8 @@ Même `published` (deux équipes, versions). Jamais généré : `{ "published": 
 ## Persist
 
 JSONB `published_cycles` : 3 slots + `latest`. Coerce ancien plat → `versions.optimized`.  
-Generate écrit **un** slot + `generated_at` + `search_effort` + `duration_seconds` + `latest`.  
+Generate écrit **un** slot + `generated_at` + `search_effort` + `duration_seconds` + `engine_ref` + `latest`.  
+`engine_ref` = le moteur **réellement** lancé (`live_engine_ref` admin, `admin.md`) — **pas** dans le body POST (le client ne choisit pas).  
 Worker logs stdout : `generate-versions.md`. `generate_logs` : `admin.md`.
 
 ## UI

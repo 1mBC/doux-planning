@@ -1,11 +1,11 @@
 # Moteur `core-3` — seeds → SAT → fill
 
-**Figé.** Live = `contracts/domain/engine-core-4.md`.
+**Figé.** Live = `contracts/domain/engine-core-5.md`. Pipe inchangé pour `core-4` / `core-5` / `core-6`.
 
 Freeze **Core**. Keep-best **inchangé** : `_attempt_key` = `(empty, interdit, hours_miss, souhait, below_role, overqual)`.  
 `weekend-eve` / `eve-first` **reportés** (pas cette file).
 
-`engine_ref` = `trim(data/bench/VERSION)` → **`core-3`**.
+`engine_ref` = **`core-3`** (plus `VERSION`).
 
 ## Pipe
 
@@ -70,11 +70,11 @@ Round-robin : on ne vide pas le budget sur le seed 1. Keep-best sur **tous** les
 
 ## Tests
 
-- `engine_ref() == "core-3"`.
+- `generate_for("core-3", …)` : pipe seeds, anti-coupure toujours.
 - `minimal` : aucun lock, 16 calendriers max, `_already_on_day` ne favorise plus.
 - Un lock pose `work=1` ; fill ne le déplace pas.
 - Seed infeasible → ignoré, les autres continuent.
-- `run_bench(tight, halles, minimal)` vert. Catalogue 50 **inchangé**.
+- `run_bench(tight, halles, minimal, engine_ref="core-3")` vert. Catalogue 50 **inchangé**.
 - Keep-best / `_attempt_key` **bit-à-bit** la même clé.
 
 ## Hors freeze

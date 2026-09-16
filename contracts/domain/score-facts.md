@@ -36,7 +36,7 @@ Cycle {
   legal_cols, legal_rows,
   wish_cols, wish_rows,
   score,                 # notes + weights + global — plus de resumes
-  generated_at, search_effort, duration_seconds
+  generated_at, search_effort, duration_seconds, engine_ref
 }
 ```
 
