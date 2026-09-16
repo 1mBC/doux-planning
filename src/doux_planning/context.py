@@ -19,6 +19,7 @@ from doux_planning.engine import (
     evaluate,
     generate_cycle,
 )
+from doux_planning.engines.registry import UnknownEngineRef, generate_for
 from doux_planning.hydrate import _employee, _hours, _shift, _structure, data_dir
 from doux_planning.invites import RestaurantIdentity, UnknownEmployee
 from doux_planning.planning import CONTRACT_HOUR_TOLERANCE, PublishedCycle, RestaurantState, Sandbox
@@ -453,6 +454,7 @@ def generate_team(
     state: RestaurantState,
     team: Team,
     search: SearchEffort = SearchEffort.OPTIMIZED,
+    engine_ref: str | None = None,
 ) -> RestaurantState:
     if not team_ready(state, team):
         raise TeamNotReady(team)
@@ -465,7 +467,10 @@ def generate_team(
         legal_rules=default_legal_rules(),
         search_effort=search,
     )
-    result = generate_cycle(draft, search)
+    if engine_ref is not None:
+        result, _trace = generate_for(engine_ref, draft, search)
+    else:
+        result = generate_cycle(draft, search)
     published = PublishedCycle(
         id=team.value,
         draft=draft.with_assignments(result.assignments),
