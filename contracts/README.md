@@ -64,7 +64,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 51 — bulle delta sans boîte commune | `domain/bench.md` ; brief `ui-delta-layout.md` | **landed** `8fa5ab6` |
 | 52 — core-5 + core-6 | `domain/engine-core-5.md`, `engine-core-6.md`, `engines.md` ; brief `core-5-6.md` | **landed** `7b1e2c7` |
 | 53 — moteur client admin | `domain/admin.md`, `generate-versions.md`, `http/v1-generate.md` ; brief `infra-live-engine.md` | **landed** `d24f706` |
-| 54 — sélecteur + horodatage modèle | `domain/admin.md`, `generate-versions.md` ; brief `ui-live-engine.md` | freeze (après Infra) |
+| 54 — sélecteur + horodatage modèle | `domain/admin.md`, `generate-versions.md` ; brief `ui-live-engine.md` | **landed** `3aaa3f2` (UI v0.46.0) |
 
 ## Ownership git (ne pas croiser)
 
