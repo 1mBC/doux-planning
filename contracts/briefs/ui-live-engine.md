@@ -1,8 +1,8 @@
 # Brief — coller dans le chat **UI**
 
-Le tech lead : **sélecteur moteur client** + **modèle sur la ligne d’horodatage**. **Attends le land Infra** (`master has live-engine landed`). Relis **`contracts/domain/admin.md`** section UI (gagne) + `generate-versions.md` (ligne date · core).
+Le tech lead : **sélecteur moteur client** + **modèle sur la ligne d’horodatage**. File 53 close (`master has live-engine landed` @ `d24f706`). Relis **`contracts/domain/admin.md`** section UI (gagne) + `generate-versions.md` (ligne date · core).
 
-`git fetch origin` ; si `origin/<branche Infra>` ≠ SHA du signal → **stop**.  
+`git fetch origin` ; si `origin/cursor/live-engine-api-d0df` ≠ `d24f706` → **stop**.  
 `git pull origin master` ; branche **depuis `master`**. **Ne merge pas** Python. API uvicorn `master`, proxy `/v1` inchangé.
 
 `/opsx-update build-planning-ui`. Pas d’archive / sync.
