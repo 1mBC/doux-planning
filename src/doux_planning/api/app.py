@@ -132,6 +132,22 @@ def admin_generates(authorization: str | None = Header(default=None)) -> dict:
     return list_generate_logs(authorization)
 
 
+@app.get("/v1/admin/live-engine")
+def admin_get_live_engine(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.generate import get_live_engine
+
+    return get_live_engine(authorization)
+
+
+@app.put("/v1/admin/live-engine")
+def admin_put_live_engine(
+    body: dict[str, Any], authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.generate import put_live_engine
+
+    return put_live_engine(authorization, body)
+
+
 @app.get("/v1/admin/bench/datasets")
 def admin_bench_datasets(authorization: str | None = Header(default=None)) -> dict:
     from doux_planning.api.bench import list_datasets

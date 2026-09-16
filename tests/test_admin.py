@@ -322,3 +322,156 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
     example = client.get("/v1/examples/saint-cloud")
     assert example.status_code == 200
     assert example.json()["planning"]["stats"]["assignments"] == 92
+
+
+def _clear_live_engine() -> None:
+    from doux_planning.api.db import LiveEngine
+
+    with session_scope() as db:
+        for row in db.scalars(select(LiveEngine)):
+            db.delete(row)
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_admin_live_engine_get_put_and_generate(monkeypatch):
+    from doux_planning.bench import engine_ref as bench_version
+
+    client = _client()
+    password = "password1"
+    email = f"live-engine-{secrets.token_hex(4)}@example.com"
+
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": email, "password": password},
+    )
+    assert registered.status_code == 201
+    token = registered.json()["token"]
+    headers = _bearer(token)
+
+    monkeypatch.setenv("ADMIN_EMAIL", email)
+    promote_admin_email()
+    assert client.get("/v1/me", headers=headers).json()["admin"] is True
+
+    _clear_live_engine()
+    _clear_generate_logs()
+
+    version = bench_version()
+    assert version == "core-5"
+
+    unset = client.get("/v1/admin/live-engine", headers=headers)
+    assert unset.status_code == 200
+    assert unset.json()["engine_ref"] == "core-5"
+    assert unset.json()["engine_refs"] == ["core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6"]
+    assert len(unset.json()["engine_refs"]) == 7
+
+    put_6 = client.put("/v1/admin/live-engine", headers=headers, json={"engine_ref": "core-6"})
+    assert put_6.status_code == 200
+    assert put_6.json()["engine_ref"] == "core-6"
+    assert put_6.json()["engine_refs"] == ["core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6"]
+
+    get_6 = client.get("/v1/admin/live-engine", headers=headers)
+    assert get_6.status_code == 200
+    assert get_6.json()["engine_ref"] == "core-6"
+
+    put_9 = client.put("/v1/admin/live-engine", headers=headers, json={"engine_ref": "core-9"})
+    assert put_9.status_code == 400
+    assert put_9.json()["detail"] == "Moteur inconnu."
+
+    put_empty = client.put("/v1/admin/live-engine", headers=headers, json={"engine_ref": ""})
+    assert put_empty.status_code == 400
+    assert put_empty.json()["detail"] == "Moteur inconnu."
+
+    put_wrong_type = client.put("/v1/admin/live-engine", headers=headers, json={"engine_ref": 123})
+    assert put_wrong_type.status_code == 400
+    assert put_wrong_type.json()["detail"] == "Moteur inconnu."
+
+    other = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"user-{secrets.token_hex(4)}@example.com", "password": password},
+    )
+    assert other.status_code == 201
+    other_headers = _bearer(other.json()["token"])
+    forbidden_get = client.get("/v1/admin/live-engine", headers=other_headers)
+    assert forbidden_get.status_code == 403
+    assert forbidden_get.json()["detail"] == DETAIL_ADMIN
+    forbidden_put = client.put("/v1/admin/live-engine", headers=other_headers, json={"engine_ref": "core-2"})
+    assert forbidden_put.status_code == 403
+    assert forbidden_put.json()["detail"] == DETAIL_ADMIN
+
+    put_2 = client.put("/v1/admin/live-engine", headers=headers, json={"engine_ref": "core-2"})
+    assert put_2.status_code == 200
+    assert put_2.json()["engine_ref"] == "core-2"
+
+    fiche_id = f"live-eng-{secrets.token_hex(4)}"
+    patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id, "Chez LiveEngine"))
+    assert patched.status_code == 200
+    company_code = patched.json()["company_code"]
+
+    generated = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "minimal"},
+    )
+    assert generated.status_code == 200
+    slot = generated.json()["published"]["salle"]["versions"]["minimal"]
+    assert slot["engine_ref"] == "core-2"
+    assert slot["search_effort"] == "minimal"
+
+    cycles = client.get("/v1/cycles", headers=headers)
+    assert cycles.status_code == 200
+    cycle_slot = cycles.json()["published"]["salle"]["versions"]["minimal"]
+    assert cycle_slot["engine_ref"] == "core-2"
+
+    logs = client.get("/v1/admin/generates", headers=headers)
+    assert logs.status_code == 200
+    assert len(logs.json()["entries"]) >= 1
+    latest_log = logs.json()["entries"][0]
+    assert latest_log["engine_ref"] == "core-2"
+    assert latest_log["restaurant_name"] == "Chez LiveEngine"
+
+    old_id = f"legacy-eng-{secrets.token_hex(4)}"
+    with session_scope() as db:
+        db.add(
+            GenerateLog(
+                id=old_id,
+                created_at=datetime.now(timezone.utc) - timedelta(days=1),
+                email="legacy@example.com",
+                restaurant_name="Legacy",
+                team="salle",
+                search_effort="minimal",
+                duration_seconds=1.5,
+                engine_ref=None,
+                warnings=[],
+            )
+        )
+    with_legacy = client.get("/v1/admin/generates", headers=headers)
+    legacy_entry = next(item for item in with_legacy.json()["entries"] if item["id"] == old_id)
+    assert legacy_entry["engine_ref"] is None
+
+    employee = client.post(
+        "/v1/auth/register",
+        json={
+            "kind": "employee",
+            "email": f"emp-{secrets.token_hex(4)}@example.com",
+            "password": password,
+            "company_code": company_code,
+            "employee_id": fiche_id,
+        },
+    )
+    assert employee.status_code == 201
+    emp_headers = _bearer(employee.json()["token"])
+    forbidden_emp_get = client.get("/v1/admin/live-engine", headers=emp_headers)
+    assert forbidden_emp_get.status_code == 403
+    assert forbidden_emp_get.json()["detail"] == DETAIL_ADMIN
+    forbidden_emp_put = client.put("/v1/admin/live-engine", headers=emp_headers, json={"engine_ref": "core-3"})
+    assert forbidden_emp_put.status_code == 403
+    assert forbidden_emp_put.json()["detail"] == DETAIL_ADMIN
+
+    no_bearer_get = client.get("/v1/admin/live-engine")
+    assert no_bearer_get.status_code == 401
+    no_bearer_put = client.put("/v1/admin/live-engine", json={"engine_ref": "core-3"})
+    assert no_bearer_put.status_code == 401
+
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92

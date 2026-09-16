@@ -103,6 +103,13 @@ class RestaurateurAccount(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
+class LiveEngine(Base):
+    __tablename__ = "live_engine"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    engine_ref: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 class GenerateLog(Base):
     __tablename__ = "generate_logs"
 
@@ -113,6 +120,7 @@ class GenerateLog(Base):
     team: Mapped[str] = mapped_column(String, nullable=False)
     search_effort: Mapped[str | None] = mapped_column(String, nullable=True)
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    engine_ref: Mapped[str | None] = mapped_column(String, nullable=True)
     warnings: Mapped[list] = mapped_column(JSONB, nullable=False)
 
 
