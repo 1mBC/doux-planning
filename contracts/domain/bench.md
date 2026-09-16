@@ -330,12 +330,12 @@ Colonne **Lancer** (par jeu) : les 3 boutons effort **puis** Exporter, **pile ve
 
 - **Manuel** : `dataset.manual.global` **une fois**. Clic → compare-chemin `optimized` moteur **courant**.  
 - **Chaque ligne** dans la cellule modèle : delta vs Manuel **en base ×10 entière** (`round(delta_manuel × 10)`, signe `+` / `−`, zéro → `0`). **Pas** de libellé Mini / Opti / Max (l’ordre = Lancer). **Pas** la note absolue. Tiret si pas de run.  
-- **À droite** de ce chiffre (plus petit, centré verticalement) : delta vs le **modèle précédent** de `engine_refs` (même jeu, même effort), **aussi ×10 entière**. Premier `engine_ref` : **pas** d’indicateur. Pas de run précédent : **pas** d’indicateur.  
-  - `> 0` : flèche **haut bleue** + le petit chiffre. Hauteur de flèche et intensité du bleu = crescendo avec `|d|` (échelle **note /10**, clamp **1** — même cap que le fond de cellule).  
+- **À droite** de **cette bulle** (pas dedans) : delta vs le **modèle précédent** de `engine_refs` (même jeu, même effort), **aussi ×10 entière**. Premier `engine_ref` : **pas** d’indicateur. Pas de run précédent : **pas** d’indicateur. Fond de l’indicateur = fond de page (contraste avec la bulle).  
+  - `> 0` : flèche **haut bleue** + le petit chiffre. Hauteur de flèche et intensité du bleu = crescendo avec `|d|` (échelle **note /10**, clamp **1** — même cap que le fond de la bulle).  
   - `= 0` : **liseret horizontal vert** (pas de chiffre).  
   - `< 0` : flèche **bas rouge** + le petit chiffre. Même crescendo (clamp 1).  
-- Clic delta → `/admin/bench/run/{run_id}` (compare de **ce** run). Clic = toute la cellule (chiffre Manuel + indicateur).  
-- Fond de cellule : **toujours** le delta vs Manuel en note /10 (pas le ×10). **0 = vert**. Négatif = crescendo **rouge** (clamp −1). Positif = crescendo **bleu** (clamp +1). Tiret = pas de couleur.
+- Clic delta → `/admin/bench/run/{run_id}` (compare de **ce** run). Clic = toute la rangée (bulle + indicateur).  
+- **Bulle** = le chiffre vs Manuel seulement. Fond = delta vs Manuel en note /10 (pas le ×10). **0 = vert**. Négatif = crescendo **rouge** (clamp −1). Positif = crescendo **bleu** (clamp +1). Tiret = pas de bulle. **Pas** de fond coloré sur toute la cellule ni sur l’indicateur.
 
 Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu’on lance). Pas de bouton revert.
 
@@ -395,7 +395,7 @@ Compare : **même** `CycleScoreNotes` des deux côtés, avec `facts` + `stats` +
 
 Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
-**`0.43.0`**, note FR : stats banc en courbes, deltas ×10 et flèche vs le modèle d’avant.
+**`0.44.0`**, note FR : flèche hors de la bulle delta.
 
 ## Tests
 
