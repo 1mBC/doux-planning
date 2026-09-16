@@ -3,9 +3,12 @@ import {
   effortLabel,
   groupEntriesByParisDay,
   loadAdminGenerates,
+  loadLiveEngine,
   parisClock,
+  putLiveEngine,
   teamLabel,
   type AdminGenerateEntry,
+  type LiveEngine,
 } from "./admin";
 import { formatSolveDuration, warningWhen } from "./format";
 import { factSeverityLabel, factTitle, formatFactLine } from "./scoreFacts";
@@ -87,27 +90,90 @@ export function AdminDenied() {
     <main className="page">
       <h1>Admin</h1>
       <p className="error" role="alert">
-        Action réservée à l’admin.
+        Action réservée à l'admin.
       </p>
     </main>
   );
 }
 
+function EngineSelector({
+  liveEngine,
+  onUpdate,
+  disabled,
+}: {
+  liveEngine: LiveEngine;
+  onUpdate: (next: LiveEngine) => void;
+  disabled: boolean;
+}) {
+  async function handleChange(event: React.ChangeEvent<HTMLSelectElement>) {
+    const next = event.target.value;
+    if (next === liveEngine.engine_ref) {
+      return;
+    }
+    try {
+      const updated = await putLiveEngine(next);
+      onUpdate(updated);
+    } catch {
+      event.target.value = liveEngine.engine_ref;
+    }
+  }
+
+  return (
+    <section className="admin-engine-section">
+      <h2>Moteur du planning client</h2>
+      <p className="sub">
+        C'est ce modèle qui tourne quand un restaurateur calcule son planning. Le banc n'est pas affecté.
+      </p>
+      <select
+        className="admin-engine-select"
+        value={liveEngine.engine_ref}
+        onChange={(e) => void handleChange(e)}
+        disabled={disabled}
+      >
+        {liveEngine.engine_refs.map((ref) => (
+          <option key={ref} value={ref}>
+            {ref}
+          </option>
+        ))}
+      </select>
+    </section>
+  );
+}
+
 export function AdminPage() {
   const [entries, setEntries] = useState<AdminGenerateEntry[] | null>(null);
+  const [liveEngine, setLiveEngine] = useState<LiveEngine | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [engineError, setEngineError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    loadAdminGenerates()
-      .then((next) => {
-        if (!cancelled) {
-          setEntries(next.entries);
+    Promise.all([loadAdminGenerates(), loadLiveEngine()])
+      .then(([generates, engine]) => {
+        if (cancelled) {
+          return;
         }
+        setEntries(generates.entries);
+        setLiveEngine(engine);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+          if (err instanceof ApiHttpError && err.status === 403) {
+            setEngineError(err.detail);
+            loadAdminGenerates()
+              .then((generates) => {
+                if (!cancelled) {
+                  setEntries(generates.entries);
+                }
+              })
+              .catch((genErr: unknown) => {
+                if (!cancelled) {
+                  setError(genErr instanceof ApiHttpError ? genErr.detail : genErr instanceof Error ? genErr.message : "erreur inattendue");
+                }
+              });
+          } else {
+            setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+          }
         }
       });
     return () => {
@@ -133,56 +199,64 @@ export function AdminPage() {
       </main>
     );
   }
-  if (entries.length === 0) {
-    return (
-      <main className="page">
-        <AdminChrome />
-        <p className="sub">Aucun generate pour l’instant.</p>
-      </main>
-    );
-  }
 
   return (
     <main className="page admin-page">
       <AdminChrome>
-        <p className="sub">Generates réussis, plus récent d’abord.</p>
+        <p className="sub">Generates réussis, plus récent d'abord.</p>
       </AdminChrome>
-      {groupEntriesByParisDay(entries).map((group) => (
-        <section key={group.key}>
-          <h2>{group.label}</h2>
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Heure</th>
-                <th>Email</th>
-                <th>Restaurant</th>
-                <th>Équipe</th>
-                <th>Effort</th>
-                <th>Durée</th>
-                <th>Warnings</th>
-              </tr>
-            </thead>
-            <tbody>
-              {group.entries.map((entry) => (
-                <tr key={entry.id}>
-                  <td>{parisClock(entry.created_at)}</td>
-                  <td>{entry.email}</td>
-                  <td>{entry.restaurant_name || "—"}</td>
-                  <td>{teamLabel(entry.team)}</td>
-                  <td>{effortLabel(entry.search_effort)}</td>
-                  <td>{formatSolveDuration(entry.duration_seconds)}</td>
-                  <td>
-                    <span className="admin-pill">{entry.facts.length}</span>
-                    <div className="admin-tip" role="tooltip">
-                      <FactTip entry={entry} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+      {liveEngine ? (
+        <EngineSelector liveEngine={liveEngine} onUpdate={setLiveEngine} disabled={false} />
+      ) : engineError ? (
+        <section className="admin-engine-section">
+          <h2>Moteur du planning client</h2>
+          <p className="error" role="alert">{engineError}</p>
         </section>
-      ))}
+      ) : null}
+
+      {entries.length === 0 ? (
+        <p className="sub">Aucun generate pour l'instant.</p>
+      ) : (
+        groupEntriesByParisDay(entries).map((group) => (
+          <section key={group.key}>
+            <h2>{group.label}</h2>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Heure</th>
+                  <th>Email</th>
+                  <th>Restaurant</th>
+                  <th>Équipe</th>
+                  <th>Effort</th>
+                  <th>Durée</th>
+                  <th>Moteur</th>
+                  <th>Warnings</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.entries.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>{parisClock(entry.created_at)}</td>
+                    <td>{entry.email}</td>
+                    <td>{entry.restaurant_name || "—"}</td>
+                    <td>{teamLabel(entry.team)}</td>
+                    <td>{effortLabel(entry.search_effort)}</td>
+                    <td>{formatSolveDuration(entry.duration_seconds)}</td>
+                    <td>{entry.engine_ref || "—"}</td>
+                    <td>
+                      <span className="admin-pill">{entry.facts.length}</span>
+                      <div className="admin-tip" role="tooltip">
+                        <FactTip entry={entry} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        ))
+      )}
     </main>
   );
 }

@@ -61,6 +61,7 @@ export type PublishedCycle = {
   generated_at?: string;
   search_effort?: SearchEffort;
   duration_seconds?: number;
+  engine_ref?: string;
 };
 
 export type TeamVersions = {
@@ -227,6 +228,12 @@ function parseCycle(value: unknown, path: string): PublishedCycle | null {
       throw new PayloadError(`clé invalide : ${path}.duration_seconds`);
     }
     cycle.duration_seconds = value.duration_seconds;
+  }
+  if ("engine_ref" in value && value.engine_ref !== undefined && value.engine_ref !== null) {
+    if (typeof value.engine_ref !== "string") {
+      throw new PayloadError(`clé invalide : ${path}.engine_ref`);
+    }
+    cycle.engine_ref = value.engine_ref;
   }
   return cycle;
 }

@@ -13,6 +13,7 @@ export type AdminGenerateEntry = {
   team: AdminTeam;
   search_effort: SearchEffort | null;
   duration_seconds: number | null;
+  engine_ref: string | null;
   facts: ScoreFact[];
 };
 
@@ -53,6 +54,16 @@ function parseOptionalDuration(value: unknown, path: string): number | null {
   return value;
 }
 
+function parseOptionalString(value: unknown, path: string): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new PayloadError(`clé invalide : ${path}`);
+  }
+  return value;
+}
+
 function parseEntry(value: unknown, path: string): AdminGenerateEntry {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
@@ -68,6 +79,7 @@ function parseEntry(value: unknown, path: string): AdminGenerateEntry {
     team: parseTeam(value.team, `${path}.team`),
     search_effort: parseOptionalEffort(value.search_effort, `${path}.search_effort`),
     duration_seconds: parseOptionalDuration(value.duration_seconds, `${path}.duration_seconds`),
+    engine_ref: parseOptionalString(value.engine_ref, `${path}.engine_ref`),
     facts: parseFactsPrefer(value, path),
   };
 }
@@ -146,4 +158,42 @@ export function effortLabel(effort: SearchEffort | null): string {
     return "Maximal";
   }
   return "—";
+}
+
+export type LiveEngine = {
+  engine_ref: string;
+  engine_refs: string[];
+};
+
+function parseLiveEngine(value: unknown): LiveEngine {
+  if (!isRecord(value)) {
+    throw new PayloadError("réponse live-engine invalide");
+  }
+  return {
+    engine_ref: requireString(value, "engine_ref", "live-engine"),
+    engine_refs: requireArray(value, "engine_refs", "live-engine").map((item, i) => {
+      if (typeof item !== "string" || !item) {
+        throw new PayloadError(`clé invalide : live-engine.engine_refs[${i}]`);
+      }
+      return item;
+    }),
+  };
+}
+
+export async function loadLiveEngine(): Promise<LiveEngine> {
+  return parseLiveEngine(await sendAuth("/v1/admin/live-engine", { method: "GET" }, true));
+}
+
+export async function putLiveEngine(engineRef: string): Promise<LiveEngine> {
+  return parseLiveEngine(
+    await sendAuth(
+      "/v1/admin/live-engine",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ engine_ref: engineRef }),
+      },
+      true,
+    ),
+  );
 }

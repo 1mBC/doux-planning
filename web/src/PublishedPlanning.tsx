@@ -572,7 +572,16 @@ export function PublishedPlanning() {
           ) : null}
         </div>
       </div>
-      <p className="generated-at">{cycle ? formatGeneratedAt(cycle.generated_at) : "—"}</p>
+      <p className="generated-at">
+        {cycle ? (
+          <>
+            {formatGeneratedAt(cycle.generated_at)}
+            {cycle.engine_ref ? ` · ${cycle.engine_ref}` : null}
+          </>
+        ) : (
+          "—"
+        )}
+      </p>
       <p className="generated-duration">{cycle ? formatSolveDuration(cycle.duration_seconds) : "—"}</p>
 
       {calculating ? (
