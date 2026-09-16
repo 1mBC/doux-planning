@@ -956,12 +956,66 @@ def _staffing_needs(
     return needs
 
 
+def _is_rare(
+    draft: PlanningDraft,
+    assignments: list[Shift],
+    employee: Employee,
+    employee_pool: list[Employee],
+    off_days: dict[str, set[int]],
+) -> bool:
+    """Check if employee is rare: can fill a scarce window (≤3 eligible) in the cycle."""
+    for day_index in range(CYCLE_DAYS):
+        weekday = WEEKDAYS[day_index % 7]
+        for service_id in draft.hours.services:
+            if draft.hours.is_closed(weekday, service_id):
+                continue
+            if employee.team not in Team:
+                continue
+            structure = draft.structure_for(employee.team, service_id, weekday)
+            if structure is None:
+                continue
+            windows = derive_post_windows(structure)
+            for window in windows:
+                taken = _taken_windows(
+                    assignments,
+                    day_index=day_index,
+                    service_id=service_id,
+                    team=employee.team,
+                    windows=windows,
+                )
+                if window in taken:
+                    continue
+                eligible_count = 0
+                employee_can_fill = False
+                for other in employee_pool:
+                    if _can_fill_window(
+                        draft,
+                        assignments,
+                        other,
+                        window=window,
+                        day_index=day_index,
+                        weekday=weekday,
+                        service_id=service_id,
+                        team=employee.team,
+                        off_days=off_days,
+                        employee_pool=employee_pool,
+                    ):
+                        eligible_count += 1
+                        if other.id == employee.id:
+                            employee_can_fill = True
+                if employee_can_fill and eligible_count <= SEED_TIGHT_THRESHOLD:
+                    return True
+    return False
+
+
 def _soft_penalty(
     draft: PlanningDraft,
     assignments: list[Shift],
     employee: Employee,
     trial: Shift,
     pool_index: int = 0,
+    *,
+    is_rare: bool = False,
 ) -> tuple:
     """Lower is better. Hard-ineligible callers must skip before this."""
     duration = trial.duration_hours
@@ -975,11 +1029,16 @@ def _soft_penalty(
     overqual = employee.level - trial.post_level
     current_ratio = week_hours / max(employee.contractual_hours_per_week, 1.0)
     projected_ratio = (week_hours + duration) / max(employee.contractual_hours_per_week, 1.0)
-    started_day = _already_on_day(assignments, employee.id, trial.day_index)
+    if is_rare:
+        started_day = _already_on_day(assignments, employee.id, trial.day_index)
+        recase_component = int(not started_day)
+    else:
+        creates_coupure = _creates_coupure(assignments, trial)
+        recase_component = int(creates_coupure)
     return (
         int(over_week_cap or over_day_cap or rest_bad or pause_bad),
         current_ratio,
-        int(not started_day),
+        recase_component,
         overqual,
         projected_ratio,
         pool_index,
@@ -1105,6 +1164,7 @@ def _pick_for_post(
         return None
     hole = PostWindow(level=window_level, start_minutes=start_minutes, end_minutes=end_minutes)
     scored: list[tuple] = []
+    rare_cache: dict[str, bool] = {}
     for employee in employee_pool:
         if employee.team != team or employee.level < window_level:
             continue
@@ -1144,6 +1204,8 @@ def _pick_for_post(
             assignments, employee_pool, employee, day_index
         ):
             continue
+        if employee.id not in rare_cache:
+            rare_cache[employee.id] = _is_rare(draft, assignments, employee, employee_pool, off_days)
         ranks = {person.id: index for index, person in enumerate(employee_pool)}
         scored.append(
             (
@@ -1153,6 +1215,7 @@ def _pick_for_post(
                     employee,
                     trial,
                     pool_index=ranks[employee.id],
+                    is_rare=rare_cache[employee.id],
                 ),
                 employee,
                 assigned,

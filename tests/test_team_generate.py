@@ -113,6 +113,13 @@ def test_regenerate_salle_replaces_salle_only():
     assert state.published_cycles[Team.CUISINE] is None
 
 
+def test_generate_team_with_engine_ref_uses_frozen_engine():
+    """generate_team with engine_ref calls the correct frozen engine."""
+    state = _complete_salle(empty_restaurant("resto-new"))
+    generate_team(state, Team.SALLE, search=SearchEffort.MINIMAL, engine_ref="core-2")
+    assert state.published_cycles[Team.SALLE] is not None
+
+
 def test_hydrate_saint_cloud_cycle_unchanged():
     state = hydrate_delivered_cycle(PlanningStore(), "saint-cloud")
     assert state.cycle is not None

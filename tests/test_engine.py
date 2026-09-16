@@ -530,7 +530,8 @@ def test_generate_keeps_opener_for_earlier_level1():
     assert l2[0].employee_id == "vlad"
 
 
-def test_prefer_not_creating_a_coupure():
+def test_core_5_prefers_already_on_duty():
+    """core-5: prefer employee already working this day (recase like core-2)."""
     on_duty = employee("Aurore", "commis", hours=20, employee_id="aurore")
     idle = employee("Lucie", "plongeur", hours=15, employee_id="lucie")
     evening = ServiceStructure(
@@ -561,27 +562,35 @@ def test_prefer_not_creating_a_coupure():
     )
     assert picked is not None
     chosen, assigned = picked
-    assert chosen.id == "lucie"
+    assert chosen.id == "aurore", "core-5 prefers employee already on duty this day"
     assert assigned.end_minutes - assigned.start_minutes >= 4 * 60
 
 
-def test_core_4_places_only_candidate_even_with_coupure():
-    """core-4: when no alternative exists, place even if it creates a coupure."""
-    only_choice = employee("Only", "commis", hours=39, employee_id="only")
+def test_core_6_wide_window_penalizes_coupure():
+    """core-6: on a wide window (many eligible), penalize coupure like core-3."""
+    from doux_planning.engines.core_6 import _pick_for_post as core_6_pick
+
+    on_duty = employee("Aurore", "commis", hours=20, employee_id="aurore")
+    idle = employee("Lucie", "plongeur", hours=15, employee_id="lucie")
+    extra1 = employee("Paul", "commis", hours=20, employee_id="paul")
+    extra2 = employee("Marie", "commis", hours=20, employee_id="marie")
     evening = ServiceStructure(
-        id="eve-test",
+        id="eve-wide",
         team=Team.CUISINE,
         service_id=ServiceName.EVENING.value,
         weekdays=frozenset({"monday"}),
         arrivals=(ArrivalWave(18 * 60, (1,)),),
         departures=(DepartureWave(22 * 60, ()),),
     )
-    draft = _draft(employees=(only_choice,), extra_structures=(evening,))
-    midday_shift = _shift("only", 0, 10 * 60, 14 * 60, 1)
-    picked = _pick_for_post(
+    draft = _draft(employees=(on_duty, idle, extra1, extra2), extra_structures=(evening,))
+    assignments = [
+        _shift("aurore", 0, 10 * 60, 14 * 60, 2),
+        _shift("lucie", 1, 11 * 60, 14 * 60, 1),
+    ]
+    picked = core_6_pick(
         draft,
-        [midday_shift],
-        employee_pool=[only_choice],
+        assignments,
+        employee_pool=[on_duty, idle, extra1, extra2],
         window_level=1,
         day_index=0,
         weekday="monday",
@@ -589,11 +598,55 @@ def test_core_4_places_only_candidate_even_with_coupure():
         team=Team.CUISINE,
         start_minutes=18 * 60,
         end_minutes=22 * 60,
-        off_days={"only": set()},
+        off_days={"aurore": set(), "lucie": set(), "paul": set(), "marie": set()},
     )
-    assert picked is not None, "only candidate must be placed even with coupure"
+    assert picked is not None
     chosen, _ = picked
-    assert chosen.id == "only"
+    assert chosen.id != "aurore", "core-6 on wide window should not prefer someone creating coupure"
+
+
+def test_core_6_rare_already_on_duty_preferred():
+    """core-6: rare candidate already on duty is preferred (recase like core-2)."""
+    from doux_planning.engines.core_6 import _pick_for_post as core_6_pick
+
+    chef = employee("Chef", "chef", hours=39, employee_id="chef")
+    plongeur = employee("Plongeur", "plongeur", hours=20, employee_id="plongeur")
+    midday = ServiceStructure(
+        id="mid-rare",
+        team=Team.CUISINE,
+        service_id=ServiceName.MIDDAY.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(10 * 60, (4,)),),
+        departures=(DepartureWave(16 * 60, ()),),
+    )
+    evening = ServiceStructure(
+        id="eve-rare",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(18 * 60, (4,)),),
+        departures=(DepartureWave(22 * 60, ()),),
+    )
+    draft = _draft(employees=(chef, plongeur), extra_structures=(midday, evening))
+    assignments = [
+        _shift("chef", 0, 10 * 60, 16 * 60, 4),
+    ]
+    picked = core_6_pick(
+        draft,
+        assignments,
+        employee_pool=[chef, plongeur],
+        window_level=4,
+        day_index=0,
+        weekday="monday",
+        service_id=ServiceName.EVENING.value,
+        team=Team.CUISINE,
+        start_minutes=18 * 60,
+        end_minutes=22 * 60,
+        off_days={"chef": set(), "plongeur": set()},
+    )
+    assert picked is not None
+    chosen, _ = picked
+    assert chosen.id == "chef", "core-6 rare candidate already on duty should be preferred"
 
 
 def test_seed_tight_threshold_is_three():

@@ -524,13 +524,13 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
         fact.polarity == "hit" and fact.kind in {"post_held", "role_gap"}
         for fact in (*outcome.facts, *outcome.expected_facts)
     )
-    assert outcome.engine_ref == "core-4"
+    assert outcome.engine_ref == "core-5"
     _assert_complete_trace(outcome.trace, frozen=False)
-    assert current_engine_ref() == "core-4"
+    assert current_engine_ref() == "core-5"
 
 
-def test_list_engine_refs_is_core_zero_through_four():
-    assert list_engine_refs() == ("core-0", "core-1", "core-2", "core-3", "core-4")
+def test_list_engine_refs_is_core_zero_through_six():
+    assert list_engine_refs() == ("core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6")
 
 
 def _assert_complete_trace(trace: SearchTrace, *, frozen: bool) -> None:
@@ -557,12 +557,12 @@ def _assert_complete_trace(trace: SearchTrace, *, frozen: bool) -> None:
         assert trace.seeds_infeasible == 0
 
 
-@pytest.mark.parametrize("ref", ["core-0", "core-1", "core-2", "core-3", "core-4"])
+@pytest.mark.parametrize("ref", ["core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6"])
 def test_run_bench_halles_minimal_trace_for_each_engine_ref(ref):
     outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref=ref)
     assert outcome.engine_ref == ref
     assert outcome.score is not None
-    _assert_complete_trace(outcome.trace, frozen=ref != "core-4")
+    _assert_complete_trace(outcome.trace, frozen=ref in ("core-0", "core-1", "core-2"))
     assert all(
         fact.severity is not WarningSeverity.INTERDIT
         for fact in outcome.expected_facts
@@ -589,7 +589,7 @@ def test_unknown_engine_ref_raises():
 
 def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
     outcome = run_bench("crafted", "atelier", SearchEffort.MINIMAL)
-    assert outcome.engine_ref == "core-4"
+    assert outcome.engine_ref == "core-5"
     saturday_evening_empties = [
         fact
         for fact in outcome.facts
@@ -603,7 +603,7 @@ def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
 
 def test_run_bench_marais_minimal_hard_max_evenings():
     outcome = run_bench("crafted", "marais", SearchEffort.MINIMAL)
-    assert outcome.engine_ref == "core-4"
+    assert outcome.engine_ref == "core-5"
     assert not any(fact.polarity == "miss" and fact.kind == "max_evenings" for fact in outcome.facts)
     assert not any(shift.employee_id == "e" and shift.service_id == "evening" for shift in outcome.assignments)
 
@@ -619,7 +619,7 @@ def test_run_bench_rivoli_minimal_expected_zero_interdit():
 
 def test_run_bench_campus_minimal_runs():
     outcome = run_bench("wishes", "campus", SearchEffort.MINIMAL)
-    assert outcome.engine_ref == "core-4"
+    assert outcome.engine_ref == "core-5"
     assert outcome.search_effort == SearchEffort.MINIMAL
 
 

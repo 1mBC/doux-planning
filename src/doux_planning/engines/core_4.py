@@ -962,6 +962,8 @@ def _soft_penalty(
     employee: Employee,
     trial: Shift,
     pool_index: int = 0,
+    *,
+    coupure_matters: bool = True,
 ) -> tuple:
     """Lower is better. Hard-ineligible callers must skip before this."""
     duration = trial.duration_hours
@@ -975,11 +977,11 @@ def _soft_penalty(
     overqual = employee.level - trial.post_level
     current_ratio = week_hours / max(employee.contractual_hours_per_week, 1.0)
     projected_ratio = (week_hours + duration) / max(employee.contractual_hours_per_week, 1.0)
-    started_day = _already_on_day(assignments, employee.id, trial.day_index)
+    creates_coupure = _creates_coupure(assignments, trial) if coupure_matters else False
     return (
         int(over_week_cap or over_day_cap or rest_bad or pause_bad),
         current_ratio,
-        int(not started_day),
+        int(creates_coupure),
         overqual,
         projected_ratio,
         pool_index,
@@ -1104,7 +1106,8 @@ def _pick_for_post(
     if structure is None:
         return None
     hole = PostWindow(level=window_level, start_minutes=start_minutes, end_minutes=end_minutes)
-    scored: list[tuple] = []
+    candidates: list[tuple[Employee, PostWindow, Shift, bool]] = []
+    ranks = {person.id: index for index, person in enumerate(employee_pool)}
     for employee in employee_pool:
         if employee.team != team or employee.level < window_level:
             continue
@@ -1144,7 +1147,13 @@ def _pick_for_post(
             assignments, employee_pool, employee, day_index
         ):
             continue
-        ranks = {person.id: index for index, person in enumerate(employee_pool)}
+        creates_coupure = _creates_coupure(assignments, trial)
+        candidates.append((employee, assigned, trial, creates_coupure))
+    if not candidates:
+        return None
+    has_choice = any(not creates_coupure for _, _, _, creates_coupure in candidates)
+    scored: list[tuple] = []
+    for employee, assigned, trial, _ in candidates:
         scored.append(
             (
                 _soft_penalty(
@@ -1153,13 +1162,12 @@ def _pick_for_post(
                     employee,
                     trial,
                     pool_index=ranks[employee.id],
+                    coupure_matters=has_choice,
                 ),
                 employee,
                 assigned,
             )
         )
-    if not scored:
-        return None
     scored.sort(key=lambda item: item[0])
     legal = [(employee, assigned) for penalty, employee, assigned in scored if penalty[0] == 0]
     if not legal:
