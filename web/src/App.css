@@ -770,7 +770,8 @@ table.plan td.empty-slot {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: transparent;
+  background: none;
+  border: none;
 }
 
 .bench-engine-stack {
@@ -811,11 +812,11 @@ table.plan td.empty-slot {
 
 .bench-delta-bubble {
   display: inline-block;
-  padding: 4px 8px;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
   border-radius: 6px;
   font-weight: 650;
   text-align: center;
-  min-width: 2rem;
 }
 
 .bench-indicator {

@@ -1,5 +1,5 @@
 /** Bump on each visible UI delivery. `note` = one French line about the last change. */
 export const UI_RELEASE = {
-  version: "0.44.0",
-  note: "flèche hors de la bulle delta",
+  version: "0.45.0",
+  note: "bulle delta comme avant, plus de trait vert à zéro",
 } as const;

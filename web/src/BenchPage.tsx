@@ -104,7 +104,7 @@ function DeltaIndicator({ current, previous }: { current: number | null; previou
   const diff = current - previous;
   const diffX10 = Math.round(diff * 10);
   if (diffX10 === 0) {
-    return <span className="bench-indicator bench-indicator-equal" aria-label="égal" />;
+    return null;
   }
   const absDiff = Math.abs(diffX10);
   const intensity = Math.min(1, absDiff / 10);
