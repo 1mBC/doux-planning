@@ -3,7 +3,7 @@
 Freeze **domaine**. HTTP / jobs / UI = tranches suivantes.  
 Salle et cuisine = **deux cycles publiés indépendants**. On génère une équipe prête sans l’autre.
 
-Le moteur existant `generate_cycle(draft, search)` reste **l’unique** solveur. Pas de second algo. Pas de changement FIFO / keep-best / étirement `min_shift` / `SEARCH_SECONDS`.
+Le solveur = `generate_for(engine_ref, draft, search)` (`contracts/domain/engines.md`). Omis → `VERSION` (`core-5`). Pas de second algo. Pas de changement FIFO / keep-best / étirement `min_shift` / `SEARCH_SECONDS`.
 
 Saint-Cloud : `RestaurantState.cycle` + sandbox exemple **inchangés**. Ce freeze ajoute `published_cycles` pour le resto **live** (`empty_restaurant`).
 
@@ -11,13 +11,13 @@ Saint-Cloud : `RestaurantState.cycle` + sandbox exemple **inchangés**. Ce freez
 
 ```
 TeamNotReady          # generate alors que team_ready est faux
-generate_team(state, team, search=optimized) -> RestaurantState
+generate_team(state, team, search=optimized, engine_ref=None) -> RestaurantState
 ```
 
-1. `team_ready(state, team)` faux → `TeamNotReady`. **Aucun** appel `generate_cycle`.
+1. `team_ready(state, team)` faux → `TeamNotReady`. **Aucun** appel moteur.
 2. `expand_typical_week(state)` → structures.
 3. Draft = fiches **de cette équipe** + structures **de cette équipe** + services entreprise + legal `france` (id, pas de copie).
-4. `generate_cycle(draft, search)` — `search` = `minimal` | `optimized` | `maximal` (`SearchEffort`).
+4. `generate_for(engine_ref or VERSION, draft, search)` — `search` = `minimal` | `optimized` | `maximal` (`SearchEffort`). Ref inconnue → `UnknownEngineRef`.
 5. Écrire `published_cycles[team]`. L’autre équipe **intacte**. Regenerer remplace seulement cette équipe.
 
 `published_cycles` : `{ salle: PublishedCycle | None, cuisine: PublishedCycle | None }`.  

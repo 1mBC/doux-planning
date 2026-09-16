@@ -9,12 +9,12 @@ Le banc **ne lit / n’écrit jamais** `published_cycles`, `live_sandboxes`, com
 Un nom par version de moteur : `engine_ref`. **Une** source : `trim(data/bench/VERSION)` (une ligne).  
 Ce n’est **pas** le numéro UI (`web/src/release.ts`).
 
-`core-4` = pipe `core-3` + anti-coupure **s’il y a le choix** (`engine-core-4.md`). `core-3` = seeds → SAT → fill, anti-coupure toujours (`engine-seeds.md`). `core-2` = fill **fewest**. `core-1` = plafonds durs, ordre chrono. `core-0` = avant les plafonds.  
+`core-5` = pipe seeds + fill **déjà là aujourd’hui** (`engine-core-5.md`). `core-6` = seeds + recase **seulement les rares** (`engine-core-6.md`). `core-4` = anti-coupure s’il y a le choix. `core-3` = seeds, anti-coupure toujours. `core-2` = fill **fewest** sans seeds. `core-1` = plafonds durs, ordre chrono. `core-0` = avant les plafonds.  
 HTTP et rows émettent `engine_ref` **et** `app_version` = **le même string** (alias, une seule source).
 
 Vieux runs `app_version = "0.27.0"` : à la **lecture** `engine_ref = "core-0"` (même moteur). On n’écrit plus `0.27.0`.
 
-Live resto (`POST /v1/generate`) = **toujours** `VERSION`. Banc : moteurs **vendored** (`contracts/domain/engines.md`) — on peut relancer `core-0`…`core-3` sans revert.
+Live resto (`POST /v1/generate`) = **`live_engine_ref`** admin (`admin.md`), défaut `VERSION`. Banc : moteurs **vendored** (`engines.md`) — on peut relancer `core-0`…`core-6` sans revert. Le picker **n’affecte pas** le banc (lancer habituel = `VERSION`).
 
 ## Catalogue (repo)
 
@@ -83,7 +83,7 @@ Catégories **figées** (ordre d’affichage) — **50 jeux**. Les **30** déjà
 Les 24 non-`crafted` (déjà au catalogue) : manuel **0 interdit** seulement — **on ne les retire pas**, on ne les réécrit pas.  
 Les **20** nouveaux sont **tous** `crafted` (pas de diversité-de-forme sans oracle).  
 Scan disque. Jeu sans les deux JSON → **omit**, pas 500.  
-`engine_ref()` = trim `VERSION` — **`core-4`** après land Core (`engine-core-4.md`). Catalogue 50 **inchangé**.
+`engine_ref()` = trim `VERSION` — **`core-5`** après land Core (`engine-core-5.md`). Catalogue 50 **inchangé**.
 
 Parmi les **20** nouveaux : ≥ 4 à 3 services (`morning`) ; ≥ 4 à **2 types ou plus** sur le même `service_id` ; ≥ 4 avec un rôle **level ≥ 6**.  
 Méthode **obligatoire** pour chaque nouveau : écrire `expected.json` (grille 14 j) **avant** de figer `context.json` ; `evaluate` → **0 interdit**, **0 hours_miss**, **0 below_role**.
@@ -130,7 +130,7 @@ UnknownEngineRef
 
 `run_bench` : `engine_ref` omis = `VERSION`. Dispatch `list_engine_refs` → `generate_cycle` figé ou live. Recap ×2 + `deltas` inchangés.  
 `BenchOutcome.engine_ref` = le ref **demandé**. `BenchOutcome.trace` = `SearchTrace` (toujours présent).  
-**Zéro** `published_cycles`. Keep-best / `SEARCH_*` / pipe seeds **inchangés**. Fill live = `engine-core-4.md`. Tests generate = **`minimal`**.
+**Zéro** `published_cycles`. Keep-best / `SEARCH_*` / pipe seeds **inchangés**. Fill live = `engine-core-5.md`. Tests generate = **`minimal`**.
 
 ### Recap unique
 
@@ -188,7 +188,7 @@ Route **déjà là**. 200 = **même forme que compare** + **`trace`** (`SearchTr
 ```
 {
   engine_ref,                    # VERSION courant
-  engine_refs: ["core-0", "core-1", "core-2", "core-3", "core-4"],
+  engine_refs: ["core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6"],
   # = list_engine_refs() (registre) ∪ refs déjà en base ; ordre registre puis extras
   datasets: [
     {
@@ -401,7 +401,7 @@ Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 HTTP / UI **inchangés** (liste = scan / `list_bench_datasets`).  
 Core catalogue : **50** jeux. Les **30** déjà là loadent **bit-à-bit**. Tous les expected : 0 interdit. Les **26** `crafted` : globale ≥ 9,5. Les 20 nouveaux : aussi 0 `hours_miss`, 0 `below_role`.  
 ≥ 4 des 20 avec `morning` ; ≥ 4 avec 2 `types` le même `service_id` ; ≥ 4 avec un rôle `level >= 6`.  
-`engine_ref() == "core-4"`. `list_engine_refs()` contient `core-0`…`core-4`. `run_bench(tight, halles, minimal)` et `run_bench(..., engine_ref="core-3")` verts + `trace`. Keep-best inchangé. Catalogue 50 inchangé.
+`engine_ref() == "core-5"`. `list_engine_refs()` = `core-0`…`core-6`. `run_bench(tight, halles, minimal)` et `run_bench(..., engine_ref="core-4"|"core-6")` verts + `trace`. Keep-best inchangé. Catalogue 50 inchangé.
 
 ## Hors freeze
 

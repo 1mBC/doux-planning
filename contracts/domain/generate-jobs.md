@@ -45,7 +45,7 @@ Bearer company, **même** resto. Autre company / id inconnu → 404. Employee �
 Process **à part** (Compose `worker`, Railway service worker **N replicas**, **même** image / `DATABASE_URL`).  
 Pile, heartbeat, reclaim stale-only, priorité resto → banc : **`contracts/domain/worker-queue.md`** (gagne).
 
-Boucle : `SELECT … FOR UPDATE SKIP LOCKED` un `queued` → `running` + heartbeat → `generate_team(…, maximal)` → persist `published_cycles` **comme** le 200 sync → `done`. Exception → `failed` + `error` FR.
+Boucle : `SELECT … FOR UPDATE SKIP LOCKED` un `queued` → `running` + heartbeat → `generate_team(…, maximal, engine_ref=live_engine_ref)` → persist `published_cycles` **comme** le 200 sync → `done`. Exception → `failed` + `error` FR.
 
 Succès → **une** ligne `generate_logs` (même règle que POST 200). Échec / 409 : pas de log.
 

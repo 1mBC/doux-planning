@@ -18,7 +18,7 @@ Plus un seul cycle par équipe. Par équipe :
 }
 ```
 
-`Cycle` = assignments + **`facts`** + recap (`stats`, legal/wish, `score` sans resumes — `contracts/domain/score.md` + `score-facts.md`) **plus** `generated_at` ISO (UTC) + `search_effort` + `duration_seconds` (float, temps du solve ; absent sur les vieux slots). **Plus de `warnings[]`.** Vieux JSONB : hydrate Core → `facts`.  
+`Cycle` = assignments + **`facts`** + recap (`stats`, legal/wish, `score` sans resumes — `contracts/domain/score.md` + `score-facts.md`) **plus** `generated_at` ISO (UTC) + `search_effort` + `duration_seconds` (float, temps du solve ; absent sur les vieux slots) + **`engine_ref`** (moteur qui a tourné ; absent sur les vieux slots). **Plus de `warnings[]`.** Vieux JSONB : hydrate Core → `facts`.  
 `latest` = effort du `generated_at` le plus récent (égalité : maximal > optimized > minimal).
 
 Maximal : **tous** les calendriers de repos trouvables **et remplis** dans `SEARCH_SECONDS` (600 s wall-clock, keep-best au fil de l’eau). Ce n’est **pas** 600 s d’énumération SAT puis un fill illimité.
@@ -31,8 +31,11 @@ Ancien `{ assignments, warnings, … }` **sans** `versions` → `versions.optimi
 
 ## HTTP
 
-`POST /v1/generate` écrit **seulement** `versions[effort]` de cette équipe (recap + `generated_at` + `search_effort` + `duration_seconds`) + recalcule `latest`. L’autre effort / l’autre équipe **intacts**.  
+`POST /v1/generate` écrit **seulement** `versions[effort]` de cette équipe (recap + `generated_at` + `search_effort` + `duration_seconds` + `engine_ref`) + recalcule `latest`. L’autre effort / l’autre équipe **intacts**.  
+Solve = `generate_team(..., engine_ref=live_engine_ref)` (`admin.md`). Body POST **sans** `engine_ref`.  
 200 / job `done` : `published` = **les deux** équipes au nouveau format.
+
+Ligne d’indications UI (company `/planning`, sous la rangée actions) : date + heure `generated_at` (Europe/Paris) **puis** ` · ` **puis** `engine_ref` (`core-5`). Vieux slot sans `engine_ref` : date seule (pas de ` · `). Absent `generated_at` → tiret. Durée = **autre** ligne, inchangée.
 
 `GET /v1/cycles` = ce `published`.
 
@@ -55,4 +58,4 @@ Côté **web** (uvicorn) : POST maximal 202 (`job_id`) ; GET job `done`/`failed`
 
 ## Hors freeze
 
-UI sélecteur / chrome / types. Core `engine.py`. Archive / sync.
+UI effort / types (landé). Archive / sync.

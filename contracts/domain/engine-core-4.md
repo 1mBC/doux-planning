@@ -1,11 +1,13 @@
 # Moteur `core-4` — anti-coupure seulement s’il y a le choix
 
+**Figé.** Live = `contracts/domain/engine-core-5.md`. Snapshot `engines/core_4.py`.
+
 Freeze **Core**. Pipe **`core-3` inchangé** (`contracts/domain/engine-seeds.md`) sauf le fill ci-dessous.
 
 Keep-best **inchangé** : `_attempt_key` = `(empty, interdit, hours_miss, souhait, below_role, overqual)`.  
 Catalogue 50 **inchangé**. `weekend-eve` / `eve-first` **reportés**.
 
-`engine_ref` = `trim(data/bench/VERSION)` → **`core-4`**.
+`engine_ref` = **`core-4`** (plus `VERSION`).
 
 ## Pourquoi
 
@@ -32,17 +34,16 @@ Identiques à `engine-seeds.md` (T=3, 5 seeders, copies, round-robin, budgets 16
 
 ## Registre
 
-Snapshot du live `core-3` → `engines/core_3.py`. Live `engine.py` = `core-4`.  
-`list_engine_refs()` = `core-0` … `core-4`. Détail : `contracts/domain/engines.md`.
+Snapshot du live `core-3` → `engines/core_3.py` (fait). Snapshot `core-4` → `engines/core_4.py` (file `core-5`).  
+`list_engine_refs()` = `core-0` … `core-6`. Détail : `contracts/domain/engines.md`.
 
 ## Tests
 
-- `engine_ref() == "core-4"`.
-- `list_engine_refs()` contient `core-3` (figé, seeds) et `core-4` (live).
+- `generate_for("core-4", …)` joue ce fill. Live `engine_ref() == "core-5"`.
+- `list_engine_refs()` contient `core-3` (figé, seeds) et `core-4` (figé).
 - Deux légaux, un sans coupure : celui **avec** coupure est moins bien classé sur ce composant (`core-3`).
 - Un seul légal qui ferait une coupure : **posé** (le poste n’est pas laissé vide pour ça).
-- `run_bench(tight, halles, minimal)` vert. 50 listings. Keep-best bit-à-bit la même clé.
-- Relance banc **après land** (Tech lead) — pas ce brief.
+- `run_bench(tight, halles, minimal, engine_ref="core-4")` vert. 50 listings. Keep-best bit-à-bit la même clé.
 
 ## Hors freeze
 
