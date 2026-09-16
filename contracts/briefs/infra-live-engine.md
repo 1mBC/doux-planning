@@ -1,8 +1,8 @@
 # Brief — coller dans le chat **Infra**
 
-Le tech lead : **`live_engine_ref`** — le moteur du `POST /v1/generate` client. **Attends le land Core** (`master has core-5+6 landed`). Relis **`contracts/domain/admin.md`** (gagne) + `generate-versions.md` + `v1-generate.md` + `team-generate.md` + `generate-jobs.md`.
+Le tech lead : **`live_engine_ref`** — le moteur du `POST /v1/generate` client. File 52 close (`master has core-5+6 landed` @ `7b1e2c7`). Relis **`contracts/domain/admin.md`** (gagne) + `generate-versions.md` + `v1-generate.md` + `team-generate.md` + `generate-jobs.md`.
 
-`git fetch origin` ; si `origin/<branche Core>` ≠ le SHA du signal Core → **stop**.  
+`git fetch origin` ; si `origin/cursor/core-5-seeds-fill-9b6f` ≠ `7b1e2c7` → **stop**.  
 `git pull origin master` ; branche **depuis `master`**. **Pas** de merge UI. **Ne pas** retoucher `engine.py` ni `data/bench/**`.
 
 `/opsx-update build-planning-api`. Pas d’archive / sync. **Alembic oui** (`live_engine` + `generate_logs.engine_ref`). JSONB cycles : pas d’Alembic (`engine_ref` dans le slot).
