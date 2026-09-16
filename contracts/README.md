@@ -61,7 +61,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 48 — core-4 coupure si choix | `domain/engine-core-4.md`, `domain/engines.md` ; brief `core-4-coupure.md` | **landed** `f245ec9` |
 | 49 — stats banc + deltas ×10 | `domain/bench.md` ; brief `ui-bench-stats.md` | **landed** `158c36e` |
 | 50 — flèche hors bulle delta | `domain/bench.md` ; brief `ui-delta-bubble.md` | **landed** `e23700c` |
-| 51 — bulle delta sans boîte commune | `domain/bench.md` ; brief `ui-delta-layout.md` | **ouvert** |
+| 51 — bulle delta sans boîte commune | `domain/bench.md` ; brief `ui-delta-layout.md` | **landed** `8fa5ab6` |
 
 ## Ownership git (ne pas croiser)
 
