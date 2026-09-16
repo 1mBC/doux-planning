@@ -311,7 +311,8 @@ Un job par trou : `(category, dataset_id, search_effort, engine_ref)`. Tous le *
 ## UI
 
 Company **`me.admin`**.  
-Menu **à plat** : **Historique des computes | Banc**. **Plus** d’entrée Versions. `/admin/bench/versions` → **redirige** vers `/admin/bench`. SPA `/admin/bench/run/{run_id}` inchangé.
+Menu **à plat** : **Historique des computes | Banc | Stats banc**. **Plus** d’entrée Versions. `/admin/bench/versions` → **redirige** vers `/admin/bench`. SPA `/admin/bench/run/{run_id}` inchangé.  
+`/admin/bench/stats` = page **Stats banc** (admin). Pas de route HTTP neuve : même `GET /v1/admin/bench/versions`.
 
 **Un seul tableau** (Banc). Source : `GET /v1/admin/bench/versions` (plus le last-run courant seul).
 
@@ -328,29 +329,37 @@ Lancer     | Manuel | {engine_ref} | {engine_ref} | …
 Colonne **Lancer** (par jeu) : les 3 boutons effort **puis** Exporter, **pile verticale** (plus de wrap horizontal des 3 efforts). Même ordre que les deltas dans la cellule modèle.
 
 - **Manuel** : `dataset.manual.global` **une fois**. Clic → compare-chemin `optimized` moteur **courant**.  
-- **Chaque ligne** dans la cellule modèle : **uniquement** le delta vs Manuel. **Pas** de libellé Mini / Opti / Max (l’ordre = Lancer). **Pas** la note absolue. Tiret si pas de run.  
-- Clic delta → `/admin/bench/run/{run_id}` (compare de **ce** run).  
-- Couleur delta (globale) : **0 = vert**. Négatif = crescendo **rouge** (clamp −1). Positif = crescendo **bleu** (clamp +1). Tiret = pas de couleur.
+- **Chaque ligne** dans la cellule modèle : delta vs Manuel **en base ×10 entière** (`round(delta_manuel × 10)`, signe `+` / `−`, zéro → `0`). **Pas** de libellé Mini / Opti / Max (l’ordre = Lancer). **Pas** la note absolue. Tiret si pas de run.  
+- **À droite** de ce chiffre (plus petit, centré verticalement) : delta vs le **modèle précédent** de `engine_refs` (même jeu, même effort), **aussi ×10 entière**. Premier `engine_ref` : **pas** d’indicateur. Pas de run précédent : **pas** d’indicateur.  
+  - `> 0` : flèche **haut bleue** + le petit chiffre. Hauteur de flèche et intensité du bleu = crescendo avec `|d|` (échelle **note /10**, clamp **1** — même cap que le fond de cellule).  
+  - `= 0` : **liseret horizontal vert** (pas de chiffre).  
+  - `< 0` : flèche **bas rouge** + le petit chiffre. Même crescendo (clamp 1).  
+- Clic delta → `/admin/bench/run/{run_id}` (compare de **ce** run). Clic = toute la cellule (chiffre Manuel + indicateur).  
+- Fond de cellule : **toujours** le delta vs Manuel en note /10 (pas le ×10). **0 = vert**. Négatif = crescendo **rouge** (clamp −1). Positif = crescendo **bleu** (clamp +1). Tiret = pas de couleur.
 
 Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu’on lance). Pas de bouton revert.
 
-### Recap modèles (au-dessus du tableau)
+### Recap → page Stats banc
 
-Une bande **au-dessus** de « Derniers runs », **après** Lancer. Source = le même `GET /versions` (pas de route neuve).
+**Plus** de bande Recap (% / min / max des deltas) sur `/admin/bench`. Lien menu **Stats banc**.
 
-Pour **chaque** `engine_ref` sauf le **premier** de `engine_refs` (pas de précédent) : un bloc `{ref} vs {ref_précédent}`.
+`/admin/bench/stats` : titre **Stats banc**, même `AdminNav`, même source `GET /versions`.
 
-Pour **chaque** compute (`minimal` / `optimized` / `maximal`) :
+**Trois** graphes empilés, **un par compute** (Minimal, Optimisé, Maximal — `effortLabel`). SVG **maison** (pas de lib graphe).
 
-Jeux = intersection : `by_ref[ref][effort].global` **et** `by_ref[prev][effort].global` non null.  
-`d_i = global_ref − global_prev` (pareil que Δmanuel_ref − Δmanuel_prev).
+Chaque graphe :
 
-- **%** : `100 × mean(d) / 10` (échelle note /10) — ex. moyenne +0,24 → **+2,4 %**. Intersection vide → tiret.  
-- **max** : `max(d)`  
-- **min** : `min(d)` (souvent négatif)
+- **X** : `engine_refs` dans l’ordre registre (labels `core-0` …).  
+- **Y** : note **globale /10**. `ymax = 10`. `ymin` = `max(0, min_observé − 0,4)` pour que les courbes ne soient pas écrasées en haut. Graduations lisibles (pas 20 ticks).  
+- **Trois courbes** sur les notes **absolues** `cell.global` (pas des deltas) :  
+  - **Moyenne** — trait plein épais, `#1c1917`  
+  - **Min** — tirets, `#c43a3a`  
+  - **Max** — trait plein fin, `#2f6fed`  
+- Un point par modèle qui a **au moins un** jeu avec `global` non null pour cet effort. Moyenne / min / max = sur **ces** jeux (pas d’intersection forcée avec le modèle d’à côté). Modèle sans run : **pas** de point (la ligne saute).  
+- Légende **Moyenne / Min / Max** sous le titre du graphe.  
+- Fond clair, axes `#888`, pas de grille dense.
 
-Couleurs = **mêmes** règles que les cellules delta (0 vert, − rouge clamp −1, + bleu clamp +1) sur `mean(d)` / max / min (pas sur le % brut).  
-Premier `engine_ref` : **pas** de bloc (rien à comparer).
+Aucun run pour un compute → graphe masqué (pas un cadre vide).
 
 ### Lancer (2 lignes)
 
@@ -364,7 +373,7 @@ Loader **inline sous le titre « Lancer »** (pas d’overlay, **pas** de flou s
 
 - **%** = `pct`  
 - **temps max restant** = `eta_max_seconds` formaté (ex. `~ 12 min`)  
-Poll ~2 s jusqu’à `pct == 100` puis refresh versions. Tableau / recap / export **restent utilisables**. Le overlay `calc-overlay` du planning resto **ne s’applique pas** au Banc. Pas besoin de rester sur la page pour que ça tourne.
+Poll ~2 s jusqu’à `pct == 100` puis refresh versions. Tableau / Stats / export **restent utilisables**. Le overlay `calc-overlay` du planning resto **ne s’applique pas** au Banc. Pas besoin de rester sur la page pour que ça tourne.
 
 Export : **Exporter tout le banc** → `scope=bank` (`bench-bank.json`) en plus des deux exports existants.
 
@@ -386,7 +395,7 @@ Compare : **même** `CycleScoreNotes` des deux côtés, avec `facts` + `stats` +
 
 Fichiers : `bench-{category}-{id}.json` / `bench-below-manuel.json`.
 
-**`0.42.0`**, note FR : banc sans libellés d’effort, wizard rôles, colonne H plus pâle.
+**`0.43.0`**, note FR : stats banc en courbes, deltas ×10 et flèche vs le modèle d’avant.
 
 ## Tests
 
