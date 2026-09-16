@@ -14,8 +14,10 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_company_restaurant_id, require_database
 from doux_planning.api.context import _load_company, _state_from_rows
-from doux_planning.api.db import Company, GenerateJob, GenerateLog, RestaurateurAccount, session_scope
+from doux_planning.api.db import Company, GenerateJob, GenerateLog, LiveEngine, RestaurateurAccount, session_scope
+from doux_planning.bench import engine_ref as bench_version
 from doux_planning.context import CycleRecap, RecapCell, TeamNotReady, cycle_recap, generate_team, team_ready
+from doux_planning.engines.registry import list_engine_refs
 from doux_planning.planning import PublishedCycle, RestaurantState
 from doux_planning.types import SearchEffort, Team
 from doux_planning.warnings import FACT_AXIS, ScoreFact, score_fact_from_warning
@@ -23,6 +25,7 @@ from doux_planning.warnings import FACT_AXIS, ScoreFact, score_fact_from_warning
 DETAIL_NOT_READY = "Cette équipe n'est pas prête à calculer."
 DETAIL_JOB_RUNNING = "Un calcul maximal est déjà en cours."
 DETAIL_JOB_MISSING = "Calcul introuvable."
+DETAIL_UNKNOWN_ENGINE = "Moteur inconnu."
 TEAMS = ("salle", "cuisine")
 EFFORTS = ("minimal", "optimized", "maximal")
 ACTIVE_JOB_STATUSES = ("queued", "running")
@@ -30,6 +33,7 @@ RECAP_KEYS = ("facts", "stats", "legal_cols", "legal_rows", "wish_cols", "wish_r
 SCORE_AXES = ("couverture", "legal", "contrat", "wellbeing", "roles")
 MAXIMAL_ESTIMATED_SECONDS = 600
 EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3}
+LIVE_ENGINE_ROW_ID = 1
 
 
 def iso_log(event: str, **fields: Any) -> None:
@@ -38,6 +42,50 @@ def iso_log(event: str, **fields: Any) -> None:
     line = f"{stamp} {event}" + (f" {extras}" if extras else "")
     print(line, flush=True)
     print(line, file=sys.stderr, flush=True)
+
+
+def _get_stored_engine_ref() -> str | None:
+    with session_scope() as db:
+        row = db.get(LiveEngine, LIVE_ENGINE_ROW_ID)
+        if row is None:
+            return None
+        return row.engine_ref
+
+
+def get_effective_engine_ref() -> str:
+    stored = _get_stored_engine_ref()
+    version = bench_version()
+    if stored is None:
+        return version
+    if stored not in list_engine_refs():
+        return version
+    return stored
+
+
+def get_live_engine(authorization: str | None) -> dict[str, Any]:
+    require_admin(authorization)
+    effective = get_effective_engine_ref()
+    refs = list(list_engine_refs())
+    return {"engine_ref": effective, "engine_refs": refs}
+
+
+def put_live_engine(authorization: str | None, body: dict[str, Any]) -> dict[str, Any]:
+    require_admin(authorization)
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail=DETAIL_UNKNOWN_ENGINE)
+    new_ref = body.get("engine_ref")
+    if not isinstance(new_ref, str) or not new_ref:
+        raise HTTPException(status_code=400, detail=DETAIL_UNKNOWN_ENGINE)
+    refs = list_engine_refs()
+    if new_ref not in refs:
+        raise HTTPException(status_code=400, detail=DETAIL_UNKNOWN_ENGINE)
+    with session_scope() as db:
+        row = db.get(LiveEngine, LIVE_ENGINE_ROW_ID)
+        if row is None:
+            db.add(LiveEngine(id=LIVE_ENGINE_ROW_ID, engine_ref=new_ref))
+        else:
+            row.engine_ref = new_ref
+    return {"engine_ref": new_ref, "engine_refs": list(refs)}
 
 
 def _empty_versions() -> dict[str, Any]:
@@ -148,6 +196,7 @@ def put_generated_slot(
     duration_seconds: float,
     state: RestaurantState | None = None,
     team: Team | None = None,
+    engine_ref: str | None = None,
 ) -> dict[str, Any]:
     pack, _ = normalize_team_published(stored_blob, state, team)
     if pack is None:
@@ -156,6 +205,8 @@ def put_generated_slot(
     slot["generated_at"] = generated_at
     slot["search_effort"] = effort
     slot["duration_seconds"] = duration_seconds
+    if engine_ref is not None:
+        slot["engine_ref"] = engine_ref
     pack["versions"][effort] = slot
     pack["latest"] = compute_latest(pack["versions"])
     return pack
@@ -362,6 +413,7 @@ def _published_after_generate(
     effort: str,
     generated_at: str,
     duration_seconds: float,
+    engine_ref: str | None = None,
 ) -> dict[str, Any]:
     cycle = _team_cycle_json(state, team)
     published: dict[str, Any] = {}
@@ -375,6 +427,7 @@ def _published_after_generate(
                 duration_seconds,
                 state,
                 team,
+                engine_ref,
             )
         else:
             pack, _ = normalize_team_published(stored.get(key), state, other)
@@ -471,14 +524,15 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
                 "estimated_seconds": MAXIMAL_ESTIMATED_SECONDS,
             },
         )
+    effective_ref = get_effective_engine_ref()
     started = time.perf_counter()
     try:
-        generate_team(state, team, search)
+        generate_team(state, team, search, engine_ref=effective_ref)
     except TeamNotReady as exc:
         raise HTTPException(status_code=409, detail=DETAIL_NOT_READY) from exc
     duration_seconds = max(0.0, time.perf_counter() - started)
     generated_at = datetime.now(timezone.utc).isoformat()
-    published = _published_after_generate(state, team, stored, search.value, generated_at, duration_seconds)
+    published = _published_after_generate(state, team, stored, search.value, generated_at, duration_seconds, effective_ref)
     _persist_published(restaurant_id, published)
     slot = ((published[team.value] or {}).get("versions") or {}).get(search.value) or {}
     _log_generate(
@@ -487,6 +541,7 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
         team=team.value,
         search_effort=search.value,
         duration_seconds=duration_seconds,
+        engine_ref=effective_ref,
         facts=list(slot.get("facts") or []),
         employees=state.employees,
     )
@@ -506,8 +561,9 @@ def persist_maximal_result(
     company, fiches = _load_company(restaurant_id)
     stored = _stored_published(company.published_cycles)
     state = _state_from_rows(company, fiches)
+    effective_ref = get_effective_engine_ref()
     started = time.perf_counter()
-    generate_fn(state, team, SearchEffort.MAXIMAL)
+    generate_fn(state, team, SearchEffort.MAXIMAL, engine_ref=effective_ref)
     duration_seconds = max(0.0, time.perf_counter() - started)
     generated_at = datetime.now(timezone.utc).isoformat()
     published = _published_after_generate(
@@ -517,6 +573,7 @@ def persist_maximal_result(
         SearchEffort.MAXIMAL.value,
         generated_at,
         duration_seconds,
+        effective_ref,
     )
     _persist_published(restaurant_id, published)
     slot = ((published[team.value] or {}).get("versions") or {}).get(SearchEffort.MAXIMAL.value) or {}
@@ -526,6 +583,7 @@ def persist_maximal_result(
         team=team.value,
         search_effort=SearchEffort.MAXIMAL.value,
         duration_seconds=duration_seconds,
+        engine_ref=effective_ref,
         facts=list(slot.get("facts") or []),
         employees=state.employees,
     )
@@ -609,6 +667,7 @@ def _log_generate(
     team: str,
     search_effort: str,
     duration_seconds: float,
+    engine_ref: str,
     facts: list[Any],
     employees: Any,
 ) -> None:
@@ -627,6 +686,7 @@ def _log_generate(
                 team=team,
                 search_effort=search_effort,
                 duration_seconds=duration_seconds,
+                engine_ref=engine_ref,
                 warnings=_evaluate_miss_facts(facts, employees),
             )
         )
@@ -646,6 +706,7 @@ def list_generate_logs(authorization: str | None) -> dict[str, Any]:
                     "team": row.team,
                     "search_effort": row.search_effort,
                     "duration_seconds": row.duration_seconds,
+                    "engine_ref": row.engine_ref,
                     "facts": _facts_from_log_items(row.warnings),
                 }
                 for row in rows

@@ -418,7 +418,7 @@ def test_generate_persist_cycles_auth_and_example():
     assert client.get("/v1/me", headers=_bearer(login_token)).status_code == 401
 
 
-def _stub_generate_team(state, team, search):
+def _stub_generate_team(state, team, search, engine_ref=None):
     from doux_planning.context import TeamNotReady, expand_typical_week, team_ready
     from doux_planning.engine import EngineResult, PlanningDraft
     from doux_planning.planning import PublishedCycle
@@ -594,8 +594,8 @@ def test_generate_versions_slots_me_planning_and_enter():
     minimal_cycle = _slot(first.json()["published"]["salle"], "minimal")
     assert first.json()["published"]["salle"]["latest"] == "minimal"
 
-    def _as_minimal(state, team, search):
-        return generate_team(state, team, SearchEffort.MINIMAL)
+    def _as_minimal(state, team, search, engine_ref=None):
+        return generate_team(state, team, SearchEffort.MINIMAL, engine_ref=engine_ref)
 
     with patch("doux_planning.api.generate.generate_team", side_effect=_as_minimal):
         second = client.post(
@@ -725,9 +725,9 @@ def test_worker_requeues_stale_running_and_logs_progress(capsys, monkeypatch):
 
     monkeypatch.setattr("doux_planning.api.worker.PROGRESS_EVERY_S", 0.05)
 
-    def slow_generate(state, team, search):
+    def slow_generate(state, team, search, engine_ref=None):
         time.sleep(0.18)
-        return _stub_generate_team(state, team, search)
+        return _stub_generate_team(state, team, search, engine_ref=engine_ref)
 
     token = registered.json()["token"]
     headers = _bearer(token)
