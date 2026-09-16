@@ -7,6 +7,7 @@ import { ContextWizard } from "./ContextWizard";
 import { EmployeePlanning } from "./EmployeePlanning";
 import { AdminDenied, AdminPage } from "./AdminPage";
 import { BenchPage } from "./BenchPage";
+import { BenchStatsPage } from "./BenchStatsPage";
 import { BenchComparePage, parseBenchComparePath, parseBenchRunPath } from "./BenchComparePage";
 import { PublishedPlanning } from "./PublishedPlanning";
 import "./App.css";
@@ -76,7 +77,9 @@ export default function Root() {
           ? me?.admin
             ? path === "/admin/bench" || path === "/admin/bench/versions"
               ? "admin-bench"
-              : parseBenchRunPath(path)
+              : path === "/admin/bench/stats"
+                ? "admin-bench-stats"
+                : parseBenchRunPath(path)
                   ? "admin-bench-run"
                   : parseBenchComparePath(path)
                     ? "admin-bench-compare"
@@ -123,6 +126,7 @@ export default function Root() {
       {route === "context" ? <ContextWizard /> : null}
       {route === "admin" ? <AdminPage /> : null}
       {route === "admin-bench" ? <BenchPage /> : null}
+      {route === "admin-bench-stats" ? <BenchStatsPage /> : null}
       {route === "admin-bench-run" ? <BenchComparePage params={null} runId={parseBenchRunPath(path)} /> : null}
       {route === "admin-bench-compare" ? <BenchComparePage params={parseBenchComparePath(path)} /> : null}
       {route === "admin-denied" ? <AdminDenied /> : null}

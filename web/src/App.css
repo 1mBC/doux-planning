@@ -806,6 +806,119 @@ table.plan td.empty-slot {
   color: #888;
 }
 
+.bench-delta-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.bench-delta-value {
+  font-weight: 650;
+}
+
+.bench-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.bench-indicator-up {
+  color: rgba(36, 86, 196, calc(0.5 + 0.5 * var(--indicator-intensity, 1)));
+}
+
+.bench-indicator-down {
+  color: rgba(196, 48, 48, calc(0.5 + 0.5 * var(--indicator-intensity, 1)));
+}
+
+.bench-indicator-equal {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  background: #22c55e;
+  border-radius: 1px;
+}
+
+.bench-indicator-arrow {
+  font-size: 13px;
+}
+
+.bench-indicator-value {
+  min-width: 1ch;
+}
+
+.bench-stats-graphs {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  margin-top: 16px;
+}
+
+.bench-stats-graph h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.bench-stats-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.bench-stats-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bench-stats-legend-mean::before {
+  content: "";
+  display: inline-block;
+  width: 20px;
+  height: 3px;
+  background: #1c1917;
+  border-radius: 2px;
+}
+
+.bench-stats-legend-min::before {
+  content: "";
+  display: inline-block;
+  width: 20px;
+  height: 0;
+  border-top: 2px dashed #c43a3a;
+}
+
+.bench-stats-legend-max::before {
+  content: "";
+  display: inline-block;
+  width: 20px;
+  height: 2px;
+  background: #2f6fed;
+  border-radius: 1px;
+}
+
+.bench-stats-svg {
+  width: 100%;
+  max-width: 600px;
+  height: auto;
+  background: #fafbfc;
+  border-radius: 8px;
+}
+
+.bench-stats-tick {
+  font-size: 11px;
+  fill: #666;
+}
+
+.bench-stats-label {
+  font-size: 10px;
+  fill: #444;
+}
+
 .admin-warn-card:first-child {
   padding-top: 0;
 }

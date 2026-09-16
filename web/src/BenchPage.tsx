@@ -7,11 +7,8 @@ import {
   benchBankExportFilename,
   benchBelowManuelExportFilename,
   benchDatasetExportFilename,
-  buildBenchRecaps,
   downloadJsonFile,
   deltaBackground,
-  formatDelta,
-  formatRecapPercent,
   loadActiveBenchBatch,
   loadBenchExport,
   loadBenchVersions,
@@ -45,20 +42,6 @@ function LaunchButtons({
   );
 }
 
-function RecapStat({ label, value, text }: { label: string; value: number | null; text: string }) {
-  const colored = value !== null && Number.isFinite(value);
-  return (
-    <span className="bench-recap-stat-wrap">
-      <span className="bench-recap-stat-label">{label}</span>
-      <span
-        className={colored ? "bench-recap-stat" : "bench-recap-stat bench-cell-empty"}
-        style={colored ? { backgroundColor: deltaBackground(value) } : undefined}
-      >
-        {text}
-      </span>
-    </span>
-  );
-}
 
 function CategoryLaunch({
   categories,
@@ -100,21 +83,79 @@ function CategoryLaunch({
   );
 }
 
-function EngineCell({ cell }: { cell: BenchVersionCell | null }) {
+function formatDeltaX10(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  const x10 = Math.round(value * 10);
+  if (x10 > 0) {
+    return `+${x10}`;
+  }
+  if (x10 < 0) {
+    return `−${Math.abs(x10)}`;
+  }
+  return "0";
+}
+
+function DeltaIndicator({ current, previous }: { current: number | null; previous: number | null }) {
+  if (current === null || previous === null || !Number.isFinite(current) || !Number.isFinite(previous)) {
+    return null;
+  }
+  const diff = current - previous;
+  const diffX10 = Math.round(diff * 10);
+  if (diffX10 === 0) {
+    return <span className="bench-indicator bench-indicator-equal" aria-label="égal" />;
+  }
+  const absDiff = Math.abs(diffX10);
+  const intensity = Math.min(1, absDiff / 10);
+  if (diffX10 > 0) {
+    return (
+      <span
+        className="bench-indicator bench-indicator-up"
+        style={{ "--indicator-intensity": intensity } as React.CSSProperties}
+        aria-label={`+${absDiff}`}
+      >
+        <span className="bench-indicator-arrow">↑</span>
+        <span className="bench-indicator-value">{absDiff}</span>
+      </span>
+    );
+  }
+  return (
+    <span
+      className="bench-indicator bench-indicator-down"
+      style={{ "--indicator-intensity": intensity } as React.CSSProperties}
+      aria-label={`−${absDiff}`}
+    >
+      <span className="bench-indicator-arrow">↓</span>
+      <span className="bench-indicator-value">{absDiff}</span>
+    </span>
+  );
+}
+
+function EngineCell({
+  cell,
+  prevCell,
+  isFirst,
+}: {
+  cell: BenchVersionCell | null;
+  prevCell: BenchVersionCell | null;
+  isFirst: boolean;
+}) {
   const delta = cell?.deltas.global;
   if (!cell || delta === null || delta === undefined || !Number.isFinite(delta)) {
     return <span className="bench-cell-empty">—</span>;
   }
-  const label = formatDelta(delta);
+  const label = formatDeltaX10(delta);
   return (
     <button
       type="button"
       className="bench-cell bench-delta-cell"
-      title={label}
+      title={`${label} (×10)`}
       style={{ backgroundColor: deltaBackground(delta) }}
       onClick={() => go(`/admin/bench/run/${encodeURIComponent(cell.run_id)}`)}
     >
-      {label}
+      <span className="bench-delta-value">{label}</span>
+      {!isFirst && <DeltaIndicator current={cell.global} previous={prevCell?.global ?? null} />}
     </button>
   );
 }
@@ -122,14 +163,23 @@ function EngineCell({ cell }: { cell: BenchVersionCell | null }) {
 function EngineStack({
   dataset,
   engineRef,
+  prevRef,
+  isFirst,
 }: {
   dataset: BenchVersionDataset;
   engineRef: string;
+  prevRef: string | null;
+  isFirst: boolean;
 }) {
   return (
     <div className="bench-engine-stack">
       {BENCH_EFFORTS.map((effort) => (
-        <EngineCell key={effort} cell={dataset.by_ref[engineRef]?.[effort] ?? null} />
+        <EngineCell
+          key={effort}
+          cell={dataset.by_ref[engineRef]?.[effort] ?? null}
+          prevCell={prevRef ? dataset.by_ref[prevRef]?.[effort] ?? null : null}
+          isFirst={isFirst}
+        />
       ))}
     </div>
   );
@@ -332,7 +382,6 @@ export function BenchPage() {
   }
 
   const locked = busy || exporting;
-  const recaps = buildBenchRecaps(versions);
 
   return (
     <main className="page admin-page">
@@ -371,29 +420,6 @@ export function BenchPage() {
           </div>
         </div>
       </section>
-
-      {recaps.length > 0 ? (
-        <section className="bench-recap">
-          <h2>Recap</h2>
-          {recaps.map((recap) => (
-            <article key={`${recap.prev}->${recap.ref}`} className="bench-recap-block">
-              <h3>
-                {recap.ref} vs {recap.prev}
-              </h3>
-              <div className="bench-recap-efforts">
-                {recap.efforts.map((item) => (
-                  <div key={item.effort} className="bench-recap-row">
-                    <span className="bench-recap-effort">{effortLabel(item.effort)}</span>
-                    <RecapStat label="%" value={item.mean} text={formatRecapPercent(item.percent)} />
-                    <RecapStat label="max" value={item.max} text={formatDelta(item.max)} />
-                    <RecapStat label="min" value={item.min} text={formatDelta(item.min)} />
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))}
-        </section>
-      ) : null}
 
       <section>
         <h2>Derniers runs</h2>
@@ -454,9 +480,14 @@ export function BenchPage() {
                     {formatCycleNote(dataset.manual?.global)}
                   </button>
                 </td>
-                {versions.engine_refs.map((ref) => (
+                {versions.engine_refs.map((ref, refIndex) => (
                   <td key={ref}>
-                    <EngineStack dataset={dataset} engineRef={ref} />
+                    <EngineStack
+                      dataset={dataset}
+                      engineRef={ref}
+                      prevRef={refIndex > 0 ? versions.engine_refs[refIndex - 1] : null}
+                      isFirst={refIndex === 0}
+                    />
                   </td>
                 ))}
               </tr>
