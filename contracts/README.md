@@ -59,6 +59,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 46 — banc computes empilés | `domain/bench.md` ; brief `ui-bench-stack.md` | **landed** `f663b75` (UI v0.41.0) |
 | 47 — banc labels + wizard + H | `domain/bench.md`, `domain/wizard-ui.md` ; brief `ui-chrome.md` | **landed** `cde9da4` (UI v0.42.0) |
 | 48 — core-4 coupure si choix | `domain/engine-core-4.md`, `domain/engines.md` ; brief `core-4-coupure.md` | **landed** `f245ec9` |
+| 49 — stats banc + deltas ×10 | `domain/bench.md` ; brief `ui-bench-stats.md` | **ouvert** |
 
 ## Ownership git (ne pas croiser)
 
