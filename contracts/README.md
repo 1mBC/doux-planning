@@ -68,7 +68,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 55 — cp-0 + iter-0 | `domain/engine-cp-0.md`, `engine-iter-0.md`, `engines.md` ; brief `core-cp-iter.md` | **landed** `8a13747` |
 | 56 — banc meilleur par ligne | `domain/bench.md` ; brief `ui-bench-best-line.md` | **landed** `95d33e8` (UI v0.47.0) |
 | 57 — banc grid + stats hover | `domain/bench.md` ; brief `ui-bench-polish.md` | **landed** `86b3359` (UI v0.48.0) |
-| 58 — banc alignement fix | `domain/bench.md` ; brief `ui-bench-align-fix.md` | UI |
+| 58 — banc alignement fix | `domain/bench.md` ; brief `ui-bench-align-fix.md` | **landed** `e38abbb` (UI v0.48.1) |
 
 ## Ownership git (ne pas croiser)
 
