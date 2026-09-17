@@ -145,8 +145,12 @@ Banc : `run_bench` l’appelle sur le draft généré **et** sur `expected` (`ev
 
 ## HTTP (admin)
 
-Routes run / jobs / datasets **plus** gaps / batch / export `bank`. `POST all` / `category=crafted` = un job par jeu **listé**, `engine_ref` = **VERSION** (lancer habituel = moteur courant).  
-Dédup / heartbeat / batch / N workers : **`contracts/domain/worker-queue.md`**.  
+Routes run / jobs / datasets **plus** gaps / batch / export `bank`.
+
+`POST /v1/admin/bench/run` accepte un **`engine_ref` optionnel** dans le body. Si présent et valide (`list_engine_refs()`), utilise ce moteur. Si absent ou vide, utilise **VERSION** (défaut). Si invalide → 400.
+
+`POST all` / `category` = un job par jeu **listé**, `engine_ref` = celui du body ou VERSION.
+Dédup / heartbeat / batch / N workers : **`contracts/domain/worker-queue.md`**.
 Persist : `bench_runs.app_version` = `outcome.engine_ref` ; JSONB **`trace`**. Alembic : `trace`, jobs `engine_ref` + `batch_id` + `started_at`, unique partiel élargi.
 
 **Last-run** = le plus récent par `(category, dataset_id, search_effort, engine_ref)`.  
@@ -369,8 +373,10 @@ Aucun run pour un compute → graphe masqué (pas un cadre vide).
 
 Plus une rangée par catégorie.
 
-1. **Global** (inchangé) : « Toutes les catégories » + 3 boutons effort → `scope=all` (moteur **courant**).  
-2. **Par compute** : 3 contrôles (Minimal / Optimisé / Maximal) → catégories → `scope=category`.  
+**Sélecteur moteur** (dropdown) : sur la **même ligne** que les boutons effort, à gauche. Liste = `engine_refs` de `GET /versions`. Défaut = `engine_ref` (VERSION courant). Le moteur sélectionné est utilisé pour **tous** les lancements (`scope=all`, `category`, `dataset`). `scope=gaps` ignore le sélecteur (remplit tous les refs).
+
+1. **Global** : « Toutes les catégories » + 3 boutons effort → `scope=all` + `engine_ref` du dropdown.
+2. **Par compute** : 3 contrôles (Minimal / Optimisé / Maximal) → catégories → `scope=category` + `engine_ref` du dropdown.
 3. **Compléter les trous** : `scope=gaps`. Un clic, **une** pile (Minimal + Opti + Maximal × tous les refs). Quitter la page = OK.
 
 Loader **inline sous le titre « Lancer »** (pas d’overlay, **pas** de flou sur la page) dès qu’un batch est actif (`GET …/batches/active` au mount + après un lancer lot / gaps) :
