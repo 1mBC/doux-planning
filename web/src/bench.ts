@@ -440,6 +440,7 @@ export async function postBenchRun(body: {
   category?: string;
   dataset_id?: string;
   search_effort?: SearchEffort;
+  engine_ref?: string;
 }): Promise<BenchRunResult> {
   const raw = await sendAuth(
     "/v1/admin/bench/run",

@@ -678,6 +678,20 @@ table.plan td.empty-slot {
   align-items: center;
 }
 
+.bench-engine-select {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 0.95rem;
+  margin-right: 4px;
+}
+
+.bench-engine-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .bench-launch {
   display: flex;
   flex-direction: column;
