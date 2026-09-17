@@ -83,10 +83,7 @@ function CategoryLaunch({
   );
 }
 
-function formatDeltaX10(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "—";
-  }
+function formatDeltaX10(value: number): string {
   const x10 = Math.round(value * 10);
   if (x10 > 0) {
     return `+${x10}`;
@@ -97,54 +94,29 @@ function formatDeltaX10(value: number | null | undefined): string {
   return "0";
 }
 
-function DeltaIndicator({ current, previous }: { current: number | null; previous: number | null }) {
-  if (current === null || previous === null || !Number.isFinite(current) || !Number.isFinite(previous)) {
-    return null;
+function formatGapX10(gap: number): string {
+  const x10 = Math.round(gap * 10);
+  if (x10 >= 0) {
+    return "0";
   }
-  const diff = current - previous;
-  const diffX10 = Math.round(diff * 10);
-  if (diffX10 === 0) {
-    return null;
-  }
-  const absDiff = Math.abs(diffX10);
-  const intensity = Math.min(1, absDiff / 10);
-  if (diffX10 > 0) {
-    return (
-      <span
-        className="bench-indicator bench-indicator-up"
-        style={{ "--indicator-intensity": intensity } as React.CSSProperties}
-        aria-label={`+${absDiff}`}
-      >
-        <span className="bench-indicator-arrow">↑</span>
-        <span className="bench-indicator-value">{absDiff}</span>
-      </span>
-    );
-  }
-  return (
-    <span
-      className="bench-indicator bench-indicator-down"
-      style={{ "--indicator-intensity": intensity } as React.CSSProperties}
-      aria-label={`−${absDiff}`}
-    >
-      <span className="bench-indicator-arrow">↓</span>
-      <span className="bench-indicator-value">{absDiff}</span>
-    </span>
-  );
+  return `−${Math.abs(x10)}`;
 }
 
-function EngineCell({
+function gapTextColor(gap: number): string {
+  const absGap = Math.abs(Math.round(gap * 10));
+  const intensity = Math.min(1, absGap / 10);
+  const lightness = 50 - 20 * intensity;
+  return `hsl(0, 70%, ${lightness}%)`;
+}
+
+function EngineCellBest({
   cell,
-  prevCell,
-  isFirst,
+  manualGlobal,
 }: {
-  cell: BenchVersionCell | null;
-  prevCell: BenchVersionCell | null;
-  isFirst: boolean;
+  cell: BenchVersionCell;
+  manualGlobal: number | null;
 }) {
-  const delta = cell?.deltas.global;
-  if (!cell || delta === null || delta === undefined || !Number.isFinite(delta)) {
-    return <span className="bench-cell-empty">—</span>;
-  }
+  const delta = manualGlobal !== null ? cell.global! - manualGlobal : 0;
   const label = formatDeltaX10(delta);
   return (
     <button
@@ -156,32 +128,79 @@ function EngineCell({
       <span className="bench-delta-bubble" style={{ backgroundColor: deltaBackground(delta) }}>
         {label}
       </span>
-      {!isFirst && <DeltaIndicator current={cell.global} previous={prevCell?.global ?? null} />}
     </button>
   );
+}
+
+function EngineCellGap({
+  cell,
+  gap,
+}: {
+  cell: BenchVersionCell;
+  gap: number;
+}) {
+  const label = formatGapX10(gap);
+  return (
+    <button
+      type="button"
+      className="bench-cell bench-gap-cell"
+      title={`${label} vs meilleur`}
+      style={{ color: gapTextColor(gap) }}
+      onClick={() => go(`/admin/bench/run/${encodeURIComponent(cell.run_id)}`)}
+    >
+      {label}
+    </button>
+  );
+}
+
+function EngineRowCell({
+  cell,
+  bestGlobal,
+  manualGlobal,
+}: {
+  cell: BenchVersionCell | null;
+  bestGlobal: number | null;
+  manualGlobal: number | null;
+}) {
+  if (!cell || cell.global === null || cell.global === undefined || !Number.isFinite(cell.global)) {
+    return <span className="bench-cell-empty">—</span>;
+  }
+  if (bestGlobal === null || cell.global === bestGlobal) {
+    return <EngineCellBest cell={cell} manualGlobal={manualGlobal} />;
+  }
+  const gap = cell.global - bestGlobal;
+  return <EngineCellGap cell={cell} gap={gap} />;
 }
 
 function EngineStack({
   dataset,
   engineRef,
-  prevRef,
-  isFirst,
+  engineRefs,
 }: {
   dataset: BenchVersionDataset;
   engineRef: string;
-  prevRef: string | null;
-  isFirst: boolean;
+  engineRefs: string[];
 }) {
+  const manualGlobal = dataset.manual?.global ?? null;
+
   return (
     <div className="bench-engine-stack">
-      {BENCH_EFFORTS.map((effort) => (
-        <EngineCell
-          key={effort}
-          cell={dataset.by_ref[engineRef]?.[effort] ?? null}
-          prevCell={prevRef ? dataset.by_ref[prevRef]?.[effort] ?? null : null}
-          isFirst={isFirst}
-        />
-      ))}
+      {BENCH_EFFORTS.map((effort) => {
+        const allCells = engineRefs.map((ref) => dataset.by_ref[ref]?.[effort] ?? null);
+        const validGlobals = allCells
+          .filter((c): c is BenchVersionCell => c !== null && c.global !== null && Number.isFinite(c.global))
+          .map((c) => c.global!);
+        const bestGlobal = validGlobals.length > 0 ? Math.max(...validGlobals) : null;
+        const cell = dataset.by_ref[engineRef]?.[effort] ?? null;
+        return (
+          <EngineRowCell
+            key={effort}
+            cell={cell}
+            bestGlobal={bestGlobal}
+            manualGlobal={manualGlobal}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -481,13 +500,12 @@ export function BenchPage() {
                     {formatCycleNote(dataset.manual?.global)}
                   </button>
                 </td>
-                {versions.engine_refs.map((ref, refIndex) => (
+                {versions.engine_refs.map((ref) => (
                   <td key={ref}>
                     <EngineStack
                       dataset={dataset}
                       engineRef={ref}
-                      prevRef={refIndex > 0 ? versions.engine_refs[refIndex - 1] : null}
-                      isFirst={refIndex === 0}
+                      engineRefs={versions.engine_refs}
                     />
                   </td>
                 ))}
