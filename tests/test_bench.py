@@ -529,11 +529,11 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
     assert current_engine_ref() == "core-5"
 
 
-def test_list_engine_refs_is_core_zero_through_six():
-    assert list_engine_refs() == ("core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6")
+def test_list_engine_refs_is_core_zero_through_iter():
+    assert list_engine_refs() == ("core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0")
 
 
-def _assert_complete_trace(trace: SearchTrace, *, frozen: bool) -> None:
+def _assert_complete_trace(trace: SearchTrace, *, frozen: bool, custom: bool = False) -> None:
     assert isinstance(trace, SearchTrace)
     assert trace.seeder
     assert isinstance(trace.seed_index, int)
@@ -541,28 +541,29 @@ def _assert_complete_trace(trace: SearchTrace, *, frozen: bool) -> None:
     assert isinstance(trace.calendars_by_seeder, dict)
     assert trace.calendars_total == sum(trace.calendars_by_seeder.values())
     assert isinstance(trace.seeds_infeasible, int) and trace.seeds_infeasible >= 0
-    assert set(trace.attempt_key) == {
-        "empty",
-        "interdit",
-        "hours_miss",
-        "souhait",
-        "below_role",
-        "overqual",
-    }
+    base_keys = {"empty", "interdit", "hours_miss", "souhait", "below_role", "overqual"}
+    assert base_keys <= set(trace.attempt_key)
     if frozen:
         assert trace.seeder == "empty"
         assert trace.seed_index == 0
         assert trace.n_locks == 0
         assert set(trace.calendars_by_seeder) == {"empty"}
         assert trace.seeds_infeasible == 0
+    if custom:
+        if trace.seeder == "cp-sat":
+            assert "solver_status" in trace.attempt_key
+        elif trace.seeder == "iter":
+            assert "base_engine" in trace.attempt_key
 
 
-@pytest.mark.parametrize("ref", ["core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6"])
+@pytest.mark.parametrize("ref", ["core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0"])
 def test_run_bench_halles_minimal_trace_for_each_engine_ref(ref):
     outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref=ref)
     assert outcome.engine_ref == ref
     assert outcome.score is not None
-    _assert_complete_trace(outcome.trace, frozen=ref in ("core-0", "core-1", "core-2"))
+    frozen = ref in ("core-0", "core-1", "core-2")
+    custom = ref in ("cp-0", "iter-0")
+    _assert_complete_trace(outcome.trace, frozen=frozen, custom=custom)
     assert all(
         fact.severity is not WarningSeverity.INTERDIT
         for fact in outcome.expected_facts
@@ -585,6 +586,62 @@ def test_core_two_does_not_call_live_seeders(monkeypatch):
 def test_unknown_engine_ref_raises():
     with pytest.raises(UnknownEngineRef):
         run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref="core-9")
+
+
+def test_run_bench_cp0_halles_minimal_cpsat_trace():
+    """cp-0: trace.seeder == "cp-sat" and solver_status present."""
+    outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref="cp-0")
+    assert outcome.engine_ref == "cp-0"
+    assert outcome.trace.seeder == "cp-sat"
+    assert "solver_status" in outcome.trace.attempt_key
+    assert outcome.trace.attempt_key["solver_status"] in ("optimal", "feasible", "infeasible", "unknown")
+    assert all(
+        fact.severity is not WarningSeverity.INTERDIT
+        for fact in outcome.expected_facts
+        if fact.polarity == "miss"
+    )
+
+
+def test_run_bench_iter0_halles_minimal_not_worse_than_core5():
+    """iter-0: attempt_key should be <= core-5 (not worse)."""
+    core5_outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref="core-5")
+    iter0_outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref="iter-0")
+    assert iter0_outcome.engine_ref == "iter-0"
+    assert iter0_outcome.trace.seeder == "iter"
+    assert "base_engine" in iter0_outcome.trace.attempt_key
+    assert iter0_outcome.trace.attempt_key["base_engine"] == "core-5"
+    core5_key = (
+        core5_outcome.trace.attempt_key["empty"],
+        core5_outcome.trace.attempt_key["interdit"],
+        core5_outcome.trace.attempt_key["hours_miss"],
+        core5_outcome.trace.attempt_key["souhait"],
+        core5_outcome.trace.attempt_key["below_role"],
+        core5_outcome.trace.attempt_key["overqual"],
+    )
+    iter0_key = (
+        iter0_outcome.trace.attempt_key["empty"],
+        iter0_outcome.trace.attempt_key["interdit"],
+        iter0_outcome.trace.attempt_key["hours_miss"],
+        iter0_outcome.trace.attempt_key["souhait"],
+        iter0_outcome.trace.attempt_key["below_role"],
+        iter0_outcome.trace.attempt_key["overqual"],
+    )
+    assert iter0_key <= core5_key, "iter-0 should not be worse than core-5"
+
+
+def test_run_bench_cp0_cadres_minimal_runs_without_crash():
+    """cp-0: overqual/cadres should run without crashing."""
+    outcome = run_bench("overqual", "cadres", SearchEffort.MINIMAL, engine_ref="cp-0")
+    assert outcome.engine_ref == "cp-0"
+    assert outcome.trace.seeder == "cp-sat"
+
+
+def test_run_bench_iter0_cadres_minimal_has_iterations():
+    """iter-0: trace should have iterations >= 0."""
+    outcome = run_bench("overqual", "cadres", SearchEffort.MINIMAL, engine_ref="iter-0")
+    assert outcome.engine_ref == "iter-0"
+    assert "iterations" in outcome.trace.attempt_key
+    assert outcome.trace.attempt_key["iterations"] >= 0
 
 
 def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():

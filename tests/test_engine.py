@@ -649,6 +649,32 @@ def test_core_6_rare_already_on_duty_preferred():
     assert chosen.id == "chef", "core-6 rare candidate already on duty should be preferred"
 
 
+def test_iter0_illegal_swap_not_applied():
+    """iter-0: _is_legal_assignment prevents illegal swaps."""
+    from doux_planning.engines.iter_0 import _is_legal_assignment
+
+    chef = employee("Chef", "chef", hours=39, employee_id="chef")
+    commis = employee("Sam", "commis", hours=20, employee_id="sam")
+    draft = _draft(employees=(chef, commis))
+    
+    shift1 = _shift("chef", 0, 10 * 60, 14 * 60, 4)
+    shift2 = _shift("chef", 0, 18 * 60, 22 * 60, 4)
+    assignments = [shift1, shift2]
+    
+    illegal_shift = Shift(
+        employee_id="sam",
+        day_index=0,
+        weekday="monday",
+        service_id=ServiceName.MIDDAY.value,
+        team=Team.CUISINE,
+        start_minutes=10 * 60,
+        end_minutes=14 * 60,
+        post_level=4,
+    )
+    assert not _is_legal_assignment(draft, assignments, illegal_shift, "sam"), \
+        "Sam (level 2) cannot take a level 4 post"
+
+
 def test_seed_tight_threshold_is_three():
     assert SEED_TIGHT_THRESHOLD == 3
 
