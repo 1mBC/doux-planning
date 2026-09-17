@@ -333,6 +333,7 @@ Colonne **Lancer** (par jeu) : les 3 boutons effort **puis** Exporter, **pile ve
 - **Meilleur(s)** : delta vs Manuel **en base ×10 entière** (`round(delta_manuel × 10)`, signe `+` / `−`, zéro → `0`). **Bulle avec fond coloré** (`.bench-cell` : padding `6px 8px`, bordure `#ddd` radius 6, `font-weight` 650). Fond = delta vs Manuel /10. **0 = vert**. Négatif = rouge clamp 1. Positif = bleu clamp 1. Si **égalité** entre plusieurs moteurs → tous affichent la bulle avec fond coloré.  
 - **Autres** (non meilleurs) : écart vs le meilleur de la ligne, **×10 entière** (ex: `-1`, `-2`, `-3`). **Pas de fond coloré**, **pas de flèche**. Couleur du texte **crescendo rouge** : plus l'écart est grand, plus le rouge est intense (même échelle crescendo qu'avant, clamp 1). Pas de bulle, juste le chiffre.  
 - **Pas de libellé** Mini / Opti / Max (l'ordre = Lancer). **Pas** la note absolue. Tiret si pas de run.  
+- **Grid vertical** : les 3 lignes (Minimal, Optimisé, Maximal) d'une cellule sont alignées en hauteur fixe, même si l'une est une bulle et l'autre un chiffre simple. Pas de décalage vertical entre colonnes.  
 - Clic → `/admin/bench/run/{run_id}`. Clic = bulle ou chiffre.
 
 Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu'on lance). Pas de bouton revert.
@@ -356,6 +357,11 @@ Chaque graphe :
 - Un point par modèle qui a **au moins un** jeu avec `global` non null pour cet effort. Moyenne / min / max = sur **ces** jeux (pas d’intersection forcée avec le modèle d’à côté). Modèle sans run : **pas** de point (la ligne saute).  
 - Légende **Moyenne / Min / Max** sous le titre du graphe.  
 - Fond clair, axes `#888`, pas de grille dense.
+- **Hover interactif** : quand la souris s'approche d'un point (seuil ~20 px), afficher :
+  - **Ligne pointillée verticale** passant par les 3 points (min, moyenne, max) du modèle survolé
+  - **Labels en surimpression** sur le graphique : les 3 notes du modèle (`8.2`, `9.1`, `9.5`) positionnées à côté de chaque point
+  - Style : fond semi-transparent sur les labels, police bold, couleur assortie à la courbe
+  - Le hover se déclenche au plus proche (pas besoin d'être exactement sur le point)
 
 Aucun run pour un compute → graphe masqué (pas un cadre vide).
 
