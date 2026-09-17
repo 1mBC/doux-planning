@@ -213,6 +213,7 @@ export function BenchPage() {
   const [exporting, setExporting] = useState(false);
   const [batch, setBatch] = useState<BenchBatch | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [selectedEngine, setSelectedEngine] = useState<string | null>(null);
   const cancelled = useRef(false);
 
   async function refreshVersions() {
@@ -271,6 +272,7 @@ export function BenchPage() {
           return;
         }
         setVersions(next);
+        setSelectedEngine(next.engine_ref);
         const active = await loadActiveBenchBatch();
         if (cancelled.current || !active || active.pct >= 100) {
           return;
@@ -298,7 +300,7 @@ export function BenchPage() {
     return seen;
   }, [versions]);
 
-  async function launch(body: { scope: BenchScope; category?: string; dataset_id?: string; search_effort?: SearchEffort }) {
+  async function launch(body: { scope: BenchScope; category?: string; dataset_id?: string; search_effort?: SearchEffort; engine_ref?: string }) {
     setBusy(true);
     setError(null);
     try {
@@ -451,13 +453,25 @@ export function BenchPage() {
         ) : null}
         <div className="bench-toolbar">
           <div className="bench-toolbar-row">
+            <select
+              className="bench-engine-select"
+              value={selectedEngine ?? versions.engine_ref}
+              onChange={(e) => setSelectedEngine(e.target.value)}
+              disabled={locked}
+            >
+              {versions.engine_refs.map((ref) => (
+                <option key={ref} value={ref}>
+                  {ref}
+                </option>
+              ))}
+            </select>
             <span>Toutes les catégories</span>
-            <LaunchButtons disabled={locked} onLaunch={(effort) => void launch({ scope: "all", search_effort: effort })} />
+            <LaunchButtons disabled={locked} onLaunch={(effort) => void launch({ scope: "all", search_effort: effort, engine_ref: selectedEngine ?? versions.engine_ref })} />
           </div>
           <CategoryLaunch
             categories={categories}
             disabled={locked}
-            onLaunch={(effort, category) => void launch({ scope: "category", category, search_effort: effort })}
+            onLaunch={(effort, category) => void launch({ scope: "category", category, search_effort: effort, engine_ref: selectedEngine ?? versions.engine_ref })}
           />
           <div className="bench-toolbar-row">
             <button type="button" className="choice" disabled={locked} onClick={() => void launch({ scope: "gaps" })}>
@@ -509,6 +523,7 @@ export function BenchPage() {
                           category: dataset.category,
                           dataset_id: dataset.id,
                           search_effort: effort,
+                          engine_ref: selectedEngine ?? versions.engine_ref,
                         })
                       }
                     />
