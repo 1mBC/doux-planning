@@ -71,6 +71,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 58 — banc alignement fix | `domain/bench.md` ; brief `ui-bench-align-fix.md` | **landed** `e38abbb` (UI v0.48.1) |
 | 59 — core-2.1 repair empty | `domain/engine-core-2-1.md`, `engines.md` ; brief `core-2-1.md` | **landed** `bd57193` |
 | 60 — annuler batch banc | `domain/bench.md` ; briefs `infra-bench-cancel.md`, `ui-bench-cancel.md` | **landed** `93412fd` (UI v0.49.0) |
+| 61 — sélecteur moteur banc | `domain/bench.md` ; briefs `infra-bench-engine-select.md`, `ui-bench-engine-select.md` | **landed** `ca740c3` (UI v0.50.0) |
 
 ## Ownership git (ne pas croiser)
 
