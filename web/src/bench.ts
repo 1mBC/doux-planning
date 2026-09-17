@@ -474,6 +474,17 @@ export async function loadActiveBenchBatch(): Promise<BenchBatch | null> {
   }
 }
 
+export async function cancelBenchBatch(batchId: string): Promise<{ batch_id: string; cancelled_count: number }> {
+  const raw = await sendAuth(`/v1/admin/bench/batches/${encodeURIComponent(batchId)}/cancel`, { method: "POST" }, true);
+  if (!isRecord(raw)) {
+    throw new PayloadError("réponse cancel invalide");
+  }
+  return {
+    batch_id: requireString(raw, "batch_id", "cancel"),
+    cancelled_count: requireNumber(raw, "cancelled_count", "cancel"),
+  };
+}
+
 export async function pollBenchBatch(
   batchId: string,
   cancelled: () => boolean,
