@@ -232,6 +232,13 @@ def admin_bench_batch(batch_id: str, authorization: str | None = Header(default=
     return get_batch(authorization, batch_id)
 
 
+@app.post("/v1/admin/bench/batches/{batch_id}/cancel")
+def cancel_bench_batch(batch_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import cancel_batch
+
+    return cancel_batch(authorization, batch_id)
+
+
 @app.post("/v1/generate")
 def post_generate(
     body: dict[str, Any], authorization: str | None = Header(default=None)

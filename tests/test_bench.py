@@ -1165,3 +1165,82 @@ def test_admin_bench_gaps_zero_holes_is_200(monkeypatch):
     assert body["status"] == "done"
     missing = client.get("/v1/admin/bench/batches/unknown-batch", headers=_bearer(token))
     assert missing.status_code == 404
+
+
+def _clear_bench_jobs_with_batch(batch_id: str) -> None:
+    with session_scope() as db:
+        for job in db.scalars(select(BenchJob).where(BenchJob.batch_id == batch_id)):
+            db.delete(job)
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_cancel_bench_batch(monkeypatch):
+    from doux_planning.api.worker import tick_bench_job
+
+    client = _client()
+    password = "password1"
+    email = f"cancel-{secrets.token_hex(4)}@example.com"
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": email, "password": password},
+    )
+    assert registered.status_code == 201
+    token = registered.json()["token"]
+    headers = _bearer(token)
+
+    monkeypatch.setenv("ADMIN_EMAIL", email)
+    promote_admin_email()
+    assert client.get("/v1/me", headers=headers).json()["admin"] is True
+
+    cancel_unknown = client.post("/v1/admin/bench/batches/unknown-batch/cancel", headers=headers)
+    assert cancel_unknown.status_code == 404
+    assert cancel_unknown.json()["detail"] == "batch introuvable"
+
+    queued = client.post(
+        "/v1/admin/bench/run",
+        headers=headers,
+        json={"scope": "category", "category": "tight", "search_effort": "maximal"},
+    )
+    assert queued.status_code == 202
+    batch_id = queued.json()["batch_id"]
+    job_ids = queued.json()["job_ids"]
+    total = queued.json()["total"]
+    assert total >= 2
+
+    batch_before = client.get(f"/v1/admin/bench/batches/{batch_id}", headers=headers)
+    assert batch_before.status_code == 200
+    assert batch_before.json()["queued"] == total
+    assert batch_before.json()["running"] == 0
+
+    tick_bench_job(run_bench_fn=_stub_run_bench)
+    batch_with_running = client.get(f"/v1/admin/bench/batches/{batch_id}", headers=headers)
+    queued_count = batch_with_running.json()["queued"]
+    running_count = batch_with_running.json()["running"]
+    done_count = batch_with_running.json()["done"]
+    expected_cancel = queued_count
+
+    cancelled = client.post(f"/v1/admin/bench/batches/{batch_id}/cancel", headers=headers)
+    assert cancelled.status_code == 200
+    assert cancelled.json()["batch_id"] == batch_id
+    assert cancelled.json()["cancelled_count"] == expected_cancel
+
+    batch_after = client.get(f"/v1/admin/bench/batches/{batch_id}", headers=headers)
+    assert batch_after.json()["queued"] == 0
+
+    cancel_again = client.post(f"/v1/admin/bench/batches/{batch_id}/cancel", headers=headers)
+    assert cancel_again.status_code == 200
+    assert cancel_again.json()["cancelled_count"] == 0
+
+    other = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"user-{secrets.token_hex(4)}@example.com", "password": password},
+    )
+    assert other.status_code == 201
+    forbidden = client.post(f"/v1/admin/bench/batches/{batch_id}/cancel", headers=_bearer(other.json()["token"]))
+    assert forbidden.status_code == 403
+    assert forbidden.json()["detail"] == DETAIL_ADMIN
+
+    no_bearer = client.post(f"/v1/admin/bench/batches/{batch_id}/cancel")
+    assert no_bearer.status_code == 401
+
+    _clear_bench_jobs_with_batch(batch_id)
