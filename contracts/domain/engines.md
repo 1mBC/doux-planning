@@ -29,6 +29,8 @@ src/doux_planning/engines/
 | `core-4` | `engines/core_4.py` | `da1ef781ef572eb3eb30cde97060dd31788f79b5` |
 | `core-5` | `engine.py` **live** | `VERSION` |
 | `core-6` | `engines/core_6.py` | nouveau (pas un snapshot live) |
+| `cp-0` | `engines/cp_0.py` | CP-SAT global (`engine-cp-0.md`) |
+| `iter-0` | `engines/iter_0.py` | post-traitement itératif (`engine-iter-0.md`) |
 
 `list_engine_refs()` = ces ids, ordre du tableau. Inconnu → `UnknownEngineRef`.  
 `generate_for(ref, draft, search)` → `(EngineResult, SearchTrace)`.
@@ -62,8 +64,8 @@ Toujours renvoyé (jamais null sur un run neuf) :
 
 ## Tests
 
-- `list_engine_refs() == ("core-0","core-1","core-2","core-3","core-4","core-5","core-6")`.
-- `run_bench("tight","halles", minimal)` et `engine_ref="core-0"`…`"core-6"` : 0 interdit expected, `trace` complète, `outcome.engine_ref` = demandé.
+- `list_engine_refs() == ("core-0","core-1","core-2","core-3","core-4","core-5","core-6","cp-0","iter-0")`.
+- `run_bench("tight","halles", minimal)` et `engine_ref="core-0"`…`"iter-0"` : 0 interdit expected, `trace` complète, `outcome.engine_ref` = demandé.
 - `core-2` **n’appelle pas** les seeders (pas de locks).
 - `core-3` figé : pipe seeds `engine-seeds.md` (anti-coupure **toujours**).
 - `core-4` figé : fill `engine-core-4.md`.
