@@ -50,6 +50,7 @@ DETAIL_BENCH_RUN_MISSING = "Aucun run pour ce jeu."
 DETAIL_BENCH_JOB_MISSING = "Calcul introuvable."
 DETAIL_BENCH_BATCH_MISSING = "Calcul introuvable."
 DETAIL_BENCH_FAILED = "Le calcul a échoué."
+DETAIL_ENGINE_REF_UNKNOWN = "engine_ref inconnu"
 LEGACY_ENGINE_REF = "0.27.0"
 CANONICAL_CORE_ZERO = "core-0"
 
@@ -219,29 +220,36 @@ def _known_targets() -> list[tuple[str, str]]:
     return [(item.category, item.id) for item in list_bench_datasets()]
 
 
-def _parse_run_body(body: dict[str, Any]) -> tuple[str, str, list[tuple[str, str]]]:
+def _parse_run_body(body: dict[str, Any]) -> tuple[str, str, list[tuple[str, str]], str]:
     if not isinstance(body, dict):
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
     scope = body.get("scope")
     effort = body.get("search_effort")
     category = body.get("category")
     dataset_id = body.get("dataset_id")
+    requested_ref = body.get("engine_ref")
     if scope not in SCOPES or effort not in EFFORTS:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    if requested_ref is not None and requested_ref != "":
+        if not isinstance(requested_ref, str) or requested_ref not in list_engine_refs():
+            raise HTTPException(status_code=400, detail=DETAIL_ENGINE_REF_UNKNOWN)
+        ref_to_use = requested_ref
+    else:
+        ref_to_use = engine_ref()
     known = _known_targets()
     if scope == "all":
-        return scope, effort, known
+        return scope, effort, known, ref_to_use
     if not isinstance(category, str) or not category:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
     if category not in BENCH_CATEGORY_ORDER:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
     if scope == "category":
-        return scope, effort, [item for item in known if item[0] == category]
+        return scope, effort, [item for item in known if item[0] == category], ref_to_use
     if not isinstance(dataset_id, str) or not dataset_id:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
     if (category, dataset_id) not in known:
         raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING)
-    return scope, effort, [(category, dataset_id)]
+    return scope, effort, [(category, dataset_id)], ref_to_use
 
 
 def list_datasets(authorization: str | None) -> dict[str, Any]:
@@ -613,19 +621,18 @@ def post_run(authorization: str | None, body: dict[str, Any]) -> dict[str, Any] 
             for category, dataset_id, effort, ref in targets
         ]
         return _queued_response(batch_id, job_ids)
-    scope, effort, targets = _parse_run_body(body)
+    scope, effort, targets, ref_to_use = _parse_run_body(body)
     async_run = scope in ("all", "category") or effort == "maximal"
     if async_run:
         batch_id = secrets.token_urlsafe(12)
-        current = engine_ref()
         job_ids = [
-            _enqueue_bench_job(category, dataset_id, effort, current, batch_id)
+            _enqueue_bench_job(category, dataset_id, effort, ref_to_use, batch_id)
             for category, dataset_id in targets
         ]
         return _queued_response(batch_id, job_ids)
     category, dataset_id = targets[0]
     try:
-        outcome = run_bench(category, dataset_id, SearchEffort(effort))
+        outcome = run_bench(category, dataset_id, SearchEffort(effort), engine_ref=ref_to_use)
     except UnknownBenchDataset as exc:
         raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING) from exc
     row = persist_bench_outcome(outcome)

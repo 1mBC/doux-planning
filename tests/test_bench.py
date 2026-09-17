@@ -1244,3 +1244,72 @@ def test_cancel_bench_batch(monkeypatch):
     assert no_bearer.status_code == 401
 
     _clear_bench_jobs_with_batch(batch_id)
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_bench_run_optional_engine_ref(monkeypatch):
+    from doux_planning.api.worker import tick_bench_job
+    from doux_planning.bench import engine_ref as current_version
+
+    client = _client()
+    password = "password1"
+    email = f"eng-ref-{secrets.token_hex(4)}@example.com"
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": email, "password": password},
+    )
+    assert registered.status_code == 201
+    token = registered.json()["token"]
+    headers = _bearer(token)
+
+    monkeypatch.setenv("ADMIN_EMAIL", email)
+    promote_admin_email()
+    assert client.get("/v1/me", headers=headers).json()["admin"] is True
+
+    version = current_version()
+    assert version == "core-5"
+
+    without_ref = client.post(
+        "/v1/admin/bench/run",
+        headers=headers,
+        json={"scope": "dataset", "category": "tight", "dataset_id": "halles", "search_effort": "minimal"},
+    )
+    assert without_ref.status_code == 200
+    run_without = without_ref.json()["runs"][0]
+    assert run_without["engine_ref"] == "core-5"
+    assert run_without["app_version"] == "core-5"
+
+    with_ref = client.post(
+        "/v1/admin/bench/run",
+        headers=headers,
+        json={"scope": "dataset", "category": "tight", "dataset_id": "halles", "search_effort": "minimal", "engine_ref": "core-2"},
+    )
+    assert with_ref.status_code == 200
+    run_with = with_ref.json()["runs"][0]
+    assert run_with["engine_ref"] == "core-2"
+    assert run_with["app_version"] == "core-2"
+
+    invalid_ref = client.post(
+        "/v1/admin/bench/run",
+        headers=headers,
+        json={"scope": "dataset", "category": "tight", "dataset_id": "halles", "search_effort": "minimal", "engine_ref": "inconnu"},
+    )
+    assert invalid_ref.status_code == 400
+    assert invalid_ref.json()["detail"] == "engine_ref inconnu"
+
+    async_with_ref = client.post(
+        "/v1/admin/bench/run",
+        headers=headers,
+        json={"scope": "category", "category": "tight", "search_effort": "maximal", "engine_ref": "core-4"},
+    )
+    assert async_with_ref.status_code == 202
+    batch_id = async_with_ref.json()["batch_id"]
+    job_ids = async_with_ref.json()["job_ids"]
+    assert len(job_ids) >= 1
+    with session_scope() as db:
+        for job_id in job_ids:
+            job = db.get(BenchJob, job_id)
+            assert job is not None
+            assert job.engine_ref == "core-4"
+
+    _clear_bench_jobs_with_batch(batch_id)
