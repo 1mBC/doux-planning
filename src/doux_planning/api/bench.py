@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_database
@@ -710,3 +710,21 @@ def get_active_batch(authorization: str | None) -> dict[str, Any]:
     incomplete.sort(key=lambda item: item[0], reverse=True)
     _, batch_id, group = incomplete[0]
     return _batch_body(batch_id, group, datetime.now(timezone.utc))
+
+
+def cancel_batch(authorization: str | None, batch_id: str) -> dict[str, Any]:
+    require_admin(authorization)
+    with session_scope() as db:
+        result = db.execute(
+            update(BenchJob)
+            .where(BenchJob.batch_id == batch_id)
+            .where(BenchJob.status == "queued")
+            .values(status="cancelled")
+        )
+        count = result.rowcount
+    if count == 0:
+        with session_scope() as db:
+            exists = db.scalar(select(BenchJob.id).where(BenchJob.batch_id == batch_id).limit(1))
+            if exists is None:
+                raise HTTPException(status_code=404, detail="batch introuvable")
+    return {"batch_id": batch_id, "cancelled_count": count}
