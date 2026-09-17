@@ -7,6 +7,7 @@ import {
   benchBankExportFilename,
   benchBelowManuelExportFilename,
   benchDatasetExportFilename,
+  cancelBenchBatch,
   downloadJsonFile,
   deltaBackground,
   loadActiveBenchBatch,
@@ -211,6 +212,7 @@ export function BenchPage() {
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [batch, setBatch] = useState<BenchBatch | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const cancelled = useRef(false);
 
   async function refreshVersions() {
@@ -242,6 +244,22 @@ export function BenchPage() {
       if (!cancelled.current) {
         setBusy(false);
       }
+    }
+  }
+
+  async function handleCancelBatch() {
+    if (!batch) return;
+    setCancelling(true);
+    try {
+      await cancelBenchBatch(batch.batch_id);
+      cancelled.current = true;
+      setBatch(null);
+      setBusy(false);
+      await refreshVersions();
+    } catch (err: unknown) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -421,6 +439,14 @@ export function BenchPage() {
           <div className="bench-batch-status" role="status" aria-live="polite">
             <p>{`${Math.round(batch.pct)} %`}</p>
             <p>{`~ ${formatSolveDuration(batch.eta_max_seconds)}`}</p>
+            <button
+              type="button"
+              className="bench-cancel-btn"
+              disabled={cancelling}
+              onClick={() => void handleCancelBatch()}
+            >
+              {cancelling ? "Annulation..." : "Annuler"}
+            </button>
           </div>
         ) : null}
         <div className="bench-toolbar">

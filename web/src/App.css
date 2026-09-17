@@ -651,6 +651,26 @@ table.plan td.empty-slot {
   margin: 0;
 }
 
+.bench-cancel-btn {
+  padding: 4px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+  color: #555;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.bench-cancel-btn:hover:not(:disabled) {
+  background: #f0f0f0;
+  border-color: #aaa;
+}
+
+.bench-cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .bench-toolbar-row {
   display: flex;
   flex-wrap: wrap;
