@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { effortLabel } from "./admin";
 import { AdminNav } from "./AdminPage";
 import { BENCH_EFFORTS, loadBenchVersions, type BenchVersionDataset, type BenchVersions } from "./bench";
@@ -11,6 +11,8 @@ type DataPoint = {
   min: number;
   max: number;
 };
+
+const HOVER_THRESHOLD = 30;
 
 function computeStatsForEffort(datasets: BenchVersionDataset[], engineRefs: string[], effort: SearchEffort): DataPoint[] {
   const points: DataPoint[] = [];
@@ -44,24 +46,67 @@ const PLOT_WIDTH = GRAPH_WIDTH - PADDING_LEFT - PADDING_RIGHT;
 const PLOT_HEIGHT = GRAPH_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
 
 function StatsGraph({ effort, points }: { effort: SearchEffort; points: DataPoint[] }) {
-  if (points.length === 0) {
-    return null;
-  }
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const allValues = points.flatMap((p) => [p.mean, p.min, p.max]);
-  const minObserved = Math.min(...allValues);
+  const minObserved = allValues.length > 0 ? Math.min(...allValues) : 0;
   const yMin = Math.max(0, minObserved - 0.4);
   const yMax = 10;
   const yRange = yMax - yMin;
 
   const xStep = points.length > 1 ? PLOT_WIDTH / (points.length - 1) : 0;
 
-  function toX(index: number): number {
-    return PADDING_LEFT + (points.length > 1 ? index * xStep : PLOT_WIDTH / 2);
-  }
+  const toX = useCallback(
+    (index: number): number => {
+      return PADDING_LEFT + (points.length > 1 ? index * xStep : PLOT_WIDTH / 2);
+    },
+    [points.length, xStep],
+  );
 
-  function toY(value: number): number {
-    return PADDING_TOP + PLOT_HEIGHT - ((value - yMin) / yRange) * PLOT_HEIGHT;
+  const toY = useCallback(
+    (value: number): number => {
+      return PADDING_TOP + PLOT_HEIGHT - ((value - yMin) / yRange) * PLOT_HEIGHT;
+    },
+    [yMin, yRange],
+  );
+
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent<SVGSVGElement>) => {
+      if (!svgRef.current || points.length === 0) {
+        setHoverIndex(null);
+        return;
+      }
+      const rect = svgRef.current.getBoundingClientRect();
+      const scaleX = GRAPH_WIDTH / rect.width;
+      const mouseX = (event.clientX - rect.left) * scaleX;
+
+      let closestIndex = -1;
+      let closestDist = Infinity;
+      for (let i = 0; i < points.length; i++) {
+        const px = toX(i);
+        const dist = Math.abs(mouseX - px);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestIndex = i;
+        }
+      }
+
+      if (closestDist <= HOVER_THRESHOLD) {
+        setHoverIndex(closestIndex);
+      } else {
+        setHoverIndex(null);
+      }
+    },
+    [points, toX],
+  );
+
+  const handleMouseLeave = useCallback(() => {
+    setHoverIndex(null);
+  }, []);
+
+  if (points.length === 0) {
+    return null;
   }
 
   function buildPath(values: number[]): string {
@@ -80,6 +125,9 @@ function StatsGraph({ effort, points }: { effort: SearchEffort; points: DataPoin
     yTicks.push(tick);
   }
 
+  const hoveredPoint = hoverIndex !== null ? points[hoverIndex] : null;
+  const hoverX = hoverIndex !== null ? toX(hoverIndex) : 0;
+
   return (
     <article className="bench-stats-graph">
       <h3>{effortLabel(effort)}</h3>
@@ -89,9 +137,12 @@ function StatsGraph({ effort, points }: { effort: SearchEffort; points: DataPoin
         <span className="bench-stats-legend-item bench-stats-legend-max">Max</span>
       </div>
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`}
         className="bench-stats-svg"
         aria-label={`Graphe ${effortLabel(effort)}`}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
       >
         <line
           x1={PADDING_LEFT}
@@ -165,6 +216,83 @@ function StatsGraph({ effort, points }: { effort: SearchEffort; points: DataPoin
             <circle cx={toX(i)} cy={toY(point.mean)} r="4" fill="#1c1917" />
           </g>
         ))}
+
+        {hoveredPoint !== null && (
+          <g className="bench-stats-hover">
+            <line
+              x1={hoverX}
+              y1={PADDING_TOP}
+              x2={hoverX}
+              y2={PADDING_TOP + PLOT_HEIGHT}
+              stroke="#666"
+              strokeWidth="1"
+              strokeDasharray="4 4"
+              opacity="0.7"
+            />
+            <g transform={`translate(${hoverX + 8}, ${toY(hoveredPoint.max) - 2})`}>
+              <rect
+                x="-2"
+                y="-12"
+                width="38"
+                height="16"
+                rx="4"
+                fill="rgba(255,255,255,0.9)"
+                stroke="#2f6fed"
+                strokeWidth="0.5"
+              />
+              <text
+                x="0"
+                y="0"
+                className="bench-stats-hover-label"
+                fill="#2f6fed"
+              >
+                {hoveredPoint.max.toFixed(1)}
+              </text>
+            </g>
+            <g transform={`translate(${hoverX}, ${toY(hoveredPoint.mean) - 16})`}>
+              <rect
+                x="-19"
+                y="-12"
+                width="38"
+                height="16"
+                rx="4"
+                fill="rgba(255,255,255,0.9)"
+                stroke="#1c1917"
+                strokeWidth="0.5"
+              />
+              <text
+                x="0"
+                y="0"
+                textAnchor="middle"
+                className="bench-stats-hover-label"
+                fill="#1c1917"
+              >
+                {hoveredPoint.mean.toFixed(1)}
+              </text>
+            </g>
+            <g transform={`translate(${hoverX - 8}, ${toY(hoveredPoint.min) - 2})`}>
+              <rect
+                x="-36"
+                y="-12"
+                width="38"
+                height="16"
+                rx="4"
+                fill="rgba(255,255,255,0.9)"
+                stroke="#c43a3a"
+                strokeWidth="0.5"
+              />
+              <text
+                x="-17"
+                y="0"
+                textAnchor="middle"
+                className="bench-stats-hover-label"
+                fill="#c43a3a"
+              >
+                {hoveredPoint.min.toFixed(1)}
+              </text>
+            </g>
+          </g>
+        )}
       </svg>
     </article>
   );
