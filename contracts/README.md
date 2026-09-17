@@ -66,7 +66,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 53 — moteur client admin | `domain/admin.md`, `generate-versions.md`, `http/v1-generate.md` ; brief `infra-live-engine.md` | **landed** `d24f706` |
 | 54 — sélecteur + horodatage modèle | `domain/admin.md`, `generate-versions.md` ; brief `ui-live-engine.md` | **landed** `3aaa3f2` (UI v0.46.0) |
 | 55 — cp-0 + iter-0 | `domain/engine-cp-0.md`, `engine-iter-0.md`, `engines.md` ; brief `core-cp-iter.md` | **landed** `8a13747` |
-| 56 — banc meilleur par ligne | `domain/bench.md` ; brief `ui-bench-best-line.md` | UI |
+| 56 — banc meilleur par ligne | `domain/bench.md` ; brief `ui-bench-best-line.md` | **landed** `95d33e8` (UI v0.47.0) |
 
 ## Ownership git (ne pas croiser)
 
