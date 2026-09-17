@@ -329,14 +329,13 @@ Lancer     | Manuel | {engine_ref} | {engine_ref} | …
 Colonne **Lancer** (par jeu) : les 3 boutons effort **puis** Exporter, **pile verticale** (plus de wrap horizontal des 3 efforts). Même ordre que les deltas dans la cellule modèle.
 
 - **Manuel** : `dataset.manual.global` **une fois**. Clic → compare-chemin `optimized` moteur **courant**.  
-- **Chaque ligne** dans la cellule modèle : delta vs Manuel **en base ×10 entière** (`round(delta_manuel × 10)`, signe `+` / `−`, zéro → `0`). **Pas** de libellé Mini / Opti / Max (l’ordre = Lancer). **Pas** la note absolue. Tiret si pas de run.  
-- **À droite** de **cette bulle** (pas dedans) : delta vs le **modèle précédent** de `engine_refs` (même jeu, même effort), **aussi ×10 entière**. Premier `engine_ref` : **pas** d’indicateur. Pas de run précédent **ou round(d×10)=0** : **rien** (plus de liseret vert). Fond de l’indicateur = fond de page.  
-  - `> 0` : flèche **haut bleue** + le petit chiffre. Hauteur de flèche et intensité du bleu = crescendo avec `|d|` (échelle **note /10**, clamp **1** — même cap que le fond de la bulle).  
-  - `< 0` : flèche **bas rouge** + le petit chiffre. Même crescendo (clamp 1).  
-- Clic → `/admin/bench/run/{run_id}`. Clic = bulle + indicateur. **Pas** de contour / bordure / fond autour du couple : la rangée n’a pas de « boîte commune ».  
-- **Bulle** = le chiffre vs Manuel, **même chrome qu’avant v0.43** (`.bench-cell` : padding `6px 8px`, bordure `#ddd` radius 6, `font-weight` 650, taille de chiffre **identique**). Fond coloré = delta vs Manuel /10. **0 = vert**. Négatif = rouge clamp 1. Positif = bleu clamp 1. Tiret = pas de bulle. L’indicateur n’est **pas** dans cette boîte et ne réduit **pas** le padding / `font-size` du chiffre.
+- **Ligne** = (dataset, effort). Pour chaque ligne, identifier le(s) **meilleur(s)** moteur(s) = note `global` la plus haute parmi les runs de cette ligne.  
+- **Meilleur(s)** : delta vs Manuel **en base ×10 entière** (`round(delta_manuel × 10)`, signe `+` / `−`, zéro → `0`). **Bulle avec fond coloré** (`.bench-cell` : padding `6px 8px`, bordure `#ddd` radius 6, `font-weight` 650). Fond = delta vs Manuel /10. **0 = vert**. Négatif = rouge clamp 1. Positif = bleu clamp 1. Si **égalité** entre plusieurs moteurs → tous affichent la bulle avec fond coloré.  
+- **Autres** (non meilleurs) : écart vs le meilleur de la ligne, **×10 entière** (ex: `-1`, `-2`, `-3`). **Pas de fond coloré**, **pas de flèche**. Couleur du texte **crescendo rouge** : plus l'écart est grand, plus le rouge est intense (même échelle crescendo qu'avant, clamp 1). Pas de bulle, juste le chiffre.  
+- **Pas de libellé** Mini / Opti / Max (l'ordre = Lancer). **Pas** la note absolue. Tiret si pas de run.  
+- Clic → `/admin/bench/run/{run_id}`. Clic = bulle ou chiffre.
 
-Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu’on lance). Pas de bouton revert.
+Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu'on lance). Pas de bouton revert.
 
 ### Recap → page Stats banc
 
