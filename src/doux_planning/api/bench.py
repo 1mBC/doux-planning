@@ -676,7 +676,8 @@ def _batch_body(batch_id: str, jobs: list[BenchJob], now: datetime) -> dict[str,
     running = sum(1 for job in jobs if job.status == "running")
     done = sum(1 for job in jobs if job.status == "done")
     failed = sum(1 for job in jobs if job.status == "failed")
-    pct = 100.0 if total == 0 else 100.0 * (done + failed) / total
+    cancelled = sum(1 for job in jobs if job.status == "cancelled")
+    pct = 100.0 if total == 0 else 100.0 * (done + failed + cancelled) / total
     return {
         "batch_id": batch_id,
         "total": total,
@@ -708,7 +709,7 @@ def get_active_batch(authorization: str | None) -> dict[str, Any]:
         grouped.setdefault(job.batch_id, []).append(job)
     incomplete: list[tuple[datetime, str, list[BenchJob]]] = []
     for batch_id, group in grouped.items():
-        finished = sum(1 for job in group if job.status in ("done", "failed"))
+        finished = sum(1 for job in group if job.status in ("done", "failed", "cancelled"))
         if finished < len(group):
             newest = max(job.created_at for job in group)
             incomplete.append((newest, batch_id, group))
