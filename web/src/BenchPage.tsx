@@ -255,12 +255,12 @@ export function BenchPage() {
       await cancelBenchBatch(batch.batch_id);
       cancelled.current = true;
       setBatch(null);
-      setBusy(false);
       await refreshVersions();
     } catch (err: unknown) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {
       setCancelling(false);
+      setBusy(false);
     }
   }
 
