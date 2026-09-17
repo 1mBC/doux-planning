@@ -530,7 +530,7 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
 
 
 def test_list_engine_refs_is_core_zero_through_iter():
-    assert list_engine_refs() == ("core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0")
+    assert list_engine_refs() == ("core-0", "core-1", "core-2", "core-2.1", "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0")
 
 
 def _assert_complete_trace(trace: SearchTrace, *, frozen: bool, custom: bool = False) -> None:
@@ -554,15 +554,20 @@ def _assert_complete_trace(trace: SearchTrace, *, frozen: bool, custom: bool = F
             assert "solver_status" in trace.attempt_key
         elif trace.seeder == "iter":
             assert "base_engine" in trace.attempt_key
+        elif trace.seeder == "empty" and "repairs" in trace.attempt_key:
+            repairs = trace.attempt_key["repairs"]
+            assert "attempted" in repairs
+            assert "filled" in repairs
+            assert "remaining" in repairs
 
 
-@pytest.mark.parametrize("ref", ["core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0"])
+@pytest.mark.parametrize("ref", ["core-0", "core-1", "core-2", "core-2.1", "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0"])
 def test_run_bench_halles_minimal_trace_for_each_engine_ref(ref):
     outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref=ref)
     assert outcome.engine_ref == ref
     assert outcome.score is not None
     frozen = ref in ("core-0", "core-1", "core-2")
-    custom = ref in ("cp-0", "iter-0")
+    custom = ref in ("core-2.1", "cp-0", "iter-0")
     _assert_complete_trace(outcome.trace, frozen=frozen, custom=custom)
     assert all(
         fact.severity is not WarningSeverity.INTERDIT
@@ -642,6 +647,62 @@ def test_run_bench_iter0_cadres_minimal_has_iterations():
     assert outcome.engine_ref == "iter-0"
     assert "iterations" in outcome.trace.attempt_key
     assert outcome.trace.attempt_key["iterations"] >= 0
+
+
+def test_run_bench_core21_petits_optimized_fewer_empty():
+    """core-2.1: hours/petits should have empty < 10 (improvement vs core-2)."""
+    outcome = run_bench("hours", "petits", SearchEffort.OPTIMIZED, engine_ref="core-2.1")
+    assert outcome.engine_ref == "core-2.1"
+    assert outcome.trace.seeder == "empty"
+    assert "repairs" in outcome.trace.attempt_key
+    repairs = outcome.trace.attempt_key["repairs"]
+    assert repairs["attempted"] >= 0
+    assert repairs["remaining"] >= 0
+    assert repairs["filled"] == repairs["attempted"] - repairs["remaining"]
+    empty_count = outcome.trace.attempt_key["empty"]
+    assert empty_count < 10, f"Expected empty < 10, got {empty_count}"
+
+
+def test_run_bench_core21_pigalle_optimized_fewer_empty():
+    """core-2.1: crafted/pigalle should have empty < 4."""
+    outcome = run_bench("crafted", "pigalle", SearchEffort.OPTIMIZED, engine_ref="core-2.1")
+    assert outcome.engine_ref == "core-2.1"
+    assert "repairs" in outcome.trace.attempt_key
+    empty_count = outcome.trace.attempt_key["empty"]
+    assert empty_count < 4, f"Expected empty < 4, got {empty_count}"
+
+
+def test_run_bench_core21_atelier_minimal_no_regression():
+    """core-2.1: crafted/atelier should not regress vs core-2."""
+    core2_outcome = run_bench("crafted", "atelier", SearchEffort.MINIMAL, engine_ref="core-2")
+    core21_outcome = run_bench("crafted", "atelier", SearchEffort.MINIMAL, engine_ref="core-2.1")
+    assert core21_outcome.engine_ref == "core-2.1"
+    core2_empty = core2_outcome.trace.attempt_key["empty"]
+    core21_empty = core21_outcome.trace.attempt_key["empty"]
+    assert core21_empty <= core2_empty, f"core-2.1 regressed: {core21_empty} > {core2_empty}"
+
+
+def test_run_bench_core21_halles_trace_repairs_present():
+    """core-2.1: trace.repairs must be present with attempted/filled/remaining."""
+    outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref="core-2.1")
+    assert outcome.engine_ref == "core-2.1"
+    assert "repairs" in outcome.trace.attempt_key
+    repairs = outcome.trace.attempt_key["repairs"]
+    assert isinstance(repairs["attempted"], int)
+    assert isinstance(repairs["filled"], int)
+    assert isinstance(repairs["remaining"], int)
+    assert repairs["remaining"] == outcome.trace.attempt_key["empty"]
+
+
+def test_run_bench_core21_no_hard_constraint_violations():
+    """core-2.1: hard constraints must never be violated after repair."""
+    outcome = run_bench("crafted", "pigalle", SearchEffort.MINIMAL, engine_ref="core-2.1")
+    assert outcome.engine_ref == "core-2.1"
+    assert all(
+        fact.severity is not WarningSeverity.INTERDIT
+        for fact in outcome.facts
+        if fact.polarity == "miss"
+    )
 
 
 def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
