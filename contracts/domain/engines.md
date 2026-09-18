@@ -22,6 +22,7 @@ src/doux_planning/engines/
   core_3.py
   core_4.py
   core_6.py      # seeds + recase rares (jamais live)
+  mix_0.py       # mixture of experts
   registry.py    # list_engine_refs / generate_for
 ```
 
@@ -78,8 +79,8 @@ Toujours renvoyé (jamais null sur un run neuf) :
 
 ## Tests
 
-- `list_engine_refs() == ("core-0","core-1","core-2","core-2.1","core-2.2","core-2.3","core-2.4","core-2.5","core-3","core-4","core-5","core-6","cp-0","iter-0")`.
-- `run_bench("tight","halles", minimal)` et `engine_ref="core-0"`…`"iter-0"` (y compris `core-2.2`…`core-2.5`) : 0 interdit expected, `trace` complète, `outcome.engine_ref` = demandé.
+- `list_engine_refs() == ("core-0","core-1","core-2","core-2.1","core-2.2","core-2.3","core-2.4","core-2.5","core-3","core-4","core-5","core-6","cp-0","iter-0","mix-0")`.
+- `run_bench("tight","halles", minimal)` et `engine_ref="core-0"`…`"mix-0"` : 0 interdit expected, `trace` complète, `outcome.engine_ref` = demandé.
 - `core-2` **n’appelle pas** les seeders (pas de locks).
 - `core-3` figé : pipe seeds `engine-seeds.md` (anti-coupure **toujours**).
 - `core-4` figé : fill `engine-core-4.md`.
