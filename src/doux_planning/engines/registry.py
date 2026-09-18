@@ -3,13 +3,13 @@ from __future__ import annotations
 from doux_planning.engine import EngineResult, PlanningDraft, SearchTrace, _attempt_key, generate_cycle
 from doux_planning.engines import (
     core_0, core_1, core_2, core_2_1, core_2_2, core_2_3, core_2_4, core_2_5,
-    core_3, core_4, core_6, cp_0, iter_0,
+    core_3, core_4, core_6, cp_0, iter_0, mix_0,
 )
 from doux_planning.types import SearchEffort
 
 ENGINE_REFS = (
     "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5",
-    "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0",
+    "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0", "mix-0",
 )
 _FROZEN = {
     "core-0": core_0,
@@ -25,9 +25,10 @@ _FROZEN = {
     "core-6": core_6,
     "cp-0": cp_0,
     "iter-0": iter_0,
+    "mix-0": mix_0,
 }
 _SEEDS_ENGINES = frozenset({"core-3", "core-4", "core-6"})
-_CUSTOM_TRACE_ENGINES = frozenset({"core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5", "cp-0", "iter-0"})
+_CUSTOM_TRACE_ENGINES = frozenset({"core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5", "cp-0", "iter-0", "mix-0"})
 
 
 class UnknownEngineRef(KeyError):
@@ -62,6 +63,7 @@ def generate_for(
             seeds_infeasible=result.trace.seeds_infeasible,
             attempt_key=result.trace.attempt_key,
             repairs=getattr(result.trace, "repairs", None),
+            mix=getattr(result.trace, "mix", None),
         )
         return result, trace
     filled = int(module.SEARCH_PROGRESS.get("calendars", 0))
