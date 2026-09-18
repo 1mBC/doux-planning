@@ -74,6 +74,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 61 — sélecteur moteur banc | `domain/bench.md` ; briefs `infra-bench-engine-select.md`, `ui-bench-engine-select.md` | **landed** `ca740c3` (UI v0.50.0) |
 | 62 — core-2.2 legal repair | `domain/engine-core-2-2.md` ; brief `core-2-2.md` | **superseded** by 63 |
 | 63 — lignée core-2.2 à 2.5 | `domain/engine-core-2-2.md` … `2-5.md`, `engines.md` ; brief `core-2-family.md` | **landed** `499c4d3` |
+| 64 — podiums stats banc | `domain/bench.md` ; brief `ui-bench-podiums.md` | **landed** `35c112a` (UI v0.51.0) |
 
 ## Ownership git (ne pas croiser)
 
