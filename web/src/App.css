@@ -999,6 +999,53 @@ table.plan td.empty-slot {
   font-weight: 600;
 }
 
+.bench-podiums-section {
+  margin-top: 40px;
+}
+
+.bench-podiums-section h2 {
+  margin: 0 0 8px;
+}
+
+.bench-podium-section {
+  margin-top: 24px;
+}
+
+.bench-podium-section h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: #333;
+}
+
+.bench-podium-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.bench-podium-chart {
+  background: #fafbfc;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.bench-podium-chart h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+}
+
+.bench-podium-svg {
+  width: 100%;
+  height: auto;
+}
+
+.bench-podium-count {
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .admin-warn-card:first-child {
   padding-top: 0;
 }

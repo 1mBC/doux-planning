@@ -12,7 +12,26 @@ type DataPoint = {
   max: number;
 };
 
+type PodiumCount = {
+  ref: string;
+  count: number;
+};
+
 const HOVER_THRESHOLD = 30;
+
+const PODIUM_THRESHOLDS = [
+  { key: "first", label: "1er", delta: 0 },
+  { key: "at01", label: "À 0,1", delta: 0.1 },
+  { key: "at02", label: "À 0,2", delta: 0.2 },
+  { key: "at03", label: "À 0,3", delta: 0.3 },
+] as const;
+
+const PODIUM_COLORS: Record<string, { bar: string; light: string }> = {
+  first: { bar: "#2563eb", light: "#3b82f6" },
+  at01: { bar: "#059669", light: "#10b981" },
+  at02: { bar: "#d97706", light: "#f59e0b" },
+  at03: { bar: "#dc2626", light: "#ef4444" },
+};
 
 function computeStatsForEffort(datasets: BenchVersionDataset[], engineRefs: string[], effort: SearchEffort): DataPoint[] {
   const points: DataPoint[] = [];
@@ -34,6 +53,50 @@ function computeStatsForEffort(datasets: BenchVersionDataset[], engineRefs: stri
     }
   }
   return points;
+}
+
+function computePodiumCounts(
+  datasets: BenchVersionDataset[],
+  engineRefs: string[],
+  effort: SearchEffort,
+  delta: number,
+): { counts: PodiumCount[]; totalDatasets: number } {
+  const countMap = new Map<string, number>();
+  for (const ref of engineRefs) {
+    countMap.set(ref, 0);
+  }
+
+  let totalDatasets = 0;
+  for (const dataset of datasets) {
+    const globals: { ref: string; global: number }[] = [];
+    for (const ref of engineRefs) {
+      const cell = dataset.by_ref[ref]?.[effort];
+      if (cell && cell.global !== null && Number.isFinite(cell.global)) {
+        globals.push({ ref, global: cell.global });
+      }
+    }
+    if (globals.length === 0) continue;
+
+    totalDatasets++;
+    const best = Math.max(...globals.map((g) => g.global));
+    const threshold = best - delta;
+
+    for (const ref of engineRefs) {
+      const cell = dataset.by_ref[ref]?.[effort];
+      if (cell && cell.global !== null && Number.isFinite(cell.global)) {
+        if (delta === 0 ? cell.global === best : cell.global >= threshold) {
+          countMap.set(ref, (countMap.get(ref) ?? 0) + 1);
+        }
+      }
+    }
+  }
+
+  const counts: PodiumCount[] = engineRefs.map((ref) => ({
+    ref,
+    count: countMap.get(ref) ?? 0,
+  }));
+
+  return { counts, totalDatasets };
 }
 
 const GRAPH_WIDTH = 600;
@@ -298,6 +361,147 @@ function StatsGraph({ effort, points }: { effort: SearchEffort; points: DataPoin
   );
 }
 
+const BAR_GRAPH_WIDTH = 400;
+const BAR_GRAPH_HEIGHT = 200;
+const BAR_PADDING_LEFT = 48;
+const BAR_PADDING_RIGHT = 16;
+const BAR_PADDING_TOP = 16;
+const BAR_PADDING_BOTTOM = 48;
+const BAR_PLOT_WIDTH = BAR_GRAPH_WIDTH - BAR_PADDING_LEFT - BAR_PADDING_RIGHT;
+const BAR_PLOT_HEIGHT = BAR_GRAPH_HEIGHT - BAR_PADDING_TOP - BAR_PADDING_BOTTOM;
+
+function PodiumBarChart({
+  thresholdKey,
+  label,
+  counts,
+  maxCount,
+}: {
+  thresholdKey: string;
+  label: string;
+  counts: PodiumCount[];
+  maxCount: number;
+}) {
+  if (counts.length === 0 || maxCount === 0) {
+    return null;
+  }
+
+  const barWidth = Math.min(40, BAR_PLOT_WIDTH / counts.length - 8);
+  const gap = (BAR_PLOT_WIDTH - barWidth * counts.length) / (counts.length + 1);
+  const colors = PODIUM_COLORS[thresholdKey] ?? PODIUM_COLORS.first;
+
+  return (
+    <article className="bench-podium-chart">
+      <h4>{label}</h4>
+      <svg
+        viewBox={`0 0 ${BAR_GRAPH_WIDTH} ${BAR_GRAPH_HEIGHT}`}
+        className="bench-podium-svg"
+        aria-label={`Podium ${label}`}
+      >
+        <line
+          x1={BAR_PADDING_LEFT}
+          y1={BAR_PADDING_TOP}
+          x2={BAR_PADDING_LEFT}
+          y2={BAR_PADDING_TOP + BAR_PLOT_HEIGHT}
+          stroke="#888"
+          strokeWidth="1"
+        />
+        <line
+          x1={BAR_PADDING_LEFT}
+          y1={BAR_PADDING_TOP + BAR_PLOT_HEIGHT}
+          x2={BAR_PADDING_LEFT + BAR_PLOT_WIDTH}
+          y2={BAR_PADDING_TOP + BAR_PLOT_HEIGHT}
+          stroke="#888"
+          strokeWidth="1"
+        />
+
+        {[0, Math.ceil(maxCount / 2), maxCount].map((tick) => {
+          const y = BAR_PADDING_TOP + BAR_PLOT_HEIGHT - (tick / maxCount) * BAR_PLOT_HEIGHT;
+          return (
+            <g key={tick}>
+              <line x1={BAR_PADDING_LEFT - 4} y1={y} x2={BAR_PADDING_LEFT} y2={y} stroke="#888" strokeWidth="1" />
+              <text x={BAR_PADDING_LEFT - 8} y={y} textAnchor="end" dominantBaseline="middle" className="bench-stats-tick">
+                {tick}
+              </text>
+            </g>
+          );
+        })}
+
+        {counts.map((item, i) => {
+          const barHeight = maxCount > 0 ? (item.count / maxCount) * BAR_PLOT_HEIGHT : 0;
+          const x = BAR_PADDING_LEFT + gap + i * (barWidth + gap);
+          const y = BAR_PADDING_TOP + BAR_PLOT_HEIGHT - barHeight;
+
+          return (
+            <g key={item.ref}>
+              <rect
+                x={x}
+                y={y}
+                width={barWidth}
+                height={barHeight}
+                fill={item.count > 0 ? colors.bar : "#e5e7eb"}
+                rx="2"
+              />
+              {item.count > 0 && (
+                <text
+                  x={x + barWidth / 2}
+                  y={y - 4}
+                  textAnchor="middle"
+                  className="bench-podium-count"
+                  fill={colors.bar}
+                >
+                  {item.count}
+                </text>
+              )}
+              <text
+                x={x + barWidth / 2}
+                y={BAR_PADDING_TOP + BAR_PLOT_HEIGHT + 8}
+                textAnchor="middle"
+                dominantBaseline="hanging"
+                className="bench-stats-label"
+                transform={`rotate(45, ${x + barWidth / 2}, ${BAR_PADDING_TOP + BAR_PLOT_HEIGHT + 8})`}
+              >
+                {item.ref}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </article>
+  );
+}
+
+function PodiumSection({
+  effort,
+  datasets,
+  engineRefs,
+}: {
+  effort: SearchEffort;
+  datasets: BenchVersionDataset[];
+  engineRefs: string[];
+}) {
+  const podiumData = PODIUM_THRESHOLDS.map((t) => ({
+    ...t,
+    ...computePodiumCounts(datasets, engineRefs, effort, t.delta),
+  }));
+
+  const maxCount = podiumData.length > 0 ? podiumData[0].totalDatasets : 0;
+
+  if (maxCount === 0) {
+    return null;
+  }
+
+  return (
+    <div className="bench-podium-section">
+      <h3>{effortLabel(effort)} — Podiums</h3>
+      <div className="bench-podium-grid">
+        {podiumData.map((d) => (
+          <PodiumBarChart key={d.key} thresholdKey={d.key} label={d.label} counts={d.counts} maxCount={maxCount} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function BenchStatsPage() {
   const [versions, setVersions] = useState<BenchVersions | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -354,11 +558,26 @@ export function BenchStatsPage() {
       {graphs.length === 0 ? (
         <p className="sub">Aucun run disponible.</p>
       ) : (
-        <section className="bench-stats-graphs">
-          {graphs.map(({ effort, points }) => (
-            <StatsGraph key={effort} effort={effort} points={points} />
-          ))}
-        </section>
+        <>
+          <section className="bench-stats-graphs">
+            {graphs.map(({ effort, points }) => (
+              <StatsGraph key={effort} effort={effort} points={points} />
+            ))}
+          </section>
+
+          <section className="bench-podiums-section">
+            <h2>Podiums</h2>
+            <p className="sub">Nombre de jeux où chaque moteur atteint le seuil</p>
+            {BENCH_EFFORTS.map((effort) => (
+              <PodiumSection
+                key={effort}
+                effort={effort}
+                datasets={versions.datasets}
+                engineRefs={versions.engine_refs}
+              />
+            ))}
+          </section>
+        </>
       )}
     </main>
   );
