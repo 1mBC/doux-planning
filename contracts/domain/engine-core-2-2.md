@@ -21,7 +21,9 @@ Exemples 2.1 **légaux** (à conserver) : `crafted/pigalle` empty 4→0 interdit
 pour chaque calendrier de repos (off_days) :
   1. fill fewest-first (identique à core-2)
   2. si empty > 0 : repair_empty_posts(assignments, off_days)
-  3. si interdit(repaired) > interdit(pre-repair) : revert (garder le fill)
+  3. revert (garder le fill) si :
+       - interdit(repaired) > interdit(pre-repair)
+       - OU note globale(repaired) < note globale(pre-repair)   # même cycle_score que le banc
   4. keep-best (identique à core-2)
 ```
 
@@ -53,7 +55,9 @@ Pour chaque poste vide (ordre fewest du fill, comme 2.1) :
 - Candidat trouvé → poser
 - Aucun → le poste reste vide
 - **Une passe** par calendrier (pas de boucle récursive)
-- Filet : si `evaluate` après repair a **plus** d’interdit que avant → revert ce calendrier
+- Filet : revert si plus d’interdit **ou** si `cycle_score.global` baisse (le banc juge la globale ; 2.1 a empiré `hours/petits` 7,1→6,8).
+
+Les manuels du banc : **0 interdit / 50 jeux**. Ils ne volent jamais le 2e repos. Ils couvrent autrement (heures, coupures, réserves) — ça c’est 2.3 / 2.4 / 2.5.
 
 ## SearchTrace (core-2.2)
 
@@ -95,11 +99,12 @@ core-0, core-1, core-2, core-2.1, core-2.2, core-3, core-4, core-5, core-6, cp-0
 - `run_bench(crafted, pigalle, optimized, engine_ref="core-2.2")` : `empty` < 4 **et** `interdit` == 0.
 - `run_bench(tight, marche, optimized, engine_ref="core-2.2")` : `interdit` == 0 (ne pas copier 2.1).
 - `run_bench(ladder, jumeaux, optimized, engine_ref="core-2.2")` : `interdit` == 0.
-- `run_bench(crafted, atelier, minimal, engine_ref="core-2.2")` : pas de régression vs core-2 (globale, empty, interdit).
+- `run_bench(hours, petits, optimized, engine_ref="core-2.2")` : `interdit` == 0 **et** globale ≥ core-2 (pas de régression 2.1).
+- `run_bench(crafted, atelier, minimal, engine_ref="core-2.2")` : pas de régression vs core-2.
 - `trace.repairs` présent **à la racine** du trace (pas dans `attempt_key`).
 - Contraintes dures **jamais** violées par la réparation.
 - Pytest vert.
 
 ## Hors freeze
 
-Tuning `REPAIR_HOURS_TOLERANCE`. Multi-passes. `core-2.3` (swaps surqual sans toucher empty). Live VERSION.
+Tuning `REPAIR_HOURS_TOLERANCE`. Live VERSION. Lignée 2.3–2.5 figée à part.
