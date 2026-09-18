@@ -530,7 +530,10 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
 
 
 def test_list_engine_refs_is_core_zero_through_iter():
-    assert list_engine_refs() == ("core-0", "core-1", "core-2", "core-2.1", "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0")
+    assert list_engine_refs() == (
+        "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5",
+        "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0",
+    )
 
 
 def _assert_complete_trace(trace: SearchTrace, *, frozen: bool, custom: bool = False) -> None:
@@ -559,15 +562,23 @@ def _assert_complete_trace(trace: SearchTrace, *, frozen: bool, custom: bool = F
             assert "attempted" in repairs
             assert "filled" in repairs
             assert "remaining" in repairs
+        elif trace.seeder == "empty" and trace.repairs is not None:
+            repairs = trace.repairs
+            assert "attempted" in repairs
+            assert "filled" in repairs
+            assert "remaining" in repairs
 
 
-@pytest.mark.parametrize("ref", ["core-0", "core-1", "core-2", "core-2.1", "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0"])
+@pytest.mark.parametrize("ref", [
+    "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5",
+    "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0",
+])
 def test_run_bench_halles_minimal_trace_for_each_engine_ref(ref):
     outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref=ref)
     assert outcome.engine_ref == ref
     assert outcome.score is not None
     frozen = ref in ("core-0", "core-1", "core-2")
-    custom = ref in ("core-2.1", "cp-0", "iter-0")
+    custom = ref in ("core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5", "cp-0", "iter-0")
     _assert_complete_trace(outcome.trace, frozen=frozen, custom=custom)
     assert all(
         fact.severity is not WarningSeverity.INTERDIT
@@ -703,6 +714,80 @@ def test_run_bench_core21_no_hard_constraint_violations():
         for fact in outcome.facts
         if fact.polarity == "miss"
     )
+
+
+def test_run_bench_core22_pigalle_optimized_empty_and_interdit():
+    """core-2.2: crafted/pigalle empty<4 interdit=0."""
+    outcome = run_bench("crafted", "pigalle", SearchEffort.OPTIMIZED, engine_ref="core-2.2")
+    assert outcome.engine_ref == "core-2.2"
+    assert outcome.trace.attempt_key["empty"] < 4
+    assert outcome.trace.attempt_key["interdit"] == 0
+    assert outcome.trace.repairs is not None
+
+
+def test_run_bench_core22_marche_optimized_no_interdit():
+    """core-2.2: tight/marche interdit=0 (don't copy 2.1's bug)."""
+    outcome = run_bench("tight", "marche", SearchEffort.OPTIMIZED, engine_ref="core-2.2")
+    assert outcome.engine_ref == "core-2.2"
+    assert outcome.trace.attempt_key["interdit"] == 0
+
+
+def test_run_bench_core22_petits_optimized_no_regression():
+    """core-2.2: hours/petits globale >= core-2."""
+    core2 = run_bench("hours", "petits", SearchEffort.OPTIMIZED, engine_ref="core-2")
+    core22 = run_bench("hours", "petits", SearchEffort.OPTIMIZED, engine_ref="core-2.2")
+    assert core22.engine_ref == "core-2.2"
+    assert core22.trace.attempt_key["interdit"] == 0
+    assert core22.score.global_score >= core2.score.global_score - 0.01
+
+
+def test_run_bench_core23_petits_optimized_fewer_empty():
+    """core-2.3: hours/petits empty<=10 interdit=0 globale>=core-2."""
+    core2 = run_bench("hours", "petits", SearchEffort.OPTIMIZED, engine_ref="core-2")
+    outcome = run_bench("hours", "petits", SearchEffort.OPTIMIZED, engine_ref="core-2.3")
+    assert outcome.engine_ref == "core-2.3"
+    assert outcome.trace.attempt_key["empty"] <= 10
+    assert outcome.trace.attempt_key["interdit"] == 0
+    assert outcome.score.global_score >= core2.score.global_score - 0.01
+
+
+def test_run_bench_core23_triple_optimized_fewer_empty():
+    """core-2.3: shapes/triple empty<=4 interdit=0."""
+    outcome = run_bench("shapes", "triple", SearchEffort.OPTIMIZED, engine_ref="core-2.3")
+    assert outcome.engine_ref == "core-2.3"
+    assert outcome.trace.attempt_key["empty"] <= 4
+    assert outcome.trace.attempt_key["interdit"] == 0
+
+
+def test_run_bench_core24_vaugirard_optimized_no_interdit():
+    """core-2.4: crafted/vaugirard interdit=0 (the 2 rest_between_days of core-2)."""
+    outcome = run_bench("crafted", "vaugirard", SearchEffort.OPTIMIZED, engine_ref="core-2.4")
+    assert outcome.engine_ref == "core-2.4"
+    assert outcome.trace.attempt_key["interdit"] == 0
+
+
+def test_run_bench_core24_pigalle_optimized_empty_and_interdit():
+    """core-2.4: crafted/pigalle empty<4 interdit=0."""
+    outcome = run_bench("crafted", "pigalle", SearchEffort.OPTIMIZED, engine_ref="core-2.4")
+    assert outcome.engine_ref == "core-2.4"
+    assert outcome.trace.attempt_key["empty"] < 4
+    assert outcome.trace.attempt_key["interdit"] == 0
+
+
+def test_run_bench_core25_abbesses_optimized_zero_empty():
+    """core-2.5: crafted/abbesses empty=0 interdit=0."""
+    outcome = run_bench("crafted", "abbesses", SearchEffort.OPTIMIZED, engine_ref="core-2.5")
+    assert outcome.engine_ref == "core-2.5"
+    assert outcome.trace.attempt_key["empty"] == 0
+    assert outcome.trace.attempt_key["interdit"] == 0
+
+
+def test_run_bench_core25_clichy_optimized_fewer_empty():
+    """core-2.5: crafted/clichy empty<=2 interdit=0."""
+    outcome = run_bench("crafted", "clichy", SearchEffort.OPTIMIZED, engine_ref="core-2.5")
+    assert outcome.engine_ref == "core-2.5"
+    assert outcome.trace.attempt_key["empty"] <= 2
+    assert outcome.trace.attempt_key["interdit"] == 0
 
 
 def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
