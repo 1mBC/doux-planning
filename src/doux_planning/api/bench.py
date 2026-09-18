@@ -639,12 +639,20 @@ def post_run(authorization: str | None, body: dict[str, Any]) -> dict[str, Any] 
     return {"runs": [_run_summary(row)]}
 
 
-def _effort_cap(effort: str) -> float:
-    return float(SEARCH_SECONDS[SearchEffort(effort)])
+MIX0_EXPERTS = 4
+
+
+def _effort_cap(effort: str, engine_ref: str | None = None) -> float:
+    base = float(SEARCH_SECONDS[SearchEffort(effort)])
+    if engine_ref == "mix-0":
+        if effort in ("minimal", "optimized"):
+            return MIX0_EXPERTS * base
+        return base
+    return base
 
 
 def _remaining_running(job: BenchJob, now: datetime) -> float:
-    cap = _effort_cap(job.search_effort)
+    cap = _effort_cap(job.search_effort, job.engine_ref)
     if job.started_at is None:
         return cap
     started = job.started_at
@@ -666,7 +674,7 @@ def _eta_max_seconds(jobs: list[BenchJob], now: datetime) -> int:
     for index, job in enumerate(running):
         loads[index] = _remaining_running(job, now)
     for index, job in enumerate(queued):
-        loads[index % n] += _effort_cap(job.search_effort)
+        loads[index % n] += _effort_cap(job.search_effort, job.engine_ref)
     return int(max(loads))
 
 

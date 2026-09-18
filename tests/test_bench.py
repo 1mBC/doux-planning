@@ -1448,3 +1448,19 @@ def test_bench_run_optional_engine_ref(monkeypatch):
             assert job.engine_ref == "core-4"
 
     _clear_bench_jobs_with_batch(batch_id)
+
+
+def test_effort_cap_mix0_vs_core2():
+    from doux_planning.api.bench import _effort_cap
+
+    assert _effort_cap("optimized", "mix-0") == 120.0
+    assert _effort_cap("optimized", "core-2") == 30.0
+
+    assert _effort_cap("minimal", "mix-0") == 12.0
+    assert _effort_cap("minimal", "core-2") == 3.0
+
+    assert _effort_cap("maximal", "mix-0") == 600.0
+    assert _effort_cap("maximal", "core-2") == 600.0
+
+    assert _effort_cap("optimized") == 30.0
+    assert _effort_cap("optimized", None) == 30.0
