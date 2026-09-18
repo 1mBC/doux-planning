@@ -41,6 +41,7 @@ src/doux_planning/engines/
 | `core-6` | `engines/core_6.py` | nouveau (pas un snapshot live) |
 | `cp-0` | `engines/cp_0.py` | CP-SAT global (`engine-cp-0.md`) |
 | `iter-0` | `engines/iter_0.py` | post-traitement itératif (`engine-iter-0.md`) |
+| `mix-0` | `engines/mix_0.py` | mixture (`engine-mix-0.md`) |
 
 `list_engine_refs()` = ces ids, ordre du tableau. Inconnu → `UnknownEngineRef`.  
 `generate_for(ref, draft, search)` → `(EngineResult, SearchTrace)`.
@@ -70,6 +71,7 @@ Toujours renvoyé (jamais null sur un run neuf) :
 `core-0` / `core-1` / `core-2` : `seeder="empty"`, `seed_index=0`, `n_locks=0`, `calendars_by_seeder={ "empty": N }`, `seeds_infeasible=0`.  
 `core-2.1` : idem + `repairs` **nichés dans** `attempt_key` (historique).  
 `core-2.2` / `core-2.3` / `core-2.4` / `core-2.5` : `repairs` **à la racine** du trace. `SearchTrace.repairs` optionnel.  
+`mix-0` : `seeder="mix"` + `mix: { experts, picker, winner, runs }` (`engine-mix-0.md`). `SearchTrace.mix` optionnel.  
 `core-3` / `core-4` / live `core-5` / `core-6` : **`result.trace`** du keep-best (seeder gagnant, locks, calendriers **remplis** par seeder, seeds jetés) — pas le stub empty.
 
 `run_bench(..., engine_ref=)` pose `outcome.engine_ref` et `outcome.trace`. Omis → `VERSION`.
