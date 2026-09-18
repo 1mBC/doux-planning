@@ -111,6 +111,7 @@ class SearchTrace:
     seeds_infeasible: int
     attempt_key: dict[str, float | int]
     repairs: dict | None = None
+    mix: dict | None = None
 
 
 @dataclass(frozen=True)

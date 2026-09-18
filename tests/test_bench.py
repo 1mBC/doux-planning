@@ -529,10 +529,10 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
     assert current_engine_ref() == "core-5"
 
 
-def test_list_engine_refs_is_core_zero_through_iter():
+def test_list_engine_refs_is_core_zero_through_mix():
     assert list_engine_refs() == (
         "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5",
-        "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0",
+        "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0", "mix-0",
     )
 
 
@@ -557,6 +557,12 @@ def _assert_complete_trace(trace: SearchTrace, *, frozen: bool, custom: bool = F
             assert "solver_status" in trace.attempt_key
         elif trace.seeder == "iter":
             assert "base_engine" in trace.attempt_key
+        elif trace.seeder == "mix":
+            assert trace.mix is not None
+            assert "experts" in trace.mix
+            assert "picker" in trace.mix
+            assert "winner" in trace.mix
+            assert "runs" in trace.mix
         elif trace.seeder == "empty" and "repairs" in trace.attempt_key:
             repairs = trace.attempt_key["repairs"]
             assert "attempted" in repairs
@@ -571,14 +577,14 @@ def _assert_complete_trace(trace: SearchTrace, *, frozen: bool, custom: bool = F
 
 @pytest.mark.parametrize("ref", [
     "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5",
-    "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0",
+    "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0", "mix-0",
 ])
 def test_run_bench_halles_minimal_trace_for_each_engine_ref(ref):
     outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref=ref)
     assert outcome.engine_ref == ref
     assert outcome.score is not None
     frozen = ref in ("core-0", "core-1", "core-2")
-    custom = ref in ("core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5", "cp-0", "iter-0")
+    custom = ref in ("core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5", "cp-0", "iter-0", "mix-0")
     _assert_complete_trace(outcome.trace, frozen=frozen, custom=custom)
     assert all(
         fact.severity is not WarningSeverity.INTERDIT
@@ -658,6 +664,50 @@ def test_run_bench_iter0_cadres_minimal_has_iterations():
     assert outcome.engine_ref == "iter-0"
     assert "iterations" in outcome.trace.attempt_key
     assert outcome.trace.attempt_key["iterations"] >= 0
+
+
+def test_run_bench_mix0_halles_minimal_has_four_runs():
+    """mix-0: should have 4 runs and a winner from MIX0_EXPERTS."""
+    from doux_planning.engines.mix_0 import MIX0_EXPERTS
+    
+    outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref="mix-0")
+    assert outcome.engine_ref == "mix-0"
+    assert outcome.trace.seeder == "mix"
+    assert outcome.trace.mix is not None
+    
+    mix = outcome.trace.mix
+    assert mix["experts"] == list(MIX0_EXPERTS)
+    assert mix["picker"] == "global"
+    assert mix["winner"] in MIX0_EXPERTS
+    assert len(mix["runs"]) == 4
+    
+    for run in mix["runs"]:
+        assert run["engine_ref"] in MIX0_EXPERTS
+        assert "global" in run
+        assert "attempt_key" in run
+        assert "duration_seconds" in run
+
+
+def test_run_bench_mix0_winner_has_highest_global():
+    """mix-0: winner should have the highest global score."""
+    outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref="mix-0")
+    assert outcome.trace.mix is not None
+    
+    mix = outcome.trace.mix
+    winner = mix["winner"]
+    winner_run = next(r for r in mix["runs"] if r["engine_ref"] == winner)
+    winner_global = winner_run["global"]
+    
+    for run in mix["runs"]:
+        if run["engine_ref"] != winner:
+            assert run["global"] is None or winner_global is None or run["global"] <= winner_global
+
+
+def test_run_bench_mix0_does_not_contain_itself():
+    """mix-0: MIX0_EXPERTS should not contain mix-0."""
+    from doux_planning.engines.mix_0 import MIX0_EXPERTS
+    
+    assert "mix-0" not in MIX0_EXPERTS
 
 
 def test_run_bench_core21_petits_optimized_fewer_empty():
