@@ -369,6 +369,38 @@ Chaque graphe :
 
 Aucun run pour un compute → graphe masqué (pas un cadre vide).
 
+### Stats — podiums (nouveau)
+
+**En plus** des 3 graphes moyenne/min/max. Toujours `GET /versions`. Pas de route HTTP neuve.
+
+Pour **chaque** compute (Minimal, Optimisé, Maximal), **4 graphes barres** empilés, **même X** = `engine_refs` (ordre registre).
+
+**Ligne** = un jeu qui a **au moins un** `global` non null pour ce compute (parmi les modèles).  
+**Meilleur** de la ligne = `max` des `global` présents (modèle sans run : hors course).
+
+Un modèle **compte** sur une ligne ssi il a un `global` et :
+
+| Graphe | Condition |
+|---|---|
+| **1er** | `global == meilleur` (ex-æquo inclus) |
+| **À 0,1** | `global >= meilleur − 0,1` |
+| **À 0,2** | `global >= meilleur − 0,2` |
+| **À 0,3** | `global >= meilleur − 0,3` |
+
+Comparer les notes **déjà arrondies /10** (1 décimale), pas de 2ᵉ arrondi. Y = **nombre de jeux** (entier). `ymax` = nombre de lignes de ce compute (en pratique ≤ 50). `ymin` = 0. Barres, pas de courbes. Valeur écrite **sur ou au-dessus** de la barre (lisible).
+
+Titres : `1er (ex-æquo)` / `À 0,1 du 1er` / `À 0,2 du 1er` / `À 0,3 du 1er`. Sous-titre du bloc = le compute (`effortLabel`).
+
+Modèle sans aucun run pour ce compute : barre **0** (pas d’omission — on veut voir qui n’est jamais dans le paquet).
+
+Couleur barres : une teinte par graphe (1er plus foncé, 0,3 plus clair), **même** teinte sur tous les modèles d’un graphe. Pas de légende modèle (le X suffit).
+
+Hover : optionnel, le chiffre sur la barre suffit.
+
+Ordre page : d’abord les 3 graphes moyenne/min/max (inchangés), **puis** les 3 blocs podium (Minimal → Optimisé → Maximal).
+
+**`0.51.0`**, note FR : podiums banc (1er / 0,1 / 0,2 / 0,3).
+
 ### Lancer (2 lignes)
 
 Plus une rangée par catégorie.
