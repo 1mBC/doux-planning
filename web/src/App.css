@@ -1341,6 +1341,88 @@ table.roles-sheet input {
   font-variant-numeric: tabular-nums;
 }
 
+button.stepper-clock {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.6rem;
+  padding: 0 4px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+button.stepper-clock:disabled {
+  cursor: default;
+  text-decoration: none;
+}
+
+table.type-sheet tbody tr.type-row-focus td {
+  background: #fdecc8;
+}
+
+.overlay.time-dial-overlay {
+  max-width: 720px;
+}
+
+.time-dial-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 12px 0 16px;
+}
+
+.time-dial-panel {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.time-dial-panel legend {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.time-dial-hours {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.time-dial-minutes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.time-dial-hours .choice,
+.time-dial-minutes .choice {
+  min-width: 0;
+  padding: 6px 4px;
+}
+
+.time-dial-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.time-dial-input input {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  table.type-sheet td {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
 .level-steppers {
   display: flex;
   flex-wrap: wrap;

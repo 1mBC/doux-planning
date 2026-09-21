@@ -1059,6 +1059,7 @@ function WeekStep({
       return [...without, next];
     });
   }
+  const offeredTabs = CONTEXT_SERVICES.filter((s) => services.includes(s.id));
   return (
     <section>
       <h2>Semaine type · {team}</h2>
@@ -1067,8 +1068,8 @@ function WeekStep({
           <thead>
             <tr>
               <th>Jour</th>
-              {services.map((id) => (
-                <th key={id}>{CONTEXT_SERVICES.find((item) => item.id === id)?.label ?? id}</th>
+              {offeredTabs.map((item) => (
+                <th key={item.id}>{item.label}</th>
               ))}
             </tr>
           </thead>
@@ -1076,7 +1077,8 @@ function WeekStep({
             {WEEKDAYS_EN.map((day) => (
               <tr key={day}>
                 <td>{dayLabel(day)}</td>
-                {services.map((service_id) => {
+                {offeredTabs.map((service) => {
+                  const service_id = service.id;
                   const current = cell(day, service_id);
                   return (
                     <td key={service_id}>
@@ -1086,10 +1088,10 @@ function WeekStep({
                       >
                         <option value="">Fermé</option>
                         {types
-                          .filter((item) => item.service_id === service_id)
-                          .map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
+                          .filter((typeRow) => typeRow.service_id === service_id)
+                          .map((typeRow) => (
+                            <option key={typeRow.id} value={typeRow.id}>
+                              {typeRow.name}
                             </option>
                           ))}
                       </select>

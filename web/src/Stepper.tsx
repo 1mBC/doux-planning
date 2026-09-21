@@ -6,6 +6,7 @@ export function Stepper({
   label,
   disabled,
   onChange,
+  onDisplayClick,
 }: {
   value: number;
   min?: number;
@@ -14,8 +15,10 @@ export function Stepper({
   label?: string;
   disabled?: boolean;
   onChange: (next: number) => void;
+  onDisplayClick?: () => void;
 }) {
   const atMin = min !== undefined && value <= min;
+  const shown = display ?? value;
   return (
     <span className="stepper-frame">
       {label ? <span className="stepper-label">{label}</span> : null}
@@ -29,7 +32,19 @@ export function Stepper({
         >
           −
         </button>
-        <span className="stepper-value">{display ?? value}</span>
+        {onDisplayClick ? (
+          <button
+            type="button"
+            className="stepper-value stepper-clock"
+            disabled={disabled}
+            aria-label="Modifier l’heure"
+            onClick={onDisplayClick}
+          >
+            {shown}
+          </button>
+        ) : (
+          <span className="stepper-value">{shown}</span>
+        )}
         <button
           type="button"
           className="stepper-btn"
