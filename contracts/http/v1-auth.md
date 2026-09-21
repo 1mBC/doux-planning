@@ -1,7 +1,7 @@
 # Auth + rattachement employé
 
 Freeze HTTP pour inscription / login / QR / session.  
-Un compte = une entreprise. Un restaurateur par entreprise (un `kind: company` crée **une nouvelle** entreprise, pas un second patron sur Saint-Cloud). Email unique **global**. Pas de mot de passe oublié en v1.
+Un compte restaurateur = une entreprise. Un compte **salarié** (email + mot de passe) survit sans resto : `contracts/domain/delete-employee.md`. Email unique **global**. Pas de mot de passe oublié en v1.
 
 `GET /v1/examples/saint-cloud` reste **public**, sans session, dual-read inchangé (`contracts/http/v1-examples.md`).  
 Les routes `/v1/sandbox/*` restent **publiques** dans cette tranche (l’UI auth n’est pas livrée). Ne pas les verrouiller ici.
@@ -27,12 +27,13 @@ Les vieilles routes OpenSpec `/v1/auth/restaurateur/*` et `/v1/auth/employee/*` 
 Corps session (register + login) :
 
 ```
-{ "token": "<opaque>", "me": { "kind": "company"|"employee", "email": "...", "restaurant_id": "...", "employee_id": null|"...", "admin": false } }
+{ "token": "<opaque>", "me": { "kind": "company"|"employee", "email": "...", "restaurant_id": string|null, "employee_id": null|"...", "admin": false } }
 ```
 
 `GET /v1/me` = l’objet `me` (sans `token`).  
-`kind: company` → `employee_id` est `null`.  
-`kind: employee` → `employee_id` = id de fiche.  
+`kind: company` → `employee_id` est `null`, `restaurant_id` string.  
+`kind: employee` affilié → les deux strings.  
+`kind: employee` **sans affiliation** → `restaurant_id` **et** `employee_id` `null` (login OK).  
 `admin` : bool (**promote** `ADMIN_EMAIL`, `contracts/domain/admin.md`). Jamais `kind: "admin"`.
 
 ## Routes
@@ -42,7 +43,9 @@ POST /v1/auth/register          → 201 { token, me }
 POST /v1/auth/login             → 200 { token, me }
 POST /v1/auth/logout            → 204   (Bearer)
 GET  /v1/me                     → 200 me (Bearer)
+POST /v1/auth/link              → 200 me (Bearer employee, voir delete-employee.md)
 GET  /v1/invites/{company_code} → 200 { restaurant_name, employees: [{ id, name, role, team }] }
+DELETE /v1/staff/{id}           → 200 Context (Bearer company, voir delete-employee.md)
 POST /v1/staff/{id}/invite-token → 200 { employee_id, employee_token }  (Bearer company)
 ```
 

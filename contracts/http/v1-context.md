@@ -77,7 +77,8 @@ Export / import config : **`contracts/domain/export-config.md`** (gagne). Pas de
 
 `invite_token` : généré par Core à la création de fiche, renvoyé au patron (QR). Ne pas l’accepter en PATCH pour **changer** un token (rotate = `POST /v1/staff/{id}/invite-token`).  
 PATCH `employees` = liste **complète** (remplace). Les ids nouveaux : Core crée le token. Ids existants : garder le token déjà persisté.  
-Une fiche déjà liée (`linked_employee_ids`) ne peut pas changer d’`id` ; la retirer de la liste alors qu’elle est liée → 409 `Cette fiche a déjà un compte.`
+Une fiche déjà liée (`linked_employee_ids`) ne peut pas changer d’`id` ; la retirer de la liste alors qu’elle est liée → 409 `Cette fiche a déjà un compte.`  
+**Supprimer volontairement** (liée ou non) : `DELETE /v1/staff/{id}` — `contracts/domain/delete-employee.md` (gagne). Compte plateforme conservé.
 
 Après PATCH fiches : `GET /v1/invites/{company_code}` liste les **non liées** (name, role string, team) comme le freeze auth.
 
