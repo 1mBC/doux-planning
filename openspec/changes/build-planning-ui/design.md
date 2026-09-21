@@ -101,8 +101,8 @@ Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : **Se
 2. Rôles (équipe) : nom + niveau ≥ 1. PATCH `ladders` avec `substitution_explained: true`.
 3. Équipe : une ligne par salarié ; popup indispo jours × **services offerts**. PATCH `employees` = liste complète.
 4. Souhaits bien-être : `Wellbeing` (cases `consecutive_rest` + **`weekend_rest_day`** à côté de la radio `weekend`, chiffres `max_services` **offerts seulement**, `max_coupures_per_week`). Pas un prérequis de `ready`. Bool `weekend_rest_day` requis au parse.
-5. Services types (équipe × service offert) : sous-onglets par service ; **Ajouter un type** en bas. **Une `<table>` par feuille** (plus de cartes `wave-line`). Colonnes Type (Arrivée | Sortie) · Heure (horloge + ±15 stepper compact) · N · Niveaux · **STAFF minimal resultant** (sac / erreur, même calcul) · poubelle. Persist / pire-cas inchangés. PATCH `types` = liste complète.
-6. Semaine type : type ou Fermé, colonnes = services offerts. PATCH `typical_week` = `{ salle, cuisine }`. Libellés A/B ou Paire/Impaire selon `week_labels`.
+5. Services types (équipe × service offert) : sous-onglets = `CONTEXT_SERVICES.filter(s => offered.includes(s.id))` (jamais `services.map`) ; **Ajouter un type** en bas. **Une `<table>` par feuille** (plus de cartes `wave-line`). Colonnes Type (Arrivée | **Départ**) · Heure (cadran overlay + ±15 stepper compact) · Niveaux · **STAFF minimal resultant** (sac / erreur, même calcul) · poubelle. Persist / pire-cas / JSON `departures` inchangés. PATCH `types` = liste complète. Cadran / réordre : §42.
+6. Semaine type : type ou Fermé, colonnes = **même** `CONTEXT_SERVICES.filter(...)` (pas l’ordre persisté). PATCH `typical_week` = `{ salle, cuisine }`. Libellés A/B ou Paire/Impaire selon `week_labels`.
 
 Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`. Bouton **Inviter mes employés** (popup : copier `origin + /register?company_code={code}` + QR identique). Bouton **Intégrer l’exemple Saint-Cloud** à côté du code (tous les comptes company). Confirm FR puis `POST /v1/context/seed-example` (Bearer, pas de body). 200 = même parse que GET ; rester sur `/context`. Même `seed-row` : **Exporter la config** / **Importer une config** (§19).  
 `ready.salle` / `ready.cuisine` = JSON seulement, badges « Prêt à calculer » / « Pas encore prêt ». Jeton / URL d’invite **masqués** sous les fiches.
@@ -179,7 +179,7 @@ Suivre `generate-versions.md`, `wizard-ui.md` (stepper / colonnes), `v1-generate
 
 - 3 rangées company : équipe · sélection d’effort · actions blanches. Défaut = `latest`. Recalculer POST seulement depuis la rangée 3. Horodatage `generated_at` Paris.
 - Stepper **encadré**, libellé **gras**, chiffre **centré** (rôles, types niveaux, overlay, ±15).
-- Types : plus de colonne N. Titre **Niveaux minimal requis (par arrivée | après sortie)**. K = sac avant − somme(à garder). Persist inchangée.
+- Types : plus de colonne N. Titre **Niveaux minimal requis (par arrivée | après départ)**. K = sac avant − somme(à garder). Persist inchangée.
 - Salarié : `me/planning` latest, pas de sélecteur.
 
 Version `0.23.0`.
@@ -379,6 +379,18 @@ Suivre `bench.md` § UI tableau — le suivre, ne pas le modifier.
 - Toolbar globale Lancer inchangée (rangées horizontales). Manuel / recap / loader / gaps / export inchangés.
 
 Version `0.41.0`.
+
+### 42. Services types : ordre canonique, Départ, cadran, réordre
+
+Suivre `contracts/domain/wizard-ui.md` (gagne) — le suivre, ne pas le modifier.
+
+- Sous-onglets Services types **et** colonnes semaine type : `CONTEXT_SERVICES.filter(s => offered.includes(s.id))` = Petit-déjeuner → Déjeuner → Dîner parmi les offerts. **Jamais** `services.map` pour l’affichage. Persist `services[]` inchangé.
+- Table types : libellé **Départ** (plus « Sortie ») dans la cellule Type et le thead « après départ ». JSON `departures` / clés moteur intouchables. Bouton déjà « Ajouter un départ ».
+- **Cadran** (`overlay-backdrop` + `overlay`, pas de `prompt()`) : ajouter arrivée/départ ouvre le cadran **avant** d’insérer (prérempli 11h00 / 16h00). Annuler / Escape / backdrop = pas de ligne. Clic sur l’heure du stepper = même cadran (édition). Heure : boutons 0–23 **ou** saisie entière 0–23. Minutes : 00 / 15 / 30 / 45 **ou** saisie 0–59. Valider off si invalide. `time_minutes = hour * 60 + minutes` (0…1439) ; si la ligne éditée a déjà `time_minutes >= 1440`, garder `floor(old / 1440) * 1440` + cadran. ±15 inchangé, pas de plafond.
+- Réordre après changement d’heure (± ou cadran) si l’ordre chrono bouge : animation **≥ 500 ms**, visible. Fond focus sur la ligne éditée jusqu’à la prochaine édition d’heure. `prefers-reduced-motion` : snap + focus. Clés React `a-${index}` / `d-${index}` du draft. Pas d’anim sur ± niveaux. Pas de nouvelle dep npm.
+- Hors freeze : `SERVICE_ROWS` Matin/Soir du joujou `/exemple`, overlay sandbox.
+
+Version `0.52.0`.
 
 ## Risks / Trade-offs
 

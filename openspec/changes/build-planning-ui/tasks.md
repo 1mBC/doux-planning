@@ -215,3 +215,12 @@
 
 - [x] 39.1 Une colonne par engine_ref ; 3 deltas verticaux + libellé ; Lancer jeu en colonne ; bump web/ to 0.41.0
 - [x] 39.2 Verify npm run build ; /admin/bench 1 colonne core-3 / 3 lignes alignées Lancer ; v0.41.0
+
+## 40. Services types polish (ordre, Départ, cadran)
+
+- [x] 40.1 Sous-onglets types + colonnes semaine type = `CONTEXT_SERVICES.filter` (PDJ → déj → dîner) ; jamais `services.map` pour l’affichage ; persist `services[]` inchangé
+- [x] 40.2 Table types : **Départ** (plus Sortie) en cellule Type + thead « après départ » ; JSON `departures` intouché
+- [x] 40.3 Cadran overlay avant insert (11h00 / 16h00) ; clic heure = édition ; boutons + saisie 0–23 / 0–59 ; Valider off si invalide ; Escape / Annuler / backdrop = pas de ligne ; palier 1440 conservé ; ±15 inchangé
+- [x] 40.4 Réordre chrono après changement d’heure : anim ≥ 500 ms + fond focus ; `prefers-reduced-motion` snap + focus ; clés `a-${index}` / `d-${index}` ; pas d’anim ± niveaux ; pas de nouvelle dep
+- [x] 40.5 Bump `web/` to 0.52.0 (note FR : Services types : PDJ d’abord, Départ, cadran d’heure)
+- [x] 40.6 Verify `npm run build` ; `/context` services offerts dans un autre ordre → onglets types + colonnes semaine **PDJ puis déj puis dîner** ; ligne **Départ** ; ajouter arrivée → cadran → 8h07 ; ±15 qui croise → glisse ≥ 0,5 s + focus ; Escape d’ajout = pas de ligne ; barre **v0.52.0** ; `/exemple` inchangé

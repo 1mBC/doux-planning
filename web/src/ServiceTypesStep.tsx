@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   CONTEXT_SERVICES,
   newId,
@@ -10,6 +10,12 @@ import {
 import { formatClock } from "./format";
 import { Stepper } from "./Stepper";
 import {
+  composeTimeMinutes,
+  TimeDial,
+  TIME_DIAL_ARRIVAL_PRESET,
+  TIME_DIAL_DEPARTURE_PRESET,
+} from "./TimeDial";
+import {
   countsToLevels,
   formatBag,
   levelsToCounts,
@@ -18,6 +24,8 @@ import {
   type ArrivalDraft,
   type DepartureDraft,
 } from "./waves";
+
+const REORDER_MS = 600;
 
 function roleLevels(roles: RoleRow[]): number[] {
   return [...new Set(roles.map((role) => role.level))].sort((a, b) => a - b);
@@ -90,6 +98,71 @@ function timeline(arrivals: ArrivalDraft[], departures: DepartureDraft[]): Line[
   return lines;
 }
 
+function lineKey(line: Line): string {
+  return line.kind === "arrival" ? `a-${line.index}` : `d-${line.index}`;
+}
+
+function orderSignature(arrivals: ArrivalDraft[], departures: DepartureDraft[]): string {
+  return timeline(arrivals, departures)
+    .map((line) => lineKey(line))
+    .join("|");
+}
+
+type TypeDraft = { arrivals: ArrivalDraft[]; departures: DepartureDraft[] };
+
+type DialState =
+  | { mode: "add"; typeId: string; kind: "arrival" | "departure"; previousMinutes: number }
+  | { mode: "edit"; typeId: string; kind: "arrival" | "departure"; index: number; previousMinutes: number };
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function snapshotTops(nodes: Map<string, HTMLTableRowElement>): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [key, el] of nodes) {
+    out.set(key, el.getBoundingClientRect().top);
+  }
+  return out;
+}
+
+function playReorder(nodes: Map<string, HTMLTableRowElement>, first: Map<string, number>): void {
+  if (prefersReducedMotion()) {
+    return;
+  }
+  for (const [key, el] of nodes) {
+    const prevTop = first.get(key);
+    if (prevTop === undefined) {
+      continue;
+    }
+    const dy = prevTop - el.getBoundingClientRect().top;
+    if (Math.abs(dy) < 1) {
+      continue;
+    }
+    const cells = [...el.querySelectorAll("td")] as HTMLElement[];
+    for (const cell of cells) {
+      cell.style.transition = "none";
+      cell.style.transform = `translateY(${dy}px)`;
+    }
+    void el.offsetHeight;
+    for (const cell of cells) {
+      cell.style.transition = `transform ${REORDER_MS}ms ease`;
+      cell.style.transform = "translateY(0)";
+    }
+    const cleanup = (event: TransitionEvent) => {
+      if (event.propertyName !== "transform") {
+        return;
+      }
+      for (const cell of cells) {
+        cell.style.transition = "";
+        cell.style.transform = "";
+      }
+      el.removeEventListener("transitionend", cleanup);
+    };
+    el.addEventListener("transitionend", cleanup);
+  }
+}
+
 export function ServiceTypesStep({
   team,
   services,
@@ -106,33 +179,45 @@ export function ServiceTypesStep({
   onSave: (types: ServiceType[]) => void;
 }) {
   const levels = roleLevels(roles);
-  const [serviceId, setServiceId] = useState<ContextServiceId>(services[0] ?? "midday");
+  const offeredTabs = CONTEXT_SERVICES.filter((s) => services.includes(s.id));
+  const [serviceId, setServiceId] = useState<ContextServiceId | undefined>(offeredTabs[0]?.id);
   const [rows, setRows] = useState<ServiceType[]>(types);
-  const [drafts, setDrafts] = useState<Record<string, { arrivals: ArrivalDraft[]; departures: DepartureDraft[] }>>(
-    () => {
-      const out: Record<string, { arrivals: ArrivalDraft[]; departures: DepartureDraft[] }> = {};
-      for (const row of types) {
-        out[row.id] = {
-          arrivals: row.arrivals.map((item) => ({
-            time_minutes: item.time_minutes,
-            post_levels: [...item.post_levels],
-          })),
-          departures: inferLeaveCounts(row),
-        };
-      }
-      return out;
-    },
-  );
-  const offered = services.includes(serviceId) ? serviceId : services[0];
-  const visible = rows.filter((row) => row.service_id === offered);
+  const [drafts, setDrafts] = useState<Record<string, TypeDraft>>(() => {
+    const out: Record<string, TypeDraft> = {};
+    for (const row of types) {
+      out[row.id] = {
+        arrivals: row.arrivals.map((item) => ({
+          time_minutes: item.time_minutes,
+          post_levels: [...item.post_levels],
+        })),
+        departures: inferLeaveCounts(row),
+      };
+    }
+    return out;
+  });
+  const [dial, setDial] = useState<DialState | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const rowNodes = useRef(new Map<string, HTMLTableRowElement>());
+  const pendingFlip = useRef<Map<string, number> | null>(null);
+  const currentService = offeredTabs.some((item) => item.id === serviceId) ? serviceId : offeredTabs[0]?.id;
+  const visible = rows.filter((row) => row.service_id === currentService);
 
-  function draftFor(id: string): { arrivals: ArrivalDraft[]; departures: DepartureDraft[] } {
+  function draftFor(id: string): TypeDraft {
     return drafts[id] ?? { arrivals: [], departures: [] };
   }
 
-  function setDraft(id: string, next: { arrivals: ArrivalDraft[]; departures: DepartureDraft[] }) {
+  function setDraft(id: string, next: TypeDraft) {
     setDrafts((prev) => ({ ...prev, [id]: next }));
   }
+
+  useLayoutEffect(() => {
+    const first = pendingFlip.current;
+    if (!first) {
+      return;
+    }
+    pendingFlip.current = null;
+    playReorder(rowNodes.current, first);
+  }, [drafts]);
 
   const errors = useMemo(() => {
     const list: string[] = [];
@@ -152,13 +237,66 @@ export function ServiceTypesStep({
   }, [rows, drafts]);
 
   function addType() {
-    if (!offered) {
+    if (!currentService) {
       return;
     }
-    const id = newId(`${team}-${offered}`);
-    const arrivals = [{ time_minutes: 11 * 60, post_levels: [defaultLevel(roles)] }];
-    setRows((prev) => [...prev, { id, name: "", team, service_id: offered, arrivals: [], departures: [] }]);
+    const id = newId(`${team}-${currentService}`);
+    const arrivals = [{ time_minutes: TIME_DIAL_ARRIVAL_PRESET, post_levels: [defaultLevel(roles)] }];
+    setRows((prev) => [...prev, { id, name: "", team, service_id: currentService, arrivals: [], departures: [] }]);
     setDrafts((prev) => ({ ...prev, [id]: { arrivals, departures: [] } }));
+  }
+
+  function changeLineTime(
+    typeId: string,
+    kind: "arrival" | "departure",
+    index: number,
+    time_minutes: number,
+  ) {
+    const draft = draftFor(typeId);
+    const next: TypeDraft =
+      kind === "arrival"
+        ? {
+            ...draft,
+            arrivals: draft.arrivals.map((item, i) => (i === index ? { ...item, time_minutes } : item)),
+          }
+        : {
+            ...draft,
+            departures: draft.departures.map((item, i) => (i === index ? { ...item, time_minutes } : item)),
+          };
+    if (orderSignature(draft.arrivals, draft.departures) !== orderSignature(next.arrivals, next.departures)) {
+      pendingFlip.current = snapshotTops(rowNodes.current);
+    }
+    setDraft(typeId, next);
+    setFocusKey(`${typeId}:${kind === "arrival" ? "a" : "d"}-${index}`);
+  }
+
+  function confirmDial(hour: number, minute: number) {
+    if (!dial) {
+      return;
+    }
+    const time_minutes = composeTimeMinutes(dial.previousMinutes, hour, minute);
+    const draft = draftFor(dial.typeId);
+    if (dial.mode === "add") {
+      if (dial.kind === "arrival") {
+        const index = draft.arrivals.length;
+        setDraft(dial.typeId, {
+          ...draft,
+          arrivals: [...draft.arrivals, { time_minutes, post_levels: [defaultLevel(roles)] }],
+        });
+        setFocusKey(`${dial.typeId}:a-${index}`);
+      } else {
+        const index = draft.departures.length;
+        setDraft(dial.typeId, {
+          ...draft,
+          departures: [...draft.departures, { time_minutes, leaveCount: 1, remainByLevel: {} }],
+        });
+        setFocusKey(`${dial.typeId}:d-${index}`);
+      }
+      setDial(null);
+      return;
+    }
+    changeLineTime(dial.typeId, dial.kind, dial.index, time_minutes);
+    setDial(null);
   }
 
   function save() {
@@ -170,7 +308,17 @@ export function ServiceTypesStep({
     );
   }
 
-  if (!offered) {
+  function bindRow(domKey: string) {
+    return (el: HTMLTableRowElement | null) => {
+      if (el) {
+        rowNodes.current.set(domKey, el);
+      } else {
+        rowNodes.current.delete(domKey);
+      }
+    };
+  }
+
+  if (!currentService) {
     return (
       <section>
         <h2>Services types</h2>
@@ -184,14 +332,14 @@ export function ServiceTypesStep({
       <h2>Services types</h2>
       <p className="sub">Une ligne par événement, dans l’ordre du temps.</p>
       <div className="auth-switch">
-        {services.map((id) => (
+        {offeredTabs.map((item) => (
           <button
-            key={id}
+            key={item.id}
             type="button"
-            className={offered === id ? "choice active" : "choice"}
-            onClick={() => setServiceId(id)}
+            className={currentService === item.id ? "choice active" : "choice"}
+            onClick={() => setServiceId(item.id)}
           >
-            {CONTEXT_SERVICES.find((item) => item.id === id)?.label ?? id}
+            {item.label}
           </button>
         ))}
       </div>
@@ -215,19 +363,26 @@ export function ServiceTypesStep({
                 <tr>
                   <th>Type</th>
                   <th>Heure</th>
-                  <th>Niveaux minimal requis (par arrivée | après sortie)</th>
+                  <th>Niveaux minimal requis (par arrivée | après départ)</th>
                   <th>STAFF minimal resultant</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {lines.map((line) => {
+                  const reactKey = lineKey(line);
+                  const domKey = `${row.id}:${reactKey}`;
+                  const focused = focusKey === domKey;
                   if (line.kind === "arrival") {
                     const arrival = draft.arrivals[line.index];
                     const counts = levelsToCounts(arrival.post_levels);
                     const staff = sim.afterArrival[line.index];
                     return (
-                      <tr key={`a-${line.index}`}>
+                      <tr
+                        key={reactKey}
+                        ref={bindRow(domKey)}
+                        className={focused ? "type-row-focus" : undefined}
+                      >
                         <td>Arrivée</td>
                         <td>
                           <Stepper
@@ -235,11 +390,15 @@ export function ServiceTypesStep({
                             step={15}
                             display={formatClock(arrival.time_minutes)}
                             onChange={(time_minutes) =>
-                              setDraft(row.id, {
-                                ...draft,
-                                arrivals: draft.arrivals.map((item, i) =>
-                                  i === line.index ? { ...item, time_minutes } : item,
-                                ),
+                              changeLineTime(row.id, "arrival", line.index, time_minutes)
+                            }
+                            onDisplayClick={() =>
+                              setDial({
+                                mode: "edit",
+                                typeId: row.id,
+                                kind: "arrival",
+                                index: line.index,
+                                previousMinutes: arrival.time_minutes,
                               })
                             }
                           />
@@ -289,19 +448,27 @@ export function ServiceTypesStep({
                   const departure = draft.departures[line.index];
                   const staff = sim.afterDeparture[line.index];
                   return (
-                    <tr key={`d-${line.index}`}>
-                      <td>Sortie</td>
+                    <tr
+                      key={reactKey}
+                      ref={bindRow(domKey)}
+                      className={focused ? "type-row-focus" : undefined}
+                    >
+                      <td>Départ</td>
                       <td>
                         <Stepper
                           value={departure.time_minutes}
                           step={15}
                           display={formatClock(departure.time_minutes)}
                           onChange={(time_minutes) =>
-                            setDraft(row.id, {
-                              ...draft,
-                              departures: draft.departures.map((item, i) =>
-                                i === line.index ? { ...item, time_minutes } : item,
-                              ),
+                            changeLineTime(row.id, "departure", line.index, time_minutes)
+                          }
+                          onDisplayClick={() =>
+                            setDial({
+                              mode: "edit",
+                              typeId: row.id,
+                              kind: "departure",
+                              index: line.index,
+                              previousMinutes: departure.time_minutes,
                             })
                           }
                         />
@@ -356,9 +523,11 @@ export function ServiceTypesStep({
                 type="button"
                 className="choice"
                 onClick={() =>
-                  setDraft(row.id, {
-                    ...draft,
-                    arrivals: [...draft.arrivals, { time_minutes: 11 * 60, post_levels: [defaultLevel(roles)] }],
+                  setDial({
+                    mode: "add",
+                    typeId: row.id,
+                    kind: "arrival",
+                    previousMinutes: TIME_DIAL_ARRIVAL_PRESET,
                   })
                 }
               >
@@ -368,9 +537,11 @@ export function ServiceTypesStep({
                 type="button"
                 className="choice"
                 onClick={() =>
-                  setDraft(row.id, {
-                    ...draft,
-                    departures: [...draft.departures, { time_minutes: 16 * 60, leaveCount: 1, remainByLevel: {} }],
+                  setDial({
+                    mode: "add",
+                    typeId: row.id,
+                    kind: "departure",
+                    previousMinutes: TIME_DIAL_DEPARTURE_PRESET,
                   })
                 }
               >
@@ -409,6 +580,20 @@ export function ServiceTypesStep({
       >
         Enregistrer et continuer
       </button>
+      {dial ? (
+        <TimeDial
+          title={
+            dial.mode === "add"
+              ? dial.kind === "arrival"
+                ? "Heure d’arrivée"
+                : "Heure de départ"
+              : "Modifier l’heure"
+          }
+          initialMinutes={dial.previousMinutes}
+          onCancel={() => setDial(null)}
+          onConfirm={confirmDial}
+        />
+      ) : null}
     </section>
   );
 }

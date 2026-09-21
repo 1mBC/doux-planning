@@ -76,6 +76,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 63 — lignée core-2.2 à 2.5 | `domain/engine-core-2-2.md` … `2-5.md`, `engines.md` ; brief `core-2-family.md` | **landed** `499c4d3` |
 | 64 — podiums stats banc | `domain/bench.md` ; brief `ui-bench-podiums.md` | **landed** `35c112a` (UI v0.51.0) |
 | 65 — mix-0 | `domain/engine-mix-0.md`, `engines.md` ; briefs `core-mix-0.md`, `infra-mix-0-eta.md` | **landed** `80b19d5` + Infra `96085ae` |
+| 66 — services types polish | `domain/wizard-ui.md` ; brief `ui-service-types-polish.md` | UI (ordre PDJ, Départ, cadran, anim) |
 
 ## Ownership git (ne pas croiser)
 

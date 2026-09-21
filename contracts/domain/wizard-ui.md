@@ -8,7 +8,7 @@ Freeze **UI**. HTTP / moteur inchangés. Persist `types[]` = `contracts/http/v1-
 
 - **Services** : une fois, tout le resto (petit-déj / déj / dîner). Si la liste est vide, on reste ici.
 
-**Ordre d’affichage** des services **partout** (Services types, semaine type, souhaits, planning) : `morning` → `midday` → `evening` (petit-déj, déj, dîner). **Pas** l’ordre des clics / du tableau `services` persisté. Pas de `continuous` / `chambres` (hors freeze).
+**Ordre d’affichage** des services **partout** (Services types, semaine type, souhaits, planning) : `morning` → `midday` → `evening` (petit-déj, déj, dîner). **Pas** l’ordre des clics / du tableau `services` persisté. Implémentation : `CONTEXT_SERVICES.filter(s => offered.includes(s.id))` — jamais `services.map` pour des onglets / colonnes. Pas de `continuous` / `chambres` (hors freeze).
 - Rôles / Équipe / Souhaits / Services types / Semaine type : **par équipe** (salle / cuisine), comme aujourd’hui.
 - Souhaits **n’est pas** un cran de `ready` : on peut les laisser vides et continuer.
 - Déblocage : services choisis → rôles ; échelle → équipe ; ≥1 fiche → souhaits **et** types ; types de l’équipe → semaine type.
@@ -58,15 +58,37 @@ Ajouter = arrivée **ou** départ. Retirer = poubelle. Persist / pire-cas inchan
 
 Colonnes (thead une fois, libellés **fixes**) :
 
-| Type | Heure | Niveaux minimal requis (par arrivée \| après sortie) | STAFF minimal resultant |
+| Type | Heure | Niveaux minimal requis (par arrivée \| après départ) | STAFF minimal resultant |
 |---|---|---|---|
-| **Arrivée** ou **Sortie** | horloge + ±15 petits | chaque niveau + stepper | sac / erreur |
+| **Arrivée** ou **Départ** | cadran (voir plus bas) + ±15 | chaque niveau + stepper | sac / erreur |
 
-**Pas** de colonne N / K. Arrivée : `post_levels` = concat des compteurs (somme = N, **invisible**). Sortie : K = (taille du sac avant) − somme(à garder) ; `remaining_post_levels` = sac après pire-cas, comme aujourd’hui.
+**Pas** de colonne N / K. Arrivée : `post_levels` = concat des compteurs (somme = N, **invisible**). Départ : K = (taille du sac avant) − somme(à garder) ; `remaining_post_levels` = sac après pire-cas, comme aujourd’hui.
+
+Libellé **Départ** (plus « Sortie ») **uniquement** dans cette table (cellule Type + thead). JSON / types TS : `departures` inchangé. Bouton déjà « Ajouter un départ ».
 
 Plusieurs lignes. Ordre d’affichage = ordre d’application.
 
 **Ordre d’application** : toutes les lignes (arrivées + départs) par `time_minutes` croissant ; à égalité, arrivées **avant** départs.
+
+### Cadran d’heure (arrivée / départ)
+
+Pas de `prompt()`. Dialog (même chrome `overlay-backdrop` + `overlay` que l’invite) :
+
+1. **Ajouter une arrivée / un départ** → ouvrir le cadran **avant** d’insérer la ligne. Prérempli 11h00 / 16h00. Annuler / Escape / clic backdrop = **pas** de ligne.
+2. Clic sur l’heure affichée du stepper → même cadran, valeur courante. Annuler = inchangé.
+
+Deux cadrans côte à côte :
+
+- **Heure** : boutons `0`…`23` **ou** saisie manuelle (entier 0–23).
+- **Minutes** : boutons `00` / `15` / `30` / `45` **ou** saisie manuelle (entier 0–59).
+
+Valider désactivé si invalide. Persisté : `time_minutes = hour * 60 + minutes` (0…1439). Si la ligne éditée avait déjà `time_minutes >= 1440` (fin de service / lendemain, le moteur s’en sert), **garder** `floor(old / 1440) * 1440` et y ajouter le cadran — ne pas ramener minuit-fin à 00h du matin. `formatClock` wrappe déjà l’affichage ; ne pas y toucher.
+
+Stepper ±15 **reste** (niveaux + heure). Pas de plafond (on peut toujours dépasser 24h au stepper).
+
+### Réordonnancement doux
+
+Quand une heure change (± **ou** cadran) et que l’ordre chrono des lignes bouge : animer le déplacement **≥ 500 ms**, visible (pas un snap). Ligne éditée : fond focus **tant qu’une autre heure n’est pas éditée**. `prefers-reduced-motion` : snap OK, focus quand même. Clés React stables (`a-${index}` / `d-${index}` du draft, pas la position triée). ± des **niveaux** : pas d’anim. Pas de nouvelle dépendance npm.
 
 **Pire cas (qui part)** — sac = multiset de niveaux présents juste avant ce départ :
 
