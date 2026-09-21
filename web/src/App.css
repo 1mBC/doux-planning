@@ -1188,6 +1188,10 @@ table.plan td.empty-slot {
   align-items: end;
 }
 
+.equipe-line .trash {
+  margin-left: auto;
+}
+
 .equipe-line label {
   display: grid;
   gap: 4px;

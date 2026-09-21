@@ -224,3 +224,10 @@
 - [x] 40.4 Réordre chrono après changement d’heure : anim ≥ 500 ms + fond focus ; `prefers-reduced-motion` snap + focus ; clés `a-${index}` / `d-${index}` ; pas d’anim ± niveaux ; pas de nouvelle dep
 - [x] 40.5 Bump `web/` to 0.52.0 (note FR : Services types : PDJ d’abord, Départ, cadran d’heure)
 - [x] 40.6 Verify `npm run build` ; `/context` services offerts dans un autre ordre → onglets types + colonnes semaine **PDJ puis déj puis dîner** ; ligne **Départ** ; ajouter arrivée → cadran → 8h07 ; ±15 qui croise → glisse ≥ 0,5 s + focus ; Escape d’ajout = pas de ligne ; barre **v0.52.0** ; `/exemple` inchangé
+
+## 41. Delete employee keep account
+
+- [x] 41.1 Équipe poubelle + confirm FR (fiche, indispos/souhaits, accès si compte, planning de **cette** équipe) ; persistée → `DELETE /v1/staff/{id}` puis GET context ; ligne locale → pas d’HTTP
+- [x] 41.2 `parseMe` `restaurant_id: string | null` ; `POST /v1/auth/link` ; salarié `employee_id == null` : écran code → `GET /v1/invites/{code}` → link ; **pas** `/planning` ; barre sans « Planning »
+- [x] 41.3 Bump `web/` to 0.53.0 (note FR : Supprimer un salarié ; compte conservé)
+- [ ] 41.4 Verify `npm run build` ; `/context` Équipe poubelle + texte confirm ; salarié non affilié écran rattachement pas de grille ; barre **v0.53.0** ; `/exemple` inchangé ; IronBee E2E DELETE 200 seulement si l’API répond (sinon skip API)

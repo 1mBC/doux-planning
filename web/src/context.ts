@@ -442,6 +442,11 @@ export async function seedExampleContext(): Promise<RestaurantContext> {
   return parseRestaurantContext(await sendAuth("/v1/context/seed-example", { method: "POST" }, true));
 }
 
+export async function deleteStaff(id: string): Promise<RestaurantContext> {
+  const encoded = encodeURIComponent(id);
+  return parseRestaurantContext(await sendAuth(`/v1/staff/${encoded}`, { method: "DELETE" }, true));
+}
+
 export function parseConfigExport(value: unknown): RestaurantConfigExport {
   if (!isRecord(value)) {
     throw new PayloadError("réponse export invalide");
