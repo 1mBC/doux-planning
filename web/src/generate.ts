@@ -25,6 +25,22 @@ export type LegalCol = {
 export type CycleTeam = "salle" | "cuisine";
 export type CycleServiceId = "morning" | "midday" | "evening";
 export type SearchEffort = "minimal" | "optimized" | "maximal";
+export type PlanningSlot = SearchEffort | "manuel";
+
+export const PLANNING_SLOT_CHOICES: { id: PlanningSlot; label: string }[] = [
+  { id: "minimal", label: "Minimal" },
+  { id: "optimized", label: "Optimisé" },
+  { id: "maximal", label: "Maximal" },
+  { id: "manuel", label: "Manuel" },
+];
+
+export function isSearchEffort(slot: PlanningSlot): slot is SearchEffort {
+  return slot === "minimal" || slot === "optimized" || slot === "maximal";
+}
+
+export function emptySlotCopy(slot: PlanningSlot): string {
+  return slot === "manuel" ? "Pas encore publié" : "Pas encore calculé";
+}
 
 export type CycleAssignment = {
   employee_id: string;
@@ -59,7 +75,7 @@ export type PublishedCycle = {
   wish_rows: WishRow[];
   score?: CycleScore;
   generated_at?: string;
-  search_effort?: SearchEffort;
+  search_effort?: PlanningSlot;
   duration_seconds?: number;
   engine_ref?: string;
 };
@@ -68,11 +84,12 @@ export type TeamVersions = {
   minimal: PublishedCycle | null;
   optimized: PublishedCycle | null;
   maximal: PublishedCycle | null;
+  manuel: PublishedCycle | null;
 };
 
 export type TeamPublished = {
   versions: TeamVersions;
-  latest: SearchEffort | null;
+  latest: PlanningSlot | null;
 };
 
 export type PublishedCycles = {
@@ -117,6 +134,13 @@ function parseTeam(value: unknown, path: string): CycleTeam {
 
 function parseEffort(value: unknown, path: string): SearchEffort {
   if (value === "minimal" || value === "optimized" || value === "maximal") {
+    return value;
+  }
+  throw new PayloadError(`search_effort inattendu : ${path}`);
+}
+
+function parseSlot(value: unknown, path: string): PlanningSlot {
+  if (value === "minimal" || value === "optimized" || value === "maximal" || value === "manuel") {
     return value;
   }
   throw new PayloadError(`search_effort inattendu : ${path}`);
@@ -181,18 +205,18 @@ export function parseCycleSlice(value: unknown, path: string): CycleSlice {
   };
 }
 
-function parseOptionalEffort(value: unknown, path: string): SearchEffort | undefined {
+function parseOptionalSlot(value: unknown, path: string): PlanningSlot | undefined {
   if (value === undefined) {
     return undefined;
   }
-  return parseEffort(value, path);
+  return parseSlot(value, path);
 }
 
-function parseLatest(value: unknown, path: string): SearchEffort | null {
+function parseLatest(value: unknown, path: string): PlanningSlot | null {
   if (value === null) {
     return null;
   }
-  return parseEffort(value, path);
+  return parseSlot(value, path);
 }
 
 function parseCycle(value: unknown, path: string): PublishedCycle | null {
@@ -221,7 +245,7 @@ function parseCycle(value: unknown, path: string): PublishedCycle | null {
     cycle.generated_at = value.generated_at;
   }
   if ("search_effort" in value && value.search_effort !== undefined && value.search_effort !== null) {
-    cycle.search_effort = parseOptionalEffort(value.search_effort, `${path}.search_effort`);
+    cycle.search_effort = parseOptionalSlot(value.search_effort, `${path}.search_effort`);
   }
   if ("duration_seconds" in value && value.duration_seconds !== undefined && value.duration_seconds !== null) {
     if (typeof value.duration_seconds !== "number" || !Number.isFinite(value.duration_seconds)) {
@@ -257,6 +281,7 @@ function parseTeamPublished(value: unknown, path: string): TeamPublished | null 
       minimal: parseCycle(versions.minimal, `${path}.versions.minimal`),
       optimized: parseCycle(versions.optimized, `${path}.versions.optimized`),
       maximal: parseCycle(versions.maximal, `${path}.versions.maximal`),
+      manuel: "manuel" in versions ? parseCycle(versions.manuel, `${path}.versions.manuel`) : null,
     },
     latest: parseLatest(value.latest, `${path}.latest`),
   };
@@ -276,7 +301,7 @@ function parsePublished(value: unknown, path: string): PublishedCycles {
   };
 }
 
-export function cycleOf(pack: TeamPublished | null, effort: SearchEffort): PublishedCycle | null {
+export function cycleOf(pack: TeamPublished | null, effort: PlanningSlot): PublishedCycle | null {
   return pack?.versions[effort] ?? null;
 }
 
