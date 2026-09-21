@@ -230,4 +230,4 @@
 - [x] 41.1 Équipe poubelle + confirm FR (fiche, indispos/souhaits, accès si compte, planning de **cette** équipe) ; persistée → `DELETE /v1/staff/{id}` puis GET context ; ligne locale → pas d’HTTP
 - [x] 41.2 `parseMe` `restaurant_id: string | null` ; `POST /v1/auth/link` ; salarié `employee_id == null` : écran code → `GET /v1/invites/{code}` → link ; **pas** `/planning` ; barre sans « Planning »
 - [x] 41.3 Bump `web/` to 0.53.0 (note FR : Supprimer un salarié ; compte conservé)
-- [ ] 41.4 Verify `npm run build` ; `/context` Équipe poubelle + texte confirm ; salarié non affilié écran rattachement pas de grille ; barre **v0.53.0** ; `/exemple` inchangé ; IronBee E2E DELETE 200 seulement si l’API répond (sinon skip API)
+- [x] 41.4 Verify `npm run build` ; `/context` Équipe poubelle + texte confirm ; salarié non affilié écran rattachement pas de grille ; barre **v0.53.0** ; `/exemple` inchangé ; IronBee E2E DELETE 200 seulement si l’API répond (sinon skip API)
