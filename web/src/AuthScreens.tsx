@@ -1,7 +1,10 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { ApiHttpError } from "./sandbox";
 import {
+  canOpenPlanning,
+  homePath,
   kindLabel,
+  linkEmployee,
   loadInvites,
   login,
   logout,
@@ -54,9 +57,11 @@ export function SessionChrome({
                 Mon restaurant
               </button>
             ) : null}
-            <button type="button" className="choice" onClick={() => go("/planning")}>
-              Planning
-            </button>
+            {canOpenPlanning(me) ? (
+              <button type="button" className="choice" onClick={() => go("/planning")}>
+                Planning
+              </button>
+            ) : null}
             {me.admin ? (
               <button type="button" className="choice" onClick={() => go("/admin")}>
                 Admin
@@ -101,7 +106,7 @@ export function LoginScreen({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
     try {
       const me = await login(email, password);
       onSignedIn(me);
-      go(me.kind === "company" ? "/context" : "/planning");
+      go(homePath(me));
     } catch (err) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {
@@ -214,7 +219,7 @@ export function RegisterScreen({ onSignedIn }: { onSignedIn: (me: Me) => void })
               employee_id: employeeId,
             });
       onSignedIn(me);
-      go(me.kind === "company" ? "/context" : "/planning");
+      go(homePath(me));
     } catch (err) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {
@@ -334,6 +339,105 @@ export function RegisterScreen({ onSignedIn }: { onSignedIn: (me: Me) => void })
           Voir l’exemple
         </button>
       </p>
+    </main>
+  );
+}
+
+export function EmployeeLinkScreen({ onLinked }: { onLinked: (me: Me) => void }) {
+  const [companyCode, setCompanyCode] = useState("");
+  const [fiches, setFiches] = useState<InviteEmployee[] | null>(null);
+  const [restaurantName, setRestaurantName] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function fetchFiches() {
+    setBusy(true);
+    setError(null);
+    try {
+      const preview = await loadInvites(companyCode.trim());
+      setRestaurantName(preview.restaurant_name);
+      setFiches(preview.employees);
+      setEmployeeId(preview.employees[0]?.id ?? "");
+    } catch (err) {
+      setFiches(null);
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!employeeId) {
+      setError("Choisissez une fiche.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const me = await linkEmployee(companyCode.trim(), employeeId);
+      onLinked(me);
+      go("/planning");
+    } catch (err) {
+      setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="page auth-page">
+      <h1>Rattacher votre compte</h1>
+      <p className="sub">Entrez le code entreprise, puis choisissez votre fiche. Le compte reste le vôtre.</p>
+      <form className="auth-form" onSubmit={(event) => void submit(event)}>
+        <label htmlFor="link-code">Code entreprise</label>
+        <div className="auth-row">
+          <input
+            id="link-code"
+            value={companyCode}
+            onChange={(event) => setCompanyCode(event.target.value)}
+            required
+          />
+          <button type="button" className="choice" disabled={busy || !companyCode.trim()} onClick={() => void fetchFiches()}>
+            Charger les fiches
+          </button>
+        </div>
+        {fiches ? (
+          <>
+            <p className="sub">{restaurantName ? restaurantName : "Entreprise sans nom pour l’instant."}</p>
+            {fiches.length === 0 ? (
+              <p className="sub">Aucune fiche disponible.</p>
+            ) : (
+              <fieldset className="auth-fiches">
+                <legend>Fiche</legend>
+                {fiches.map((person) => (
+                  <label key={person.id} className="auth-fiche">
+                    <input
+                      type="radio"
+                      name="link-fiche"
+                      value={person.id}
+                      checked={employeeId === person.id}
+                      onChange={() => setEmployeeId(person.id)}
+                    />
+                    <span>
+                      {person.name} · {person.role} · {person.team}
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
+          </>
+        ) : null}
+        {error ? (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <button type="submit" className="choice active" disabled={busy || !employeeId || fiches === null}>
+          {busy ? "Rattachement…" : "Rattacher"}
+        </button>
+      </form>
     </main>
   );
 }

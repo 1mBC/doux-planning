@@ -18,6 +18,8 @@ GET /v1/examples/saint-cloud
 uvicorn  :8000  --  GET /v1/examples/saint-cloud   (public)
                  --  /v1/sandbox/*                 (public)
                  --  /v1/auth/*  /v1/me  /v1/invites/{code}
+                 --  POST /v1/auth/link      (Bearer employee)
+                 --  DELETE /v1/staff/{id}   (Bearer company)
                  --  GET|PATCH /v1/context   (Bearer company)
                  --  POST /v1/context/seed-example  GET /v1/context/export  POST /v1/context/import
                  --  POST /v1/generate  GET /v1/generate/jobs/{id}  GET /v1/cycles  (Bearer company)
@@ -37,7 +39,8 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 - Company wizard at `/context` following `contracts/domain/wizard-ui.md` + `v1-context.md` (Services first, `weekend_rest_day`, Services types waves).
 - Company published cycle at `/planning` following `contracts/http/v1-generate.md` + `cycle-recaps.md` (pastilles + tableaux hors édition).
 - Live sandbox Mode édition on `/planning` following `contracts/http/v1-live-sandbox.md` (shapes from `v1-sandbox-edit.md`).
-- Employee `/planning` following `contracts/http/v1-me-planning.md` (team grid, highlight, read-only contract panel).
+- Employee `/planning` following `contracts/http/v1-me-planning.md` (team grid, highlight, read-only contract panel) only when affiliated (`employee_id` string). Unaffiliated employee: company-code + fiche list + `POST /v1/auth/link`.
+- Company Équipe trash following `contracts/domain/delete-employee.md` (`DELETE /v1/staff/{id}` then GET, or local drop).
 - Company `/context` seed button following `POST /v1/context/seed-example`.
 - Company `/context` export / import following `contracts/domain/export-config.md` § UI.
 
@@ -99,7 +102,7 @@ Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : **Se
 
 1. Services (resto, une fois) : petit-déj / déj / dîner. Liste vide → on reste ici. Décocher → warning FR puis purge types / semaine / indispos / `max_services` des **deux** équipes ; PATCH `services` + `employees` + `types` + `typical_week` nettoyés.
 2. Rôles (équipe) : nom + niveau ≥ 1. PATCH `ladders` avec `substitution_explained: true`.
-3. Équipe : une ligne par salarié ; popup indispo jours × **services offerts**. PATCH `employees` = liste complète.
+3. Équipe : une ligne par salarié + poubelle (chrome rôles) ; popup indispo jours × **services offerts**. PATCH `employees` = liste complète pour l’édition. **Supprimer** : confirm FR (`delete-employee.md`) ; ligne jamais PATCH → retrait local ; persistée → `DELETE /v1/staff/{id}` puis GET context. Compte plateforme conservé ; planning **de cette équipe** jeté, l’autre intacte.
 4. Souhaits bien-être : `Wellbeing` (cases `consecutive_rest` + **`weekend_rest_day`** à côté de la radio `weekend`, chiffres `max_services` **offerts seulement**, `max_coupures_per_week`). Pas un prérequis de `ready`. Bool `weekend_rest_day` requis au parse.
 5. Services types (équipe × service offert) : sous-onglets = `CONTEXT_SERVICES.filter(s => offered.includes(s.id))` (jamais `services.map`) ; **Ajouter un type** en bas. **Une `<table>` par feuille** (plus de cartes `wave-line`). Colonnes Type (Arrivée | **Départ**) · Heure (cadran overlay + ±15 stepper compact) · Niveaux · **STAFF minimal resultant** (sac / erreur, même calcul) · poubelle. Persist / pire-cas / JSON `departures` inchangés. PATCH `types` = liste complète. Cadran / réordre : §42.
 6. Semaine type : type ou Fermé, colonnes = **même** `CONTEXT_SERVICES.filter(...)` (pas l’ordre persisté). PATCH `typical_week` = `{ salle, cuisine }`. Libellés A/B ou Paire/Impaire selon `week_labels`.
@@ -115,11 +118,13 @@ Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Chrome **3 ra
 
 Mode édition seulement si le **slot sélectionné** existe. POST `/v1/live/sandbox/{team}/enter` (Bearer) avec `{ search_effort }` (défaut API = `latest`). Slot vide → 409, pas de bouton. Overlays = joujou (injecter le client live, ne pas appeler `/v1/sandbox/*`). Lecture quitte l’UI sans discard. Reload / ré-enter = GET/enter live (cran conservé). Publier → Cycles (réécrit ce slot, `generated_at` inchangé), sortir d’édition, l’autre équipe / les autres efforts intacts. Tout annuler = discard live.
 
-Hors slice : rotate invite-token, edit contraintes salarié.
+Hors slice : rotate invite-token, edit contraintes salarié, panneau compte, unlink sans delete fiche.
 
 ### 11. Employee board
 
-`kind: employee` → `/planning`. GET `/v1/me/planning` (Bearer). Grille 14 j. depuis `employees` + `assignments` de **son** équipe ; titres A/B ou Paire/Impaire selon `week_labels`. Lignes `employee_id === me` colorées ; collègues visibles, atténués. Assignments vides → « Pas encore publié ». Panneau lecture : `contract`, `unavailabilities` `{ weekday, service_id }`, `wishes` `{ kind, held, … }` y compris `weekend_rest_day` (« Au moins un repos samedi ou dimanche »). Aucun edit. Pas de `key` / `wish_rows` inventés.
+`kind: employee` **affilié** (`employee_id` string, `restaurant_id` string) → `/planning`. GET `/v1/me/planning` (Bearer). Grille 14 j. depuis `employees` + `assignments` de **son** équipe ; titres A/B ou Paire/Impaire selon `week_labels`. Lignes `employee_id === me` colorées ; collègues visibles, atténués. Assignments vides → « Pas encore publié ». Panneau lecture : `contract`, `unavailabilities` `{ weekday, service_id }`, `wishes` `{ kind, held, … }` y compris `weekend_rest_day` (« Au moins un repos samedi ou dimanche »). Aucun edit. Pas de `key` / `wish_rows` inventés.
+
+`kind: employee` **sans affiliation** (`employee_id` et `restaurant_id` `null`) : **pas** `/planning`, pas de lien chrome « Planning ». Écran code entreprise → `GET /v1/invites/{code}` (fiches non liées) → choisir fiche → `POST /v1/auth/link` `{ company_code, employee_id }` Bearer. 200 `me` affilié → `/planning`. `/exemple` inchangé.
 
 ### 12. Week labels
 
@@ -391,6 +396,18 @@ Suivre `contracts/domain/wizard-ui.md` (gagne) — le suivre, ne pas le modifier
 - Hors freeze : `SERVICE_ROWS` Matin/Soir du joujou `/exemple`, overlay sandbox.
 
 Version `0.52.0`.
+
+### 43. Delete employee, keep account
+
+Suivre `contracts/domain/delete-employee.md` UI (gagne sur `wizard-ui.md` ex-« annulé ») — le suivre, ne pas le modifier.
+
+- Équipe : poubelle par fiche (🗑 chrome rôles). Confirm FR : fiche + indispos / souhaits ; s’il a un compte : *« Son accès à ce restaurant sera retiré. Il pourra se reconnecter avec le code entreprise. »* ; *« Le planning publié de la {salle|cuisine} sera retiré. L’autre équipe est inchangée. »*
+- Ligne jamais PATCH : retrait local, pas d’HTTP. Persistée : `DELETE /v1/staff/{id}` Bearer puis `GET /v1/context`. Ne pas omettre une fiche liée via PATCH.
+- `parseMe` : `restaurant_id: string | null` (company = string ; employee affilié = les deux strings ; employee sans affiliation = les deux `null`).
+- Salarié non affilié : écran rattachement (code → invites → link). Barre : pas « Planning ». Succès link → `/planning`.
+- Bearer aussi sur `DELETE /v1/staff/{id}` et `POST /v1/auth/link`. `/exemple` + wizard hors poubelle inchangés.
+
+Version `0.53.0`.
 
 ## Risks / Trade-offs
 

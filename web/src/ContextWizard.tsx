@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PayloadError } from "./api";
 import { ApiHttpError } from "./sandbox";
+import { loadInvites } from "./auth";
 import { DAYS_FR, WEEKDAYS_EN } from "./format";
 import {
   CONTEXT_SERVICES,
+  deleteStaff,
   downloadConfigExport,
   emptyWellbeing,
   employeesForPatch,
@@ -364,6 +366,7 @@ export function ContextWizard() {
           roles={ladder?.roles ?? []}
           people={teamEmployees}
           services={ctx.services}
+          companyCode={ctx.company_code}
           busy={busy}
           onSave={(people) =>
             void apply(
@@ -376,6 +379,22 @@ export function ContextWizard() {
               true,
             )
           }
+          onDeletePersisted={async (id) => {
+            setBusy(true);
+            setError(null);
+            try {
+              await deleteStaff(id);
+              const next = await loadContext();
+              adopt(next);
+              setWizardEpoch((value) => value + 1);
+            } catch (err) {
+              setError(
+                err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue",
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
         />
       ) : null}
       {step === 3 ? (
@@ -612,23 +631,131 @@ function formatUnavailSlot(row: Unavailability): string {
   return `${dayLabel(row.weekday)} ${serviceCaption(row.service_id)}`;
 }
 
+function describeWishes(person: ContextEmployee, services: ContextServiceId[]): string {
+  const bits: string[] = [];
+  const wish = person.wellbeing;
+  if (wish.consecutive_rest) {
+    bits.push("deux repos consécutifs par semaine");
+  }
+  if (wish.weekend === "every_two") {
+    bits.push("un we sur deux");
+  } else if (wish.weekend === "even") {
+    bits.push("we paire");
+  } else if (wish.weekend === "odd") {
+    bits.push("we impaire");
+  }
+  if (wish.weekend_rest_day) {
+    bits.push("au moins un repos samedi ou dimanche");
+  }
+  for (const service of CONTEXT_SERVICES.filter((item) => services.includes(item.id))) {
+    const max = wish.max_services[service.id];
+    if (max != null) {
+      bits.push(`max ${max} ${service.label.toLowerCase()}`);
+    }
+  }
+  if (wish.max_coupures_per_week != null) {
+    bits.push(`max ${wish.max_coupures_per_week} coupure${wish.max_coupures_per_week > 1 ? "s" : ""}`);
+  }
+  return bits.length ? bits.join(", ") : "aucun";
+}
+
+function employeeDeleteConfirm(
+  person: ContextEmployee,
+  team: TeamId,
+  services: ContextServiceId[],
+  hasAccount: boolean,
+): string {
+  const name = person.name.trim() || "sans nom";
+  const indispos = person.unavailabilities.length
+    ? person.unavailabilities.map(formatUnavailSlot).join(", ")
+    : "aucune";
+  const lines = [
+    `Supprimer la fiche « ${name} » ?`,
+    "",
+    `Indisponibilités : ${indispos}.`,
+    `Souhaits : ${describeWishes(person, services)}.`,
+  ];
+  if (hasAccount) {
+    lines.push(
+      "",
+      "Son accès à ce restaurant sera retiré. Il pourra se reconnecter avec le code entreprise.",
+    );
+  }
+  lines.push("", `Le planning publié de la ${team} sera retiré. L’autre équipe est inchangée.`);
+  return lines.join("\n");
+}
+
 function EmployeesStep({
   team,
   roles,
   people,
   services,
+  companyCode,
   busy,
   onSave,
+  onDeletePersisted,
 }: {
   team: TeamId;
   roles: RoleRow[];
   people: ContextEmployee[];
   services: ContextServiceId[];
+  companyCode: string;
   busy: boolean;
   onSave: (people: ContextEmployee[]) => void;
+  onDeletePersisted: (id: string) => Promise<void>;
 }) {
   const [rows, setRows] = useState<ContextEmployee[]>(people);
   const [popupIndex, setPopupIndex] = useState<number | null>(null);
+  const persistedIds = useMemo(() => new Set(people.map((person) => person.id)), [people]);
+  const [unlinkedIds, setUnlinkedIds] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!companyCode.trim()) {
+      return;
+    }
+    let cancelled = false;
+    loadInvites(companyCode)
+      .then((preview) => {
+        if (!cancelled) {
+          setUnlinkedIds(new Set(preview.employees.map((item) => item.id)));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setUnlinkedIds(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyCode]);
+
+  function ficheHasAccount(person: ContextEmployee): boolean {
+    if (!persistedIds.has(person.id)) {
+      return false;
+    }
+    if (unlinkedIds === null) {
+      return true;
+    }
+    return !unlinkedIds.has(person.id);
+  }
+
+  function removeEmployee(index: number) {
+    const person = rows[index];
+    if (!person) {
+      return;
+    }
+    const ok = window.confirm(employeeDeleteConfirm(person, team, services, ficheHasAccount(person)));
+    if (!ok) {
+      return;
+    }
+    if (!persistedIds.has(person.id)) {
+      setRows((prev) => prev.filter((_, i) => i !== index));
+      return;
+    }
+    void onDeletePersisted(person.id);
+  }
+
   function add() {
     const role = roles[0];
     if (!role) {
@@ -716,6 +843,15 @@ function EmployeesStep({
                 }
               />
             </label>
+            <button
+              type="button"
+              className="choice trash"
+              aria-label="Supprimer le salarié"
+              disabled={busy}
+              onClick={() => removeEmployee(index)}
+            >
+              🗑
+            </button>
           </div>
           <div className="unavail-chips">
             {person.unavailabilities.map((row, slotIndex) => (

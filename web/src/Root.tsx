@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import App from "./App";
-import { clearToken, loadMe, readStoredToken, type Me } from "./auth";
+import { clearToken, isEmployeeAffiliated, loadMe, readStoredToken, type Me } from "./auth";
 import { ApiHttpError } from "./sandbox";
-import { LoginScreen, RegisterScreen, SessionChrome, go } from "./AuthScreens";
+import { EmployeeLinkScreen, LoginScreen, RegisterScreen, SessionChrome, go } from "./AuthScreens";
 import { ContextWizard } from "./ContextWizard";
 import { EmployeePlanning } from "./EmployeePlanning";
 import { AdminDenied, AdminPage } from "./AdminPage";
@@ -35,6 +35,12 @@ export default function Root() {
       go("/admin/bench");
     }
   }, [path]);
+
+  useEffect(() => {
+    if (me?.kind === "employee" && me.employee_id == null && path === "/planning") {
+      go("/");
+    }
+  }, [me, path]);
 
   useEffect(() => {
     const token = readStoredToken();
@@ -91,13 +97,17 @@ export default function Root() {
           ? "context"
           : path === "/planning" && me?.kind === "company"
             ? "planning"
-            : path === "/planning" && me?.kind === "employee"
+            : path === "/planning" && me && isEmployeeAffiliated(me)
               ? "employee"
-              : path === "/context" || path === "/planning"
+              : me?.kind === "employee" &&
+                  me.employee_id == null &&
+                  (path === "/planning" || path === "/" || path === "/login")
+                ? "link"
+                : path === "/context" || path === "/planning"
                 ? "exemple"
                 : me?.kind === "company" && (path === "/" || path === "/login")
                   ? "context"
-                  : me?.kind === "employee" && (path === "/" || path === "/login")
+                  : me && isEmployeeAffiliated(me) && (path === "/" || path === "/login")
                     ? "employee"
                     : me
                       ? "exemple"
@@ -132,6 +142,7 @@ export default function Root() {
       {route === "admin-denied" ? <AdminDenied /> : null}
       {route === "planning" ? <PublishedPlanning /> : null}
       {route === "employee" ? <EmployeePlanning /> : null}
+      {route === "link" ? <EmployeeLinkScreen onLinked={setMe} /> : null}
       {route === "exemple" ? <App canEdit={canEdit} /> : null}
     </>
   );
