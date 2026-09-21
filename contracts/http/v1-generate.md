@@ -2,7 +2,7 @@
 
 Freeze HTTP. Wrappe `generate_team` (`contracts/domain/team-generate.md`).  
 Jobs Maximal = `contracts/domain/generate-jobs.md`.  
-**3 versions** + `generated_at` = `contracts/domain/generate-versions.md` (gagne sur la forme `published`).  
+**4 slots** (3 computes + `manuel`) + `generated_at` = `contracts/domain/generate-versions.md` ; le cran manuel = `contracts/domain/manual-planning.md` (**gagne**).  
 Bearer **company**. Pas d’id resto dans le path.  
 `kind: employee` → 403 `Action réservée au restaurateur.`  
 Sans Bearer → 401 `Session invalide.`  
@@ -25,7 +25,7 @@ GET  /v1/cycles                    Bearer company → 200 Cycles
 { "team": "salle"|"cuisine", "search_effort": "minimal"|"optimized"|"maximal" }
 ```
 
-Omis → `optimized` (200). `TeamNotReady` → 409. Effort / team invalide → 400.  
+Omis → `optimized` (200). `TeamNotReady` → 409. Effort / team invalide → 400. **`manuel` n’est pas un generate** → 400 `Champs invalides.`  
 `maximal` déjà queued/running cette team → 409 `Un calcul maximal est déjà en cours.`
 
 200 :
@@ -39,7 +39,8 @@ Omis → `optimized` (200). `TeamNotReady` → 409. Effort / team invalide → 4
       "versions": {
         "minimal": { assignments, facts, stats, legal_*, wish_*, score, generated_at, search_effort, duration_seconds, engine_ref },
         "optimized": null,
-        "maximal": null
+        "maximal": null,
+        "manuel": null
       },
       "latest": "minimal"
     },
@@ -48,7 +49,7 @@ Omis → `optimized` (200). `TeamNotReady` → 409. Effort / team invalide → 4
 }
 ```
 
-Équipe sans aucun calcul : `null` (pas d’objet versions vide obligatoire — ou objet tout-null + `latest` null ; **un** des deux, Infra choisit et GET/POST **identiques**). Préférer l’objet `{ versions: {3× null}, latest: null }` dès le premier generate de l’autre équipe.
+Équipe sans aucun calcul : `null` (pas d’objet versions vide obligatoire — ou objet tout-null + `latest` null ; **un** des deux, Infra choisit et GET/POST **identiques**). Préférer l’objet `{ versions: {4× null}, latest: null }` dès le premier generate / publish de l’autre équipe.
 
 `maximal` → 202 `{ job_id, team, search_effort, status: queued, estimated_seconds: 600 }` (pas de `published`).
 
@@ -62,7 +63,7 @@ Même `published` (deux équipes, versions). Jamais généré : `{ "published": 
 
 ## Persist
 
-JSONB `published_cycles` : 3 slots + `latest`. Coerce ancien plat → `versions.optimized`.  
+JSONB `published_cycles` : 4 slots + `latest`. Coerce ancien plat → `versions.optimized` + `manuel: null`. Coerce 3 clés → `manuel: null`.  
 Generate écrit **un** slot + `generated_at` + `search_effort` + `duration_seconds` + `engine_ref` + `latest`.  
 `engine_ref` = le moteur **réellement** lancé (`live_engine_ref` admin, `admin.md`) — **pas** dans le body POST (le client ne choisit pas).  
 Worker logs stdout : `generate-versions.md`. `generate_logs` : `admin.md`.

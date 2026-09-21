@@ -16,8 +16,9 @@ Preview / commit / undo / history / score / impact / proposals = **mêmes shapes
 
 ```
 POST /v1/live/sandbox/{team}/enter     → 200 LiveState
-    body/query optionnel { "search_effort": "minimal"|"optimized"|"maximal" }
-    défaut = latest ; slot vide → 409 `Aucun cycle publié pour cette équipe.`
+    body/query optionnel { "search_effort": "minimal"|"optimized"|"maximal"|"manuel" }
+    défaut = latest ; slot **compute** vide → 409 `Aucun cycle publié pour cette équipe.`
+    `manuel` vide → seed Core (`manual-planning.md`) + 200 ; équipe pas ready → 409 `Cette équipe n'est pas prête à calculer.`
 GET  /v1/live/sandbox/{team}           → 200 LiveState  | 404 si pas de brouillon
 POST /v1/live/sandbox/{team}/preview   → 200 { proposals }
 POST /v1/live/sandbox/{team}/commit    → 200 LiveState
@@ -28,7 +29,7 @@ POST /v1/live/sandbox/{team}/publish   → 200 Cycles     (même `published` que
 
 `LiveState` = état joujou (`sandbox`, `restaurant` fiches de **cette** équipe, `planning.assignments` + `facts`, `score` sans resumes, `history`) **plus** `"team": "salle"|"cuisine"`. Overlay impact = `v1-sandbox-edit.md` (facts, pas `message`).
 
-Discard : Core discard puis enter **le même** slot effort. Publish : réécrit `versions[effort]` (`generated_at` inchangé), `latest` inchangé sauf si ce slot est le seul, ferme le brouillon. `GET /v1/cycles` au format versions. L’autre équipe / les autres efforts intacts.
+Discard : Core discard puis enter **le même** slot effort. Publish **calcul** : réécrit `versions[effort]` (`generated_at` inchangé), `latest` inchangé sauf si ce slot est le seul, ferme le brouillon. Publish **manuel** : `generated_at` maintenant, pas `generate_logs` (`manual-planning.md`). `GET /v1/cycles` au format 4 slots. L’autre équipe / les autres slots intacts.
 
 ## Persist
 
