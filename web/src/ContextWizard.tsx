@@ -8,10 +8,12 @@ import {
   deleteStaff,
   downloadConfigExport,
   emptyWellbeing,
+  defaultMinShiftHours,
   employeesForPatch,
   exportRestaurantConfig,
   importRestaurantConfig,
   loadContext,
+  minShiftHoursValue,
   newId,
   parseConfigExport,
   patchContext,
@@ -769,7 +771,7 @@ function EmployeesStep({
         team,
         role: { name: role.name, level: role.level, team },
         contractual_hours_per_week: 35,
-        min_shift_hours: 4,
+        min_shift_hours: defaultMinShiftHours(services),
         unavailabilities: [],
         wellbeing: emptyWellbeing(),
         invite_token: "",
@@ -827,22 +829,28 @@ function EmployeesStep({
                 }
               />
             </label>
-            <label>
-              Min. créneau (h)
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={person.min_shift_hours}
-                onChange={(event) =>
-                  setRows((prev) =>
-                    prev.map((item, i) =>
-                      i === index ? { ...item, min_shift_hours: Math.max(1, Number(event.target.value) || 4) } : item,
-                    ),
-                  )
-                }
-              />
-            </label>
+            {CONTEXT_SERVICES.filter((item) => services.includes(item.id)).map((service) => {
+              const hours = minShiftHoursValue(person.min_shift_hours, service.id);
+              return (
+                <Stepper
+                  key={service.id}
+                  label={`Min. ${service.label}`}
+                  value={hours}
+                  min={0.5}
+                  step={0.5}
+                  display={String(hours).replace(".", ",")}
+                  onChange={(next) =>
+                    setRows((prev) =>
+                      prev.map((item, i) =>
+                        i === index
+                          ? { ...item, min_shift_hours: { ...item.min_shift_hours, [service.id]: next } }
+                          : item,
+                      ),
+                    )
+                  }
+                />
+              );
+            })}
             <button
               type="button"
               className="choice trash"

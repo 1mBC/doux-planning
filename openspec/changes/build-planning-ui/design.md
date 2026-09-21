@@ -102,7 +102,7 @@ Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : **Se
 
 1. Services (resto, une fois) : petit-déj / déj / dîner. Liste vide → on reste ici. Décocher → warning FR puis purge types / semaine / indispos / `max_services` des **deux** équipes ; PATCH `services` + `employees` + `types` + `typical_week` nettoyés.
 2. Rôles (équipe) : nom + niveau ≥ 1. PATCH `ladders` avec `substitution_explained: true`.
-3. Équipe : une ligne par salarié + poubelle (chrome rôles) ; popup indispo jours × **services offerts**. PATCH `employees` = liste complète pour l’édition. **Supprimer** : confirm FR (`delete-employee.md`) ; ligne jamais PATCH → retrait local ; persistée → `DELETE /v1/staff/{id}` puis GET context. Compte plateforme conservé ; planning **de cette équipe** jeté, l’autre intacte.
+3. Équipe : une ligne par salarié + poubelle (chrome rôles) ; popup indispo jours × **services offerts**. Min. créneau : un `Stepper` par service **offert** (`CONTEXT_SERVICES.filter`, PDJ → déj → dîner), défaut 4, `step={0.5}` `min={0.5}` — plus d’input unique. `min_shift_hours` = map sparse ; GET nombre encore lu (compat Infra) ; PATCH objet. Service non offert : pas de stepper, pas de clé (purge au décocher). PATCH `employees` = liste complète pour l’édition. **Supprimer** : confirm FR (`delete-employee.md`) ; ligne jamais PATCH → retrait local ; persistée → `DELETE /v1/staff/{id}` puis GET context. Compte plateforme conservé ; planning **de cette équipe** jeté, l’autre intacte.
 4. Souhaits bien-être : `Wellbeing` (cases `consecutive_rest` + **`weekend_rest_day`** à côté de la radio `weekend`, chiffres `max_services` **offerts seulement**, `max_coupures_per_week`). Pas un prérequis de `ready`. Bool `weekend_rest_day` requis au parse.
 5. Services types (équipe × service offert) : sous-onglets = `CONTEXT_SERVICES.filter(s => offered.includes(s.id))` (jamais `services.map`) ; **Ajouter un type** en bas. **Une `<table>` par feuille** (plus de cartes `wave-line`). Colonnes Type (Arrivée | **Départ**) · Heure (cadran overlay + ±15 stepper compact) · Niveaux · **STAFF minimal resultant** (sac / erreur, même calcul) · poubelle. Persist / pire-cas / JSON `departures` inchangés. PATCH `types` = liste complète. Cadran / réordre : §42.
 6. Semaine type : type ou Fermé, colonnes = **même** `CONTEXT_SERVICES.filter(...)` (pas l’ordre persisté). PATCH `typical_week` = `{ salle, cuisine }`. Libellés A/B ou Paire/Impaire selon `week_labels`.
@@ -408,6 +408,17 @@ Suivre `contracts/domain/delete-employee.md` UI (gagne sur `wizard-ui.md` ex-« 
 - Bearer aussi sur `DELETE /v1/staff/{id}` et `POST /v1/auth/link`. `/exemple` + wizard hors poubelle inchangés.
 
 Version `0.53.0`.
+
+### 44. Min. créneau par service
+
+Suivre `contracts/domain/min-shift-per-service.md` UI + `wizard-ui.md` Équipe (gagnent) — les suivre, ne pas les modifier.
+
+- Équipe : plus l’`<input type="number">` unique. Un `Stepper` par service offert (`CONTEXT_SERVICES.filter`, Petit-déjeuner → Déjeuner → Dîner). Défaut 4, `step={0.5}`, `min={0.5}`. Réutiliser `web/src/Stepper.tsx` (déjà `step` / `min`). Ne pas changer le chrome des autres steppers (rôles, types, overlay). Service non offert : pas de stepper, pas de clé.
+- Types : `min_shift_hours` = `Record<string, number>` sparse. Parser GET : objet **ou** nombre (nombre `4` → map vide ; autre N → N sur chaque service offert). Map vide = 4 à l’affichage. PATCH envoie l’objet. Nouvelle fiche : services offerts à 4.
+- Décocher un service : retirer `min_shift_hours.<id>` sur toutes les fiches (déjà dans `purgeRemovedServices` pour max/indispos).
+- `/exemple` inchangé.
+
+Version `0.54.0`.
 
 ## Risks / Trade-offs
 
