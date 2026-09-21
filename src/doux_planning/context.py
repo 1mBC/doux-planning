@@ -497,6 +497,28 @@ def generate_team(
     return state
 
 
+def seed_empty_team_cycle(state: RestaurantState, team: Team) -> PublishedCycle:
+    if not team_ready(state, team):
+        raise TeamNotReady(team)
+    structures = tuple(item for item in expand_typical_week(state) if item.team == team)
+    employees = tuple(person for person in state.employees if person.team == team)
+    draft = PlanningDraft(
+        employees=employees,
+        structures=structures,
+        hours=state.hours,
+        legal_rules=default_legal_rules(),
+        assignments=(),
+    )
+    result = evaluate(draft)
+    published = PublishedCycle(
+        id=team.value,
+        draft=draft.with_assignments(result.assignments),
+        result=result,
+    )
+    state.published_cycles[team] = published
+    return published
+
+
 def enter_live_sandbox(state: RestaurantState, team: Team) -> Sandbox:
     published = state.published_cycles.get(team)
     if published is None:
