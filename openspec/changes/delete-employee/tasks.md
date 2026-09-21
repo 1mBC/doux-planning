@@ -5,4 +5,4 @@
 
 ## 2. Guardrails
 
-- [ ] 2.1 Run `pytest` green without edits to `web/`, `src/doux_planning/api/`, `contracts/`, Alembic, `engine.py` formulas, or `redeem_invite`
+- [x] 2.1 Run `pytest` green without edits to `web/`, `src/doux_planning/api/`, `contracts/`, Alembic, `engine.py` formulas, or `redeem_invite`
