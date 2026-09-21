@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
@@ -10,12 +11,15 @@ from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_company_restau
 from doux_planning.api.context import _load_company, _state_from_rows
 from doux_planning.api.db import Company, session_scope
 from doux_planning.api.generate import (
+    DETAIL_NOT_READY,
     EFFORTS,
+    SLOT_KEYS,
     _fact_json,
     _team_cycle_json,
     latest_cycle_blob,
     normalize_team_published,
     overwrite_slot_keep_generated_at,
+    put_manuel_slot,
 )
 from doux_planning.api.sandbox import (
     GESTURES,
@@ -31,10 +35,12 @@ from doux_planning.api.sandbox import (
 )
 from doux_planning.context import (
     NoPublishedCycle,
+    TeamNotReady,
     discard_live_sandbox,
     enter_live_sandbox,
     expand_typical_week,
     publish_live_sandbox,
+    seed_empty_team_cycle,
 )
 from doux_planning.engine import EngineResult, PlanningDraft, evaluate
 from doux_planning.planning import (
@@ -128,14 +134,22 @@ def _hydrate(
         pack, _ = normalize_team_published(published_raw.get(team.value), state, team)
         blob = live_raw.get(team.value)
         effort = None
-        if isinstance(blob, dict) and blob.get("search_effort") in EFFORTS:
+        if isinstance(blob, dict) and blob.get("search_effort") in SLOT_KEYS:
             effort = blob["search_effort"]
         elif pack is not None:
             effort = pack.get("latest")
-        cycle = pack["versions"].get(effort) if pack is not None and effort in EFFORTS else None
-        if cycle is None and pack is not None:
-            cycle = latest_cycle_blob(pack)
-        state.published_cycles[team] = _published_from_json(state, team, cycle)
+        cycle = pack["versions"].get(effort) if pack is not None and effort in SLOT_KEYS else None
+        if cycle is not None:
+            state.published_cycles[team] = _published_from_json(state, team, cycle)
+        elif effort == "manuel" and isinstance(blob, dict):
+            try:
+                seed_empty_team_cycle(state, team)
+            except TeamNotReady:
+                state.published_cycles[team] = None
+        else:
+            if cycle is None and pack is not None:
+                cycle = latest_cycle_blob(pack)
+            state.published_cycles[team] = _published_from_json(state, team, cycle)
         state.live_sandboxes[team] = _sandbox_from_json(state, team, blob)
         recaps[team] = list(blob.get("recaps") or []) if isinstance(blob, dict) else []
         efforts[team] = effort if isinstance(effort, str) else None
@@ -163,7 +177,7 @@ def _sandbox_blob(
         ],
         "recaps": list(recaps),
     }
-    if search_effort in EFFORTS:
+    if search_effort in SLOT_KEYS:
         payload["search_effort"] = search_effort
     return payload
 
@@ -197,7 +211,15 @@ def _persist(
                 if team == published_team:
                     cycle = _team_cycle_json(state, team)
                     effort = efforts.get(team)
-                    if cycle is not None and effort in EFFORTS:
+                    if cycle is not None and effort == "manuel":
+                        out[team.value] = put_manuel_slot(
+                            raw,
+                            cycle,
+                            datetime.now(timezone.utc).isoformat(),
+                            state,
+                            team,
+                        )
+                    elif cycle is not None and effort in EFFORTS:
                         out[team.value] = overwrite_slot_keep_generated_at(raw, effort, cycle, state, team)
                     else:
                         pack, _ = normalize_team_published(raw, state, team)
@@ -325,6 +347,44 @@ def _map_edit_error(exc: Exception) -> HTTPException:
     raise exc
 
 
+def _switch_live_effort(
+    state: RestaurantState,
+    recaps: dict[Team, list[dict[str, Any]]],
+    efforts: dict[Team, str | None],
+    team: Team,
+    effort: str,
+) -> None:
+    if state.live_sandboxes.get(team) is not None and efforts.get(team) not in (None, effort):
+        discard_live_sandbox(state, team)
+        recaps[team] = []
+    try:
+        enter_live_sandbox(state, team)
+    except NoPublishedCycle as exc:
+        raise HTTPException(status_code=409, detail=DETAIL_NO_CYCLE) from exc
+    efforts[team] = effort
+
+
+def _enter_manuel(
+    restaurant_id: str,
+    state: RestaurantState,
+    recaps: dict[Team, list[dict[str, Any]]],
+    efforts: dict[Team, str | None],
+    team: Team,
+    pack: dict[str, Any] | None,
+) -> dict[str, Any]:
+    cycle = pack["versions"].get("manuel") if pack is not None else None
+    if cycle is None:
+        try:
+            seed_empty_team_cycle(state, team)
+        except TeamNotReady as exc:
+            raise HTTPException(status_code=409, detail=DETAIL_NOT_READY) from exc
+    else:
+        state.published_cycles[team] = _published_from_json(state, team, cycle)
+    _switch_live_effort(state, recaps, efforts, team, "manuel")
+    _persist(restaurant_id, state, recaps, efforts)
+    return _live_state(state, team, recaps)
+
+
 def enter(
     authorization: str | None,
     team_raw: str,
@@ -336,24 +396,19 @@ def enter(
     requested = search_effort
     if isinstance(body, dict) and body.get("search_effort") is not None:
         requested = body.get("search_effort")
-    if requested is not None and requested not in EFFORTS:
+    if requested is not None and requested not in SLOT_KEYS:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
     pack, _ = normalize_team_published((company.published_cycles or {}).get(team.value), state, team)
-    if pack is None or pack.get("latest") not in EFFORTS:
+    if requested == "manuel" or (requested is None and pack is not None and pack.get("latest") == "manuel"):
+        return _enter_manuel(restaurant_id, state, recaps, efforts, team, pack)
+    if pack is None or pack.get("latest") not in SLOT_KEYS:
         raise HTTPException(status_code=409, detail=DETAIL_NO_CYCLE)
     effort = requested or pack["latest"]
     cycle = pack["versions"].get(effort)
     if cycle is None:
         raise HTTPException(status_code=409, detail=DETAIL_NO_CYCLE)
     state.published_cycles[team] = _published_from_json(state, team, cycle)
-    if state.live_sandboxes.get(team) is not None and efforts.get(team) not in (None, effort):
-        discard_live_sandbox(state, team)
-        recaps[team] = []
-    try:
-        enter_live_sandbox(state, team)
-    except NoPublishedCycle as exc:
-        raise HTTPException(status_code=409, detail=DETAIL_NO_CYCLE) from exc
-    efforts[team] = effort
+    _switch_live_effort(state, recaps, efforts, team, effort)
     _persist(restaurant_id, state, recaps, efforts)
     return _live_state(state, team, recaps)
 
@@ -427,18 +482,36 @@ def discard(authorization: str | None, team_raw: str) -> dict[str, Any]:
     _require_sandbox(state, team)
     effort = efforts.get(team)
     pack, _ = normalize_team_published((company.published_cycles or {}).get(team.value), state, team)
-    if effort not in EFFORTS and pack is not None:
+    if effort not in SLOT_KEYS and pack is not None:
         effort = pack.get("latest")
-    cycle = pack["versions"].get(effort) if pack is not None and effort in EFFORTS else None
-    if cycle is not None:
+    if effort == "manuel":
+        cycle = pack["versions"].get("manuel") if pack is not None else None
+        if cycle is None:
+            discard_live_sandbox(state, team)
+            try:
+                seed_empty_team_cycle(state, team)
+            except TeamNotReady as exc:
+                raise HTTPException(status_code=409, detail=DETAIL_NOT_READY) from exc
+            try:
+                enter_live_sandbox(state, team)
+            except NoPublishedCycle as exc:
+                raise HTTPException(status_code=409, detail=DETAIL_NO_CYCLE) from exc
+            recaps[team] = []
+            efforts[team] = "manuel"
+            _persist(restaurant_id, state, recaps, efforts)
+            return _live_state(state, team, recaps)
         state.published_cycles[team] = _published_from_json(state, team, cycle)
+    else:
+        cycle = pack["versions"].get(effort) if pack is not None and effort in EFFORTS else None
+        if cycle is not None:
+            state.published_cycles[team] = _published_from_json(state, team, cycle)
     discard_live_sandbox(state, team)
     try:
         enter_live_sandbox(state, team)
     except NoPublishedCycle as exc:
         raise HTTPException(status_code=409, detail=DETAIL_NO_CYCLE) from exc
     recaps[team] = []
-    efforts[team] = effort if effort in EFFORTS else efforts.get(team)
+    efforts[team] = effort if effort in SLOT_KEYS else efforts.get(team)
     _persist(restaurant_id, state, recaps, efforts)
     return _live_state(state, team, recaps)
 

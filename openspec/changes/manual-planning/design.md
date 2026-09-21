@@ -8,11 +8,11 @@ See proposal.md. `generate_team` is the only Core writer of `published_cycles[te
 
 **Goals:**
 - Seed a ready team's published cycle as empty assignments + `evaluate` warnings.
-- Leave live enter / discard / publish and existing gestures untouched.
+- Leave Core live enter / discard / publish and existing gestures untouched.
+- HTTP persist four JSONB slots including `manuel`; enter can seed a live draft without writing the published slot until publish.
 
 **Non-Goals:**
-- HTTP slot multiplex (`versions.manuel`), Alembic, UI cran.
-- `SearchEffort.MANUEL`, solver on the manual path, new gestures.
+- Alembic, UI cran, `SearchEffort.MANUEL`, solver on the manual path, new gestures, bench `manuel` effort.
 
 ## Decisions
 
@@ -29,6 +29,10 @@ Alternative: reuse `generate_cycle` with a dummy effort — rejected; freeze for
 ### 3. Tests reuse `_complete_salle`
 
 Salle-ready fixture from `test_team_generate` without `generate_team`. Fill uses `FillSlot` for Emma monday midday (the fixture's only structure). Patch `generate_cycle` / `generate_for` on the seed path to prove they are not called.
+
+### 4. HTTP slot multiplex (`build-planning-api`)
+
+`SLOT_KEYS = minimal|optimized|maximal|manuel`. Compute `EFFORTS` and bench `EFFORTS` stay the three solves. `normalize_team_published` always emits four keys; 3-key blobs and flat cycles gain `manuel: null`. `POST /v1/generate` with `manuel` is 400 and never writes that slot. Live enter with `search_effort=manuel` and a null slot calls Core `seed_empty_team_cycle` then persist live only. Publish of that draft uses a new `generated_at` (not keep-`generated_at`), omits duration/engine_ref, and does not insert `generate_logs`. Discard of a never-published manuel draft re-seeds empty.
 
 ## Risks / Trade-offs
 
