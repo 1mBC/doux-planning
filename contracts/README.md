@@ -89,4 +89,8 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | `openspec/changes/build-planning-api/` + `src/doux_planning/api/` + Compose / migrations | Infra |
 | `openspec/changes/build-planning-ui/` + `web/` | UI |
 
-Interdit : `/opsx-archive`, `/opsx-sync`. Spécialistes commit + push **leur** branche (pas `master`). Orchestrateur land Core → Infra → UI (`--no-ff`) puis **push `master`** (Railway) sans demander une validation chat avant merge.
+Interdit : `/opsx-archive`, `/opsx-sync`.
+
+**Spécialistes (Core / Infra / UI)** : commit + push **leur** branche. Interdit de merger, de pusher `master`, ou de lander — même si le freeze est vert.
+
+**Orchestrateur seulement** : le restaurateur teste **uniquement** sur Railway, qui déploie `master`. Land Core → Infra → UI (`--no-ff`) et **push `master`** dès que la livraison est conforme au freeze. Ne pas demander une validation chat avant merge. Un écart vu sur Railway = nouveau change.
