@@ -386,6 +386,23 @@ def upsert_employee(state: RestaurantState, employee: Employee) -> RestaurantSta
     return state
 
 
+def remove_employee(state: RestaurantState, employee_id: str) -> RestaurantState:
+    person = next((item for item in state.employees if item.id == employee_id), None)
+    if person is None:
+        raise UnknownEmployee("Unknown employee")
+    team = person.team
+    state.employees = [item for item in state.employees if item.id != employee_id]
+    state.identity = replace(
+        state.identity,
+        linked_employee_ids=frozenset(
+            linked_id for linked_id in state.identity.linked_employee_ids if linked_id != employee_id
+        ),
+    )
+    state.published_cycles[team] = None
+    discard_live_sandbox(state, team)
+    return state
+
+
 def expand_typical_week(state: RestaurantState) -> list[ServiceStructure]:
     if state.typical_week is None:
         return []
