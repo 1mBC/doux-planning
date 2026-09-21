@@ -62,7 +62,9 @@ Export / import config : **`contracts/domain/export-config.md`** (gagne). Pas de
   "id", "name", "team": "salle"|"cuisine",
   "role": { "name", "level", "team" },
   "contractual_hours_per_week",
-  "min_shift_hours",          // défaut 4 si omis à la création
+  "min_shift_hours": { "morning"?: number, "midday"?: number, "evening"?: number },
+                              // GET : une clé par service offert, défaut 4
+                              // `contracts/domain/min-shift-per-service.md` (gagne)
   "unavailabilities": [{ "weekday", "service_id" }],
   "wellbeing": {
     "consecutive_rest": false,

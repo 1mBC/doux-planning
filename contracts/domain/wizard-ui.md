@@ -21,7 +21,8 @@ Si confirmé, **supprimer** (pas d’orphelin) :
 - `types[]` avec ce `service_id` (**les deux** équipes) ;
 - cellules `typical_week` des deux équipes pour ce `service_id` ;
 - `unavailabilities[]` avec ce `service_id` (toutes fiches) ;
-- `max_services.<id>` sur toutes les fiches.
+- `max_services.<id>` sur toutes les fiches ;
+- `min_shift_hours.<id>` sur toutes les fiches (`min-shift-per-service.md`).
 
 PATCH d’un coup : `services` + `employees` + `types` + `typical_week` **nettoyés** (listes complètes, garder l’autre équipe).
 
@@ -120,6 +121,10 @@ Même composant : rôles, types (niveaux), overlay sandbox, ±15.
 Sous-titre : **« Un niveau plus élevé est capable de tenir un poste de niveau inférieur. »** (plus « peut tenir un poste inférieur »).
 
 Supprimer un rôle → **confirm FR** : lister les **fiches** qui ont ce rôle, dire qu’il faudra les revoir / recalculer, **conseiller de renommer** plutôt que supprimer. Si confirmé : retire la ligne (fiches inchangées jusqu’au save).
+
+## Équipe — min. créneau
+
+Un `Stepper` par service **offert** (pas un nombre unique). Défaut 4 h, incrément **0,5 h**, `Stepper` existant. Détail = `contracts/domain/min-shift-per-service.md` (gagne).
 
 ## Équipe — supprimer un salarié
 
