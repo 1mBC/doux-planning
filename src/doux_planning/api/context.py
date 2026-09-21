@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from collections.abc import Sequence
 from typing import Any
 
 from fastapi import HTTPException
@@ -47,7 +48,7 @@ from doux_planning.context import (
 )
 from doux_planning.invites import RestaurantIdentity, UnknownEmployee
 from doux_planning.planning import RestaurantState
-from doux_planning.staff import Employee, Role, RoleLadder
+from doux_planning.staff import Employee, Role, RoleLadder, coerce_min_shift_hours, min_shift_for
 from doux_planning.structures import (
     ArrivalWave,
     DepartureWave,
@@ -56,7 +57,7 @@ from doux_planning.structures import (
     TypicalWeek,
     TypicalWeekCell,
 )
-from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS, Team, WEEKDAYS
+from doux_planning.types import Team, WEEKDAYS
 
 TEAMS = (Team.SALLE, Team.CUISINE)
 SERVICE_IDS = frozenset({"morning", "midday", "evening"})
@@ -245,7 +246,7 @@ def _hours_to_json(hours: RestaurantHours | None) -> dict[str, Any] | None:
     }
 
 
-def _employee_from_json(item: Any, existing_token: str | None) -> Employee:
+def _employee_from_json(item: Any, existing_token: str | None, company_services: Sequence[str] | None = None) -> Employee:
     if not isinstance(item, dict):
         raise ValueError("invalid employee")
     if "max_evenings_per_week" in item or "max_mornings_per_week" in item:
@@ -258,9 +259,8 @@ def _employee_from_json(item: Any, existing_token: str | None) -> Employee:
     hours = item.get("contractual_hours_per_week")
     if not isinstance(hours, (int, float)) or isinstance(hours, bool):
         raise ValueError("invalid hours")
-    min_shift = item.get("min_shift_hours", DEFAULT_MIN_SHIFT_HOURS)
-    if not isinstance(min_shift, (int, float)) or isinstance(min_shift, bool):
-        raise ValueError("invalid min_shift")
+    offered = tuple(company_services) if company_services else None
+    min_shift_hours = coerce_min_shift_hours(item.get("min_shift_hours"), offered)
     unavail_raw = item.get("unavailabilities") or []
     if not isinstance(unavail_raw, list):
         raise ValueError("invalid unavailabilities")
@@ -274,7 +274,7 @@ def _employee_from_json(item: Any, existing_token: str | None) -> Employee:
         "contractual_hours_per_week": float(hours),
         "unavailabilities": unavailabilities,
         "wellbeing": wellbeing,
-        "min_shift_hours": float(min_shift),
+        "min_shift_hours": min_shift_hours,
     }
     if existing_token:
         kwargs["invite_token"] = existing_token
@@ -330,14 +330,16 @@ def _serialize_week(week: TypicalWeek | None) -> dict[str, Any]:
     return payload
 
 
-def _serialize_employee(person: Employee) -> dict[str, Any]:
+def _serialize_employee(person: Employee, offered: Sequence[str]) -> dict[str, Any]:
     return {
         "id": person.id,
         "name": person.name,
         "team": person.team.value,
         "role": {"name": person.role.name, "level": person.role.level, "team": person.role.team.value},
         "contractual_hours_per_week": person.contractual_hours_per_week,
-        "min_shift_hours": person.min_shift_hours,
+        "min_shift_hours": {
+            service_id: min_shift_for(person, service_id) for service_id in offered
+        },
         "unavailabilities": [unavailability_to_json(item) for item in person.unavailabilities],
         "wellbeing": wellbeing_to_json(person.wellbeing),
         "invite_token": person.invite_token,
@@ -354,7 +356,7 @@ def serialize_context(state: RestaurantState) -> dict[str, Any]:
             "salle": _serialize_ladder(state.ladders.get(Team.SALLE)),
             "cuisine": _serialize_ladder(state.ladders.get(Team.CUISINE)),
         },
-        "employees": [_serialize_employee(person) for person in state.employees],
+        "employees": [_serialize_employee(person, state.company_services) for person in state.employees],
         "types": [_serialize_type(item) for item in state.service_types],
         "typical_week": _serialize_week(state.typical_week),
         "ready": {
@@ -447,7 +449,7 @@ def _persist_state(restaurant_id: str, state: RestaurantState, *, smash_live: bo
                 invite_token=person.invite_token,
                 role_level=person.role.level,
                 contractual_hours_per_week=person.contractual_hours_per_week,
-                min_shift_hours=person.min_shift_hours,
+                min_shift_hours=dict(person.min_shift_hours),
                 unavailabilities=[unavailability_to_json(item) for item in person.unavailabilities],
                 wellbeing=wellbeing_to_json(person.wellbeing),
             )
@@ -458,6 +460,7 @@ def _persist_state(restaurant_id: str, state: RestaurantState, *, smash_live: bo
                     setattr(row, key, value)
                 flag_modified(row, "unavailabilities")
                 flag_modified(row, "wellbeing")
+                flag_modified(row, "min_shift_hours")
 
 
 def _unaffiliate_employee_account(restaurant_id: str, employee_id: str) -> None:
@@ -633,6 +636,33 @@ def _apply_patch(state: RestaurantState, company: Company, body: dict[str, Any])
             set_typical_week(state, week)
     if "employees" in body:
         _replace_employees(state, company, body["employees"])
+    if "services" in body:
+        _drop_unoffered_fiche_keys(state)
+
+
+def _drop_unoffered_fiche_keys(state: RestaurantState) -> None:
+    offered = set(state.company_services)
+    updated: list[Employee] = []
+    for person in state.employees:
+        hours = {key: value for key, value in person.min_shift_hours.items() if key in offered}
+        unavails = tuple(item for item in person.unavailabilities if item.service_id in offered)
+        caps = {key: value for key, value in person.wellbeing.max_services.items() if key in offered}
+        wellbeing = person.wellbeing
+        if caps != dict(person.wellbeing.max_services):
+            wellbeing = replace(person.wellbeing, max_services=caps)
+        if (
+            hours != dict(person.min_shift_hours)
+            or unavails != person.unavailabilities
+            or wellbeing is not person.wellbeing
+        ):
+            person = replace(
+                person,
+                min_shift_hours=hours,
+                unavailabilities=unavails,
+                wellbeing=wellbeing,
+            )
+        updated.append(person)
+    state.employees = updated
 
 
 def _replace_employees(state: RestaurantState, company: Company, items: Any) -> None:
@@ -655,4 +685,4 @@ def _replace_employees(state: RestaurantState, company: Company, items: Any) -> 
         current_id = str(item["id"])
         previous = existing.get(current_id)
         token = previous.invite_token if previous is not None else None
-        upsert_employee(state, _employee_from_json(item, token))
+        upsert_employee(state, _employee_from_json(item, token, state.company_services))

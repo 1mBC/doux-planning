@@ -136,7 +136,7 @@ def test_context_get_patch_ready_invites_and_auth():
     assert ready["ready"]["cuisine"] is False
     assert ready["employees"][0]["id"] == fiche_id
     assert ready["employees"][0]["invite_token"]
-    assert ready["employees"][0]["min_shift_hours"] == 4
+    assert ready["employees"][0]["min_shift_hours"] == {"midday": 4}
     assert ready["week_labels"] == "ab"
     assert ready["employees"][0]["wellbeing"] == {
         "consecutive_rest": False,
@@ -784,3 +784,119 @@ def test_context_coerce_legacy_wellbeing_on_read():
     assert example.status_code == 200
     assert example.json()["planning"]["stats"]["assignments"] == 92
     assert example.json()["planning"]["stats"]["wellbeing"] == {"held": 10, "total": 12}
+
+
+def _min_shift_fiche(fiche_id: str, min_shift) -> dict:
+    payload = _fiche_payload(fiche_id, weekend=None)
+    payload["min_shift_hours"] = min_shift
+    return payload
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_context_min_shift_hours_per_service_http():
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"minshift-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    headers = _bearer(registered.json()["token"])
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+
+    seeded = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={
+            "services": ["midday", "evening"],
+            "employees": [_min_shift_fiche(fiche_id, {"evening": 3.5})],
+        },
+    )
+    assert seeded.status_code == 200
+    hours = seeded.json()["employees"][0]["min_shift_hours"]
+    assert isinstance(hours, dict)
+    assert hours == {"midday": 4, "evening": 3.5}
+
+    reset_engine()
+    again = client.get("/v1/context", headers=headers)
+    assert again.status_code == 200
+    assert again.json()["employees"][0]["min_shift_hours"] == {"midday": 4, "evening": 3.5}
+    assert isinstance(again.json()["employees"][0]["min_shift_hours"], dict)
+
+    four = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"employees": [_min_shift_fiche(fiche_id, 4)]},
+    )
+    assert four.status_code == 200
+    assert four.json()["employees"][0]["min_shift_hours"] == {"midday": 4, "evening": 4}
+
+    exported = client.get("/v1/context/export", headers=headers)
+    assert exported.status_code == 200
+    assert "invite_token" not in exported.json()["employees"][0]
+    assert exported.json()["employees"][0]["min_shift_hours"] == {"midday": 4, "evening": 4}
+
+    bad_key = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"employees": [_min_shift_fiche(fiche_id, {"continuous": 3})]},
+    )
+    assert bad_key.status_code == 400
+    assert bad_key.json()["detail"] == "Champs invalides."
+    zero = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"employees": [_min_shift_fiche(fiche_id, 0)]},
+    )
+    assert zero.status_code == 400
+    assert zero.json()["detail"] == "Champs invalides."
+    zero_key = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"employees": [_min_shift_fiche(fiche_id, {"evening": 0})]},
+    )
+    assert zero_key.status_code == 400
+    assert zero_key.json()["detail"] == "Champs invalides."
+    still = client.get("/v1/context", headers=headers)
+    assert still.status_code == 200
+    assert still.json()["employees"][0]["min_shift_hours"] == {"midday": 4, "evening": 4}
+
+    with_morning = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={
+            "services": ["morning", "midday", "evening"],
+            "employees": [_min_shift_fiche(fiche_id, {"morning": 3, "evening": 3.5})],
+        },
+    )
+    assert with_morning.status_code == 200
+    assert with_morning.json()["employees"][0]["min_shift_hours"] == {
+        "morning": 3,
+        "midday": 4,
+        "evening": 3.5,
+    }
+
+    unchecked = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"services": ["midday", "evening"]},
+    )
+    assert unchecked.status_code == 200
+    dropped = unchecked.json()["employees"][0]["min_shift_hours"]
+    assert "morning" not in dropped
+    assert dropped == {"midday": 4, "evening": 3.5}
+
+    restored = client.patch(
+        "/v1/context",
+        headers=headers,
+        json={"services": ["morning", "midday", "evening"]},
+    )
+    assert restored.status_code == 200
+    restored_hours = restored.json()["employees"][0]["min_shift_hours"]
+    assert restored_hours["morning"] == 4
+    assert restored_hours["evening"] == 3.5
+    assert "morning" in restored_hours
+
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92
+
