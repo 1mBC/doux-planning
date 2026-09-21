@@ -18,14 +18,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    op.execute("ALTER TABLE staff_fiches ALTER COLUMN min_shift_hours DROP DEFAULT")
     op.alter_column(
         "staff_fiches",
         "min_shift_hours",
         existing_type=sa.Float(),
         type_=JSONB(),
         existing_nullable=False,
-        existing_server_default=sa.text("4"),
-        server_default=sa.text("'{}'::jsonb"),
         postgresql_using=(
             "CASE WHEN min_shift_hours = 4 THEN '{}'::jsonb "
             "ELSE jsonb_build_object("
@@ -34,17 +33,17 @@ def upgrade() -> None:
             "'evening', min_shift_hours) END"
         ),
     )
+    op.execute("ALTER TABLE staff_fiches ALTER COLUMN min_shift_hours SET DEFAULT '{}'::jsonb")
 
 
 def downgrade() -> None:
+    op.execute("ALTER TABLE staff_fiches ALTER COLUMN min_shift_hours DROP DEFAULT")
     op.alter_column(
         "staff_fiches",
         "min_shift_hours",
         existing_type=JSONB(),
         type_=sa.Float(),
         existing_nullable=False,
-        existing_server_default=sa.text("'{}'::jsonb"),
-        server_default=sa.text("4"),
         postgresql_using=(
             "CASE WHEN min_shift_hours = '{}'::jsonb THEN 4 "
             "ELSE COALESCE("
@@ -54,3 +53,4 @@ def downgrade() -> None:
             "4) END"
         ),
     )
+    op.execute("ALTER TABLE staff_fiches ALTER COLUMN min_shift_hours SET DEFAULT 4")
