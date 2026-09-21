@@ -920,7 +920,10 @@ def test_short_post_stays_empty_when_service_cannot_reach_min_shift():
 
 
 def test_lower_personal_min_shift_fills_a_short_post():
-    person = replace(employee("Lucie", "plongeur", hours=20, employee_id="lucie"), min_shift_hours=3.0)
+    person = replace(
+        employee("Lucie", "plongeur", hours=20, employee_id="lucie"),
+        min_shift_hours={"evening": 3.0},
+    )
     evening = ServiceStructure(
         id="three-hour",
         team=Team.CUISINE,
@@ -936,6 +939,27 @@ def test_lower_personal_min_shift_fills_a_short_post():
     monday = [shift for shift in result.assignments if shift.day_index == 0]
     assert monday
     assert monday[0].duration_hours == 3.0
+
+
+def test_evening_min_three_leaves_short_midday_empty():
+    person = replace(
+        employee("Lucie", "plongeur", hours=20, employee_id="lucie"),
+        min_shift_hours={"evening": 3.0},
+    )
+    midday = ServiceStructure(
+        id="three-hour-midday",
+        team=Team.CUISINE,
+        service_id=ServiceName.MIDDAY.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(11 * 60, (1,)),),
+        departures=(DepartureWave(14 * 60, ()),),
+    )
+    hours = RestaurantHours.multi_service(
+        ServiceName.MIDDAY.value, closed_weekdays=set(WEEKDAYS) - {"monday"}
+    )
+    result = generate_cycle(PlanningDraft(employees=(person,), structures=(midday,), hours=hours))
+    assert not [shift for shift in result.assignments if shift.day_index == 0]
+    assert "empty_post" in {warning.code for warning in result.warnings if warning.day_index == 0}
 
 
 def _first_payload(result, code: str) -> dict:

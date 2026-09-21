@@ -220,7 +220,7 @@ def _load_context(category: str, dataset_id: str, raw: dict) -> RestaurantState:
     else:
         set_typical_week(state, _derived_typical_week(raw["roles"], hours_raw, raw["types"]))
     for item in raw["employees"]:
-        upsert_employee(state, _employee(item))
+        upsert_employee(state, _employee(item, services))
     state.structures = expand_typical_week(state)
     return state
 

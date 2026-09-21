@@ -199,7 +199,7 @@ def seed_example_context(state: RestaurantState) -> RestaurantState:
     restaurant = json.loads(path.read_text(encoding="utf-8"))["restaurant"]
     hours = _hours(restaurant["hours"])
     example_structures = [_structure(item) for item in restaurant["structures"]]
-    employees = [_employee(item) for item in restaurant["employees"]]
+    employees = [_employee(item, hours.services) for item in restaurant["employees"]]
 
     state.hours = hours
     state.company_services = tuple(hours.services)
@@ -290,9 +290,9 @@ def refresh_example_snapshot(example_id: str = "saint-cloud") -> dict:
     raw = json.loads(path.read_text(encoding="utf-8"))
     restaurant = raw["restaurant"]
     planning = raw["planning"]
-    employees = [_employee(item) for item in restaurant["employees"]]
-    structures = [_structure(item) for item in restaurant["structures"]]
     hours = _hours(restaurant["hours"])
+    structures = [_structure(item) for item in restaurant["structures"]]
+    employees = [_employee(item, hours.services) for item in restaurant["employees"]]
     draft = PlanningDraft(
         employees=tuple(employees),
         structures=tuple(structures),
