@@ -29,11 +29,12 @@ DETAIL_UNKNOWN_ENGINE = "Moteur inconnu."
 DETAIL_STALE_STAFF = "Un salarié du cycle n'est plus dans l'équipe."
 TEAMS = ("salle", "cuisine")
 EFFORTS = ("minimal", "optimized", "maximal")
+SLOT_KEYS = ("minimal", "optimized", "maximal", "manuel")
 ACTIVE_JOB_STATUSES = ("queued", "running")
 RECAP_KEYS = ("facts", "stats", "legal_cols", "legal_rows", "wish_cols", "wish_rows", "score")
 SCORE_AXES = ("couverture", "legal", "contrat", "wellbeing", "roles")
 MAXIMAL_ESTIMATED_SECONDS = 600
-EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3}
+EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3, "manuel": 4}
 LIVE_ENGINE_ROW_ID = 1
 
 
@@ -97,14 +98,14 @@ def put_live_engine(authorization: str | None, body: dict[str, Any]) -> dict[str
 
 def _empty_versions() -> dict[str, Any]:
     return {
-        "versions": {"minimal": None, "optimized": None, "maximal": None},
+        "versions": {key: None for key in SLOT_KEYS},
         "latest": None,
     }
 
 
 def compute_latest(versions: dict[str, Any]) -> str | None:
     best: tuple[str, int, str] | None = None
-    for effort in EFFORTS:
+    for effort in SLOT_KEYS:
         cycle = versions.get(effort)
         if not cycle:
             continue
@@ -167,8 +168,8 @@ def normalize_team_published(
     if isinstance(blob, dict) and "versions" in blob:
         raw_versions = blob.get("versions") or {}
         out = _empty_versions()
-        dirty = set(raw_versions) != set(EFFORTS) or "latest" not in blob
-        for effort in EFFORTS:
+        dirty = set(raw_versions) != set(SLOT_KEYS) or "latest" not in blob
+        for effort in SLOT_KEYS:
             cycle = raw_versions.get(effort)
             if cycle is None:
                 continue
@@ -177,7 +178,7 @@ def normalize_team_published(
                 dirty = True
             out["versions"][effort] = cycle
         latest = blob.get("latest")
-        if latest not in EFFORTS:
+        if latest not in SLOT_KEYS:
             latest = compute_latest(out["versions"])
             dirty = True
         out["latest"] = latest
@@ -188,10 +189,10 @@ def normalize_team_published(
             cycle = _ensure_cycle_recap(state, team, cycle)
         cycle.pop("generated_at", None)
         cycle["search_effort"] = "optimized"
-        return {
-            "versions": {"minimal": None, "optimized": cycle, "maximal": None},
-            "latest": "optimized",
-        }, True
+        pack = _empty_versions()
+        pack["versions"]["optimized"] = cycle
+        pack["latest"] = "optimized"
+        return pack, True
     return None, False
 
 
@@ -219,6 +220,26 @@ def put_generated_slot(
     return pack
 
 
+def put_manuel_slot(
+    stored_blob: Any,
+    cycle: dict[str, Any],
+    generated_at: str,
+    state: RestaurantState | None = None,
+    team: Team | None = None,
+) -> dict[str, Any]:
+    pack, _ = normalize_team_published(stored_blob, state, team)
+    if pack is None:
+        pack = _empty_versions()
+    slot = dict(cycle)
+    slot["generated_at"] = generated_at
+    slot["search_effort"] = "manuel"
+    slot.pop("duration_seconds", None)
+    slot.pop("engine_ref", None)
+    pack["versions"]["manuel"] = slot
+    pack["latest"] = compute_latest(pack["versions"])
+    return pack
+
+
 def overwrite_slot_keep_generated_at(
     stored_blob: Any,
     effort: str,
@@ -241,14 +262,14 @@ def overwrite_slot_keep_generated_at(
         slot.pop("duration_seconds", None)
     slot["search_effort"] = effort
     pack["versions"][effort] = slot
-    others = [item for item in EFFORTS if item != effort and pack["versions"].get(item)]
+    others = [item for item in SLOT_KEYS if item != effort and pack["versions"].get(item)]
     if not others:
         pack["latest"] = effort
     return pack
 
 
 def latest_cycle_blob(pack: dict[str, Any] | None) -> dict[str, Any] | None:
-    if pack is None or pack.get("latest") not in EFFORTS:
+    if pack is None or pack.get("latest") not in SLOT_KEYS:
         return None
     return pack["versions"].get(pack["latest"])
 
