@@ -51,6 +51,8 @@ DETAIL_EMAIL_TAKEN = "Cet email est déjà utilisé."
 DETAIL_FICHE_LINKED = "Cette fiche a déjà un compte."
 DETAIL_COMPANY_MISSING = "Entreprise introuvable."
 DETAIL_FICHE_MISSING = "Fiche introuvable."
+DETAIL_UNAFFILIATED = "Vous n'êtes rattaché à aucun restaurant."
+DETAIL_ALREADY_AFFILIATED = "Vous êtes déjà rattaché à un restaurant."
 DETAIL_DB = "Base indisponible."
 
 
@@ -112,7 +114,7 @@ def _load_session(db: Session, token: str) -> AuthSession:
 
 
 def _me_payload(
-    *, kind: str, email: str, restaurant_id: str, employee_id: str | None, admin: bool = False
+    *, kind: str, email: str, restaurant_id: str | None, employee_id: str | None, admin: bool = False
 ) -> dict[str, Any]:
     return {
         "kind": kind,
@@ -123,7 +125,7 @@ def _me_payload(
     }
 
 
-def _issue_session(db: Session, *, kind: str, account_id: str, restaurant_id: str) -> str:
+def _issue_session(db: Session, *, kind: str, account_id: str, restaurant_id: str | None) -> str:
     token = secrets.token_urlsafe(32)
     db.add(
         AuthSession(
@@ -205,7 +207,7 @@ def require_company_restaurant_id(authorization: str | None) -> str:
         return session.restaurant_id
 
 
-def require_employee_session(authorization: str | None) -> tuple[str, str]:
+def require_employee_account(authorization: str | None) -> EmployeeAccountRow:
     require_database()
     token = _bearer_token(authorization)
     with session_scope() as db:
@@ -215,7 +217,15 @@ def require_employee_session(authorization: str | None) -> tuple[str, str]:
         account = db.get(EmployeeAccountRow, session.account_id)
         if account is None:
             raise HTTPException(status_code=401, detail=DETAIL_SESSION)
-        return session.restaurant_id, account.employee_id
+        db.expunge(account)
+        return account
+
+
+def require_employee_session(authorization: str | None) -> tuple[str, str]:
+    account = require_employee_account(authorization)
+    if account.restaurant_id is None or account.employee_id is None:
+        raise HTTPException(status_code=409, detail=DETAIL_UNAFFILIATED)
+    return account.restaurant_id, account.employee_id
 
 
 def _claim_email(db: Session, email: str) -> None:
@@ -231,6 +241,18 @@ def _map_invite_error(exc: Exception) -> HTTPException:
         return HTTPException(status_code=409, detail=DETAIL_FICHE_LINKED)
     if isinstance(exc, UnknownEmployee):
         return HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    raise exc
+
+
+def _map_link_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, (InvalidInviteCode, UnknownInviteToken, InviteTargetMismatch)):
+        return HTTPException(status_code=400, detail=DETAIL_INVALID_INVITE)
+    if isinstance(exc, InviteAlreadyRedeemed):
+        return HTTPException(status_code=409, detail=DETAIL_FICHE_LINKED)
+    if isinstance(exc, UnknownEmployee):
+        return HTTPException(status_code=404, detail=DETAIL_FICHE_MISSING)
     if isinstance(exc, ValueError):
         return HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
     raise exc
@@ -413,7 +435,7 @@ def me(authorization: str | None) -> dict[str, Any]:
         return _me_payload(
             kind="employee",
             email=account.email,
-            restaurant_id=session.restaurant_id,
+            restaurant_id=account.restaurant_id,
             employee_id=account.employee_id,
         )
 
@@ -449,3 +471,61 @@ def rotate_invite_token(employee_id: str, authorization: str | None) -> dict[str
         rotated = rotate_employee_invite_token(_fiche_to_employee(fiche, services))
         fiche.invite_token = rotated.invite_token
         return {"employee_id": fiche.id, "employee_token": rotated.invite_token}
+
+
+def link_account(body: dict[str, Any], authorization: str | None) -> dict[str, Any]:
+    require_database()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    token = _bearer_token(authorization)
+    try:
+        with session_scope() as db:
+            session = _load_session(db, token)
+            if session.kind != "employee":
+                raise HTTPException(status_code=403, detail=DETAIL_EMPLOYEE_ONLY)
+            account = db.get(EmployeeAccountRow, session.account_id)
+            if account is None:
+                raise HTTPException(status_code=401, detail=DETAIL_SESSION)
+            if account.employee_id is not None or account.restaurant_id is not None:
+                raise HTTPException(status_code=409, detail=DETAIL_ALREADY_AFFILIATED)
+            company_code = _as_optional_str(body, "company_code")
+            employee_id = _as_optional_str(body, "employee_id")
+            if not company_code or not employee_id:
+                raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+            company = db.scalars(select(Company).where(Company.invite_code == company_code)).first()
+            if company is None:
+                raise InvalidInviteCode("Invalid invite code")
+            fiches = list(db.scalars(select(StaffFiche).where(StaffFiche.company_id == company.id)))
+            employees = tuple(_fiche_to_employee(row, company.services) for row in fiches)
+            linked, updated = redeem_invite(
+                _identity_from_company(company),
+                employees,
+                company_code,
+                account.id,
+                employee_id=employee_id,
+                employee_token=None,
+            )
+            company.linked_employee_ids = sorted(updated.linked_employee_ids)
+            flag_modified(company, "linked_employee_ids")
+            account.restaurant_id = linked.restaurant_id
+            account.employee_id = linked.employee_id
+            session.restaurant_id = linked.restaurant_id
+            return _me_payload(
+                kind="employee",
+                email=account.email,
+                restaurant_id=account.restaurant_id,
+                employee_id=account.employee_id,
+            )
+    except HTTPException:
+        raise
+    except (
+        InvalidInviteCode,
+        UnknownInviteToken,
+        InviteAlreadyRedeemed,
+        InviteTargetMismatch,
+        UnknownEmployee,
+        ValueError,
+    ) as exc:
+        raise _map_link_error(exc) from exc
+    except IntegrityError as exc:
+        raise HTTPException(status_code=409, detail=DETAIL_FICHE_LINKED) from exc

@@ -26,6 +26,7 @@ DETAIL_NOT_READY = "Cette équipe n'est pas prête à calculer."
 DETAIL_JOB_RUNNING = "Un calcul maximal est déjà en cours."
 DETAIL_JOB_MISSING = "Calcul introuvable."
 DETAIL_UNKNOWN_ENGINE = "Moteur inconnu."
+DETAIL_STALE_STAFF = "Un salarié du cycle n'est plus dans l'équipe."
 TEAMS = ("salle", "cuisine")
 EFFORTS = ("minimal", "optimized", "maximal")
 ACTIVE_JOB_STATUSES = ("queued", "running")
@@ -34,6 +35,12 @@ SCORE_AXES = ("couverture", "legal", "contrat", "wellbeing", "roles")
 MAXIMAL_ESTIMATED_SECONDS = 600
 EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3}
 LIVE_ENGINE_ROW_ID = 1
+
+
+class StaleGenerateStaff(Exception):
+    def __init__(self, detail: str = DETAIL_STALE_STAFF) -> None:
+        super().__init__(detail)
+        self.detail = detail
 
 
 def iso_log(event: str, **fields: Any) -> None:
@@ -564,6 +571,12 @@ def persist_maximal_result(
     effective_ref = get_effective_engine_ref()
     started = time.perf_counter()
     generate_fn(state, team, SearchEffort.MAXIMAL, engine_ref=effective_ref)
+    keep_ids = {person.id for person in state.employees}
+    published_cycle = state.published_cycles.get(team)
+    result = getattr(published_cycle, "result", None)
+    assignments = getattr(result, "assignments", ()) or ()
+    if any(getattr(shift, "employee_id", None) not in keep_ids for shift in assignments):
+        raise StaleGenerateStaff()
     duration_seconds = max(0.0, time.perf_counter() - started)
     generated_at = datetime.now(timezone.utc).isoformat()
     published = _published_after_generate(

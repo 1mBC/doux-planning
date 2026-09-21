@@ -5,7 +5,18 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer, String, UniqueConstraint, create_engine
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    String,
+    UniqueConstraint,
+    create_engine,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -182,13 +193,17 @@ class EmployeeAccountRow(Base):
             ["staff_fiches.company_id", "staff_fiches.id"],
             name="employee_accounts_restaurant_employee_fkey",
         ),
+        CheckConstraint(
+            "(restaurant_id IS NULL) = (employee_id IS NULL)",
+            name="employee_accounts_affiliation_nulls_check",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     email: Mapped[str] = mapped_column(ForeignKey("account_emails.email"), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
-    restaurant_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), nullable=False)
-    employee_id: Mapped[str] = mapped_column(String, nullable=False)
+    restaurant_id: Mapped[str | None] = mapped_column(ForeignKey("companies.id"), nullable=True)
+    employee_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class AuthSession(Base):
@@ -198,7 +213,7 @@ class AuthSession(Base):
     token_hash: Mapped[str] = mapped_column(String, primary_key=True)
     kind: Mapped[str] = mapped_column(String, nullable=False)
     account_id: Mapped[str] = mapped_column(String, nullable=False)
-    restaurant_id: Mapped[str] = mapped_column(String, nullable=False)
+    restaurant_id: Mapped[str | None] = mapped_column(String, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 

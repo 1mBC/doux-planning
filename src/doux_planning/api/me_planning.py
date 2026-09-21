@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from doux_planning.api.auth import require_database, require_employee_session
+from doux_planning.api.auth import DETAIL_UNAFFILIATED, require_database, require_employee_account
 from doux_planning.api.context import _load_company, _state_from_rows
 from doux_planning.api.generate import _shift_json, latest_cycle_blob, normalize_team_published
 from doux_planning.api.live_sandbox import TEAMS, _published_from_json
@@ -32,7 +32,10 @@ def _employee_json(person: Employee) -> dict[str, Any]:
 
 def get_me_planning(authorization: str | None) -> dict[str, Any]:
     require_database()
-    restaurant_id, employee_id = require_employee_session(authorization)
+    account = require_employee_account(authorization)
+    if account.employee_id is None or account.restaurant_id is None:
+        raise HTTPException(status_code=409, detail=DETAIL_UNAFFILIATED)
+    restaurant_id, employee_id = account.restaurant_id, account.employee_id
     company, fiches = _load_company(restaurant_id)
     state = _state_from_rows(company, fiches)
     _hydrate_published(state, company)
