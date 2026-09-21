@@ -77,6 +77,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 64 — podiums stats banc | `domain/bench.md` ; brief `ui-bench-podiums.md` | **landed** `35c112a` (UI v0.51.0) |
 | 65 — mix-0 | `domain/engine-mix-0.md`, `engines.md` ; briefs `core-mix-0.md`, `infra-mix-0-eta.md` | **landed** `80b19d5` + Infra `96085ae` |
 | 66 — services types polish | `domain/wizard-ui.md` ; brief `ui-service-types-polish.md` | **landed** `214f929` (UI v0.52.0) |
+| 67 — delete salarié | `domain/delete-employee.md` ; briefs `core-delete-employee.md`, `infra-delete-employee.md`, `ui-delete-employee.md` | Core + UI en parallèle ; Infra après Core |
 
 ## Ownership git (ne pas croiser)
 

@@ -1,8 +1,9 @@
 # Planning salarié
 
 Freeze HTTP. Wrappe `employee_board` (`contracts/domain/employee-board.md`).  
-Bearer **employee** (`me.employee_id`). Pas d’id resto / fiche dans le path.  
+Bearer **employee** affilié (`me.employee_id` string). Pas d’id resto / fiche dans le path.  
 `kind: company` → 403 `Action réservée au salarié.`  
+Sans affiliation (`employee_id` null) → 409 `Vous n'êtes rattaché à aucun restaurant.`  
 Sans Bearer → 401 `Session invalide.`  
 Sans `DATABASE_URL` → 503 `Base indisponible.`
 

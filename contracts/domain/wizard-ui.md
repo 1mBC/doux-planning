@@ -121,6 +121,10 @@ Sous-titre : **« Un niveau plus élevé est capable de tenir un poste de niveau
 
 Supprimer un rôle → **confirm FR** : lister les **fiches** qui ont ce rôle, dire qu’il faudra les revoir / recalculer, **conseiller de renommer** plutôt que supprimer. Si confirmé : retire la ligne (fiches inchangées jusqu’au save).
 
+## Équipe — supprimer un salarié
+
+Poubelle par fiche (même chrome que les rôles). Confirm + cascade = `contracts/domain/delete-employee.md` (gagne).
+
 ## Grille planning (company / exemple / salarié)
 
 Cellules **H** (durée du shift, 3ᵉ colonne par jour) : même `--ink` que la personne, **plus pâle** que Début / Fin (`td.work`). Total heures **semaine** à droite : inchangé.
@@ -139,5 +143,5 @@ Les `invite_token` restent dans l’API / les fiches — **masqués** seulement.
 
 ## Hors freeze
 
-Supprimer un salarié / unlink / panneau compte (**annulé**). Archive / sync.  
+Panneau compte salarié. Unlink sans delete de fiche. Archive / sync.  
 `continuous` / chambres (moteur pas prêt).
