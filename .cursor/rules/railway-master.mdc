@@ -1,0 +1,12 @@
+---
+description: Tester sur Railway = merger master dès que la livraison est carrée
+alwaysApply: true
+---
+
+# Merge `master` pour tester (Railway)
+
+Le restaurateur teste **uniquement** sur Railway, qui déploie **`master`**. Une branche non mergée n’est pas testable.
+
+- Quand Core / Infra / UI sont conformes au freeze, **land `--no-ff` sur `master` et push**. Ne pas demander une validation chat « avant merge ».
+- La recette Railway **est** la validation. Un écart vu en prod = nouveau change, pas un hold sur `master`.
+- Ne pas attendre un OK pour merger une livraison que le Tech Lead juge carrée.
