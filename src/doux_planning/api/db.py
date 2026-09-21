@@ -93,7 +93,7 @@ class StaffFiche(Base):
     invite_token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     role_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     contractual_hours_per_week: Mapped[float] = mapped_column(Float, nullable=False, default=35)
-    min_shift_hours: Mapped[float] = mapped_column(Float, nullable=False, default=4)
+    min_shift_hours: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     unavailabilities: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     wellbeing: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 

@@ -34,7 +34,7 @@ from doux_planning.invites import (
     redeem_invite,
     rotate_employee_invite_token,
 )
-from doux_planning.staff import Employee, Role
+from doux_planning.staff import Employee, Role, coerce_min_shift_hours
 from doux_planning.types import Team
 
 PASSWORD_HASHER = PasswordHasher()
@@ -141,7 +141,6 @@ def _issue_session(db: Session, *, kind: str, account_id: str, restaurant_id: st
 
 def _fiche_to_employee(row: StaffFiche, company_services: list[str] | None = None) -> Employee:
     from doux_planning.api.wellbeing_codec import coerce_unavailabilities, coerce_wellbeing
-    from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS
 
     team = Team(row.team)
     role = Role(name=row.role, level=getattr(row, "role_level", 1) or 1, team=team)
@@ -154,7 +153,7 @@ def _fiche_to_employee(row: StaffFiche, company_services: list[str] | None = Non
         contractual_hours_per_week=getattr(row, "contractual_hours_per_week", None) or 35,
         unavailabilities=tuple(coerce_unavailabilities(row.unavailabilities, services)),
         wellbeing=coerce_wellbeing(row.wellbeing),
-        min_shift_hours=getattr(row, "min_shift_hours", None) or DEFAULT_MIN_SHIFT_HOURS,
+        min_shift_hours=coerce_min_shift_hours(getattr(row, "min_shift_hours", None), services or None),
         invite_token=row.invite_token,
     )
 
