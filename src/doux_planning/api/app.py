@@ -49,6 +49,13 @@ def auth_logout(authorization: str | None = Header(default=None)) -> Response:
     return Response(status_code=204)
 
 
+@app.post("/v1/auth/link")
+def auth_link(body: dict[str, Any], authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.auth import link_account
+
+    return link_account(body, authorization)
+
+
 @app.get("/v1/me")
 def auth_me(authorization: str | None = Header(default=None)) -> dict:
     from doux_planning.api.auth import me
@@ -77,6 +84,13 @@ def auth_rotate_invite_token(
     from doux_planning.api.auth import rotate_invite_token
 
     return rotate_invite_token(employee_id, authorization)
+
+
+@app.delete("/v1/staff/{employee_id}")
+def delete_staff_route(employee_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.context import delete_staff
+
+    return delete_staff(employee_id, authorization)
 
 
 @app.get("/v1/context")

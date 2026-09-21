@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import or_, select
 
 from doux_planning.api.db import BenchJob, GenerateJob, session_scope
-from doux_planning.api.generate import DETAIL_NOT_READY, iso_log, persist_maximal_result
+from doux_planning.api.generate import DETAIL_NOT_READY, StaleGenerateStaff, iso_log, persist_maximal_result
 from doux_planning.bench import UnknownBenchDataset, run_bench
 from doux_planning.context import TeamNotReady, generate_team
 from doux_planning.engine import SEARCH_PROGRESS
@@ -160,6 +160,18 @@ def tick_generate_job(*, generate_team_fn: GenerateFn | None = None) -> str | No
             worker=_worker_id(),
         )
         _set_job(job_id, "failed", DETAIL_NOT_READY)
+        return job_id
+    except StaleGenerateStaff as exc:
+        duration = round(time.perf_counter() - started, 3)
+        iso_log(
+            "generate end",
+            job_id=job_id,
+            duration_s=duration,
+            status="failed",
+            error=exc.detail,
+            worker=_worker_id(),
+        )
+        _set_job(job_id, "failed", exc.detail)
         return job_id
     except Exception:
         duration = round(time.perf_counter() - started, 3)

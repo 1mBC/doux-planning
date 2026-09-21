@@ -11,6 +11,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from doux_planning.api.auth import (
     DETAIL_INVALID_FIELDS,
     DETAIL_FICHE_LINKED,
+    DETAIL_FICHE_MISSING,
     require_company_restaurant_id,
     require_database,
     _fiche_to_employee,
@@ -33,6 +34,7 @@ from doux_planning.api.wellbeing_codec import (
 )
 from doux_planning.context import (
     empty_restaurant,
+    remove_employee,
     seed_example_context,
     set_restaurant_name,
     set_role_ladder,
@@ -43,7 +45,7 @@ from doux_planning.context import (
     upsert_service_type,
     week_label_scheme,
 )
-from doux_planning.invites import RestaurantIdentity
+from doux_planning.invites import RestaurantIdentity, UnknownEmployee
 from doux_planning.planning import RestaurantState
 from doux_planning.staff import Employee, Role, RoleLadder
 from doux_planning.structures import (
@@ -458,6 +460,47 @@ def _persist_state(restaurant_id: str, state: RestaurantState, *, smash_live: bo
                 flag_modified(row, "wellbeing")
 
 
+def _unaffiliate_employee_account(restaurant_id: str, employee_id: str) -> None:
+    with session_scope() as db:
+        account = db.scalars(
+            select(EmployeeAccountRow).where(
+                EmployeeAccountRow.restaurant_id == restaurant_id,
+                EmployeeAccountRow.employee_id == employee_id,
+            )
+        ).first()
+        if account is None:
+            return
+        account_id = account.id
+        account.restaurant_id = None
+        account.employee_id = None
+        sessions = list(
+            db.scalars(
+                select(AuthSession).where(
+                    AuthSession.kind == "employee",
+                    AuthSession.account_id == account_id,
+                )
+            )
+        )
+        for session in sessions:
+            db.delete(session)
+        db.flush()
+
+
+def _clear_team_live(restaurant_id: str, team: Team) -> None:
+    with session_scope() as db:
+        company = db.get(Company, restaurant_id)
+        if company is None:
+            raise HTTPException(status_code=401, detail="Session invalide.")
+        cycles = dict(company.published_cycles or {})
+        cycles[team.value] = None
+        company.published_cycles = cycles
+        sands = dict(company.live_sandboxes or {})
+        sands[team.value] = None
+        company.live_sandboxes = sands
+        flag_modified(company, "published_cycles")
+        flag_modified(company, "live_sandboxes")
+
+
 def get_context(authorization: str | None) -> dict[str, Any]:
     require_database()
     restaurant_id = require_company_restaurant_id(authorization)
@@ -479,6 +522,26 @@ def patch_context(authorization: str | None, body: dict[str, Any]) -> dict[str, 
     except (ValueError, KeyError, TypeError):
         raise _invalid() from None
     _persist_state(restaurant_id, state)
+    company, fiches = _load_company(restaurant_id)
+    return serialize_context(_state_from_rows(company, fiches))
+
+
+def delete_staff(employee_id: str, authorization: str | None) -> dict[str, Any]:
+    require_database()
+    restaurant_id = require_company_restaurant_id(authorization)
+    company, fiches = _load_company(restaurant_id)
+    fiche = next((row for row in fiches if row.id == employee_id), None)
+    if fiche is None:
+        raise HTTPException(status_code=404, detail=DETAIL_FICHE_MISSING)
+    team = Team(fiche.team)
+    _unaffiliate_employee_account(restaurant_id, employee_id)
+    state = _state_from_rows(company, fiches)
+    try:
+        remove_employee(state, employee_id)
+    except UnknownEmployee as exc:
+        raise HTTPException(status_code=404, detail=DETAIL_FICHE_MISSING) from exc
+    _persist_state(restaurant_id, state)
+    _clear_team_live(restaurant_id, team)
     company, fiches = _load_company(restaurant_id)
     return serialize_context(_state_from_rows(company, fiches))
 
