@@ -48,7 +48,7 @@ export type ContextEmployee = {
   team: TeamId;
   role: ContextRole;
   contractual_hours_per_week: number;
-  min_shift_hours: number;
+  min_shift_hours: Record<string, number>;
   unavailabilities: Unavailability[];
   wellbeing: Wellbeing;
   invite_token: string;
@@ -129,6 +129,67 @@ export const CONTEXT_SERVICES: { id: ContextServiceId; label: string }[] = [
   { id: "midday", label: "Déjeuner" },
   { id: "evening", label: "Dîner" },
 ];
+
+export const DEFAULT_MIN_SHIFT_HOURS = 4;
+
+export function defaultMinShiftHours(services: ContextServiceId[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of CONTEXT_SERVICES) {
+    if (services.includes(item.id)) {
+      out[item.id] = DEFAULT_MIN_SHIFT_HOURS;
+    }
+  }
+  return out;
+}
+
+export function minShiftHoursValue(map: Record<string, number>, serviceId: string): number {
+  const raw = map[serviceId];
+  return typeof raw === "number" && raw > 0 ? raw : DEFAULT_MIN_SHIFT_HOURS;
+}
+
+function pruneMinShiftHours(map: Record<string, number>, offered: Set<ContextServiceId>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of CONTEXT_SERVICES) {
+    if (offered.has(item.id) && map[item.id] !== undefined) {
+      out[item.id] = map[item.id];
+    }
+  }
+  return out;
+}
+
+function parseMinShiftHours(value: unknown, path: string, offered: ContextServiceId[]): Record<string, number> {
+  if (typeof value === "number") {
+    if (Number.isNaN(value) || value <= 0) {
+      throw new PayloadError(`clé invalide : ${path}`);
+    }
+    if (value === DEFAULT_MIN_SHIFT_HOURS) {
+      return {};
+    }
+    const out: Record<string, number> = {};
+    for (const id of offered) {
+      out[id] = value;
+    }
+    return out;
+  }
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  const out: Record<string, number> = {};
+  for (const key of Object.keys(value)) {
+    if (key !== "morning" && key !== "midday" && key !== "evening") {
+      throw new PayloadError(`clé invalide : ${path}.${key}`);
+    }
+    const raw = value[key];
+    if (raw === undefined) {
+      continue;
+    }
+    if (typeof raw !== "number" || Number.isNaN(raw) || raw <= 0) {
+      throw new PayloadError(`clé invalide : ${path}.${key}`);
+    }
+    out[key] = raw;
+  }
+  return pruneMinShiftHours(out, new Set(offered));
+}
 
 function parseTeam(value: unknown, path: string): TeamId {
   if (value === "salle" || value === "cuisine") {
@@ -259,6 +320,7 @@ export function purgeRemovedServices(
       }
       return {
         ...person,
+        min_shift_hours: pruneMinShiftHours(person.min_shift_hours, offered),
         unavailabilities: person.unavailabilities.filter((slot) => offered.has(slot.service_id as ContextServiceId)),
         wellbeing: { ...person.wellbeing, max_services },
       };
@@ -289,9 +351,12 @@ function parseContextRole(value: unknown, path: string): ContextRole {
   };
 }
 
-function parseEmployeeFields(value: unknown, path: string): ConfigEmployee {
+function parseEmployeeFields(value: unknown, path: string, offered: ContextServiceId[]): ConfigEmployee {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
+  }
+  if (!("min_shift_hours" in value)) {
+    throw new PayloadError(`clé absente : ${path}.min_shift_hours`);
   }
   return {
     id: requireString(value, "id", path),
@@ -299,7 +364,7 @@ function parseEmployeeFields(value: unknown, path: string): ConfigEmployee {
     team: parseTeam(value.team, `${path}.team`),
     role: parseContextRole(requireRecord(value, "role", path), `${path}.role`),
     contractual_hours_per_week: requireNumber(value, "contractual_hours_per_week", path),
-    min_shift_hours: requireNumber(value, "min_shift_hours", path),
+    min_shift_hours: parseMinShiftHours(value.min_shift_hours, `${path}.min_shift_hours`, offered),
     unavailabilities: requireArray(value, "unavailabilities", path).map((item, i) =>
       parseUnavailability(item, `${path}.unavailabilities[${i}]`),
     ),
@@ -307,12 +372,12 @@ function parseEmployeeFields(value: unknown, path: string): ConfigEmployee {
   };
 }
 
-function parseEmployee(value: unknown, path: string): ContextEmployee {
+function parseEmployee(value: unknown, path: string, offered: ContextServiceId[]): ContextEmployee {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
   return {
-    ...parseEmployeeFields(value, path),
+    ...parseEmployeeFields(value, path, offered),
     invite_token: requireString(value, "invite_token", path),
   };
 }
@@ -404,16 +469,21 @@ export function parseRestaurantContext(value: unknown): RestaurantContext {
   if (!("salle" in typical) || !("cuisine" in typical)) {
     throw new PayloadError("clé absente : context.typical_week");
   }
+  const services = requireArray(value, "services", "context").map((item, i) =>
+    parseServiceId(item, `context.services[${i}]`),
+  );
   return {
     name: requireString(value, "name", "context"),
     legal_context_id: requireString(value, "legal_context_id", "context"),
     company_code: requireString(value, "company_code", "context"),
-    services: requireArray(value, "services", "context").map((item, i) => parseServiceId(item, `context.services[${i}]`)),
+    services,
     ladders: {
       salle: parseLadder(ladders.salle, "context.ladders.salle"),
       cuisine: parseLadder(ladders.cuisine, "context.ladders.cuisine"),
     },
-    employees: requireArray(value, "employees", "context").map((item, i) => parseEmployee(item, `context.employees[${i}]`)),
+    employees: requireArray(value, "employees", "context").map((item, i) =>
+      parseEmployee(item, `context.employees[${i}]`, services),
+    ),
     types: requireArray(value, "types", "context").map((item, i) => parseType(item, `context.types[${i}]`)),
     typical_week: {
       salle: parseWeek(typical.salle, "context.typical_week.salle"),
@@ -459,16 +529,19 @@ export function parseConfigExport(value: unknown): RestaurantConfigExport {
   if (!("salle" in typical) || !("cuisine" in typical)) {
     throw new PayloadError("clé absente : export.typical_week");
   }
+  const services = requireArray(value, "services", "export").map((item, i) =>
+    parseServiceId(item, `export.services[${i}]`),
+  );
   return {
     export_version: 1,
     name: requireString(value, "name", "export"),
-    services: requireArray(value, "services", "export").map((item, i) => parseServiceId(item, `export.services[${i}]`)),
+    services,
     ladders: {
       salle: parseLadder(ladders.salle, "export.ladders.salle"),
       cuisine: parseLadder(ladders.cuisine, "export.ladders.cuisine"),
     },
     employees: requireArray(value, "employees", "export").map((item, i) =>
-      parseEmployeeFields(item, `export.employees[${i}]`),
+      parseEmployeeFields(item, `export.employees[${i}]`, services),
     ),
     types: requireArray(value, "types", "export").map((item, i) => parseType(item, `export.types[${i}]`)),
     typical_week: {

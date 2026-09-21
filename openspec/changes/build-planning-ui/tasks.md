@@ -231,3 +231,10 @@
 - [x] 41.2 `parseMe` `restaurant_id: string | null` ; `POST /v1/auth/link` ; salarié `employee_id == null` : écran code → `GET /v1/invites/{code}` → link ; **pas** `/planning` ; barre sans « Planning »
 - [x] 41.3 Bump `web/` to 0.53.0 (note FR : Supprimer un salarié ; compte conservé)
 - [x] 41.4 Verify `npm run build` ; `/context` Équipe poubelle + texte confirm ; salarié non affilié écran rattachement pas de grille ; barre **v0.53.0** ; `/exemple` inchangé ; IronBee E2E DELETE 200 seulement si l’API répond (sinon skip API)
+
+## 42. Min. créneau par service
+
+- [x] 42.1 Types : `min_shift_hours` = `Record<string, number>` sparse ; parser GET objet **ou** nombre (`4` → `{}` ; autre N → N sur chaque service offert) ; PATCH objet ; `purgeRemovedServices` retire la clé du service décoché
+- [x] 42.2 Équipe : un `Stepper` par service offert (`CONTEXT_SERVICES.filter`, PDJ → déj → dîner), `step={0.5}` `min={0.5}` défaut 4 ; plus l’input unique ; nouvelle fiche = 4 sur les offerts ; chrome des autres steppers inchangé
+- [x] 42.3 Bump `web/` to 0.54.0 (note FR : Min. créneau par service)
+- [x] 42.4 Verify `npm run build` ; `/context` Équipe steppers par service offert, ±0,5 ; barre **v0.54.0** ; `/exemple` inchangé ; persist API seulement si GET est déjà un objet (sinon skip API)
