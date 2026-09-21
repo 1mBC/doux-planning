@@ -342,3 +342,41 @@ def test_manual_live_enter_fill_publish_generate_and_coerce():
     assert coerced_salle["versions"]["optimized"] is not None
     assert coerced.json()["published"]["cuisine"] is None
     assert _count_logs() == logs_before + 1
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_enter_manuel_after_generate_does_not_write_slot():
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"man2-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    headers = _bearer(registered.json()["token"])
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id))
+    assert patched.status_code == 200
+    generated = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "minimal"},
+    )
+    assert generated.status_code == 200
+    salle = generated.json()["published"]["salle"]
+    _assert_four_slots(salle)
+    assert salle["versions"]["manuel"] is None
+    minimal = salle["versions"]["minimal"]
+    entered = client.post(
+        "/v1/live/sandbox/salle/enter",
+        headers=headers,
+        json={"search_effort": "manuel"},
+    )
+    assert entered.status_code == 200
+    assert entered.json()["planning"]["assignments"] == []
+    cycles = client.get("/v1/cycles", headers=headers)
+    assert cycles.status_code == 200
+    after = cycles.json()["published"]["salle"]
+    _assert_four_slots(after)
+    assert after["versions"]["manuel"] is None
+    assert after["versions"]["minimal"]["assignments"] == minimal["assignments"]
+    assert after["latest"] == "minimal"
