@@ -239,6 +239,35 @@ def test_retune_one_step_plus_fifteen_and_rejects_identity_or_short():
         store.preview_retune("resto-1", theo, 12 * 60, 12 * 60 + 225)
 
 
+def test_preview_fill_and_retune_use_per_service_min_shift():
+    lucie = _salle("LUCIE", 3, min_shift={"evening": 3})
+    store = _store((), extra=(lucie,))
+    evening_slot = FillSlot(
+        employee_id="lucie",
+        day_index=0,
+        weekday="monday",
+        service_id=ServiceName.EVENING.value,
+        team=Team.SALLE,
+    )
+    proposals = store.preview_fill("resto-1", evening_slot, 18 * 60, 21 * 60)
+    assert proposals
+    assert {item.employee_id for item in proposals} == {"lucie"}
+    midday_slot = FillSlot(
+        employee_id="lucie",
+        day_index=0,
+        weekday="monday",
+        service_id=ServiceName.MIDDAY.value,
+        team=Team.SALLE,
+    )
+    with pytest.raises(ValueError, match="min_shift_hours"):
+        store.preview_fill("resto-1", midday_slot, 10 * 60, 13 * 60)
+    evening_shift = _shift("lucie", 0, 18 * 60, 22 * 60, 3, ServiceName.EVENING.value)
+    evening_store = _store((evening_shift,), extra=(lucie,))
+    evening_store.preview_retune("resto-1", evening_shift, 18 * 60, 21 * 60)
+    with pytest.raises(ValueError, match="min_shift_hours"):
+        evening_store.preview_retune("resto-1", evening_shift, 18 * 60, 20 * 60)
+
+
 def test_replace_omits_holder_and_empty_slot_still_skips_occupant():
     diane = _shift("diane", 0, 11 * 60, 15 * 60, 1)
     store = _store((diane,))

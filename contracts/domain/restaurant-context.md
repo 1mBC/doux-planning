@@ -3,7 +3,7 @@
 Freeze **domaine** pour le resto vide + panneaux. HTTP plus tard (Infra). Generate / publish / sandbox live = tranche suivante, pas celle-ci.
 
 Légal FR = contexte pays `france` (`legal_context_id`), **jamais** copié sur le resto ni les fiches.  
-Contrats et indisponibilités = patron (outrent le bien-être). Bien-être = souhaits. `min_shift_hours` défaut **4**. Le moteur continue d’étirer les shifts à ce min à la génération — **ne pas changer** les formules.
+Contrats et indisponibilités = patron (outrent le bien-être). Bien-être = souhaits. `min_shift_hours` = **un min par service**, défaut **4** — `contracts/domain/min-shift-per-service.md` (gagne). Le moteur continue d’étirer les shifts à ce min à la génération — **ne pas changer** les formules.
 
 Salle et cuisine = équipes **indépendantes**. On peut être prêt à calculer la salle sans la cuisine. Deux cycles / deux sandboxes = plus tard.
 
@@ -17,7 +17,7 @@ Salle et cuisine = équipes **indépendantes**. On peut être prêt à calculer 
 ## Échelles et fiches (déjà au domaine — exposer clairement)
 
 - `RoleLadder` par équipe (niveaux + règle de substitution expliquée).
-- `Employee` : name, role, team, `contractual_hours_per_week`, `unavailabilities`, `wellbeing`, `min_shift_hours` (4), `invite_token`.
+- `Employee` : name, role, team, `contractual_hours_per_week`, `unavailabilities`, `wellbeing`, `min_shift_hours` (map service → heures, défaut 4), `invite_token`.
 - Une fiche = salle **ou** cuisine.
 - Forme `wellbeing` + indispos jour×service + `week_label_scheme` : **`contracts/domain/wellbeing.md`** (gagne).
 

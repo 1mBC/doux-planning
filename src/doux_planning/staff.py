@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 
 from types import MappingProxyType
@@ -38,6 +39,54 @@ REMOVED_WELLBEING_KEYS = frozenset(
 
 class TeamMismatchError(ValueError):
     pass
+
+
+def coerce_min_shift_hours(
+    value: object,
+    service_ids: Sequence[str] | None = None,
+) -> MappingProxyType[str, float]:
+    if value is None:
+        return MappingProxyType({})
+    if isinstance(value, bool):
+        raise ValueError("min_shift_hours must be > 0")
+    if isinstance(value, (int, float)):
+        hours = float(value)
+        if hours <= 0:
+            raise ValueError("min_shift_hours must be > 0")
+        if hours == DEFAULT_MIN_SHIFT_HOURS:
+            return MappingProxyType({})
+        ids = _company_service_ids(service_ids)
+        return MappingProxyType({service_id: hours for service_id in ids})
+    if isinstance(value, Mapping):
+        hours_by_service: dict[str, float] = {}
+        for key, raw_hours in value.items():
+            service_id = str(key)
+            if service_id not in COMPANY_SERVICE_IDS:
+                raise ValueError(f"Unknown min_shift_hours key: {service_id}")
+            if isinstance(raw_hours, bool) or not isinstance(raw_hours, (int, float)):
+                raise ValueError("min_shift_hours must be > 0")
+            hours = float(raw_hours)
+            if hours <= 0:
+                raise ValueError("min_shift_hours must be > 0")
+            hours_by_service[service_id] = hours
+        return MappingProxyType(hours_by_service)
+    raise ValueError("min_shift_hours must be > 0")
+
+
+def _company_service_ids(service_ids: Sequence[str] | None) -> tuple[str, ...]:
+    source: Sequence[str] = tuple(COMPANY_SERVICE_IDS) if service_ids is None else service_ids
+    seen: list[str] = []
+    for service_id in source:
+        if service_id in COMPANY_SERVICE_IDS and service_id not in seen:
+            seen.append(service_id)
+    return tuple(seen)
+
+
+def min_shift_for(employee: Employee, service_id: str) -> float:
+    hours = employee.min_shift_hours.get(service_id)
+    if hours is None:
+        return DEFAULT_MIN_SHIFT_HOURS
+    return float(hours)
 
 
 class SubstitutionExplanationRequired(ValueError):
@@ -129,7 +178,7 @@ class Employee:
     unavailabilities: tuple[Unavailability, ...] = ()
     wellbeing: Wellbeing = field(default_factory=Wellbeing)
     forced_off_days: frozenset[int] = field(default_factory=frozenset)
-    min_shift_hours: float = DEFAULT_MIN_SHIFT_HOURS
+    min_shift_hours: Mapping[str, float] = field(default_factory=dict)
     invite_token: str = field(default_factory=lambda: secrets.token_urlsafe(16))
 
     def __post_init__(self) -> None:
@@ -137,8 +186,7 @@ class Employee:
             raise TeamMismatchError(
                 f"Employee {self.name} team {self.team.value} does not match role team {self.role.team.value}"
             )
-        if self.min_shift_hours <= 0:
-            raise ValueError("min_shift_hours must be > 0")
+        object.__setattr__(self, "min_shift_hours", coerce_min_shift_hours(self.min_shift_hours))
         object.__setattr__(self, "forced_off_days", frozenset(self.forced_off_days))
         if not self.invite_token or self.invite_token == self.id:
             token = secrets.token_urlsafe(16)

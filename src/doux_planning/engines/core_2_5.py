@@ -9,7 +9,7 @@ from dataclasses import dataclass, field, replace
 from ortools.sat.python import cp_model
 
 from doux_planning.coverage import derive_post_windows, derive_slices, stretch_to_min_shift, PostWindow
-from doux_planning.staff import Employee, LegalRule, Unavailability, default_legal_rules
+from doux_planning.staff import Employee, LegalRule, Unavailability, default_legal_rules, min_shift_for
 from doux_planning.structures import RestaurantHours, ServiceStructure
 from doux_planning.types import (
     CYCLE_DAYS,
@@ -780,9 +780,10 @@ def _would_exceed_max_services(assignments: list[Shift], employee: Employee, tri
 def _assigned_window(
     employee: Employee, window: PostWindow, structure: ServiceStructure
 ) -> PostWindow | None:
-    stretched = stretch_to_min_shift(window, employee.min_shift_hours, structure)
+    min_hours = min_shift_for(employee, structure.service_id)
+    stretched = stretch_to_min_shift(window, min_hours, structure)
     duration = stretched.end_minutes - stretched.start_minutes
-    if duration < int(employee.min_shift_hours * 60):
+    if duration < int(min_hours * 60):
         return None
     return stretched
 

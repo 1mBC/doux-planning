@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,14 @@ from typing import Any
 from doux_planning.engine import PlanningDraft, Shift, evaluate
 from doux_planning.invites import RestaurantIdentity
 from doux_planning.planning import PlanningStore, PublishedCycle, RestaurantState
-from doux_planning.staff import REMOVED_WELLBEING_KEYS, Employee, Role, Unavailability, Wellbeing
+from doux_planning.staff import (
+    REMOVED_WELLBEING_KEYS,
+    Employee,
+    Role,
+    Unavailability,
+    Wellbeing,
+    coerce_min_shift_hours,
+)
 from doux_planning.structures import ArrivalWave, DepartureWave, RestaurantHours, ServiceStructure
 from doux_planning.types import Team, WeekendChoice
 
@@ -41,11 +49,13 @@ def load_delivered_cycle(example_id: str = "saint-cloud") -> DeliveredCycle:
     raw = json.loads(path.read_text(encoding="utf-8"))
     restaurant = raw["restaurant"]
     planning = raw["planning"]
+    hours = _hours(restaurant["hours"])
+    structures = tuple(_structure(item) for item in restaurant["structures"])
     return DeliveredCycle(
         restaurant_id=restaurant["id"],
-        employees=tuple(_employee(item) for item in restaurant["employees"]),
-        structures=tuple(_structure(item) for item in restaurant["structures"]),
-        hours=_hours(restaurant["hours"]),
+        employees=tuple(_employee(item, hours.services) for item in restaurant["employees"]),
+        structures=structures,
+        hours=hours,
         assignments=tuple(_shift(item) for item in planning["assignments"]),
     )
 
@@ -94,7 +104,7 @@ def _structure(raw: dict[str, Any]) -> ServiceStructure:
     )
 
 
-def _employee(raw: dict[str, Any]) -> Employee:
+def _employee(raw: dict[str, Any], service_ids: Sequence[str]) -> Employee:
     role = raw["role"]
     team = Team(raw["team"])
     return Employee(
@@ -106,7 +116,7 @@ def _employee(raw: dict[str, Any]) -> Employee:
         unavailabilities=tuple(_unavailability(item) for item in raw.get("unavailabilities") or ()),
         wellbeing=_wellbeing(raw),
         forced_off_days=frozenset(raw.get("forced_off_days") or ()),
-        min_shift_hours=raw.get("min_shift_hours", 4.0),
+        min_shift_hours=coerce_min_shift_hours(raw.get("min_shift_hours"), service_ids),
     )
 
 
