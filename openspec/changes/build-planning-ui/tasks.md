@@ -238,3 +238,10 @@
 - [x] 42.2 Équipe : un `Stepper` par service offert (`CONTEXT_SERVICES.filter`, PDJ → déj → dîner), `step={0.5}` `min={0.5}` défaut 4 ; plus l’input unique ; nouvelle fiche = 4 sur les offerts ; chrome des autres steppers inchangé
 - [x] 42.3 Bump `web/` to 0.54.0 (note FR : Min. créneau par service)
 - [x] 42.4 Verify `npm run build` ; `/context` Équipe steppers par service offert, ±0,5 ; barre **v0.54.0** ; `/exemple` inchangé ; persist API seulement si GET est déjà un objet (sinon skip API)
+
+## 43. Planning manuel (4ᵉ slot)
+
+- [x] 43.1 Parser GET `/v1/cycles` : 4ᵉ clé `versions.manuel` (absente → `null`) ; `latest` / `search_effort` de cycle MAY `manuel` ; `postGenerate` reste `SearchEffort` 3 valeurs ; `BENCH_EFFORTS` reste `["minimal","optimized","maximal"]` ; parsers banc rejettent `manuel`
+- [x] 43.2 `/planning` company rangée 2 : Minimal | Optimisé | Maximal | Manuel. Cran Manuel : pas (Re)Calculer ; `ready[team]` → Entrer en mode édition même slot null ; vide hors édition « Pas encore publié » ; `POST enter` `{ search_effort: "manuel" }` ; mêmes Overlay / Fill / undo / discard / publish. Computes inchangés. Timestamp manuel : `generated_at` Paris, pas de ` · engine_ref`, durée `—` si absente. `/exemple` inchangé
+- [x] 43.3 Bump `web/` to 0.55.0 (note FR : Planning manuel)
+- [x] 43.4 Verify `npm run build` ; 4 crans ; Manuel sans Recalculer ; ready → bouton édition ; barre **v0.55.0** ; banc 3 efforts ; overlay compute inchangé ; persist IronBee enter seulement si 200 (sinon skip + signal)

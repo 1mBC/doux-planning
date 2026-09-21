@@ -25,9 +25,13 @@ import {
 } from "./exportPlanning";
 import {
   cycleOf,
+  emptySlotCopy,
+  isSearchEffort,
   loadCycles,
+  PLANNING_SLOT_CHOICES,
   postGenerate,
   type CycleAssignment,
+  type PlanningSlot,
   type PublishedCycles,
   type SearchEffort,
 } from "./generate";
@@ -279,7 +283,7 @@ export function PublishedPlanning() {
   const [ctx, setCtx] = useState<RestaurantContext | null>(null);
   const [published, setPublished] = useState<PublishedCycles | null>(null);
   const [team, setTeam] = useState<TeamId>("salle");
-  const [effort, setEffort] = useState<SearchEffort>("minimal");
+  const [effort, setEffort] = useState<PlanningSlot>("minimal");
   const hydratedEffort = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -329,12 +333,13 @@ export function PublishedPlanning() {
   const facts = editing ? live.planning.facts : (cycle?.facts ?? []);
   const byKey = useMemo(() => indexCycle(assignments), [assignments]);
   const services = ctx ? serviceRows(ctx, assignments) : [];
-  const canCalculate = ctx?.ready[team] === true && !editing && calculating === null;
-  const canEdit = cycle !== null && !editing && calculating === null;
+  const canCalculate = isSearchEffort(effort) && ctx?.ready[team] === true && !editing && calculating === null;
+  const canEdit =
+    (effort === "manuel" ? ctx?.ready[team] === true : cycle !== null) && !editing && calculating === null;
   const canExport = cycle !== null && !editing && calculating === null;
 
   async function calculate() {
-    if (!canCalculate) {
+    if (!canCalculate || !isSearchEffort(effort)) {
       return;
     }
     const started = Date.now();
@@ -357,7 +362,7 @@ export function PublishedPlanning() {
   }
 
   async function startEdit() {
-    if (!cycle) {
+    if (!canEdit) {
       return;
     }
     setBusy(true);
@@ -499,13 +504,7 @@ export function PublishedPlanning() {
         ))}
       </div>
       <div className="auth-switch planning-row">
-        {(
-          [
-            { id: "minimal" as const, label: "Minimal" },
-            { id: "optimized" as const, label: "Optimisé" },
-            { id: "maximal" as const, label: "Maximal" },
-          ]
-        ).map((item) => (
+        {PLANNING_SLOT_CHOICES.map((item) => (
           <button
             key={item.id}
             type="button"
@@ -521,14 +520,16 @@ export function PublishedPlanning() {
         ))}
       </div>
       <div className="auth-switch planning-actions planning-row">
-        <button
-          type="button"
-          className="choice action"
-          disabled={!canCalculate || busy}
-          onClick={() => void calculate()}
-        >
-          (Re)Calculer le planning
-        </button>
+        {isSearchEffort(effort) ? (
+          <button
+            type="button"
+            className="choice action"
+            disabled={!canCalculate || busy}
+            onClick={() => void calculate()}
+          >
+            (Re)Calculer le planning
+          </button>
+        ) : null}
         {canEdit ? (
           <button type="button" className="choice action" disabled={busy} onClick={() => void startEdit()}>
             Entrer en mode édition
@@ -576,7 +577,7 @@ export function PublishedPlanning() {
         {cycle ? (
           <>
             {formatGeneratedAt(cycle.generated_at)}
-            {cycle.engine_ref ? ` · ${cycle.engine_ref}` : null}
+            {effort !== "manuel" && cycle.engine_ref ? ` · ${cycle.engine_ref}` : null}
           </>
         ) : (
           "—"
@@ -666,7 +667,7 @@ export function PublishedPlanning() {
           ) : null}
         </>
       ) : (
-        <p className="sub">Pas encore calculé</p>
+        <p className="sub">{emptySlotCopy(effort)}</p>
       )}
 
       {overlay?.kind === "occupied" && live ? (

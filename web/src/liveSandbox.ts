@@ -1,5 +1,5 @@
 import { sendAuth } from "./auth";
-import { parseCyclesPayload, type CyclesPayload, type SearchEffort } from "./generate";
+import { parseCyclesPayload, type CyclesPayload, type PlanningSlot } from "./generate";
 import { parsePreviewBody, parseSandboxState } from "./sandbox";
 import { isRecord, PayloadError } from "./api";
 import type { FillSlot, Gesture, PreviewProposal, SandboxState, ShiftIdentity } from "./types";
@@ -30,7 +30,7 @@ async function sendLive(team: TeamId, suffix: string, init: RequestInit): Promis
   return sendAuth(livePath(team, suffix), init, true);
 }
 
-export async function enterLiveSandbox(team: TeamId, effort?: SearchEffort): Promise<LiveState> {
+export async function enterLiveSandbox(team: TeamId, effort?: PlanningSlot): Promise<LiveState> {
   return parseLiveState(
     await sendLive(team, "/enter", {
       method: "POST",

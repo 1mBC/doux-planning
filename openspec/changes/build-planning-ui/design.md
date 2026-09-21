@@ -112,11 +112,11 @@ Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seul
 
 ### 9. Published cycle (company)
 
-Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Chrome **3 rangées** : (1) Salle | Cuisine (bleu = équipe) ; (2) Minimal | Optimisé | Maximal (bleu = **sélection**, pas de POST, défaut = `latest`) ; (3) actions **blanches** (Re)Calculer / Entrer en mode édition / Quitter / Publier / Exporter. Recalculer = POST de l’effort sélectionné. Slot vide → « Pas encore calculé » (pas l’autre version). Sous la rangée 3 : `generated_at` Europe/Paris, absent → tiret. Parse `published[team].versions` + `latest` (`generated_at` / `search_effort` sur le cycle). Minimal / Optimisé = POST sync. Maximal = POST 202 puis poll. Loader ≥ 1 s. Mode édition : enter avec l’effort sélectionné ; cacher les recaps. Export = version affichée. Cuisine / slot vide : « Pas encore calculé ». Salarié : pas de sélecteur. Menu **Exporter** = §20. Versions chrome = §23.
+Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Chrome **3 rangées** : (1) Salle | Cuisine (bleu = équipe) ; (2) Minimal | Optimisé | Maximal | **Manuel** (bleu = **sélection**, pas de POST, défaut = `latest`) ; (3) actions **blanches** (Re)Calculer (computes) / Entrer en mode édition / Quitter / Publier / Exporter. Recalculer = POST de l’effort **compute** sélectionné. Slot compute vide → « Pas encore calculé » (pas l’autre version). Cran Manuel : §45. Sous la rangée 3 : `generated_at` Europe/Paris, absent → tiret. Parse `published[team].versions` + `latest` (`generated_at` / `search_effort` sur le cycle) ; clé `manuel` absente → `null`. Minimal / Optimisé = POST sync. Maximal = POST 202 puis poll. Loader ≥ 1 s. Mode édition compute : enter avec l’effort sélectionné ssi cycle non null ; cacher les recaps. Export = version affichée. Cuisine / slot compute vide : « Pas encore calculé ». Salarié : pas de sélecteur. Menu **Exporter** = §20. Versions chrome = §23. Manuel = §45.
 
 ### 10. Live sandbox on `/planning`
 
-Mode édition seulement si le **slot sélectionné** existe. POST `/v1/live/sandbox/{team}/enter` (Bearer) avec `{ search_effort }` (défaut API = `latest`). Slot vide → 409, pas de bouton. Overlays = joujou (injecter le client live, ne pas appeler `/v1/sandbox/*`). Lecture quitte l’UI sans discard. Reload / ré-enter = GET/enter live (cran conservé). Publier → Cycles (réécrit ce slot, `generated_at` inchangé), sortir d’édition, l’autre équipe / les autres efforts intacts. Tout annuler = discard live.
+Mode édition compute seulement si le **slot sélectionné** existe. POST `/v1/live/sandbox/{team}/enter` (Bearer) avec `{ search_effort }` (défaut API = `latest`). Slot compute vide → 409, pas de bouton. Cran **Manuel** : bouton si `ready[team]`, même slot null ; enter `{ search_effort: "manuel" }` (409 tant qu’Infra n’a pas mergé : chrome locale, pas de persist). Overlays = joujou (injecter le client live, ne pas appeler `/v1/sandbox/*`). Lecture quitte l’UI sans discard. Reload / ré-enter = GET/enter live (cran conservé). Publier → Cycles (slot compute : `generated_at` inchangé ; slot manuel : tamponné maintenant côté Infra), sortir d’édition, l’autre équipe / les autres efforts intacts. Tout annuler = discard live. `/exemple` joujou inchangé (`/v1/sandbox/*`).
 
 Hors slice : rotate invite-token, edit contraintes salarié, panneau compte, unlink sans delete fiche.
 
@@ -419,6 +419,19 @@ Suivre `contracts/domain/min-shift-per-service.md` UI + `wizard-ui.md` Équipe (
 - `/exemple` inchangé.
 
 Version `0.54.0`.
+
+### 45. Planning manuel (4ᵉ slot)
+
+Suivre `contracts/domain/manual-planning.md` UI (gagne) — le suivre, ne pas le modifier.
+
+- Rangée 2 : **Minimal | Optimisé | Maximal | Manuel**.
+- Cran Manuel : **pas** de bouton (Re)Calculer. `ctx.ready[team]` → **Entrer en mode édition** même si `versions.manuel` est null. Vide hors édition : « Pas encore publié ». Enter `{ search_effort: "manuel" }` + mêmes Overlay / FillOverlay / undo / discard / publish. Timestamp : `generated_at` Paris ; pas de ` · engine_ref` ; durée `—` si absente.
+- Computes inchangés (Recalculer + édition ssi cycle non null).
+- Parser cycles : 4ᵉ clé optionnelle. `postGenerate` **jamais** `"manuel"`. `SearchEffort` banc / generate reste 3. `BENCH_EFFORTS` reste `["minimal","optimized","maximal"]` ; parsers banc rejettent `manuel`.
+- `/exemple` et overlay chrome compute inchangés.
+- Enter 409 / cycles sans clé : ship chrome + parser. Persist live seulement si enter 200.
+
+Version `0.55.0`.
 
 ## Risks / Trade-offs
 

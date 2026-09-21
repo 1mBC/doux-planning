@@ -158,7 +158,7 @@ A `kind: company` session on `/context` SHALL show **Exporter la config** and **
 - **THEN** the client MUST NOT POST `/v1/context/import` and the wizard stays unchanged
 
 ### Requirement: Company published cycle
-A `kind: company` session SHALL reach `/planning` via « Planning ». The client SHALL `GET /v1/cycles` and `GET /v1/context` on load. Types MUST match `contracts/http/v1-generate.md` + `generate-versions.md` JSON (`published[team].versions` + `latest` ; a missing key MUST throw). Chrome SHALL be **three rows** : Salle | Cuisine (blue = team) ; Minimal | Optimisé | Maximal (blue = **selection**, no POST, default `latest`) ; white actions **(Re)Calculer le planning**, **Entrer en mode édition**, **Quitter le mode édition**, **Publier**, **Exporter**. Recalculer SHALL POST the **selected** `search_effort` only when `ready[team]` is true and Mode édition is closed. Minimal / Optimisé wait for 200 ; Maximal accepts 202 then polls `GET /v1/generate/jobs/{id}` until `done` / `failed`. Loader overlay ≥ 1 s. An empty selected slot SHALL show « Pas encore calculé » and MUST NOT fall back to another version. Under row 3 the client SHALL show that cycle’s `generated_at` in `Europe/Paris` (absent → tiret). Clicking Minimal / Optimisé / Maximal MUST NOT POST. If `ready[team]` is false Recalculer MUST be disabled and the client MUST NOT POST. API `detail` SHALL be shown on 409/400. When the selected version is not null the client SHALL parse recap keys (throw if missing) and SHALL render the 14-day paper grid from that version’s `assignments`, list every `warnings` item, and — unless Mode édition is open — show stats pastilles plus legal / wish tables. Mode édition SHALL `POST /v1/live/sandbox/{team}/enter` with the selected `search_effort` and MUST hide the recaps. Export SHALL use the displayed version. The client MUST NOT invent recap numbers. Regenerating SHALL write only that team’s selected slot. Reload SHALL use GET. Employee `/planning` MUST NOT show the effort selector.
+A `kind: company` session SHALL reach `/planning` via « Planning ». The client SHALL `GET /v1/cycles` and `GET /v1/context` on load. Types MUST match `contracts/http/v1-generate.md` + `generate-versions.md` JSON (`published[team].versions` + `latest` ; a missing **required** 3-effort key MUST throw). Chrome SHALL be **three rows** : Salle | Cuisine (blue = team) ; Minimal | Optimisé | Maximal | **Manuel** (blue = **selection**, no POST, default `latest`) ; white actions **(Re)Calculer le planning** (compute slots only), **Entrer en mode édition**, **Quitter le mode édition**, **Publier**, **Exporter**. Recalculer SHALL POST the **selected** compute `search_effort` only when `ready[team]` is true, Mode édition is closed, and the selected slot is not `manuel`. The client MUST NOT call `postGenerate` with `"manuel"`. Minimal / Optimisé wait for 200 ; Maximal accepts 202 then polls `GET /v1/generate/jobs/{id}` until `done` / `failed`. Loader overlay ≥ 1 s. An empty **compute** slot SHALL show « Pas encore calculé » and MUST NOT fall back to another version. Under row 3 the client SHALL show that cycle’s `generated_at` in `Europe/Paris` (absent → tiret). Clicking Minimal / Optimisé / Maximal / Manuel MUST NOT POST generate. If `ready[team]` is false Recalculer MUST be disabled and the client MUST NOT POST. API `detail` SHALL be shown on 409/400. When the selected version is not null the client SHALL parse recap keys (throw if missing) and SHALL render the 14-day paper grid from that version’s `assignments`, list every `warnings` item, and — unless Mode édition is open — show stats pastilles plus legal / wish tables. Mode édition on a compute slot SHALL `POST /v1/live/sandbox/{team}/enter` with the selected `search_effort` and MUST hide the recaps. Export SHALL use the displayed version. The client MUST NOT invent recap numbers. Regenerating SHALL write only that team’s selected compute slot. Reload SHALL use GET. Employee `/planning` MUST NOT show the effort selector. Manuel chrome SHALL follow Requirement: Manual planning slot.
 
 #### Scenario: Salle calculated, cuisine not
 - **WHEN** salle is ready and the restaurateur selects Minimal then clicks (Re)Calculer, while cuisine is not ready
@@ -203,7 +203,7 @@ A `kind: employee` session with a non-null `employee_id` SHALL reach `/planning`
 - **THEN** the screen shows « Pas encore publié » and still shows the contract panel from the payload
 
 ### Requirement: Live sandbox on published cycle
-A `kind: company` session on `/planning` SHALL show **Mode édition** only when `published[team]` is not null. The button SHALL `POST /v1/live/sandbox/{team}/enter` with Bearer and MUST NOT call `/v1/sandbox/*`. LiveState MUST include `team`; a missing key MUST throw. Edit UX SHALL match the example sandbox: occupied overlay (retune ±15 Valider, replace, swap), empty-cell fill, API `detail`, history, **Annuler**, **Tout annuler** (discard). **Lecture** SHALL leave the edit UI without discard. Re-entering SHALL keep the draft cran (GET/enter live). **Publier** SHALL `POST .../publish`, leave edit UI, and show the updated `published` from that body or GET `/v1/cycles`. The other team MUST stay intact. `/exemple` SHALL keep calling `/v1/sandbox/*` without Bearer.
+A `kind: company` session on `/planning` SHALL show **Mode édition** on a **compute** slot only when that slot’s cycle is not null. On **Manuel**, the button SHALL follow Requirement: Manual planning slot (`ready[team]`, even if `versions.manuel` is null). The button SHALL `POST /v1/live/sandbox/{team}/enter` with Bearer and MUST NOT call `/v1/sandbox/*`. LiveState MUST include `team`; a missing key MUST throw. Edit UX SHALL match the example sandbox: occupied overlay (retune ±15 Valider, replace, swap), empty-cell fill, API `detail`, history, **Annuler**, **Tout annuler** (discard). **Lecture** SHALL leave the edit UI without discard. Re-entering SHALL keep the draft cran (GET/enter live). **Publier** SHALL `POST .../publish`, leave edit UI, and show the updated `published` from that body or GET `/v1/cycles`. The other team MUST stay intact. `/exemple` SHALL keep calling `/v1/sandbox/*` without Bearer.
 
 #### Scenario: Retune then publish
 - **WHEN** salle is published, the restaurateur enters live edit, validates a retune, leaves via Lecture, re-enters, then Publier
@@ -260,7 +260,7 @@ A session with `me.admin === true` SHALL see an **Admin** chrome link and MAY op
 - **THEN** the reserved message is shown and the client does not GET `/v1/admin/generates`
 
 ### Requirement: Three generate efforts
-Company `/planning` SHALL show **Minimal**, **Optimisé**, and **Maximal** as a **selection** row (default `latest`). POST SHALL happen only from **(Re)Calculer le planning**. Minimal / Optimisé sync ; Maximal 202 + poll. Loader ≥ 1 s. Under the timestamp the client SHALL show the displayed slot’s `duration_seconds` (dash if absent). Employee `/planning` and `/exemple` MUST NOT offer the selector. Recalculer is off in Mode édition.
+Company `/planning` SHALL show **Minimal**, **Optimisé**, **Maximal**, and **Manuel** as a **selection** row (default `latest`). POST generate SHALL happen only from **(Re)Calculer le planning** and only for the three compute efforts. Minimal / Optimisé sync ; Maximal 202 + poll. Loader ≥ 1 s. Under the timestamp the client SHALL show the displayed slot’s `duration_seconds` (dash if absent; Manuel: dash when absent, no `engine_ref`). Employee `/planning` and `/exemple` MUST NOT offer the selector. Recalculer is hidden on Manuel and off in Mode édition.
 
 #### Scenario: Selecting Minimal then Optimisé switches the grid
 - **WHEN** salle has both `versions.minimal` and `versions.optimized`
@@ -510,4 +510,27 @@ Services types sub-tabs and typical-week columns SHALL list offered services as 
 #### Scenario: Unaffiliated employee relinks
 - **WHEN** a salarié with `employee_id` null enters a company code, picks an unlinked fiche, and submits
 - **THEN** the client POSTs `/v1/auth/link` and on 200 opens `/planning`
+
+### Requirement: Manual planning slot
+Company `/planning` row 2 SHALL offer **Minimal | Optimisé | Maximal | Manuel**. Selecting **Manuel** MUST NOT POST generate and MUST hide **(Re)Calculer le planning**. When `ctx.ready[team]` is true the client SHALL show **Entrer en mode édition** even if `versions.manuel` is null. An empty Manuel slot while not editing SHALL show « Pas encore publié » (MUST NOT show « Pas encore calculé »). Enter SHALL `POST /v1/live/sandbox/{team}/enter` with `{ search_effort: "manuel" }` and SHALL reuse the live Overlay, FillOverlay, undo, discard, and publish. Compute slots SHALL stay unchanged (Recalculer + edit only if that cycle exists). The cycles parser SHALL accept a fourth `manuel` key ; if the key is missing it SHALL treat the slot as null. Cycle `search_effort` / `latest` MAY be `"manuel"`. `postGenerate` MUST NOT be called with `"manuel"`. `BENCH_EFFORTS` MUST remain `["minimal","optimized","maximal"]` and bench parsers MUST reject `"manuel"` as a search effort. `/exemple` MUST stay on `/v1/sandbox/*`. Overlay chrome for a computed edition MUST stay unchanged. A published Manuel timestamp SHALL show `generated_at` in `Europe/Paris`, MUST NOT append ` · engine_ref`, and SHALL show duration as an em dash when `duration_seconds` is absent. Version bar SHALL be `0.55.0` with note `Planning manuel`.
+
+#### Scenario: Four selection crans
+- **WHEN** a company session opens `/planning`
+- **THEN** row 2 shows Minimal, Optimisé, Maximal, and Manuel
+
+#### Scenario: Manuel hides Recalculer and offers edit when ready
+- **WHEN** salle is ready, Manuel is selected, and `versions.manuel` is null
+- **THEN** (Re)Calculer is absent, the empty copy is « Pas encore publié », and **Entrer en mode édition** is shown
+
+#### Scenario: Enter manuel posts the slot key
+- **WHEN** the restaurateur clicks Entrer en mode édition on Manuel
+- **THEN** the client POSTs `/v1/live/sandbox/{team}/enter` with `{ search_effort: "manuel" }` and MUST NOT call `postGenerate`
+
+#### Scenario: Cycles payload without manuel key
+- **WHEN** GET `/v1/cycles` returns three version keys and no `manuel`
+- **THEN** the client treats `versions.manuel` as null and still renders the Manuel cran
+
+#### Scenario: Bench still has three efforts
+- **WHEN** an admin opens `/admin/bench`
+- **THEN** launch and parsers use only minimal, optimized, and maximal (`manuel` as a bench `search_effort` is rejected)
 
