@@ -78,7 +78,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 65 — mix-0 | `domain/engine-mix-0.md`, `engines.md` ; briefs `core-mix-0.md`, `infra-mix-0-eta.md` | **landed** `80b19d5` + Infra `96085ae` |
 | 66 — services types polish | `domain/wizard-ui.md` ; brief `ui-service-types-polish.md` | **landed** `214f929` (UI v0.52.0) |
 | 67 — delete salarié | `domain/delete-employee.md` ; briefs `core-delete-employee.md`, `infra-delete-employee.md`, `ui-delete-employee.md` | **landed** Core `d60e772` + Infra `7d8ff2f` + UI `f12f172` (v0.53.0) |
-| 68 — min créneau / service | `domain/min-shift-per-service.md` ; briefs `core-min-shift-per-service.md`, `infra-min-shift-per-service.md`, `ui-min-shift-per-service.md` | Core + UI en parallèle ; Infra après Core (`Employee` mapping) |
+| 68 — min créneau / service | `domain/min-shift-per-service.md` ; briefs `core-min-shift-per-service.md`, `infra-min-shift-per-service.md`, `ui-min-shift-per-service.md` | **landed** Core `885941e` + Infra `f37c816` + UI `3a60412` (v0.54.0) |
 
 ## Ownership git (ne pas croiser)
 
