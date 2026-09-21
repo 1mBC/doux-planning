@@ -223,4 +223,4 @@
 - [x] 40.3 Cadran overlay avant insert (11h00 / 16h00) ; clic heure = édition ; boutons + saisie 0–23 / 0–59 ; Valider off si invalide ; Escape / Annuler / backdrop = pas de ligne ; palier 1440 conservé ; ±15 inchangé
 - [x] 40.4 Réordre chrono après changement d’heure : anim ≥ 500 ms + fond focus ; `prefers-reduced-motion` snap + focus ; clés `a-${index}` / `d-${index}` ; pas d’anim ± niveaux ; pas de nouvelle dep
 - [x] 40.5 Bump `web/` to 0.52.0 (note FR : Services types : PDJ d’abord, Départ, cadran d’heure)
-- [ ] 40.6 Verify `npm run build` ; `/context` services offerts dans un autre ordre → onglets types + colonnes semaine **PDJ puis déj puis dîner** ; ligne **Départ** ; ajouter arrivée → cadran → 8h07 ; ±15 qui croise → glisse ≥ 0,5 s + focus ; Escape d’ajout = pas de ligne ; barre **v0.52.0** ; `/exemple` inchangé
+- [x] 40.6 Verify `npm run build` ; `/context` services offerts dans un autre ordre → onglets types + colonnes semaine **PDJ puis déj puis dîner** ; ligne **Départ** ; ajouter arrivée → cadran → 8h07 ; ±15 qui croise → glisse ≥ 0,5 s + focus ; Escape d’ajout = pas de ligne ; barre **v0.52.0** ; `/exemple` inchangé
