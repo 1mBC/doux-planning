@@ -11,4 +11,4 @@
 
 ## 3. Tests
 
-- [ ] 3.1 TestClient coverage (`skipif` without `DATABASE_URL`): import then DELETE gone from `/versions` with 0 runs/jobs; DELETE `tight/halles` not listed, files remain, 2nd DELETE 204; gaps skip halles; unknown 404 `Jeu introuvable.`; non-admin 403. Do not fix pre-existing Saint-Cloud / engine-ref failures. Verify new tests green
+- [x] 3.1 TestClient coverage (`skipif` without `DATABASE_URL`): import then DELETE gone from `/versions` with 0 runs/jobs; DELETE `tight/halles` not listed, files remain, 2nd DELETE 204; gaps skip halles; unknown 404 `Jeu introuvable.`; non-admin 403. Do not fix pre-existing Saint-Cloud / engine-ref failures. Verify new tests green
