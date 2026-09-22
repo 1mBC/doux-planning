@@ -245,3 +245,18 @@ Workers SHALL claim one job per process via `SKIP LOCKED`, beat `heartbeat_at` e
 #### Scenario: Non-admin cannot read batches
 - **WHEN** a company session with `admin` false gets `/v1/admin/bench/batches/active`
 - **THEN** the response is HTTP 403 French
+
+### Requirement: Admin historique note, view, and impersonate
+`GET /v1/admin/generates` SHALL always include `restaurant_id` (`string | null`) and `score_global` (`float | null`). A generate 200 / Maximal `done` MUST persist those fields (`score_global` = the generated slot’s `score.global`, else null). `GET /v1/admin/restaurants/{restaurant_id}/cycles` and `/context` SHALL return the same JSON as the company GET routes for that restaurant. Unknown company MUST be HTTP 404 `Restaurant introuvable.` `POST /v1/admin/impersonate` `{ restaurant_id }` SHALL return HTTP 200 `{ url, expires_at }` with an absolute `/impersonate/{opaque}` URL (TTL 15 minutes). `POST /v1/auth/impersonate` SHALL be public, exchange the opaque once for a company session like login (`me.admin` = target `is_admin`), and MUST NOT invalidate other sessions. A second consume or expired token MUST be HTTP 401 `Lien expiré ou déjà utilisé.` Non-admin on admin routes MUST be HTTP 403 `Action réservée à l’admin.` Missing session MUST be 401. Without `DATABASE_URL` MUST be 503. SPA SHALL serve `/impersonate/{token}` and `/admin/planning/{restaurant_id}` as `index.html`.
+
+#### Scenario: Generate log exposes restaurant_id and score_global
+- **WHEN** an admin generates a salle `minimal` cycle then lists generates
+- **THEN** the newest entry has that restaurant id and the slot’s `score.global`
+
+#### Scenario: Admin cycles equal company cycles
+- **WHEN** an admin gets `/v1/admin/restaurants/{id}/cycles` for a restaurant that has published cycles
+- **THEN** the 200 body equals that restaurant’s company `GET /v1/cycles`
+
+#### Scenario: Impersonate is one-shot
+- **WHEN** an admin mints a link and a client consumes the opaque twice
+- **THEN** the first consume is 200 company session and the second is HTTP 401 `Lien expiré ou déjà utilisé.` while the admin session remains valid

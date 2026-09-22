@@ -12,7 +12,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
-from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_company_restaurant_id, require_database
+from doux_planning.api.auth import (
+    DETAIL_INVALID_FIELDS,
+    DETAIL_RESTAURANT_MISSING,
+    require_admin,
+    require_company_restaurant_id,
+    require_database,
+)
 from doux_planning.api.context import _load_company, _state_from_rows
 from doux_planning.api.db import Company, GenerateJob, GenerateLog, LiveEngine, RestaurateurAccount, session_scope
 from doux_planning.bench import engine_ref as bench_version
@@ -423,6 +429,10 @@ def _persist_published(restaurant_id: str, published: dict[str, Any]) -> None:
 def get_cycles(authorization: str | None) -> dict[str, Any]:
     require_database()
     restaurant_id = require_company_restaurant_id(authorization)
+    return cycles_for_restaurant(restaurant_id)
+
+
+def cycles_for_restaurant(restaurant_id: str) -> dict[str, Any]:
     company, fiches = _load_company(restaurant_id)
     stored = _stored_published(company.published_cycles)
     state = None
@@ -432,6 +442,14 @@ def get_cycles(authorization: str | None) -> dict[str, Any]:
     if dirty:
         _persist_published(restaurant_id, published)
     return {"published": published}
+
+
+def get_admin_cycles(authorization: str | None, restaurant_id: str) -> dict[str, Any]:
+    require_admin(authorization)
+    with session_scope() as db:
+        if db.get(Company, restaurant_id) is None:
+            raise HTTPException(status_code=404, detail=DETAIL_RESTAURANT_MISSING)
+    return cycles_for_restaurant(restaurant_id)
 
 
 def _published_after_generate(
@@ -572,6 +590,7 @@ def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, 
         engine_ref=effective_ref,
         facts=list(slot.get("facts") or []),
         employees=state.employees,
+        score_global=_score_global_of_slot(slot),
     )
     return {
         "team": team.value,
@@ -620,6 +639,7 @@ def persist_maximal_result(
         engine_ref=effective_ref,
         facts=list(slot.get("facts") or []),
         employees=state.employees,
+        score_global=_score_global_of_slot(slot),
     )
     return published
 
@@ -694,6 +714,18 @@ def _facts_from_log_items(raw: list[Any] | None) -> list[dict[str, Any]]:
     return facts
 
 
+def _score_global_of_slot(slot: Any) -> float | None:
+    if not isinstance(slot, dict):
+        return None
+    score = slot.get("score")
+    if not isinstance(score, dict):
+        return None
+    value = score.get("global")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
 def _log_generate(
     restaurant_id: str,
     *,
@@ -704,6 +736,7 @@ def _log_generate(
     engine_ref: str,
     facts: list[Any],
     employees: Any,
+    score_global: float | None = None,
 ) -> None:
     with session_scope() as db:
         account = db.scalars(
@@ -721,6 +754,8 @@ def _log_generate(
                 search_effort=search_effort,
                 duration_seconds=duration_seconds,
                 engine_ref=engine_ref,
+                restaurant_id=restaurant_id,
+                score_global=score_global,
                 warnings=_evaluate_miss_facts(facts, employees),
             )
         )
@@ -742,6 +777,8 @@ def list_generate_logs(authorization: str | None) -> dict[str, Any]:
                     "duration_seconds": row.duration_seconds,
                     "engine_ref": row.engine_ref,
                     "facts": _facts_from_log_items(row.warnings),
+                    "restaurant_id": row.restaurant_id,
+                    "score_global": row.score_global,
                 }
                 for row in rows
             ]

@@ -63,6 +63,8 @@ def test_spa_planning_serves_index_when_dist_exists():
         "/admin/bench/versions",
         "/admin/bench/run/example-run",
         "/admin/bench/tight/halles/minimal",
+        "/impersonate/example-token",
+        "/admin/planning/example-id",
     ):
         page = client.get(path)
         assert page.status_code == 200
