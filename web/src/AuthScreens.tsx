@@ -1,7 +1,8 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ApiHttpError } from "./sandbox";
 import {
   canOpenPlanning,
+  consumeImpersonate,
   homePath,
   kindLabel,
   linkEmployee,
@@ -438,6 +439,48 @@ export function EmployeeLinkScreen({ onLinked }: { onLinked: (me: Me) => void })
           {busy ? "Rattachement…" : "Rattacher"}
         </button>
       </form>
+    </main>
+  );
+}
+
+export function parseImpersonatePath(path: string): string | null {
+  const match = /^\/impersonate\/([^/]+)$/.exec(path);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+export function ImpersonateScreen({ token, onConsumed }: { token: string; onConsumed: (me: Me) => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const onConsumedRef = useRef(onConsumed);
+  onConsumedRef.current = onConsumed;
+
+  useEffect(() => {
+    let cancelled = false;
+    consumeImpersonate(token)
+      .then((me) => {
+        if (!cancelled) {
+          onConsumedRef.current(me);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  return (
+    <main className="page auth-page">
+      <h1>Connexion</h1>
+      {error ? (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      ) : (
+        <p className="sub">Ouverture de la session…</p>
+      )}
     </main>
   );
 }

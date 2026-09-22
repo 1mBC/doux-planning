@@ -27,7 +27,7 @@ uvicorn  :8000  --  GET /v1/examples/saint-cloud   (public)
                  --  GET /v1/me/planning         (Bearer employee)
                          ^
                          | proxy /v1
-vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
+vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning, /admin, /admin/planning/{id}, /impersonate/{token}
 ```
 
 ## Goals / Non-Goals
@@ -432,6 +432,20 @@ Suivre `contracts/domain/manual-planning.md` UI (gagne) — le suivre, ne pas le
 - Enter 409 / cycles sans clé : ship chrome + parser. Persist live seulement si enter 200.
 
 Version `0.55.0`.
+
+### 46. Admin historique (note, voir, se connecter)
+
+Suivre `contracts/domain/admin-historique.md` UI (gagne) — le suivre, ne pas le modifier. File 71/72 hors slice.
+
+- `/admin` table existante **plus** colonnes **Note** (après Effort) et **Planning** (dernière). Ordre : Heure, Email, Restaurant, Équipe, Effort, Note, Durée, Moteur, Warnings, Planning. `formatCycleNote(score_global)`. **Voir** inactif si `restaurant_id` null.
+- Parser `AdminGenerateEntry` : `restaurant_id: string | null`, `score_global: number | null`. Clés absentes (Infra pas encore mergé) → null, pas de crash.
+- Clic droit email : `preventDefault` ; POST mint impersonate ; copie `url` ; toast « Lien copié — ouvre-le en navigation privée. » Null resto → toast « Restaurant introuvable. » **Jamais** `window.open`.
+- Clic Voir : `go("/admin/planning/" + restaurant_id)`.
+- `/admin/planning/{id}` : `me.admin` ; menu Historique | Banc | Stats ; GET admin cycles + context ; **PublishedPlanning** `mode=readonly` (4 crans, recaps, export ; pas Recalculer, pas enter live, pas overlay). Titre = `context.name`. 404 → detail.
+- `/impersonate/{token}` : public, avant Login dans `Root`. POST consume sans Bearer ; `persistSession` ; `go("/planning")`. Échec → `detail`. Ne pas loadMe / 401→login sur cette route (évite d’écraser le consume).
+- Hover facts, en-têtes jour, sélecteur moteur : inchangés.
+
+Version `0.56.0`.
 
 ## Risks / Trade-offs
 

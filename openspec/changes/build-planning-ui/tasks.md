@@ -245,3 +245,11 @@
 - [x] 43.2 `/planning` company rangée 2 : Minimal | Optimisé | Maximal | Manuel. Cran Manuel : pas (Re)Calculer ; `ready[team]` → Entrer en mode édition même slot null ; vide hors édition « Pas encore publié » ; `POST enter` `{ search_effort: "manuel" }` ; mêmes Overlay / Fill / undo / discard / publish. Computes inchangés. Timestamp manuel : `generated_at` Paris, pas de ` · engine_ref`, durée `—` si absente. `/exemple` inchangé
 - [x] 43.3 Bump `web/` to 0.55.0 (note FR : Planning manuel)
 - [x] 43.4 Verify `npm run build` ; 4 crans ; Manuel sans Recalculer ; ready → bouton édition ; barre **v0.55.0** ; banc 3 efforts ; overlay compute inchangé ; persist IronBee enter seulement si 200 (sinon skip + signal)
+
+## 44. Admin historique (note, voir, se connecter)
+
+- [x] 44.1 Parser `AdminGenerateEntry` : `restaurant_id` / `score_global` (null si absents) ; table `/admin` colonnes Note + Planning (Voir) ; clic droit email = POST impersonate + copie `url` + toast (jamais `window.open`) ; clic Voir → `/admin/planning/{id}`
+- [x] 44.2 `/admin/planning/{restaurant_id}` : `me.admin` ; GET admin cycles + context ; PublishedPlanning lecture seule (4 crans, recaps, export ; pas Recalculer, pas live) ; 404 → detail ; menu admin
+- [x] 44.3 `/impersonate/{token}` public (me null OK, avant Login) : POST `/v1/auth/impersonate` sans Bearer ; 200 → `sessionStorage` + `/planning` ; erreur → `detail`
+- [x] 44.4 Bump `web/` to 0.56.0 (note FR : Note, voir le planning, lien de connexion)
+- [x] 44.5 Verify `npm run build` ; barre **v0.56.0** ; `/admin` Note + Voir ; impersonate route ; banc inchangé (Défi / Lancer)

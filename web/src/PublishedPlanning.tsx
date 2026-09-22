@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Overlay, FillOverlay } from "./Overlay";
 import {
   ApiHttpError,
@@ -31,6 +31,7 @@ import {
   PLANNING_SLOT_CHOICES,
   postGenerate,
   type CycleAssignment,
+  type CyclesPayload,
   type PlanningSlot,
   type PublishedCycles,
   type SearchEffort,
@@ -279,7 +280,20 @@ function HistoryList({
   );
 }
 
-export function PublishedPlanning() {
+export type PublishedPlanningProps = {
+  mode?: "company" | "readonly";
+  loadContextFn?: () => Promise<RestaurantContext>;
+  loadCyclesFn?: () => Promise<CyclesPayload>;
+  header?: ReactNode;
+};
+
+export function PublishedPlanning({
+  mode = "company",
+  loadContextFn = loadContext,
+  loadCyclesFn = loadCycles,
+  header,
+}: PublishedPlanningProps = {}) {
+  const readOnly = mode === "readonly";
   const [ctx, setCtx] = useState<RestaurantContext | null>(null);
   const [published, setPublished] = useState<PublishedCycles | null>(null);
   const [team, setTeam] = useState<TeamId>("salle");
@@ -292,11 +306,11 @@ export function PublishedPlanning() {
   const [overlay, setOverlay] = useState<OverlayTarget | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const sheetsRef = useRef<HTMLDivElement>(null);
-  const editing = live !== null;
+  const editing = !readOnly && live !== null;
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadContext(), loadCycles()])
+    Promise.all([loadContextFn(), loadCyclesFn()])
       .then(([nextCtx, cycles]) => {
         if (cancelled) {
           return;
@@ -316,26 +330,26 @@ export function PublishedPlanning() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadContextFn, loadCyclesFn]);
 
   const pack = published?.[team] ?? null;
   const cycle = cycleOf(pack, effort);
   const people = useMemo(
     () =>
-      editing
+      editing && live
         ? live.restaurant.employees
         : ctx
           ? ctx.employees.filter((person) => person.team === team).map(toGridEmployee)
           : [],
     [ctx, team, editing, live],
   );
-  const assignments = editing ? (live.planning.assignments as CycleAssignment[]) : (cycle?.assignments ?? []);
-  const facts = editing ? live.planning.facts : (cycle?.facts ?? []);
+  const assignments = editing && live ? (live.planning.assignments as CycleAssignment[]) : (cycle?.assignments ?? []);
+  const facts = editing && live ? live.planning.facts : (cycle?.facts ?? []);
   const byKey = useMemo(() => indexCycle(assignments), [assignments]);
   const services = ctx ? serviceRows(ctx, assignments) : [];
-  const canCalculate = isSearchEffort(effort) && ctx?.ready[team] === true && !editing && calculating === null;
+  const canCalculate = !readOnly && isSearchEffort(effort) && ctx?.ready[team] === true && !editing && calculating === null;
   const canEdit =
-    (effort === "manuel" ? ctx?.ready[team] === true : cycle !== null) && !editing && calculating === null;
+    !readOnly && (effort === "manuel" ? ctx?.ready[team] === true : cycle !== null) && !editing && calculating === null;
   const canExport = cycle !== null && !editing && calculating === null;
 
   async function calculate() {
@@ -461,20 +475,35 @@ export function PublishedPlanning() {
   if (!ctx && !error) {
     return (
       <main className="page">
+        {header}
         <p className="sub">Chargement du planning…</p>
+      </main>
+    );
+  }
+
+  if (readOnly && error && !ctx) {
+    return (
+      <main className="page">
+        {header}
+        <p className="error" role="alert">
+          {error}
+        </p>
       </main>
     );
   }
 
   return (
     <main className="page planning-page">
-      <h1>Planning {editing ? "— édition" : "publié"}</h1>
-      <p className="sub">
-        {editing
-          ? "Brouillon live persisté. Lecture quitte sans jeter. Publier écrit le cycle."
-          : "Cycle persisté par équipe."}
-      </p>
-      {ctx ? (
+      {header}
+      <h1>{readOnly ? (ctx?.name ?? "Planning") : `Planning ${editing ? "— édition" : "publié"}`}</h1>
+      {readOnly ? null : (
+        <p className="sub">
+          {editing
+            ? "Brouillon live persisté. Lecture quitte sans jeter. Publier écrit le cycle."
+            : "Cycle persisté par équipe."}
+        </p>
+      )}
+      {!readOnly && ctx ? (
         <p className="ready-badges">
           <span className={ctx.ready.salle ? "badge-ready" : "badge-wait"}>
             Salle · {ctx.ready.salle ? "Prêt à calculer" : "Pas encore prêt"}
@@ -520,7 +549,7 @@ export function PublishedPlanning() {
         ))}
       </div>
       <div className="auth-switch planning-actions planning-row">
-        {isSearchEffort(effort) ? (
+        {!readOnly && isSearchEffort(effort) ? (
           <button
             type="button"
             className="choice action"
@@ -530,12 +559,12 @@ export function PublishedPlanning() {
             (Re)Calculer le planning
           </button>
         ) : null}
-        {canEdit ? (
+        {!readOnly && canEdit ? (
           <button type="button" className="choice action" disabled={busy} onClick={() => void startEdit()}>
             Entrer en mode édition
           </button>
         ) : null}
-        {editing ? (
+        {!readOnly && editing ? (
           <>
             <button type="button" className="choice action" onClick={leaveEdit}>
               Quitter le mode édition
@@ -585,7 +614,7 @@ export function PublishedPlanning() {
       </p>
       <p className="generated-duration">{cycle ? formatSolveDuration(cycle.duration_seconds) : "—"}</p>
 
-      {calculating ? (
+      {calculating && !readOnly ? (
         <div className="calc-overlay" role="status" aria-live="polite">
           <p>Calcul en cours…</p>
         </div>
@@ -619,9 +648,11 @@ export function PublishedPlanning() {
               services={services}
               byKey={byKey}
               onOccupiedClick={
-                editing ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) }) : undefined
+                !readOnly && editing
+                  ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) })
+                  : undefined
               }
-              onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
+              onEmptyClick={!readOnly && editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
             />
             <PublishedSheet
               title={weekSheetTitle(ctx?.week_labels ?? "ab", 7)}
@@ -631,9 +662,11 @@ export function PublishedPlanning() {
               services={services}
               byKey={byKey}
               onOccupiedClick={
-                editing ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) }) : undefined
+                !readOnly && editing
+                  ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) })
+                  : undefined
               }
-              onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
+              onEmptyClick={!readOnly && editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
             />
           </div>
           <AlertsList facts={facts} employees={people} weekScheme={ctx?.week_labels ?? "ab"} />
@@ -648,7 +681,7 @@ export function PublishedPlanning() {
               <WellbeingRecap wishCols={cycle.wish_cols} wishRows={cycle.wish_rows} />
             </>
           ) : null}
-          {editing ? (
+          {editing && live ? (
             <section>
               <h2>Historique</h2>
               <p className="sub">Annuler enlève uniquement le dernier cran. Tout annuler revient au cycle publié.</p>
@@ -670,7 +703,7 @@ export function PublishedPlanning() {
         <p className="sub">{emptySlotCopy(effort)}</p>
       )}
 
-      {overlay?.kind === "occupied" && live ? (
+      {overlay?.kind === "occupied" && live && !readOnly ? (
         <Overlay
           shift={overlay.shift}
           employees={people}
@@ -680,7 +713,7 @@ export function PublishedPlanning() {
           preview={(gesture, shift, hours) => previewLiveOccupied(team, gesture, shift, hours)}
         />
       ) : null}
-      {overlay?.kind === "fill" && live ? (
+      {overlay?.kind === "fill" && live && !readOnly ? (
         <FillOverlay
           slot={overlay.slot}
           employees={people}

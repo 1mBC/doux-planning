@@ -547,6 +547,24 @@ table.plan td.empty-slot {
   position: relative;
 }
 
+.admin-email {
+  cursor: context-menu;
+}
+
+.admin-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: #1a1a1a;
+  color: #fff;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 18%);
+}
+
 .admin-pill {
   display: inline-block;
   min-width: 1.5rem;

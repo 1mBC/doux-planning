@@ -226,6 +226,22 @@ export async function loadMe(): Promise<Me> {
   return parseMe(await sendAuth("/v1/me", { method: "GET" }, true));
 }
 
+export async function consumeImpersonate(token: string): Promise<Me> {
+  return persistSession(
+    parseAuthSession(
+      await sendAuth(
+        "/v1/auth/impersonate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        },
+        false,
+      ),
+    ),
+  );
+}
+
 export async function logout(): Promise<void> {
   try {
     await sendAuth("/v1/auth/logout", { method: "POST" }, true);

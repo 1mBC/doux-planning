@@ -1,19 +1,24 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import {
+  copyToClipboard,
   effortLabel,
   groupEntriesByParisDay,
   loadAdminGenerates,
+  loadAdminRestaurantContext,
+  loadAdminRestaurantCycles,
   loadLiveEngine,
+  mintImpersonateLink,
   parisClock,
   putLiveEngine,
   teamLabel,
   type AdminGenerateEntry,
   type LiveEngine,
 } from "./admin";
-import { formatSolveDuration, warningWhen } from "./format";
+import { formatCycleNote, formatSolveDuration, warningWhen } from "./format";
 import { factSeverityLabel, factTitle, formatFactLine } from "./scoreFacts";
 import { ApiHttpError } from "./sandbox";
 import { go } from "./AuthScreens";
+import { PublishedPlanning } from "./PublishedPlanning";
 import type { ScoreFact } from "./types";
 
 function FactCard({ fact }: { fact: ScoreFact }) {
@@ -145,6 +150,7 @@ export function AdminPage() {
   const [liveEngine, setLiveEngine] = useState<LiveEngine | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [engineError, setEngineError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,6 +186,29 @@ export function AdminPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timer = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  async function onEmailContextMenu(event: MouseEvent<HTMLTableCellElement>, entry: AdminGenerateEntry) {
+    event.preventDefault();
+    if (entry.restaurant_id == null) {
+      setToast("Restaurant introuvable.");
+      return;
+    }
+    try {
+      const url = await mintImpersonateLink(entry.restaurant_id);
+      await copyToClipboard(url);
+      setToast("Lien copié — ouvre-le en navigation privée.");
+    } catch (err: unknown) {
+      setToast(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+    }
+  }
 
   if (error) {
     return (
@@ -229,19 +258,24 @@ export function AdminPage() {
                   <th>Restaurant</th>
                   <th>Équipe</th>
                   <th>Effort</th>
+                  <th>Note</th>
                   <th>Durée</th>
                   <th>Moteur</th>
                   <th>Warnings</th>
+                  <th>Planning</th>
                 </tr>
               </thead>
               <tbody>
                 {group.entries.map((entry) => (
                   <tr key={entry.id}>
                     <td>{parisClock(entry.created_at)}</td>
-                    <td>{entry.email}</td>
+                    <td className="admin-email" onContextMenu={(event) => void onEmailContextMenu(event, entry)}>
+                      {entry.email}
+                    </td>
                     <td>{entry.restaurant_name || "—"}</td>
                     <td>{teamLabel(entry.team)}</td>
                     <td>{effortLabel(entry.search_effort)}</td>
+                    <td>{formatCycleNote(entry.score_global)}</td>
                     <td>{formatSolveDuration(entry.duration_seconds)}</td>
                     <td>{entry.engine_ref || "—"}</td>
                     <td>
@@ -250,6 +284,20 @@ export function AdminPage() {
                         <FactTip entry={entry} />
                       </div>
                     </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="choice"
+                        disabled={entry.restaurant_id == null}
+                        onClick={() => {
+                          if (entry.restaurant_id) {
+                            go("/admin/planning/" + entry.restaurant_id);
+                          }
+                        }}
+                      >
+                        Voir
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -257,6 +305,29 @@ export function AdminPage() {
           </section>
         ))
       )}
+      {toast ? (
+        <p className="admin-toast" role="status">
+          {toast}
+        </p>
+      ) : null}
     </main>
+  );
+}
+
+export function parseAdminPlanningPath(path: string): string | null {
+  const match = /^\/admin\/planning\/([^/]+)$/.exec(path);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+export function AdminPlanningPage({ restaurantId }: { restaurantId: string }) {
+  const loadContextFn = useCallback(() => loadAdminRestaurantContext(restaurantId), [restaurantId]);
+  const loadCyclesFn = useCallback(() => loadAdminRestaurantCycles(restaurantId), [restaurantId]);
+  return (
+    <PublishedPlanning
+      mode="readonly"
+      header={<AdminNav current="history" />}
+      loadContextFn={loadContextFn}
+      loadCyclesFn={loadCyclesFn}
+    />
   );
 }

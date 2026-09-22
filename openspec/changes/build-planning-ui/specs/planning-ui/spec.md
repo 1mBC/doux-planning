@@ -534,3 +534,30 @@ Company `/planning` row 2 SHALL offer **Minimal | Optimisé | Maximal | Manuel**
 - **WHEN** an admin opens `/admin/bench`
 - **THEN** launch and parsers use only minimal, optimized, and maximal (`manuel` as a bench `search_effort` is rejected)
 
+### Requirement: Admin historique note, view planning, impersonate link
+`/admin` SHALL keep day headers, hover facts, and the engine selector. The generate table SHALL add **Note** after Effort (`formatCycleNote(score_global)`, one FR decimal or `—`) and **Planning** last (button **Voir**, disabled when `restaurant_id` is null). Column order SHALL be Heure, Email, Restaurant, Équipe, Effort, Note, Durée, Moteur, Warnings, Planning. `parseEntry` SHALL type `restaurant_id: string | null` and `score_global: number | null` (finite number or null); missing keys SHALL be null and MUST NOT throw. Right-click on **email** SHALL `preventDefault`. If `restaurant_id` is null the client SHALL toast `Restaurant introuvable.` and MUST NOT POST. Otherwise it SHALL `POST /v1/admin/impersonate` `{ restaurant_id }` with Bearer, copy `url` via `navigator.clipboard.writeText` (fallback allowed), and toast `Lien copié — ouvre-le en navigation privée.` The client MUST NOT `window.open` or auto-navigate to that url. Click **Voir** SHALL `go("/admin/planning/" + restaurant_id)`. `/admin/planning/{restaurant_id}` SHALL require `me.admin` (else the reserved message and zero fetch). It SHALL `GET /v1/admin/restaurants/{id}/cycles` and `/context`, reuse **PublishedPlanning** read-only (four slots, recaps, optional client export) and MUST NOT show (Re)Calculer, MUST NOT enter live sandbox, and MUST NOT show overlays. Title SHALL be the restaurant name. Admin nav SHALL stay Historique | Banc | Stats. 404 SHALL show `Restaurant introuvable.` (or API `detail`). `/impersonate/{token}` SHALL work without `me.admin` and when `me` is null (MUST NOT fall through to Login before consume). It SHALL `POST /v1/auth/impersonate` `{ token }` without Bearer. On 200 it SHALL store the session token (`AUTH_TOKEN_KEY`) and `go("/planning")`. On error it SHALL show `detail` and MUST NOT silently log the visitor in. Version bar SHALL be `0.56.0` with note `Note, voir le planning, lien de connexion`. File 71/72 (import popup, bench column chrome, … menu, Tous|IA|Manuels) MUST stay out of this slice.
+
+#### Scenario: Admin table shows Note and Voir
+- **WHEN** an admin opens `/admin` and a generate row has `score_global` 8.4 and a `restaurant_id`
+- **THEN** Note shows `8,4` and Planning has an enabled **Voir** button
+
+#### Scenario: Missing Infra keys do not crash
+- **WHEN** GET `/v1/admin/generates` omits `restaurant_id` and `score_global`
+- **THEN** the parser treats both as null, Note is `—`, **Voir** is disabled, and the page still renders
+
+#### Scenario: Right-click email copies impersonate url
+- **WHEN** an admin right-clicks an email whose row has `restaurant_id`
+- **THEN** the client POSTs `/v1/admin/impersonate`, copies `url`, toasts `Lien copié — ouvre-le en navigation privée.`, and MUST NOT open a window
+
+#### Scenario: Voir opens admin planning read-only
+- **WHEN** an admin clicks **Voir**
+- **THEN** the client goes to `/admin/planning/{restaurant_id}`, loads admin cycles + context, shows four slots and recaps, and does not offer (Re)Calculer or live edit
+
+#### Scenario: Impersonate consume without session
+- **WHEN** an anonymous visitor opens `/impersonate/{token}` and POST consume returns 200
+- **THEN** the client stores the session token and goes to `/planning` without showing Login first
+
+#### Scenario: Impersonate failure shows detail
+- **WHEN** consume returns 401 `Lien expiré ou déjà utilisé.`
+- **THEN** that `detail` is shown and the visitor is not sent to login as someone else
+
