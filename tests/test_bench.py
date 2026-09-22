@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import secrets
 from datetime import datetime, timezone
@@ -15,11 +16,14 @@ from doux_planning.api.auth import DETAIL_ADMIN, promote_admin_email
 from doux_planning.api.db import BenchJob, BenchRun, GenerateLog, reset_engine, session_scope
 from doux_planning.bench import (
     BenchOutcome,
+    bench_dataset_from_json,
+    bench_dir,
     engine_ref as current_engine_ref,
     list_bench_datasets,
     list_engine_refs,
     load_bench_dataset,
     run_bench,
+    run_bench_on,
 )
 from doux_planning.context import (
     SCORE_WEIGHTS,
@@ -527,6 +531,39 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
     assert outcome.engine_ref == "core-5"
     _assert_complete_trace(outcome.trace, frozen=False)
     assert current_engine_ref() == "core-5"
+
+
+def test_run_bench_on_matches_run_bench_halles_minimal():
+    disk = run_bench("tight", "halles", SearchEffort.MINIMAL)
+    memory = run_bench_on(load_bench_dataset("tight", "halles"), SearchEffort.MINIMAL)
+    assert memory.category == disk.category == "tight"
+    assert memory.id == disk.id == "halles"
+    assert memory.search_effort == disk.search_effort == SearchEffort.MINIMAL
+    assert memory.engine_ref == disk.engine_ref
+    assert len(memory.assignments) == len(disk.assignments)
+    assert memory.score.global_score == disk.score.global_score
+    assert memory.expected_score.global_score == disk.expected_score.global_score
+
+
+def test_bench_dataset_from_json_empty_assignments():
+    raw = json.loads((bench_dir() / "tight" / "halles" / "context.json").read_text(encoding="utf-8"))
+    employees = raw["employees"]
+    if employees:
+        employees[0] = dict(employees[0], invite_token="planted-token")
+    dataset = bench_dataset_from_json(
+        category="imported",
+        id="imp-empty",
+        name="Empty oracle",
+        challenge_fr="sans oracle",
+        context=raw,
+        assignments=[],
+    )
+    assert dataset.expected == ()
+    assert dataset.category == "imported"
+    assert dataset.id == "imp-empty"
+    assert dataset.name == "Empty oracle"
+    assert all(person.invite_token != "planted-token" for person in dataset.state.employees)
+    assert len(list_bench_datasets()) == 50
 
 
 def test_list_engine_refs_is_core_zero_through_mix():
