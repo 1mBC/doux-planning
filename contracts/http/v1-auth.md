@@ -44,6 +44,7 @@ POST /v1/auth/login             → 200 { token, me }
 POST /v1/auth/logout            → 204   (Bearer)
 GET  /v1/me                     → 200 me (Bearer)
 POST /v1/auth/link              → 200 me (Bearer employee, voir delete-employee.md)
+POST /v1/auth/impersonate       → 200 { token, me }  (public, file 70 `admin-historique.md` **gagne**)
 GET  /v1/invites/{company_code} → 200 { restaurant_name, employees: [{ id, name, role, team }] }
 DELETE /v1/staff/{id}           → 200 Context (Bearer company, voir delete-employee.md)
 POST /v1/staff/{id}/invite-token → 200 { employee_id, employee_token }  (Bearer company)
@@ -80,6 +81,10 @@ Bearer. 204. Jeton invalidé. Second logout / jeton inconnu → 401.
 
 Bearer. 200 = `me`. Sans / mauvais jeton → 401.
 
+### `POST /v1/auth/impersonate`
+
+Public. Body `{ "token": "<opaque>" }`. Échange un lien admin (TTL 15 min, one-shot) contre une session company. Détail : `contracts/domain/admin-historique.md`. 401 `Lien expiré ou déjà utilisé.`
+
 ### `GET /v1/invites/{company_code}`
 
 Public. 200 : `restaurant_name` (souvent `""`), `employees` = fiches **non** dans `linked_employee_ids` seulement.  
@@ -102,6 +107,7 @@ Même forme que le sandbox : `{ "detail": "<français>" }`.
 | `InvalidInviteCode` / jeton inconnu | 400 | `Code entreprise ou jeton invalide.` |
 | Email ou mot de passe faux | 401 | `Email ou mot de passe incorrect.` |
 | Session absente / invalide / déjà logout | 401 | `Session invalide.` |
+| Lien impersonate inconnu / expiré / déjà utilisé | 401 | `Lien expiré ou déjà utilisé.` |
 | Employé sur route restaurateur | 403 | `Action réservée au restaurateur.` |
 | Email déjà pris | 409 | `Cet email est déjà utilisé.` |
 | Fiche déjà liée | 409 | `Cette fiche a déjà un compte.` |

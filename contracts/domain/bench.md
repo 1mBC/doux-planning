@@ -2,7 +2,9 @@
 
 Freeze **domaine** + HTTP admin. UI = brief UI.  
 **Salle only.** Catalogue `data/bench/`.  
-Le banc **ne lit / n’écrit jamais** `published_cycles`, `live_sandboxes`, comptes, generate_logs. State **jetable**. Jobs bench ≠ jobs resto (pas de 409 croisé).
+Le banc **n’écrit jamais** dans `published_cycles` / `live_sandboxes` / comptes / generate_logs du resto. State **jetable**. Jobs bench ≠ jobs resto (pas de 409 croisé).  
+**Import snapshot** (file 71, `bench-import.md` **gagne**) : copie ponctuelle contexte + oracle + computes → jeu `origin=imported` en base. Catalogue git inchangé.  
+**Chrome / delete** (file 72, `bench-chrome.md` **gagne**).
 
 ## Identité moteur
 
@@ -448,4 +450,4 @@ Core catalogue : **50** jeux. Les **30** déjà là loadent **bit-à-bit**. Tous
 
 ## Hors freeze
 
-`weekend-eve` / `eve-first` (moteur). Relance **globale** (écraser les runs complets). Jeux cuisine. CSV/XLSX banc. Archive / sync.
+`weekend-eve` / `eve-first` (moteur). Relance **globale** (écraser les runs complets). Jeux cuisine (solve). CSV/XLSX banc. Archive / sync. Import / delete / filtre = files 71–72.
