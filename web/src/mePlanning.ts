@@ -167,7 +167,7 @@ export function wishLabel(wish: EmployeeWish): string {
   }
   if (wish.kind === "weekend") {
     if (wish.value === "every_two") {
-      return "Un we sur deux";
+      return "Au moins un we sur deux";
     }
     return wish.value === "even" ? "We paire" : "We impaire";
   }
