@@ -22,11 +22,11 @@ const NOTE_LABELS: { key: keyof CycleScore["notes"]; label: string; axis: string
   { key: "roles", label: "Rôles /10", axis: "roles" },
 ];
 
-function noteHue(note: number): number {
+export function noteHue(note: number): number {
   return 12 * note;
 }
 
-function noteTint(note: number | null, global: boolean): CSSProperties | undefined {
+export function noteTint(note: number | null, global: boolean): CSSProperties | undefined {
   if (note === null || !Number.isFinite(note)) {
     return undefined;
   }

@@ -167,7 +167,7 @@ export function BenchComparePage({
 
   return (
     <main className="page admin-page">
-      <AdminNav current="bench" />
+      <AdminNav />
       <h1>{title}</h1>
       <div className="bench-toolbar-row">
         <button

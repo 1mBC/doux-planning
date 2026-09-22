@@ -27,14 +27,6 @@ import { formatCycleNote, formatSolveDuration } from "./format";
 import { ApiHttpError } from "./sandbox";
 import type { SearchEffort } from "./generate";
 
-type OriginFilter = "all" | BenchOrigin;
-
-const ORIGIN_FILTERS: { id: OriginFilter; label: string }[] = [
-  { id: "all", label: "Tous" },
-  { id: "catalogue", label: "IA" },
-  { id: "imported", label: "Manuels" },
-];
-
 function LaunchButtons({
   disabled,
   onLaunch,
@@ -325,7 +317,7 @@ function EngineStack({
   );
 }
 
-export function BenchPage() {
+export function BenchPage({ origin }: { origin: BenchOrigin }) {
   const [versions, setVersions] = useState<BenchVersions | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -333,9 +325,10 @@ export function BenchPage() {
   const [batch, setBatch] = useState<BenchBatch | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [selectedEngine, setSelectedEngine] = useState<string | null>(null);
-  const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
   const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
   const cancelled = useRef(false);
+  const navCurrent = origin === "imported" ? "bench-manuels" : "bench";
+  const title = origin === "imported" ? "Banc Manuels" : "Banc IA";
 
   async function refreshVersions() {
     const next = await loadBenchVersions();
@@ -411,33 +404,36 @@ export function BenchPage() {
     };
   }, []);
 
+  const pageDatasets = useMemo(() => {
+    return (versions?.datasets ?? []).filter((item) => item.origin === origin);
+  }, [versions, origin]);
+
   const categories = useMemo(() => {
     const seen: string[] = [];
-    for (const item of versions?.datasets ?? []) {
+    for (const item of pageDatasets) {
       if (!seen.includes(item.category)) {
         seen.push(item.category);
       }
     }
     return seen;
-  }, [versions]);
-
-  const filteredDatasets = useMemo(() => {
-    const all = versions?.datasets ?? [];
-    if (originFilter === "all") {
-      return all;
-    }
-    return all.filter((item) => item.origin === originFilter);
-  }, [versions, originFilter]);
+  }, [pageDatasets]);
 
   function closeMenu() {
     setOpenMenuKey(null);
   }
 
-  async function launch(body: { scope: BenchScope; category?: string; dataset_id?: string; search_effort?: SearchEffort; engine_ref?: string }) {
+  async function launch(body: {
+    scope: BenchScope;
+    category?: string;
+    dataset_id?: string;
+    search_effort?: SearchEffort;
+    engine_ref?: string;
+  }) {
     setBusy(true);
     setError(null);
     try {
-      const result = await postBenchRun(body);
+      const payload = body.scope === "dataset" ? body : { ...body, origin };
+      const result = await postBenchRun(payload);
       if (result.kind === "queued") {
         setBatch({
           batch_id: result.batch_id,
@@ -499,7 +495,7 @@ export function BenchPage() {
     setExporting(true);
     setError(null);
     try {
-      const pack = await loadBenchExport({ scope: "bank" });
+      const pack = await loadBenchExport({ scope: "bank", origin });
       if (cancelled.current) {
         return;
       }
@@ -519,7 +515,7 @@ export function BenchPage() {
     setExporting(true);
     setError(null);
     try {
-      const pack = await loadBenchExport({ scope: "below_manuel" });
+      const pack = await loadBenchExport({ scope: "below_manuel", origin });
       if (cancelled.current) {
         return;
       }
@@ -561,7 +557,7 @@ export function BenchPage() {
   if (error && !versions) {
     return (
       <main className="page">
-        <AdminNav current="bench" />
+        <AdminNav current={navCurrent} />
         <p className="error" role="alert">
           {error}
         </p>
@@ -571,7 +567,7 @@ export function BenchPage() {
   if (!versions) {
     return (
       <main className="page">
-        <AdminNav current="bench" />
+        <AdminNav current={navCurrent} />
         <p className="sub">Chargement du banc…</p>
       </main>
     );
@@ -581,7 +577,8 @@ export function BenchPage() {
 
   return (
     <main className="page admin-page">
-      <AdminNav current="bench" />
+      <AdminNav current={navCurrent} />
+      <h1>{title}</h1>
       <p className="sub">
         Jeux salle · moteur {versions.engine_ref || "—"}. Quitter la page pendant un Maximal / lot est sans danger.
       </p>
@@ -624,11 +621,13 @@ export function BenchPage() {
             <span>Toutes les catégories</span>
             <LaunchButtons disabled={locked} onLaunch={(effort) => void launch({ scope: "all", search_effort: effort, engine_ref: selectedEngine ?? versions.engine_ref })} />
           </div>
-          <CategoryLaunch
-            categories={categories}
-            disabled={locked}
-            onLaunch={(effort, category) => void launch({ scope: "category", category, search_effort: effort, engine_ref: selectedEngine ?? versions.engine_ref })}
-          />
+          {origin === "catalogue" ? (
+            <CategoryLaunch
+              categories={categories}
+              disabled={locked}
+              onLaunch={(effort, category) => void launch({ scope: "category", category, search_effort: effort, engine_ref: selectedEngine ?? versions.engine_ref })}
+            />
+          ) : null}
           <div className="bench-toolbar-row">
             <button type="button" className="choice" disabled={locked} onClick={() => void launch({ scope: "gaps" })}>
               Compléter les trous
@@ -647,23 +646,7 @@ export function BenchPage() {
 
       <section>
         <h2>Derniers runs</h2>
-        <div className="bench-toolbar-row bench-origin-filter" role="group" aria-label="Filtrer les jeux">
-          {ORIGIN_FILTERS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={originFilter === item.id ? "choice active" : "choice"}
-              aria-pressed={originFilter === item.id}
-              onClick={() => {
-                setOriginFilter(item.id);
-                setOpenMenuKey(null);
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        {filteredDatasets.length === 0 ? (
+        {pageDatasets.length === 0 ? (
           <p className="sub">Aucun jeu.</p>
         ) : (
           <table className="admin-table bench-table">
@@ -678,7 +661,7 @@ export function BenchPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredDatasets.map((dataset) => {
+              {pageDatasets.map((dataset) => {
                 const menuKey = `${dataset.category}/${dataset.id}`;
                 return (
                   <tr key={menuKey}>

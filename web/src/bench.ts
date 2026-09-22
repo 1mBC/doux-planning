@@ -350,12 +350,13 @@ export async function loadBenchExport(params: {
   category: string;
   dataset_id: string;
 }): Promise<unknown>;
-export async function loadBenchExport(params: { scope: "below_manuel" }): Promise<unknown>;
-export async function loadBenchExport(params: { scope: "bank" }): Promise<unknown>;
+export async function loadBenchExport(params: { scope: "below_manuel"; origin?: BenchOrigin }): Promise<unknown>;
+export async function loadBenchExport(params: { scope: "bank"; origin?: BenchOrigin }): Promise<unknown>;
 export async function loadBenchExport(params: {
   scope: BenchExportScope;
   category?: string;
   dataset_id?: string;
+  origin?: BenchOrigin;
 }): Promise<unknown> {
   const query = new URLSearchParams();
   query.set("scope", params.scope);
@@ -365,6 +366,8 @@ export async function loadBenchExport(params: {
     }
     query.set("category", params.category);
     query.set("dataset_id", params.dataset_id);
+  } else if (params.origin) {
+    query.set("origin", params.origin);
   }
   return sendAuth(`/v1/admin/bench/export?${query.toString()}`, { method: "GET" }, true);
 }
@@ -475,6 +478,7 @@ export async function postBenchRun(body: {
   dataset_id?: string;
   search_effort?: SearchEffort;
   engine_ref?: string;
+  origin?: BenchOrigin;
 }): Promise<BenchRunResult> {
   const raw = await sendAuth(
     "/v1/admin/bench/run",
