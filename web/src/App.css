@@ -551,6 +551,16 @@ table.plan td.empty-slot {
   cursor: context-menu;
 }
 
+.admin-restaurant {
+  cursor: context-menu;
+}
+
+.admin-planning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .admin-toast {
   position: fixed;
   bottom: 24px;
@@ -563,6 +573,19 @@ table.plan td.empty-slot {
   background: #1a1a1a;
   color: #fff;
   box-shadow: 0 8px 20px rgb(0 0 0 / 18%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-toast-action {
+  border: 1px solid #fff;
+  background: transparent;
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
 }
 
 .admin-pill {
@@ -1653,4 +1676,67 @@ table.plan tr.me th.name {
 .contract-off {
   color: #b42318;
   font-weight: 650;
+}
+
+.bench-import-popup h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.bench-import-preview {
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  background: #f7f8fa;
+}
+
+.bench-import-team {
+  margin-bottom: 8px;
+}
+
+.bench-import-team ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.bench-import-checks {
+  border: 0;
+  margin: 12px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bench-import-checks legend {
+  font-weight: 650;
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.bench-import-checks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.bench-import-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0 4px;
+  font-weight: 650;
+}
+
+.bench-import-field input,
+.bench-import-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfd3d8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-weight: 400;
 }

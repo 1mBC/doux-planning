@@ -58,11 +58,15 @@ export type BenchVersionEfforts = {
   maximal: BenchVersionCell | null;
 };
 
+export type BenchOrigin = "catalogue" | "imported";
+
 export type BenchVersionDataset = {
   category: string;
   id: string;
   name: string;
   challenge_fr: string;
+  origin: BenchOrigin;
+  comment: string | null;
   manual: { global: number | null } | null;
   by_ref: Record<string, BenchVersionEfforts>;
 };
@@ -140,6 +144,26 @@ function parseNullableNumber(value: unknown, path: string): number | null {
     throw new PayloadError(`clé invalide : ${path}`);
   }
   return value;
+}
+
+function parseBenchOrigin(value: unknown, path: string): BenchOrigin {
+  if (value === undefined || value === null) {
+    return "catalogue";
+  }
+  if (value === "catalogue" || value === "imported") {
+    return value;
+  }
+  throw new PayloadError(`origin inattendu : ${path}`);
+}
+
+function parseBenchComment(value: unknown, path: string): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new PayloadError(`clé invalide : ${path}`);
+  }
+  return value === "" ? null : value;
 }
 
 function parseEngineRef(obj: Record<string, unknown>, path: string): string {
@@ -398,6 +422,8 @@ export function parseBenchVersions(value: unknown): BenchVersions {
         id: requireString(item, "id", path),
         name: requireString(item, "name", path),
         challenge_fr: requireString(item, "challenge_fr", path),
+        origin: parseBenchOrigin(item.origin, `${path}.origin`),
+        comment: parseBenchComment(item.comment, `${path}.comment`),
         manual,
         by_ref,
       };

@@ -89,7 +89,7 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 - `/register` : bascule **Entreprise** / **Salarié**. Entreprise → `{ kind: company, email, password }` seulement. Salarié → code → `GET /v1/invites/{company_code}` → choisir une fiche (`id`, `name`, `role`, `team`) → `{ kind: employee, company_code, employee_id, email, password }` (pas de token).
 - QR : `/register?company_code=…&employee_token=…` — kind salarié verrouillé, pas de liste, POST avec `employee_token` (pas d’`employee_id`).
 - Password ≥ 8. Afficher `detail` tel quel. Pas de « mot de passe oublié ».
-- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/generate/jobs/{id}`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`, `GET /v1/admin/generates`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
+- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/generate/jobs/{id}`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`, `GET /v1/admin/generates`, `GET /v1/admin/restaurants/{id}/import-preview`, `POST /v1/admin/bench/import`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
 - Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 n’empêche pas l’exemple.
 - Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`. Employee : lien **Planning** → `/planning`. Lien **Admin** seulement si `me.admin`.
 - Sans session : login/register **et** `/exemple`. La grille d’exemple n’est pas derrière le login.
@@ -435,7 +435,7 @@ Version `0.55.0`.
 
 ### 46. Admin historique (note, voir, se connecter)
 
-Suivre `contracts/domain/admin-historique.md` UI (gagne) — le suivre, ne pas le modifier. File 71/72 hors slice.
+Suivre `contracts/domain/admin-historique.md` UI (gagne) — le suivre, ne pas le modifier. File 72 hors slice. Import = §47.
 
 - `/admin` table existante **plus** colonnes **Note** (après Effort) et **Planning** (dernière). Ordre : Heure, Email, Restaurant, Équipe, Effort, Note, Durée, Moteur, Warnings, Planning. `formatCycleNote(score_global)`. **Voir** inactif si `restaurant_id` null.
 - Parser `AdminGenerateEntry` : `restaurant_id: string | null`, `score_global: number | null`. Clés absentes (Infra pas encore mergé) → null, pas de crash.
@@ -446,6 +446,20 @@ Suivre `contracts/domain/admin-historique.md` UI (gagne) — le suivre, ne pas l
 - Hover facts, en-têtes jour, sélecteur moteur : inchangés.
 
 Version `0.56.0`.
+
+### 47. Import resto vers le banc
+
+Suivre `contracts/domain/bench-import.md` UI (gagne) — le suivre, ne pas le modifier. File 72 (`…` / filtre / DELETE) hors slice. File 70 (Note / Voir / clic droit email) inchangé.
+
+- Clic droit **nom restaurant** (`preventDefault`) **et** bouton **Au banc** dans Planning, à côté de Voir → modal (`overlay-backdrop` + `overlay`).
+- `restaurant_id` null → pas de popup, toast `Restaurant introuvable.`
+- Clic droit **email** reste mint impersonate + copie `url` (file 70). Ne pas voler ce geste.
+- Popup : en-tête nom + email ; GET preview (encadré **complet ?** par équipe : prêt / manuel publié / computes ; `generate_count`) ; si Infra pas là / HTTP erreur → `detail` dans le popup, pas de crash de `/admin` ; 4 cases défaut **cochées** (Salle, Cuisine, Dernier planning manuel publié, Computes déjà publiés) ; **Note manuel /10** optionnelle (input number 0–10, pas de 0,1 forcé, vide = pas d’override) + aide « Si le planning à la main n'est pas complet. » ; **Commentaire** textarea optionnel ; Annuler / **Importer**.
+- POST `{ restaurant_id, include_salle, include_cuisine, include_manuel, include_runs, manual_score, comment }` — les 4 bools **toujours** envoyés (défaut UI true). Vide note → `manual_score: null`. Vide commentaire (trim) → `comment: null`.
+- 200 → fermer, toast « Jeu importé. » + bouton `go("/admin/bench")`. Erreur → `detail`.
+- Parser `/versions` datasets : `origin` / `comment` si présents ; absents → `origin: "catalogue"`, `comment: null`. Pas de chrome `…` / Tous|IA|Manuels. Tableau Banc garde **Défi** + **Lancer**.
+
+Version `0.57.0`.
 
 ## Risks / Trade-offs
 

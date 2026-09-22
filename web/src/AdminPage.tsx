@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import {
   copyToClipboard,
   effortLabel,
@@ -6,20 +6,238 @@ import {
   loadAdminGenerates,
   loadAdminRestaurantContext,
   loadAdminRestaurantCycles,
+  loadImportPreview,
   loadLiveEngine,
   mintImpersonateLink,
   parisClock,
+  postBenchImport,
   putLiveEngine,
   teamLabel,
   type AdminGenerateEntry,
+  type ImportPreview,
+  type ImportPreviewTeam,
   type LiveEngine,
 } from "./admin";
+import { PayloadError } from "./api";
 import { formatCycleNote, formatSolveDuration, warningWhen } from "./format";
 import { factSeverityLabel, factTitle, formatFactLine } from "./scoreFacts";
 import { ApiHttpError } from "./sandbox";
 import { go } from "./AuthScreens";
 import { PublishedPlanning } from "./PublishedPlanning";
 import type { ScoreFact } from "./types";
+
+type AdminToast = {
+  text: string;
+  action?: { label: string; path: string };
+};
+
+type BenchImportTarget = {
+  restaurant_id: string;
+  restaurant_name: string;
+  email: string;
+};
+
+function yesNo(value: boolean): string {
+  return value ? "oui" : "non";
+}
+
+function TeamImportPreview({ team, label }: { team: ImportPreviewTeam; label: string }) {
+  return (
+    <div className="bench-import-team">
+      <strong>{label}</strong>
+      <ul>
+        <li>Prêt : {yesNo(team.ready)}</li>
+        <li>Manuel publié : {yesNo(team.manuel_published)}</li>
+        <li>
+          Computes : Minimal {yesNo(team.computes_published.minimal)} · Optimisé{" "}
+          {yesNo(team.computes_published.optimized)} · Maximal {yesNo(team.computes_published.maximal)}
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function BenchImportPopup({
+  target,
+  onClose,
+  onImported,
+}: {
+  target: BenchImportTarget;
+  onClose: () => void;
+  onImported: () => void;
+}) {
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [includeSalle, setIncludeSalle] = useState(true);
+  const [includeCuisine, setIncludeCuisine] = useState(true);
+  const [includeManuel, setIncludeManuel] = useState(true);
+  const [includeRuns, setIncludeRuns] = useState(true);
+  const [manualScore, setManualScore] = useState("");
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreview(null);
+    setPreviewError(null);
+    loadImportPreview(target.restaurant_id)
+      .then((next) => {
+        if (!cancelled) {
+          setPreview(next);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setPreviewError(
+            err instanceof ApiHttpError || err instanceof PayloadError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : "erreur inattendue",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [target.restaurant_id]);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    const trimmedScore = manualScore.trim();
+    let score: number | null = null;
+    if (trimmedScore !== "") {
+      const parsed = Number(trimmedScore);
+      score = Number.isFinite(parsed) ? parsed : null;
+    }
+    const trimmedComment = comment.trim();
+    setBusy(true);
+    setSubmitError(null);
+    try {
+      await postBenchImport({
+        restaurant_id: target.restaurant_id,
+        include_salle: includeSalle,
+        include_cuisine: includeCuisine,
+        include_manuel: includeManuel,
+        include_runs: includeRuns,
+        manual_score: score,
+        comment: trimmedComment === "" ? null : trimmedComment,
+      });
+      onImported();
+    } catch (err: unknown) {
+      setSubmitError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="overlay-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="overlay bench-import-popup"
+        role="dialog"
+        aria-labelledby="bench-import-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h3 id="bench-import-title">{target.restaurant_name || "Sans nom"}</h3>
+        <p className="sub">{target.email}</p>
+        <section className="bench-import-preview" aria-label="complet ?">
+          <h4>complet ?</h4>
+          {previewError ? (
+            <p className="error" role="alert">
+              {previewError}
+            </p>
+          ) : preview ? (
+            <>
+              <TeamImportPreview team={preview.salle} label="Salle" />
+              <TeamImportPreview team={preview.cuisine} label="Cuisine" />
+              <p>Generates : {preview.generate_count}</p>
+            </>
+          ) : (
+            <p className="sub">Chargement du résumé…</p>
+          )}
+        </section>
+        <form onSubmit={(event) => void onSubmit(event)}>
+          <fieldset className="bench-import-checks">
+            <legend>Inclure</legend>
+            <label>
+              <input
+                type="checkbox"
+                checked={includeSalle}
+                onChange={(event) => setIncludeSalle(event.target.checked)}
+              />
+              Salle
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={includeCuisine}
+                onChange={(event) => setIncludeCuisine(event.target.checked)}
+              />
+              Cuisine
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={includeManuel}
+                onChange={(event) => setIncludeManuel(event.target.checked)}
+              />
+              Dernier planning manuel publié
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={includeRuns}
+                onChange={(event) => setIncludeRuns(event.target.checked)}
+              />
+              Computes déjà publiés
+            </label>
+          </fieldset>
+          <label className="bench-import-field">
+            Note manuel /10
+            <input
+              type="number"
+              min={0}
+              max={10}
+              step="any"
+              inputMode="decimal"
+              value={manualScore}
+              onChange={(event) => setManualScore(event.target.value)}
+            />
+          </label>
+          <p className="sub">Si le planning à la main n'est pas complet.</p>
+          <label className="bench-import-field">
+            Commentaire
+            <textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} />
+          </label>
+          {submitError ? (
+            <p className="error" role="alert">
+              {submitError}
+            </p>
+          ) : null}
+          <div className="auth-row">
+            <button type="button" className="choice" onClick={onClose}>
+              Annuler
+            </button>
+            <button type="submit" className="choice active" disabled={busy}>
+              {busy ? "Import…" : "Importer"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 function FactCard({ fact }: { fact: ScoreFact }) {
   return (
@@ -150,7 +368,8 @@ export function AdminPage() {
   const [liveEngine, setLiveEngine] = useState<LiveEngine | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [engineError, setEngineError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<AdminToast | null>(null);
+  const [importTarget, setImportTarget] = useState<BenchImportTarget | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -191,23 +410,44 @@ export function AdminPage() {
     if (!toast) {
       return;
     }
-    const timer = window.setTimeout(() => setToast(null), 4000);
+    const timer = window.setTimeout(() => setToast(null), toast.action ? 10000 : 4000);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  function showToast(text: string) {
+    setToast({ text });
+  }
+
+  function openBenchImport(entry: AdminGenerateEntry) {
+    if (entry.restaurant_id == null) {
+      showToast("Restaurant introuvable.");
+      return;
+    }
+    setImportTarget({
+      restaurant_id: entry.restaurant_id,
+      restaurant_name: entry.restaurant_name,
+      email: entry.email,
+    });
+  }
 
   async function onEmailContextMenu(event: MouseEvent<HTMLTableCellElement>, entry: AdminGenerateEntry) {
     event.preventDefault();
     if (entry.restaurant_id == null) {
-      setToast("Restaurant introuvable.");
+      showToast("Restaurant introuvable.");
       return;
     }
     try {
       const url = await mintImpersonateLink(entry.restaurant_id);
       await copyToClipboard(url);
-      setToast("Lien copié — ouvre-le en navigation privée.");
+      showToast("Lien copié — ouvre-le en navigation privée.");
     } catch (err: unknown) {
-      setToast(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+      showToast(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     }
+  }
+
+  function onRestaurantContextMenu(event: MouseEvent<HTMLTableCellElement>, entry: AdminGenerateEntry) {
+    event.preventDefault();
+    openBenchImport(entry);
   }
 
   if (error) {
@@ -272,7 +512,12 @@ export function AdminPage() {
                     <td className="admin-email" onContextMenu={(event) => void onEmailContextMenu(event, entry)}>
                       {entry.email}
                     </td>
-                    <td>{entry.restaurant_name || "—"}</td>
+                    <td
+                      className="admin-restaurant"
+                      onContextMenu={(event) => onRestaurantContextMenu(event, entry)}
+                    >
+                      {entry.restaurant_name || "—"}
+                    </td>
                     <td>{teamLabel(entry.team)}</td>
                     <td>{effortLabel(entry.search_effort)}</td>
                     <td>{formatCycleNote(entry.score_global)}</td>
@@ -285,18 +530,23 @@ export function AdminPage() {
                       </div>
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="choice"
-                        disabled={entry.restaurant_id == null}
-                        onClick={() => {
-                          if (entry.restaurant_id) {
-                            go("/admin/planning/" + entry.restaurant_id);
-                          }
-                        }}
-                      >
-                        Voir
-                      </button>
+                      <div className="admin-planning-actions">
+                        <button
+                          type="button"
+                          className="choice"
+                          disabled={entry.restaurant_id == null}
+                          onClick={() => {
+                            if (entry.restaurant_id) {
+                              go("/admin/planning/" + entry.restaurant_id);
+                            }
+                          }}
+                        >
+                          Voir
+                        </button>
+                        <button type="button" className="choice" onClick={() => openBenchImport(entry)}>
+                          Au banc
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -305,10 +555,38 @@ export function AdminPage() {
           </section>
         ))
       )}
+      {importTarget ? (
+        <BenchImportPopup
+          target={importTarget}
+          onClose={() => setImportTarget(null)}
+          onImported={() => {
+            setImportTarget(null);
+            setToast({
+              text: "Jeu importé.",
+              action: { label: "Ouvrir le banc", path: "/admin/bench" },
+            });
+          }}
+        />
+      ) : null}
       {toast ? (
-        <p className="admin-toast" role="status">
-          {toast}
-        </p>
+        <div className="admin-toast" role="status">
+          {toast.text}
+          {toast.action ? (
+            <button
+              type="button"
+              className="admin-toast-action"
+              onClick={() => {
+                const path = toast.action?.path;
+                setToast(null);
+                if (path) {
+                  go(path);
+                }
+              }}
+            >
+              {toast.action.label}
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </main>
   );

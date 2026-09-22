@@ -253,3 +253,10 @@
 - [x] 44.3 `/impersonate/{token}` public (me null OK, avant Login) : POST `/v1/auth/impersonate` sans Bearer ; 200 → `sessionStorage` + `/planning` ; erreur → `detail`
 - [x] 44.4 Bump `web/` to 0.56.0 (note FR : Note, voir le planning, lien de connexion)
 - [x] 44.5 Verify `npm run build` ; barre **v0.56.0** ; `/admin` Note + Voir ; impersonate route ; banc inchangé (Défi / Lancer)
+
+## 45. Import resto vers le banc
+
+- [x] 45.1 Types + GET `/v1/admin/restaurants/{id}/import-preview` + POST `/v1/admin/bench/import` (4 bools explicites, `manual_score` / `comment` null si vides) ; parser `/versions` `origin` (`catalogue`|`imported`, absent → `catalogue`) + `comment` (absent → `null`)
+- [x] 45.2 `/admin` : clic droit nom resto + bouton **Au banc** à côté de Voir → popup (preview complet ?, 4 cases ON, note /10, commentaire, Annuler / Importer) ; resto null → toast introuvable ; clic droit email impersonate inchangé ; succès toast « Jeu importé. » + bouton `/admin/bench`
+- [x] 45.3 Bump `web/` to 0.57.0 (note FR : Import resto vers le banc)
+- [x] 45.4 Verify `npm run build` ; barre **v0.57.0** ; popup cases cochées ; Note / Voir / clic droit email intacts ; banc Défi + Lancer ; pas de `…` / filtre
