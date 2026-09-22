@@ -82,7 +82,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 69 — planning manuel | `domain/manual-planning.md` ; briefs `core-manual-planning.md`, `infra-manual-planning.md`, `ui-manual-planning.md` | **landed** Core `a08c7ea` + Infra `81bd9f2` + UI `b14e2ff` (v0.55.0) |
 | 70 — historique note / voir / lien | `domain/admin-historique.md` ; briefs `infra-admin-historique.md`, `ui-admin-historique.md` | **landed** Infra `3a2ad05` + UI `0cdaed0` (v0.56.0) |
 | 71 — import resto → banc | `domain/bench-import.md` ; briefs `core-bench-import.md`, `infra-bench-import.md`, `ui-bench-import.md` | **landed** Core `396a415` + Infra `9c9802a` + UI `9784a2d` (v0.57.0) |
-| 72 — ranger le banc | `domain/bench-chrome.md` ; briefs `infra-bench-chrome.md`, `ui-bench-chrome.md` | **freeze** (après 71, pas de Core) |
+| 72 — ranger le banc | `domain/bench-chrome.md` ; briefs `infra-bench-chrome.md`, `ui-bench-chrome.md` | **landed** Infra `006cc24` + UI `921d5db` (v0.58.0) |
 
 ## Ownership git (ne pas croiser)
 
