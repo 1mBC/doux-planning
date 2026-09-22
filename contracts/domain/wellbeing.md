@@ -25,7 +25,7 @@ Wellbeing {
 - `weekend_rest_day` : case **en plus** de la radio `weekend` (pas la même question : 1 jour we ≠ we complet).  
   Tenue **par** semaine du cycle : samedi **ou** dimanche sans shift. Jour resto **fermé** = repos (dimanche fermé → déjà tenu ; case quand même posable).
 - `weekend` : **0 ou 1** choix (radio). `null` = pas de souhait we **complet**.  
-  `every_two` = un week-end sur deux, **neutre** sur la parité.  
+  `every_two` = **au moins** un week-end sur deux, **neutre** sur la parité.  
   `even` = week-end **paire** off. `odd` = week-end **impaire** off.
 - `max_services.<id>` : entier ≥ 0. **Clé absente** = pas de plafond. **0** = zéro service de ce type.
 - `max_coupures_per_week` : entier ≥ 0, **0 autorisé**. `null` = pas de plafond.
@@ -54,7 +54,7 @@ Le restaurateur aligne ça sur le calendrier réel **lui-même**. Pas de date IS
 
 | `weekend` | Tenue |
 |---|---|
-| `every_two` | exactement **un** des deux week-ends (sam+dim) entièrement off |
+| `every_two` | **au moins un** des deux week-ends (sam+dim) entièrement off |
 | `even` | week-end **paire** (j5–6) off ; week-end impaire (j12–13) **pas** entièrement off |
 | `odd` | week-end **impaire** (j12–13) off ; week-end paire **pas** entièrement off |
 | `null` | pas de warning week-end |
