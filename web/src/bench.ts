@@ -460,8 +460,12 @@ export async function loadBenchRun(runId: string): Promise<BenchCompare> {
   return parseBenchCompare(await sendAuth(`/v1/admin/bench/runs/${encodeURIComponent(runId)}`, { method: "GET" }, true));
 }
 
-export async function loadBenchVersions(): Promise<BenchVersions> {
-  return parseBenchVersions(await sendAuth("/v1/admin/bench/versions", { method: "GET" }, true));
+export async function loadBenchVersions(origin?: BenchOrigin): Promise<BenchVersions> {
+  const path =
+    origin === undefined
+      ? "/v1/admin/bench/versions"
+      : `/v1/admin/bench/versions?origin=${encodeURIComponent(origin)}`;
+  return parseBenchVersions(await sendAuth(path, { method: "GET" }, true));
 }
 
 export async function deleteBenchDataset(category: string, datasetId: string): Promise<void> {

@@ -331,7 +331,7 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
   const title = origin === "imported" ? "Banc Manuels" : "Banc IA";
 
   async function refreshVersions() {
-    const next = await loadBenchVersions();
+    const next = await loadBenchVersions(origin);
     if (!cancelled.current) {
       setVersions(next);
     }
@@ -380,7 +380,7 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
 
   useEffect(() => {
     cancelled.current = false;
-    loadBenchVersions()
+    loadBenchVersions(origin)
       .then(async (next) => {
         if (cancelled.current) {
           return;
@@ -402,7 +402,7 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
     return () => {
       cancelled.current = true;
     };
-  }, []);
+  }, [origin]);
 
   const pageDatasets = useMemo(() => {
     return (versions?.datasets ?? []).filter((item) => item.origin === origin);
