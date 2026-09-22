@@ -83,7 +83,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 70 — historique note / voir / lien | `domain/admin-historique.md` ; briefs `infra-admin-historique.md`, `ui-admin-historique.md` | **landed** Infra `3a2ad05` + UI `0cdaed0` (v0.56.0) |
 | 71 — import resto → banc | `domain/bench-import.md` ; briefs `core-bench-import.md`, `infra-bench-import.md`, `ui-bench-import.md` | **landed** Core `396a415` + Infra `9c9802a` + UI `9784a2d` (v0.57.0) |
 | 72 — ranger le banc | `domain/bench-chrome.md` ; briefs `infra-bench-chrome.md`, `ui-bench-chrome.md` | **landed** Infra `006cc24` + UI `921d5db` (v0.58.0) |
-| 73 — repasse UI admin | `domain/admin-ui-pass.md` ; briefs `infra-admin-ui-pass.md`, `ui-admin-ui-pass.md` | freeze Infra + UI (pas de Core) |
+| 73 — repasse UI admin | `domain/admin-ui-pass.md` ; briefs `infra-admin-ui-pass.md`, `ui-admin-ui-pass.md` | **landed** Infra `df343ab` + UI `0d787f0` (v0.59.0) |
 
 ## Ownership git (ne pas croiser)
 
