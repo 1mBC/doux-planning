@@ -143,11 +143,31 @@ def _resolve_engine_ref(requested: str | None) -> str:
     return requested if requested is not None else engine_ref()
 
 
-def run_bench(
-    category: str, dataset_id: str, effort: SearchEffort, engine_ref: str | None = None
+def bench_dataset_from_json(
+    *,
+    category: str,
+    id: str,
+    name: str,
+    challenge_fr: str,
+    context: dict,
+    assignments: list,
+) -> BenchDataset:
+    state = _load_context(category, id, _omit_invite_tokens(context))
+    expected = tuple(_shift(item) for item in assignments)
+    return BenchDataset(
+        category=category,
+        id=id,
+        name=name,
+        challenge_fr=challenge_fr,
+        state=state,
+        expected=expected,
+    )
+
+
+def run_bench_on(
+    dataset: BenchDataset, effort: SearchEffort, engine_ref: str | None = None
 ) -> BenchOutcome:
     requested = _resolve_engine_ref(engine_ref)
-    dataset = load_bench_dataset(category, dataset_id)
     state = dataset.state
     published_before = dict(state.published_cycles)
     structures = tuple(item for item in expand_typical_week(state) if item.team == Team.SALLE)
@@ -169,8 +189,8 @@ def run_bench(
     expected_result = evaluate(expected_draft)
     expected_recap = cycle_recap_from_draft(expected_draft, expected_result)
     return BenchOutcome(
-        category=category,
-        id=dataset_id,
+        category=dataset.category,
+        id=dataset.id,
         search_effort=effort,
         duration_seconds=duration,
         assignments=result.assignments,
@@ -185,6 +205,12 @@ def run_bench(
     )
 
 
+def run_bench(
+    category: str, dataset_id: str, effort: SearchEffort, engine_ref: str | None = None
+) -> BenchOutcome:
+    return run_bench_on(load_bench_dataset(category, dataset_id), effort, engine_ref)
+
+
 def _listing_if_complete(dataset_dir: Path, category: str) -> BenchListing | None:
     context_path = dataset_dir / "context.json"
     expected_path = dataset_dir / "expected.json"
@@ -197,6 +223,18 @@ def _listing_if_complete(dataset_dir: Path, category: str) -> BenchListing | Non
         name=raw["name"],
         challenge_fr=raw["challenge_fr"],
     )
+
+
+def _omit_invite_tokens(raw: dict) -> dict:
+    employees = raw.get("employees")
+    if not isinstance(employees, list):
+        return raw
+    cleaned = dict(raw)
+    cleaned["employees"] = [
+        {key: value for key, value in person.items() if key != "invite_token"} if isinstance(person, dict) else person
+        for person in employees
+    ]
+    return cleaned
 
 
 def _load_context(category: str, dataset_id: str, raw: dict) -> RestaurantState:
