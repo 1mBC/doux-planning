@@ -134,6 +134,8 @@ PostgreSQL 16, SQLAlchemy 2 (sync) + Alembic, psycopg, Argon2. FastAPI handlers 
 - [Invite preview leaks first names] → Acceptable: the code is the secret, human-scale staff list.
 - [Temptation to “fix” the engine while wiring jobs] → Call `generate_cycle` / `evaluate` as-is; stop and ask if a result looks wrong.
 
+File 70 admin historique: Alembic after `20260921_0016` adds nullable `generate_logs.restaurant_id` (no FK) + `score_global` and table `impersonate_tokens`. Admin GET cycles/context reuse company serializers and 404 when the company is missing. Impersonate mint hashes `token_urlsafe` like sessions, TTL 15 min; consume issues a new company session and sets `consumed_at` without deleting other sessions. Absolute URL uses forwarded proto+host when both headers are present.
+
 ## Migration Plan
 
 Greenfield DB: `alembic upgrade` then seed. Rollback: drop Compose volumes; data files still hold the frozen example. No change to `define-planning-core` artifacts. Public example remains compatible with `build-planning-ui`.

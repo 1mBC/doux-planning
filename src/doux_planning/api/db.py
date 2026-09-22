@@ -132,6 +132,8 @@ class GenerateLog(Base):
     search_effort: Mapped[str | None] = mapped_column(String, nullable=True)
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     engine_ref: Mapped[str | None] = mapped_column(String, nullable=True)
+    restaurant_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    score_global: Mapped[float | None] = mapped_column(Float, nullable=True)
     warnings: Mapped[list] = mapped_column(JSONB, nullable=False)
 
 
@@ -215,6 +217,17 @@ class AuthSession(Base):
     account_id: Mapped[str] = mapped_column(String, nullable=False)
     restaurant_id: Mapped[str | None] = mapped_column(String, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ImpersonateToken(Base):
+    __tablename__ = "impersonate_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String, primary_key=True)
+    account_id: Mapped[str] = mapped_column(String, nullable=False)
+    restaurant_id: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 def normalize_database_url(url: str) -> str:

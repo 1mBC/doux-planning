@@ -8,7 +8,7 @@ from typing import Any
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -19,6 +19,7 @@ from doux_planning.api.db import (
     AuthSession,
     Company,
     EmployeeAccountRow,
+    ImpersonateToken,
     RestaurateurAccount,
     StaffFiche,
     database_url,
@@ -39,6 +40,7 @@ from doux_planning.types import Team
 
 PASSWORD_HASHER = PasswordHasher()
 SESSION_TTL = timedelta(days=30)
+IMPERSONATE_TTL = timedelta(minutes=15)
 MIN_PASSWORD_LENGTH = 8
 DETAIL_INVALID_FIELDS = "Champs invalides."
 DETAIL_INVALID_INVITE = "Code entreprise ou jeton invalide."
@@ -50,6 +52,8 @@ DETAIL_EMPLOYEE_ONLY = "Action réservée au salarié."
 DETAIL_EMAIL_TAKEN = "Cet email est déjà utilisé."
 DETAIL_FICHE_LINKED = "Cette fiche a déjà un compte."
 DETAIL_COMPANY_MISSING = "Entreprise introuvable."
+DETAIL_RESTAURANT_MISSING = "Restaurant introuvable."
+DETAIL_IMPERSONATE = "Lien expiré ou déjà utilisé."
 DETAIL_FICHE_MISSING = "Fiche introuvable."
 DETAIL_UNAFFILIATED = "Vous n'êtes rattaché à aucun restaurant."
 DETAIL_ALREADY_AFFILIATED = "Vous êtes déjà rattaché à un restaurant."
@@ -528,3 +532,78 @@ def link_account(body: dict[str, Any], authorization: str | None) -> dict[str, A
         raise _map_link_error(exc) from exc
     except IntegrityError as exc:
         raise HTTPException(status_code=409, detail=DETAIL_FICHE_LINKED) from exc
+
+
+def _absolute_origin(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto")
+    host = request.headers.get("x-forwarded-host")
+    if proto and host:
+        return f"{proto}://{host}".rstrip("/")
+    return str(request.base_url).rstrip("/")
+
+
+def mint_impersonate(authorization: str | None, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    require_admin(authorization)
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    restaurant_id = body.get("restaurant_id")
+    if not isinstance(restaurant_id, str) or not restaurant_id.strip():
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    restaurant_id = restaurant_id.strip()
+    opaque = secrets.token_urlsafe(32)
+    expires_at = _now() + IMPERSONATE_TTL
+    with session_scope() as db:
+        company = db.get(Company, restaurant_id)
+        account = db.scalars(
+            select(RestaurateurAccount).where(RestaurateurAccount.restaurant_id == restaurant_id)
+        ).first()
+        if company is None or account is None:
+            raise HTTPException(status_code=404, detail=DETAIL_RESTAURANT_MISSING)
+        db.add(
+            ImpersonateToken(
+                token_hash=_hash_token(opaque),
+                account_id=account.id,
+                restaurant_id=restaurant_id,
+                expires_at=expires_at,
+                consumed_at=None,
+                created_at=_now(),
+            )
+        )
+    return {
+        "url": f"{_absolute_origin(request)}/impersonate/{opaque}",
+        "expires_at": expires_at.isoformat(),
+    }
+
+
+def consume_impersonate(body: dict[str, Any]) -> dict[str, Any]:
+    require_database()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    token = body.get("token")
+    if not isinstance(token, str) or not token.strip():
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    token_hash = _hash_token(token.strip())
+    with session_scope() as db:
+        row = db.get(ImpersonateToken, token_hash)
+        if row is None:
+            raise HTTPException(status_code=401, detail=DETAIL_IMPERSONATE)
+        expires = row.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if row.consumed_at is not None or expires <= _now():
+            raise HTTPException(status_code=401, detail=DETAIL_IMPERSONATE)
+        account = db.get(RestaurateurAccount, row.account_id)
+        if account is None:
+            raise HTTPException(status_code=401, detail=DETAIL_IMPERSONATE)
+        row.consumed_at = _now()
+        session_token = _issue_session(
+            db, kind="company", account_id=account.id, restaurant_id=row.restaurant_id
+        )
+        me = _me_payload(
+            kind="company",
+            email=account.email,
+            restaurant_id=row.restaurant_id,
+            employee_id=None,
+            admin=bool(account.is_admin),
+        )
+    return {"token": session_token, "me": me}

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, Header, HTTPException
+from fastapi import Body, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -39,6 +39,13 @@ def auth_login(body: dict[str, Any]) -> dict:
     from doux_planning.api.auth import login
 
     return login(body)
+
+
+@app.post("/v1/auth/impersonate")
+def auth_impersonate(body: dict[str, Any]) -> dict:
+    from doux_planning.api.auth import consume_impersonate
+
+    return consume_impersonate(body)
 
 
 @app.post("/v1/auth/logout", status_code=204)
@@ -144,6 +151,35 @@ def admin_generates(authorization: str | None = Header(default=None)) -> dict:
     from doux_planning.api.generate import list_generate_logs
 
     return list_generate_logs(authorization)
+
+
+@app.get("/v1/admin/restaurants/{restaurant_id}/cycles")
+def admin_restaurant_cycles(
+    restaurant_id: str, authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.generate import get_admin_cycles
+
+    return get_admin_cycles(authorization, restaurant_id)
+
+
+@app.get("/v1/admin/restaurants/{restaurant_id}/context")
+def admin_restaurant_context(
+    restaurant_id: str, authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.context import get_admin_context
+
+    return get_admin_context(authorization, restaurant_id)
+
+
+@app.post("/v1/admin/impersonate")
+def admin_impersonate(
+    body: dict[str, Any],
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    from doux_planning.api.auth import mint_impersonate
+
+    return mint_impersonate(authorization, body, request)
 
 
 @app.get("/v1/admin/live-engine")
@@ -483,6 +519,18 @@ def _mount_spa(application: FastAPI) -> None:
     )
     application.add_api_route(
         "/admin/bench/{category}/{dataset_id}/{search_effort}",
+        _index,
+        methods=["GET"],
+        include_in_schema=False,
+    )
+    application.add_api_route(
+        "/impersonate/{token}",
+        _index,
+        methods=["GET"],
+        include_in_schema=False,
+    )
+    application.add_api_route(
+        "/admin/planning/{restaurant_id}",
         _index,
         methods=["GET"],
         include_in_schema=False,

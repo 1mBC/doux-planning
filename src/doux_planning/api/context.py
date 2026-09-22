@@ -13,6 +13,8 @@ from doux_planning.api.auth import (
     DETAIL_INVALID_FIELDS,
     DETAIL_FICHE_LINKED,
     DETAIL_FICHE_MISSING,
+    DETAIL_RESTAURANT_MISSING,
+    require_admin,
     require_company_restaurant_id,
     require_database,
     _fiche_to_employee,
@@ -507,6 +509,15 @@ def _clear_team_live(restaurant_id: str, team: Team) -> None:
 def get_context(authorization: str | None) -> dict[str, Any]:
     require_database()
     restaurant_id = require_company_restaurant_id(authorization)
+    company, fiches = _load_company(restaurant_id)
+    return serialize_context(_state_from_rows(company, fiches))
+
+
+def get_admin_context(authorization: str | None, restaurant_id: str) -> dict[str, Any]:
+    require_admin(authorization)
+    with session_scope() as db:
+        if db.get(Company, restaurant_id) is None:
+            raise HTTPException(status_code=404, detail=DETAIL_RESTAURANT_MISSING)
     company, fiches = _load_company(restaurant_id)
     return serialize_context(_state_from_rows(company, fiches))
 
