@@ -265,4 +265,4 @@
 
 - [x] 46.1 `/admin/bench` : exports globaux dans Lancer ; filtre Tous | IA | Manuels ; retirer Défi / Lancer ; cellule Jeu hover + menu `…` (3 lancers, exporter, supprimer confirm → DELETE `/versions`)
 - [x] 46.2 Bump `web/` to 0.58.0 (note FR : Menu jeu, filtre IA / manuels)
-- [ ] 46.3 Verify `npm run build` ; barre **v0.58.0** ; tableau sans Défi/Lancer ; filtre Manuels masque catalogue ; Historique + Au banc intacts
+- [x] 46.3 Verify `npm run build` ; barre **v0.58.0** ; tableau sans Défi/Lancer ; filtre Manuels masque catalogue ; Historique + Au banc intacts
