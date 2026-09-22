@@ -1,4 +1,4 @@
-import { isRecord, parseFactsPrefer, PayloadError, requireArray, requireString } from "./api";
+import { isRecord, parseFactsPrefer, PayloadError, requireArray, requireNumber, requireString } from "./api";
 import { sendAuth } from "./auth";
 import { parseRestaurantContext, type RestaurantContext } from "./context";
 import { parseCyclesPayload, type CyclesPayload, type SearchEffort } from "./generate";
@@ -121,6 +121,103 @@ export async function loadAdminRestaurantCycles(restaurantId: string): Promise<C
 export async function loadAdminRestaurantContext(restaurantId: string): Promise<RestaurantContext> {
   return parseRestaurantContext(
     await sendAuth(`/v1/admin/restaurants/${encodeURIComponent(restaurantId)}/context`, { method: "GET" }, true),
+  );
+}
+
+export type ImportPreviewComputes = {
+  minimal: boolean;
+  optimized: boolean;
+  maximal: boolean;
+};
+
+export type ImportPreviewTeam = {
+  ready: boolean;
+  manuel_published: boolean;
+  computes_published: ImportPreviewComputes;
+};
+
+export type ImportPreview = {
+  restaurant_id: string;
+  restaurant_name: string;
+  email: string;
+  salle: ImportPreviewTeam;
+  cuisine: ImportPreviewTeam;
+  generate_count: number;
+};
+
+export type BenchImportBody = {
+  restaurant_id: string;
+  include_salle: boolean;
+  include_cuisine: boolean;
+  include_manuel: boolean;
+  include_runs: boolean;
+  manual_score: number | null;
+  comment: string | null;
+};
+
+function requireBoolean(obj: Record<string, unknown>, key: string, path: string): boolean {
+  const value = obj[key];
+  if (typeof value !== "boolean") {
+    throw new PayloadError(`clé invalide : ${path}.${key}`);
+  }
+  return value;
+}
+
+function parseImportPreviewComputes(value: unknown, path: string): ImportPreviewComputes {
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  return {
+    minimal: requireBoolean(value, "minimal", path),
+    optimized: requireBoolean(value, "optimized", path),
+    maximal: requireBoolean(value, "maximal", path),
+  };
+}
+
+function parseImportPreviewTeam(value: unknown, path: string): ImportPreviewTeam {
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  return {
+    ready: requireBoolean(value, "ready", path),
+    manuel_published: requireBoolean(value, "manuel_published", path),
+    computes_published: parseImportPreviewComputes(value.computes_published, `${path}.computes_published`),
+  };
+}
+
+export function parseImportPreview(value: unknown): ImportPreview {
+  if (!isRecord(value)) {
+    throw new PayloadError("réponse import-preview invalide");
+  }
+  return {
+    restaurant_id: requireString(value, "restaurant_id", "import-preview"),
+    restaurant_name: requireString(value, "restaurant_name", "import-preview"),
+    email: requireString(value, "email", "import-preview"),
+    salle: parseImportPreviewTeam(value.salle, "import-preview.salle"),
+    cuisine: parseImportPreviewTeam(value.cuisine, "import-preview.cuisine"),
+    generate_count: requireNumber(value, "generate_count", "import-preview"),
+  };
+}
+
+export async function loadImportPreview(restaurantId: string): Promise<ImportPreview> {
+  return parseImportPreview(
+    await sendAuth(
+      `/v1/admin/restaurants/${encodeURIComponent(restaurantId)}/import-preview`,
+      { method: "GET" },
+      true,
+    ),
+  );
+}
+
+export async function postBenchImport(body: BenchImportBody): Promise<void> {
+  await sendAuth(
+    "/v1/admin/bench/import",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    true,
   );
 }
 
