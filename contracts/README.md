@@ -80,7 +80,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 67 — delete salarié | `domain/delete-employee.md` ; briefs `core-delete-employee.md`, `infra-delete-employee.md`, `ui-delete-employee.md` | **landed** Core `d60e772` + Infra `7d8ff2f` + UI `f12f172` (v0.53.0) |
 | 68 — min créneau / service | `domain/min-shift-per-service.md` ; briefs `core-min-shift-per-service.md`, `infra-min-shift-per-service.md`, `ui-min-shift-per-service.md` | **landed** Core `885941e` + Infra `f37c816` + UI `3a60412` (v0.54.0) |
 | 69 — planning manuel | `domain/manual-planning.md` ; briefs `core-manual-planning.md`, `infra-manual-planning.md`, `ui-manual-planning.md` | **landed** Core `a08c7ea` + Infra `81bd9f2` + UI `b14e2ff` (v0.55.0) |
-| 70 — historique note / voir / lien | `domain/admin-historique.md` ; briefs `infra-admin-historique.md`, `ui-admin-historique.md` | **freeze** (pas de Core) |
+| 70 — historique note / voir / lien | `domain/admin-historique.md` ; briefs `infra-admin-historique.md`, `ui-admin-historique.md` | **landed** Infra `3a2ad05` + UI `0cdaed0` (v0.56.0) |
 | 71 — import resto → banc | `domain/bench-import.md` ; briefs `core-bench-import.md`, `infra-bench-import.md`, `ui-bench-import.md` | **freeze** (après 70) |
 | 72 — ranger le banc | `domain/bench-chrome.md` ; briefs `infra-bench-chrome.md`, `ui-bench-chrome.md` | **freeze** (après 71, pas de Core) |
 
