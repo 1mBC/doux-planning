@@ -266,3 +266,10 @@
 - [x] 46.1 `/admin/bench` : exports globaux dans Lancer ; filtre Tous | IA | Manuels ; retirer Défi / Lancer ; cellule Jeu hover + menu `…` (3 lancers, exporter, supprimer confirm → DELETE `/versions`)
 - [x] 46.2 Bump `web/` to 0.58.0 (note FR : Menu jeu, filtre IA / manuels)
 - [x] 46.3 Verify `npm run build` ; barre **v0.58.0** ; tableau sans Défi/Lancer ; filtre Manuels masque catalogue ; Historique + Au banc intacts
+
+## 47. Admin UI pass (note encart, actions, deux bancs)
+
+- [x] 47.1 `/admin` : colonnes Heure, Email, **Actions**, Restaurant, Équipe, Effort, **Note**, Durée, Moteur ; plus Warnings / Planning / Voir / Au banc ; plus de clic droit email / restaurant ; Actions = `impersonate` | `exporter vers le banc` (disabled si `restaurant_id` null, jamais `window.open`) ; note = `.bench-cell` + `.bench-delta-bubble` teintée `noteHue`/`noteTint` (pas `deltaBackground`) ; clic note → `/admin/planning/{id}` ; hover **encart seulement** → `FactTip` ; toast import → `/admin/bench/manuels`
+- [x] 47.2 Nav **Historique des computes | Banc IA | Banc Manuels | Stats banc** ; `AdminNavCurrent` + `"bench-manuels"` ; `/admin/bench` = catalogue, `/admin/bench/manuels` = imported (matcher avant le fallback compare) ; plus de filtre Tous | IA | Manuels ; `h1` Banc IA / Banc Manuels ; lancer all/category/gaps + exports `below_manuel`/`bank` envoient `origin` ; Banc Manuels cache le lanceur par catégorie ; run/compare : aucun Banc `disabled`
+- [x] 47.3 Bump `web/` to 0.59.0 (note FR : Note colorée, actions, deux pages de banc)
+- [x] 47.4 Verify `npm run build` ; barre **v0.59.0** ; `/admin` Actions après Email, note cliquable, hover note only ; `/admin/bench` sans importés ; `/admin/bench/manuels` sans catalogue

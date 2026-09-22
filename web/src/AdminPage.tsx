@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   copyToClipboard,
   effortLabel,
@@ -23,6 +23,7 @@ import { formatCycleNote, formatSolveDuration, warningWhen } from "./format";
 import { factSeverityLabel, factTitle, formatFactLine } from "./scoreFacts";
 import { ApiHttpError } from "./sandbox";
 import { go } from "./AuthScreens";
+import { noteTint } from "./cycleRecaps";
 import { PublishedPlanning } from "./PublishedPlanning";
 import type { ScoreFact } from "./types";
 
@@ -266,6 +267,31 @@ function FactTip({ entry }: { entry: AdminGenerateEntry }) {
   );
 }
 
+function AdminNoteCell({ entry }: { entry: AdminGenerateEntry }) {
+  const restaurantId = entry.restaurant_id;
+  return (
+    <div className="admin-note-cell">
+      <button
+        type="button"
+        className="bench-cell bench-delta-cell-wrap"
+        disabled={restaurantId == null}
+        onClick={() => {
+          if (restaurantId) {
+            go("/admin/planning/" + restaurantId);
+          }
+        }}
+      >
+        <span className="bench-delta-bubble" style={noteTint(entry.score_global, true)}>
+          {formatCycleNote(entry.score_global)}
+        </span>
+      </button>
+      <div className="admin-tip" role="tooltip">
+        <FactTip entry={entry} />
+      </div>
+    </div>
+  );
+}
+
 function AdminChrome({ children }: { children?: ReactNode }) {
   return (
     <>
@@ -275,9 +301,9 @@ function AdminChrome({ children }: { children?: ReactNode }) {
   );
 }
 
-export type AdminNavCurrent = "history" | "bench" | "bench-stats";
+export type AdminNavCurrent = "history" | "bench" | "bench-manuels" | "bench-stats";
 
-export function AdminNav({ current }: { current: AdminNavCurrent }) {
+export function AdminNav({ current }: { current?: AdminNavCurrent }) {
   return (
     <nav className="admin-nav" aria-label="Admin">
       <button
@@ -294,7 +320,15 @@ export function AdminNav({ current }: { current: AdminNavCurrent }) {
         disabled={current === "bench"}
         onClick={() => go("/admin/bench")}
       >
-        Banc
+        Banc IA
+      </button>
+      <button
+        type="button"
+        className={current === "bench-manuels" ? "choice active" : "choice"}
+        disabled={current === "bench-manuels"}
+        onClick={() => go("/admin/bench/manuels")}
+      >
+        Banc Manuels
       </button>
       <button
         type="button"
@@ -420,7 +454,6 @@ export function AdminPage() {
 
   function openBenchImport(entry: AdminGenerateEntry) {
     if (entry.restaurant_id == null) {
-      showToast("Restaurant introuvable.");
       return;
     }
     setImportTarget({
@@ -430,10 +463,8 @@ export function AdminPage() {
     });
   }
 
-  async function onEmailContextMenu(event: MouseEvent<HTMLTableCellElement>, entry: AdminGenerateEntry) {
-    event.preventDefault();
+  async function onImpersonate(entry: AdminGenerateEntry) {
     if (entry.restaurant_id == null) {
-      showToast("Restaurant introuvable.");
       return;
     }
     try {
@@ -443,11 +474,6 @@ export function AdminPage() {
     } catch (err: unknown) {
       showToast(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     }
-  }
-
-  function onRestaurantContextMenu(event: MouseEvent<HTMLTableCellElement>, entry: AdminGenerateEntry) {
-    event.preventDefault();
-    openBenchImport(entry);
   }
 
   if (error) {
@@ -495,59 +521,48 @@ export function AdminPage() {
                 <tr>
                   <th>Heure</th>
                   <th>Email</th>
+                  <th>Actions</th>
                   <th>Restaurant</th>
                   <th>Équipe</th>
                   <th>Effort</th>
                   <th>Note</th>
                   <th>Durée</th>
                   <th>Moteur</th>
-                  <th>Warnings</th>
-                  <th>Planning</th>
                 </tr>
               </thead>
               <tbody>
                 {group.entries.map((entry) => (
                   <tr key={entry.id}>
                     <td>{parisClock(entry.created_at)}</td>
-                    <td className="admin-email" onContextMenu={(event) => void onEmailContextMenu(event, entry)}>
-                      {entry.email}
-                    </td>
-                    <td
-                      className="admin-restaurant"
-                      onContextMenu={(event) => onRestaurantContextMenu(event, entry)}
-                    >
-                      {entry.restaurant_name || "—"}
-                    </td>
-                    <td>{teamLabel(entry.team)}</td>
-                    <td>{effortLabel(entry.search_effort)}</td>
-                    <td>{formatCycleNote(entry.score_global)}</td>
-                    <td>{formatSolveDuration(entry.duration_seconds)}</td>
-                    <td>{entry.engine_ref || "—"}</td>
-                    <td>
-                      <span className="admin-pill">{entry.facts.length}</span>
-                      <div className="admin-tip" role="tooltip">
-                        <FactTip entry={entry} />
-                      </div>
-                    </td>
+                    <td>{entry.email}</td>
                     <td>
                       <div className="admin-planning-actions">
                         <button
                           type="button"
                           className="choice"
                           disabled={entry.restaurant_id == null}
-                          onClick={() => {
-                            if (entry.restaurant_id) {
-                              go("/admin/planning/" + entry.restaurant_id);
-                            }
-                          }}
+                          onClick={() => void onImpersonate(entry)}
                         >
-                          Voir
+                          impersonate
                         </button>
-                        <button type="button" className="choice" onClick={() => openBenchImport(entry)}>
-                          Au banc
+                        <button
+                          type="button"
+                          className="choice"
+                          disabled={entry.restaurant_id == null}
+                          onClick={() => openBenchImport(entry)}
+                        >
+                          exporter vers le banc
                         </button>
                       </div>
                     </td>
+                    <td>{entry.restaurant_name || "—"}</td>
+                    <td>{teamLabel(entry.team)}</td>
+                    <td>{effortLabel(entry.search_effort)}</td>
+                    <td>
+                      <AdminNoteCell entry={entry} />
+                    </td>
+                    <td>{formatSolveDuration(entry.duration_seconds)}</td>
+                    <td>{entry.engine_ref || "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -563,7 +578,7 @@ export function AdminPage() {
             setImportTarget(null);
             setToast({
               text: "Jeu importé.",
-              action: { label: "Ouvrir le banc", path: "/admin/bench" },
+              action: { label: "Ouvrir le banc", path: "/admin/bench/manuels" },
             });
           }}
         />

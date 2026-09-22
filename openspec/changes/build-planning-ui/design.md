@@ -475,6 +475,18 @@ Suivre `contracts/domain/bench-chrome.md` UI (gagne sur `bench.md` colonnes Lanc
 
 Version `0.58.0`.
 
+### 49. Repasse UI admin (note encart, actions, deux bancs)
+
+Suivre `contracts/domain/admin-ui-pass.md` UI (gagne sur le chrome table de `admin-historique.md` / `admin.md` et sur le filtre banc de `bench-chrome.md`) — le suivre, ne pas le modifier. Popup import file 71 inchangée. HTTP impersonate, GET planning admin, DELETE jeu, `origin` sur `/versions` : inchangés. Pas de Python.
+
+- `/admin` colonnes : Heure, Email, **Actions**, Restaurant, Équipe, Effort, **Note**, Durée, Moteur. **Plus** Warnings / Planning / Voir / Au banc. **Plus** de `onContextMenu` email / restaurant.
+- **Actions** (après Email) : `choice` **`impersonate`** | **`exporter vers le banc`**. `restaurant_id` null → les deux disabled, pas de POST. impersonate = mint + copie + toast privée (jamais `window.open`). exporter = popup file 71. Toast « Jeu importé. » + **Ouvrir le banc** → `/admin/bench/manuels`.
+- **Note** : bouton `.bench-cell` + span `.bench-delta-bubble`, texte `formatCycleNote`. Teinte `noteHue` / `noteTint` (`hue = 12 × note`), **pas** `deltaBackground`. Score null : encart sans teinte, `—`. Clic si resto → `/admin/planning/{id}`. Hover **de l’encart seulement** → `FactTip` (facts vides → `aucun warning`). Pas de `title` natif. Plus de `tr:hover .admin-tip`.
+- Nav : **Historique des computes | Banc IA | Banc Manuels | Stats banc**. `AdminNavCurrent` : `"history" | "bench" | "bench-manuels" | "bench-stats"`. Banc IA → `/admin/bench`. Banc Manuels → `/admin/bench/manuels`. Run/compare : aucun des deux Banc n’est disabled.
+- Une `BenchPage`, `origin` d’après le path (`catalogue` / `imported`). Matcher `/admin/bench/manuels` **avant** le fallback compare. `h1` = le nom de la page. Filtre client `dataset.origin`. **Plus** de Tous | IA | Manuels. Banc IA : catégories catalogue seulement. Banc Manuels : cacher le lanceur par catégorie ; « Toutes les catégories » lance les importés. `postBenchRun` all/category/gaps + exports `below_manuel`/`bank` : `origin` de la page. `scope=dataset` : pas d’`origin`.
+
+Version `0.59.0`.
+
 ## Risks / Trade-offs
 
 - [Warning messages stay English] → French severity + optional French title from `code`; always keep `message`. Do not “fix” copy in the engine in this change.

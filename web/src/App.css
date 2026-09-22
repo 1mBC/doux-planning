@@ -547,18 +547,30 @@ table.plan td.empty-slot {
   position: relative;
 }
 
-.admin-email {
-  cursor: context-menu;
-}
-
-.admin-restaurant {
-  cursor: context-menu;
-}
-
 .admin-planning-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.admin-note-cell {
+  position: relative;
+  display: inline-block;
+}
+
+.admin-note-cell .bench-cell {
+  width: auto;
+}
+
+.admin-note-cell .bench-cell:hover {
+  background: none;
+}
+
+.admin-note-cell:hover .admin-tip {
+  display: block;
+  right: auto;
+  left: 0;
+  top: 100%;
 }
 
 .admin-toast {
@@ -862,10 +874,6 @@ table.plan td.empty-slot {
   box-shadow: 0 8px 20px rgb(0 0 0 / 12%);
 }
 
-.bench-origin-filter {
-  margin-bottom: 12px;
-}
-
 .bench-cell {
   display: block;
   width: 100%;
@@ -880,6 +888,12 @@ table.plan td.empty-slot {
 
 .bench-cell:hover {
   background: #f4f7fa;
+}
+
+.bench-cell:disabled {
+  cursor: default;
+  opacity: 1;
+  color: inherit;
 }
 
 .bench-version-cell {
@@ -1118,10 +1132,6 @@ table.plan td.empty-slot {
   flex-wrap: wrap;
   gap: 8px;
   font-weight: 650;
-}
-
-.admin-table tbody tr:hover .admin-tip {
-  display: block;
 }
 
 .session-bar {
