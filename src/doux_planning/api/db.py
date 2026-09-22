@@ -186,6 +186,22 @@ class BenchRun(Base):
     trace: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
+class BenchImportedDataset(Base):
+    __tablename__ = "bench_imported_datasets"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    category: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    challenge_fr: Mapped[str] = mapped_column(String, nullable=False)
+    comment: Mapped[str | None] = mapped_column(String, nullable=True)
+    origin: Mapped[str] = mapped_column(String, nullable=False)
+    source_restaurant_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    context: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    expected: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    manual_score_override: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class EmployeeAccountRow(Base):
     __tablename__ = "employee_accounts"
     __table_args__ = (

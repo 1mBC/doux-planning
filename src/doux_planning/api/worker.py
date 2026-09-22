@@ -214,7 +214,8 @@ def _set_bench_job(job_id: str, status: str, *, error: str | None = None, run_id
 
 
 def tick_bench_job(*, run_bench_fn: GenerateFn | None = None) -> str | None:
-    from doux_planning.api.bench import DETAIL_BENCH_FAILED, persist_bench_outcome
+    from doux_planning.api.bench import DETAIL_BENCH_FAILED, persist_bench_outcome, resolve_bench_dataset
+    from doux_planning.bench import run_bench_on
 
     run_fn = run_bench_fn or run_bench
     with session_scope() as db:
@@ -249,7 +250,11 @@ def tick_bench_job(*, run_bench_fn: GenerateFn | None = None) -> str | None:
     beat = threading.Thread(target=_bench_heartbeat, args=(stop, started, job_id), daemon=True)
     beat.start()
     try:
-        outcome = run_fn(category, dataset_id, SearchEffort(effort), engine_ref=requested_ref)
+        if run_bench_fn is not None:
+            outcome = run_fn(category, dataset_id, SearchEffort(effort), engine_ref=requested_ref)
+        else:
+            dataset = resolve_bench_dataset(category, dataset_id)
+            outcome = run_bench_on(dataset, SearchEffort(effort), engine_ref=requested_ref)
         row = persist_bench_outcome(outcome)
     except UnknownBenchDataset:
         iso_log(
