@@ -67,6 +67,32 @@ def test_weekend_even_odd_and_every_two_warnings():
     assert "weekend_every_two_weeks" in result.codes()
 
 
+def test_every_two_both_weekends_off_is_held():
+    hours = RestaurantHours.multi_service(ServiceName.MIDDAY.value)
+    person = employee("Cal", "commis", hours=20, employee_id="cal").with_wellbeing(
+        Wellbeing(weekend=WeekendChoice.EVERY_TWO)
+    )
+    empty = evaluate(
+        PlanningDraft(
+            employees=(person,),
+            structures=(kitchen_midday_structure(),),
+            hours=hours,
+            assignments=(),
+        )
+    )
+    assert "weekend_every_two_weeks" not in empty.codes()
+    weekdays_only = [_shift("cal", day, 11 * 60, 15 * 60, 2) for day in (0, 1, 2, 7, 8, 9)]
+    both_off = evaluate(
+        PlanningDraft(
+            employees=(person,),
+            structures=(kitchen_midday_structure(),),
+            hours=hours,
+            assignments=tuple(weekdays_only),
+        )
+    )
+    assert "weekend_every_two_weeks" not in both_off.codes()
+
+
 def test_week_label_scheme_parity_vs_ab():
     state = empty_restaurant("resto")
     even = employee("Ada", "commis", employee_id="ada").with_wellbeing(Wellbeing(weekend=WeekendChoice.EVEN))
