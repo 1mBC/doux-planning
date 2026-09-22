@@ -214,6 +214,17 @@ def admin_bench_datasets(authorization: str | None = Header(default=None)) -> di
     return list_datasets(authorization)
 
 
+@app.delete("/v1/admin/bench/datasets/{category}/{dataset_id}", status_code=204)
+def admin_bench_delete_dataset(
+    category: str,
+    dataset_id: str,
+    authorization: str | None = Header(default=None),
+) -> Response:
+    from doux_planning.api.bench import delete_dataset
+
+    return delete_dataset(authorization, category, dataset_id)
+
+
 @app.get("/v1/admin/bench/runs")
 def admin_bench_runs(
     authorization: str | None = Header(default=None),

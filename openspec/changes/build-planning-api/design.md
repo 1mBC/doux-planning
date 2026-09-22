@@ -80,7 +80,7 @@ Restaurateur (company Bearer), this slice:
 - `GET /v1/cycles`
 - `/v1/live/sandbox/{team}` enter / GET / preview / commit / undo / discard / publish
 - `GET /v1/admin/generates` (Bearer, `me.admin` true)
-- `GET /v1/admin/bench/datasets`, `GET /v1/admin/bench/runs`, `POST /v1/admin/bench/run`, `GET /v1/admin/bench/jobs/{id}`, `GET /v1/admin/bench/runs/{id}`, `GET /v1/admin/bench/compare/{category}/{dataset_id}/{search_effort}`, `GET /v1/admin/bench/export`, `GET /v1/admin/bench/versions`, `GET /v1/admin/bench/batches/active`, `GET /v1/admin/bench/batches/{batch_id}`
+- `GET /v1/admin/bench/datasets`, `DELETE /v1/admin/bench/datasets/{category}/{dataset_id}`, `GET /v1/admin/bench/runs`, `POST /v1/admin/bench/run`, `GET /v1/admin/bench/jobs/{id}`, `GET /v1/admin/bench/runs/{id}`, `GET /v1/admin/bench/compare/{category}/{dataset_id}/{search_effort}`, `GET /v1/admin/bench/export`, `GET /v1/admin/bench/versions`, `GET /v1/admin/bench/batches/active`, `GET /v1/admin/bench/batches/{batch_id}`
 
 Boot after seed: if `ADMIN_EMAIL` matches an existing restaurateur (lowercase), set `is_admin`. Skip when unset/empty or when no restaurateur row exists — never insert an account. `me` always includes `admin` (company from `is_admin`, employee always false). `kind` stays company|employee. Log generate on HTTP 200 and worker job `done` (`email`, `restaurant_name`, `team`, `search_effort`, `duration_seconds` wall-clock of `generate_team`, `facts` = evaluate misses of the team just solved plus `employee_name` from the fiche at log time, else null). `GET /v1/admin/generates` always emits `search_effort`, `duration_seconds` (null on old rows), and `facts` (dual-read stored JSONB `warnings`; old items with `message` and no `payload` keep `message` last-resort). Alembic adds `restaurateur_accounts.is_admin`, `generate_logs`, and nullable `generate_logs.search_effort` / `generate_logs.duration_seconds`.
 
@@ -135,6 +135,8 @@ PostgreSQL 16, SQLAlchemy 2 (sync) + Alembic, psycopg, Argon2. FastAPI handlers 
 - [Temptation to “fix” the engine while wiring jobs] → Call `generate_cycle` / `evaluate` as-is; stop and ask if a result looks wrong.
 
 File 70 admin historique: Alembic after `20260921_0016` adds nullable `generate_logs.restaurant_id` (no FK) + `score_global` and table `impersonate_tokens`. Admin GET cycles/context reuse company serializers and 404 when the company is missing. Impersonate mint hashes `token_urlsafe` like sessions, TTL 15 min; consume issues a new company session and sets `consumed_at` without deleting other sessions. Absolute URL uses forwarded proto+host when both headers are present.
+
+File 72 bench chrome: Alembic after `20260922_0018` adds `bench_tombstones` (PK `(category, dataset_id)`). DELETE `/v1/admin/bench/datasets/{category}/{dataset_id}` drops an imported row plus its runs/jobs, or tombstones a catalogue game without deleting files. Second catalogue DELETE is 204. Unknown pair is 404 `Jeu introuvable.` `_all_listings` / `list_datasets` / export / all / category / gaps omit tombstones. No Core rewrite.
 
 ## Migration Plan
 

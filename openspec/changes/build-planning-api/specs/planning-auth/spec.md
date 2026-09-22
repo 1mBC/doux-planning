@@ -260,3 +260,14 @@ Workers SHALL claim one job per process via `SKIP LOCKED`, beat `heartbeat_at` e
 #### Scenario: Impersonate is one-shot
 - **WHEN** an admin mints a link and a client consumes the opaque twice
 - **THEN** the first consume is 200 company session and the second is HTTP 401 `Lien expiré ou déjà utilisé.` while the admin session remains valid
+
+### Requirement: Admin can delete a bench dataset and tombstone catalogue games
+`DELETE /v1/admin/bench/datasets/{category}/{dataset_id}` SHALL require a Bearer admin session and MUST return HTTP 204. An imported game (`category` `imported` with a stored row) MUST drop that row and every `bench_runs` / `bench_jobs` row for the couple. A catalogue game MUST insert `bench_tombstones` and drop runs/jobs without deleting disk files; a second DELETE MUST be HTTP 204. Unknown pair MUST be HTTP 404 `Jeu introuvable.` `GET /versions`, `GET /datasets`, export, `scope=all`, `scope=category`, and `scope=gaps` MUST omit tombstones. Non-admin MUST be HTTP 403 `Action réservée à l’admin.` Missing session MUST be 401. Without `DATABASE_URL` MUST be 503.
+
+#### Scenario: Delete imported game removes it from versions
+- **WHEN** an admin imports a restaurant then DELETEs that dataset
+- **THEN** the dataset is absent from `GET /v1/admin/bench/versions` and no runs or jobs remain for that id
+
+#### Scenario: Catalogue tombstone hides halles
+- **WHEN** an admin DELETEs `tight` / `halles`
+- **THEN** halles is absent from `/versions`, `data/bench/tight/halles` still exists, a second DELETE is 204, and `scope=gaps` does not enqueue halles

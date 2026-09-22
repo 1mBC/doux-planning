@@ -202,6 +202,14 @@ class BenchImportedDataset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class BenchTombstone(Base):
+    __tablename__ = "bench_tombstones"
+
+    category: Mapped[str] = mapped_column(String, primary_key=True)
+    dataset_id: Mapped[str] = mapped_column(String, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class EmployeeAccountRow(Base):
     __tablename__ = "employee_accounts"
     __table_args__ = (
