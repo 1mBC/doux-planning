@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
-from fastapi.responses import JSONResponse
-from sqlalchemy import select, update
+from fastapi.responses import JSONResponse, Response
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_database
@@ -22,7 +22,7 @@ from doux_planning.api.bench_import import (
     list_imported_rows,
     load_imported_dataset,
 )
-from doux_planning.api.db import BenchJob, BenchRun, session_scope
+from doux_planning.api.db import BenchImportedDataset, BenchJob, BenchRun, BenchTombstone, session_scope
 from doux_planning.api.generate import _cycle_recap_json, _cycle_score_json, _fact_json, _shift_json
 from doux_planning.api.sandbox import parse_shift
 from doux_planning.bench import (
@@ -242,6 +242,18 @@ def resolve_bench_dataset(category: str, dataset_id: str):
     return load_imported_dataset(category, dataset_id)
 
 
+def _catalogue_on_disk(category: str, dataset_id: str) -> bool:
+    folder = bench_dir() / category / dataset_id
+    return (folder / "context.json").is_file() and (folder / "expected.json").is_file()
+
+
+def _tombstone_keys() -> set[tuple[str, str]]:
+    require_database()
+    with session_scope() as db:
+        rows = db.execute(select(BenchTombstone.category, BenchTombstone.dataset_id)).all()
+        return {(category, dataset_id) for category, dataset_id in rows}
+
+
 def _imported_listings() -> list[BenchListing]:
     return [
         BenchListing(category=row.category, id=row.id, name=row.name, challenge_fr=row.challenge_fr)
@@ -250,7 +262,12 @@ def _imported_listings() -> list[BenchListing]:
 
 
 def _all_listings() -> list[BenchListing]:
-    return list(list_bench_datasets()) + _imported_listings()
+    hidden = _tombstone_keys()
+    return [
+        item
+        for item in list(list_bench_datasets()) + _imported_listings()
+        if (item.category, item.id) not in hidden
+    ]
 
 
 def _known_targets() -> list[tuple[str, str]]:
@@ -302,6 +319,7 @@ def _parse_run_body(body: dict[str, Any]) -> tuple[str, str, list[tuple[str, str
 
 def list_datasets(authorization: str | None) -> dict[str, Any]:
     require_admin(authorization)
+    hidden = _tombstone_keys()
     ref = engine_ref()
     return {
         "engine_ref": ref,
@@ -314,8 +332,39 @@ def list_datasets(authorization: str | None) -> dict[str, Any]:
                 "challenge_fr": item.challenge_fr,
             }
             for item in list_bench_datasets()
+            if (item.category, item.id) not in hidden
         ],
     }
+
+
+def _purge_bench_results(db, category: str, dataset_id: str) -> None:
+    db.execute(delete(BenchRun).where(BenchRun.category == category, BenchRun.dataset_id == dataset_id))
+    db.execute(delete(BenchJob).where(BenchJob.category == category, BenchJob.dataset_id == dataset_id))
+
+
+def delete_dataset(authorization: str | None, category: str, dataset_id: str) -> Response:
+    require_admin(authorization)
+    require_database()
+    with session_scope() as db:
+        imported_row = None
+        if category == IMPORTED_CATEGORY:
+            imported_row = db.get(BenchImportedDataset, dataset_id)
+        tombstone = db.get(BenchTombstone, (category, dataset_id))
+        on_disk = _catalogue_on_disk(category, dataset_id)
+        if imported_row is None and tombstone is None and not on_disk:
+            raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING)
+        if imported_row is not None:
+            db.delete(imported_row)
+        elif tombstone is None:
+            db.add(
+                BenchTombstone(
+                    category=category,
+                    dataset_id=dataset_id,
+                    created_at=datetime.now(timezone.utc),
+                )
+            )
+        _purge_bench_results(db, category, dataset_id)
+    return Response(status_code=204)
 
 
 def list_runs(
