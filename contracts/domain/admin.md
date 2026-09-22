@@ -48,10 +48,10 @@ Non-admin → 403 `Action réservée à l’admin.` Sans session 401. Sans DB 50
 
 Uniquement **`POST /v1/generate` 200** / job `done`. Pas 409, pas seed, pas import, pas publish sandbox.
 
-Ligne :
+Ligne (file 70 ajoute `restaurant_id` + `score_global` — `admin-historique.md` **gagne**) :
 
 ```
-{ created_at, email, restaurant_name, team, search_effort, duration_seconds, engine_ref, facts[] }
+{ created_at, email, restaurant_name, team, search_effort, duration_seconds, engine_ref, facts[], restaurant_id, score_global }
 ```
 
 `email` = compte company. `restaurant_name` = `companies.name` au moment du solve.  
@@ -65,7 +65,7 @@ Table `generate_logs`. Newest-first. Vieux rows : `search_effort` / `duration_se
 ## `GET /v1/admin/generates`
 
 Bearer. `admin !== true` → 403 `Action réservée à l’admin.`  
-200 : `{ entries: [ { id, created_at ISO, email, restaurant_name, team, search_effort, duration_seconds, engine_ref, facts } ] }` **plus récent d’abord**.  
+200 : `{ entries: [ { id, created_at ISO, email, restaurant_name, team, search_effort, duration_seconds, engine_ref, facts, restaurant_id, score_global } ] }` **plus récent d’abord**. File 70 **gagne** pour les deux dernières clés.  
 GET n’exige plus `warnings`. Vieux row `warnings[]` avec `message` : hydrater en facts (`kind = code`, `payload = {}`) **et** laisser `message` sur cet item seulement (`score-facts.md` Hydrate).  
 Sans session 401. Sans DB 503.
 
@@ -92,8 +92,10 @@ Table **newest-first** (ordre API). **En-tête par jour calendaire** `Europe/Par
 
 Company `/planning` : ligne date/heure + modèle = `generate-versions.md`. **Pas** de sélecteur moteur sur `/planning`.
 
-SPA fallback `/admin` (Railway déjà `index.html` pour `/planning`, `/login`). **Pas** de nouvelle route SPA. Routes HTTP admin ci-dessus **oui**.
+SPA fallback `/admin` (Railway déjà `index.html` pour `/planning`, `/login`). **Pas** de nouvelle route SPA **dans ce file**. File 70 ajoute `/admin/planning/{id}` et `/impersonate/{token}`.
+
+**Note / Voir / lien copiable** = `contracts/domain/admin-historique.md` (**gagne** sur la table `/admin` et le log).
 
 ## Hors freeze
 
-Banc + **Versions** = `contracts/domain/bench.md`. Un moteur **par** resto. Supprimer un salarié / panneau compte. Archive / sync.
+Banc + **Versions** = `contracts/domain/bench.md`. Import resto = `bench-import.md`. Chrome banc = `bench-chrome.md`. Un moteur **par** resto. Supprimer un salarié / panneau compte. Archive / sync.
