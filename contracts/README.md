@@ -85,7 +85,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 72 — ranger le banc | `domain/bench-chrome.md` ; briefs `infra-bench-chrome.md`, `ui-bench-chrome.md` | **landed** Infra `006cc24` + UI `921d5db` (v0.58.0) |
 | 73 — repasse UI admin | `domain/admin-ui-pass.md` ; briefs `infra-admin-ui-pass.md`, `ui-admin-ui-pass.md` | **landed** Infra `df343ab` + UI `0d787f0` (v0.59.0) |
 | 74 — export jeu + versions origin | `domain/bench-export-speed.md` ; briefs `infra-bench-export-speed.md`, `ui-bench-export-speed.md` | **landed** Infra `73e5dca` + UI `cf90828` (v0.60.0) |
-| 75 — leftover + 11 h wrap + every_two au moins un | `domain/coverage-rest-weekend.md`, `wellbeing.md`, `score-facts.md` ; briefs `core-coverage-rest-weekend.md`, `ui-coverage-rest-weekend.md` | **landed** Core `8502a5e` + UI `50b7f29` (v0.61.0) |
+| 75 — leftover + 11 h wrap + every_two au moins un | `domain/coverage-rest-weekend.md`, `wellbeing.md`, `score-facts.md` ; OpenSpec `changes/coverage-rest-weekend/` ; briefs `core-coverage-rest-weekend.md`, `ui-coverage-rest-weekend.md` | **landed** Core `8502a5e` + UI `50b7f29` (v0.61.0) |
 
 ## Ownership git (ne pas croiser)
 

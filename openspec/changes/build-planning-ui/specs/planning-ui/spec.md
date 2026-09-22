@@ -360,6 +360,10 @@ The client SHALL parse cycle `facts[]` (`axis`, `kind`, `polarity`, `payload`) a
 - **WHEN** salle has both `versions.minimal` and `versions.optimized`
 - **THEN** switching effort shows that slot’s facts without POSTing
 
+#### Scenario: every_two is at least one weekend
+- **WHEN** the restaurateur sees `weekend_every_two_weeks` in recap, wizard radio, or employee board
+- **THEN** the French is at least one full weekend off / 14 j. (title « Au moins un week-end / 14 j. », miss « aucun week-end complet off / 14 j. », radio « Au moins un we sur deux »), never “exactly one”
+
 ### Requirement: Score pill title then note and gauge
 `CycleScoreNotes` SHALL use the same layout on `/planning`, `/exemple`, and bench compare: title first, then note and gauge on the **same line** (fill `note / 10`, hue `12 × note`, `null` → empty gauge), then totaux on the next line (Globale has no totaux). Click SHALL list misses then hits. Globale remains first with a contrasted frame.
 
