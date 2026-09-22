@@ -461,6 +461,14 @@ export async function loadBenchVersions(): Promise<BenchVersions> {
   return parseBenchVersions(await sendAuth("/v1/admin/bench/versions", { method: "GET" }, true));
 }
 
+export async function deleteBenchDataset(category: string, datasetId: string): Promise<void> {
+  await sendAuth(
+    `/v1/admin/bench/datasets/${encodeURIComponent(category)}/${encodeURIComponent(datasetId)}`,
+    { method: "DELETE" },
+    true,
+  );
+}
+
 export async function postBenchRun(body: {
   scope: BenchScope;
   category?: string;

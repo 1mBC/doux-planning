@@ -8,6 +8,7 @@ import {
   benchBelowManuelExportFilename,
   benchDatasetExportFilename,
   cancelBenchBatch,
+  deleteBenchDataset,
   downloadJsonFile,
   deltaBackground,
   loadActiveBenchBatch,
@@ -16,6 +17,7 @@ import {
   pollBenchBatch,
   postBenchRun,
   type BenchBatch,
+  type BenchOrigin,
   type BenchScope,
   type BenchVersionCell,
   type BenchVersionDataset,
@@ -24,6 +26,14 @@ import {
 import { formatCycleNote, formatSolveDuration } from "./format";
 import { ApiHttpError } from "./sandbox";
 import type { SearchEffort } from "./generate";
+
+type OriginFilter = "all" | BenchOrigin;
+
+const ORIGIN_FILTERS: { id: OriginFilter; label: string }[] = [
+  { id: "all", label: "Tous" },
+  { id: "catalogue", label: "IA" },
+  { id: "imported", label: "Manuels" },
+];
 
 function LaunchButtons({
   disabled,
@@ -80,6 +90,115 @@ function CategoryLaunch({
           </ul>
         </details>
       ))}
+    </div>
+  );
+}
+
+function datasetHoverTitle(dataset: BenchVersionDataset): string {
+  if (dataset.comment != null) {
+    return `${dataset.challenge_fr}\n${dataset.comment}`;
+  }
+  return dataset.challenge_fr;
+}
+
+function DatasetRowMenu({
+  open,
+  disabled,
+  onToggle,
+  onClose,
+  onLaunch,
+  onExport,
+  onDelete,
+}: {
+  open: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onLaunch: (effort: SearchEffort) => void;
+  onExport: () => void;
+  onDelete: () => void;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    function onPointerDown(event: PointerEvent) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        onCloseRef.current();
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onCloseRef.current();
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="bench-dataset-menu" ref={rootRef}>
+      <button
+        type="button"
+        className="choice bench-dataset-menu-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Actions du jeu"
+        onClick={onToggle}
+      >
+        …
+      </button>
+      {open ? (
+        <div className="bench-dataset-menu-list" role="menu">
+          {BENCH_EFFORTS.map((effort) => (
+            <button
+              key={effort}
+              type="button"
+              role="menuitem"
+              className="choice"
+              disabled={disabled}
+              onClick={() => {
+                onClose();
+                onLaunch(effort);
+              }}
+            >
+              {`Lancer ${effortLabel(effort)}`}
+            </button>
+          ))}
+          <button
+            type="button"
+            role="menuitem"
+            className="choice"
+            disabled={disabled}
+            onClick={() => {
+              onClose();
+              onExport();
+            }}
+          >
+            Exporter ce jeu
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="choice"
+            disabled={disabled}
+            onClick={() => {
+              onClose();
+              onDelete();
+            }}
+          >
+            Supprimer…
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -214,6 +333,8 @@ export function BenchPage() {
   const [batch, setBatch] = useState<BenchBatch | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [selectedEngine, setSelectedEngine] = useState<string | null>(null);
+  const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
+  const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
   const cancelled = useRef(false);
 
   async function refreshVersions() {
@@ -299,6 +420,18 @@ export function BenchPage() {
     }
     return seen;
   }, [versions]);
+
+  const filteredDatasets = useMemo(() => {
+    const all = versions?.datasets ?? [];
+    if (originFilter === "all") {
+      return all;
+    }
+    return all.filter((item) => item.origin === originFilter);
+  }, [versions, originFilter]);
+
+  function closeMenu() {
+    setOpenMenuKey(null);
+  }
 
   async function launch(body: { scope: BenchScope; category?: string; dataset_id?: string; search_effort?: SearchEffort; engine_ref?: string }) {
     setBusy(true);
@@ -402,6 +535,29 @@ export function BenchPage() {
     }
   }
 
+  async function removeDataset(dataset: BenchVersionDataset) {
+    if (!window.confirm("Supprimer ce jeu et tous ses résultats ?")) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteBenchDataset(dataset.category, dataset.id);
+      if (cancelled.current) {
+        return;
+      }
+      await refreshVersions();
+    } catch (err: unknown) {
+      if (!cancelled.current) {
+        setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+      }
+    } finally {
+      if (!cancelled.current) {
+        setBusy(false);
+      }
+    }
+  }
+
   if (error && !versions) {
     return (
       <main className="page">
@@ -478,82 +634,102 @@ export function BenchPage() {
               Compléter les trous
             </button>
           </div>
+          <div className="bench-toolbar-row">
+            <button type="button" className="choice" disabled={exporting} onClick={() => void exportBelowManuel()}>
+              Exporter sous le Manuel
+            </button>
+            <button type="button" className="choice" disabled={exporting} onClick={() => void exportBank()}>
+              Exporter tout le banc
+            </button>
+          </div>
         </div>
       </section>
 
       <section>
         <h2>Derniers runs</h2>
-        <div className="bench-toolbar-row">
-          <button type="button" className="choice" disabled={exporting} onClick={() => void exportBelowManuel()}>
-            Exporter sous le Manuel
-          </button>
-          <button type="button" className="choice" disabled={exporting} onClick={() => void exportBank()}>
-            Exporter tout le banc
-          </button>
+        <div className="bench-toolbar-row bench-origin-filter" role="group" aria-label="Filtrer les jeux">
+          {ORIGIN_FILTERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={originFilter === item.id ? "choice active" : "choice"}
+              aria-pressed={originFilter === item.id}
+              onClick={() => {
+                setOriginFilter(item.id);
+                setOpenMenuKey(null);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
-        <table className="admin-table bench-table">
-          <thead>
-            <tr>
-              <th>Catégorie</th>
-              <th>Jeu</th>
-              <th>Défi</th>
-              <th>Lancer</th>
-              <th>Manuel</th>
-              {versions.engine_refs.map((ref) => (
-                <th key={ref}>{ref}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {versions.datasets.map((dataset) => (
-              <tr key={`${dataset.category}/${dataset.id}`}>
-                <td>{dataset.category}</td>
-                <td>
-                  {dataset.id}
-                  <div className="bench-name">{dataset.name}</div>
-                </td>
-                <td className="bench-challenge">{dataset.challenge_fr}</td>
-                <td>
-                  <div className="bench-row-actions">
-                    <LaunchButtons
-                      disabled={locked}
-                      onLaunch={(effort) =>
-                        void launch({
-                          scope: "dataset",
-                          category: dataset.category,
-                          dataset_id: dataset.id,
-                          search_effort: effort,
-                          engine_ref: selectedEngine ?? versions.engine_ref,
-                        })
-                      }
-                    />
-                    <button type="button" className="choice" disabled={exporting} onClick={() => void exportDataset(dataset)}>
-                      Exporter ce jeu
-                    </button>
-                  </div>
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    className="bench-cell"
-                    onClick={() => go(`/admin/bench/${dataset.category}/${dataset.id}/optimized`)}
-                  >
-                    {formatCycleNote(dataset.manual?.global)}
-                  </button>
-                </td>
+        {filteredDatasets.length === 0 ? (
+          <p className="sub">Aucun jeu.</p>
+        ) : (
+          <table className="admin-table bench-table">
+            <thead>
+              <tr>
+                <th>Catégorie</th>
+                <th>Jeu</th>
+                <th>Manuel</th>
                 {versions.engine_refs.map((ref) => (
-                  <td key={ref}>
-                    <EngineStack
-                      dataset={dataset}
-                      engineRef={ref}
-                      engineRefs={versions.engine_refs}
-                    />
-                  </td>
+                  <th key={ref}>{ref}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredDatasets.map((dataset) => {
+                const menuKey = `${dataset.category}/${dataset.id}`;
+                return (
+                  <tr key={menuKey}>
+                    <td>{dataset.category}</td>
+                    <td>
+                      <div className="bench-game-text" title={datasetHoverTitle(dataset)}>
+                        {dataset.id}
+                        <div className="bench-name">{dataset.name}</div>
+                      </div>
+                      <DatasetRowMenu
+                        open={openMenuKey === menuKey}
+                        disabled={locked}
+                        onToggle={() => setOpenMenuKey(openMenuKey === menuKey ? null : menuKey)}
+                        onClose={closeMenu}
+                        onLaunch={(effort) =>
+                          void launch({
+                            scope: "dataset",
+                            category: dataset.category,
+                            dataset_id: dataset.id,
+                            search_effort: effort,
+                            engine_ref: selectedEngine ?? versions.engine_ref,
+                          })
+                        }
+                        onExport={() => void exportDataset(dataset)}
+                        onDelete={() => void removeDataset(dataset)}
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="bench-cell"
+                        onClick={() => go(`/admin/bench/${dataset.category}/${dataset.id}/optimized`)}
+                      >
+                        {formatCycleNote(dataset.manual?.global)}
+                      </button>
+                    </td>
+                    {versions.engine_refs.map((ref) => (
+                      <td key={ref}>
+                        <EngineStack
+                          dataset={dataset}
+                          engineRef={ref}
+                          engineRefs={versions.engine_refs}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </section>
     </main>
   );

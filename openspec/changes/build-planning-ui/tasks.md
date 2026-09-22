@@ -260,3 +260,9 @@
 - [x] 45.2 `/admin` : clic droit nom resto + bouton **Au banc** à côté de Voir → popup (preview complet ?, 4 cases ON, note /10, commentaire, Annuler / Importer) ; resto null → toast introuvable ; clic droit email impersonate inchangé ; succès toast « Jeu importé. » + bouton `/admin/bench`
 - [x] 45.3 Bump `web/` to 0.57.0 (note FR : Import resto vers le banc)
 - [x] 45.4 Verify `npm run build` ; barre **v0.57.0** ; popup cases cochées ; Note / Voir / clic droit email intacts ; banc Défi + Lancer ; pas de `…` / filtre
+
+## 46. Banc chrome (menu jeu, filtre origine)
+
+- [x] 46.1 `/admin/bench` : exports globaux dans Lancer ; filtre Tous | IA | Manuels ; retirer Défi / Lancer ; cellule Jeu hover + menu `…` (3 lancers, exporter, supprimer confirm → DELETE `/versions`)
+- [x] 46.2 Bump `web/` to 0.58.0 (note FR : Menu jeu, filtre IA / manuels)
+- [x] 46.3 Verify `npm run build` ; barre **v0.58.0** ; tableau sans Défi/Lancer ; filtre Manuels masque catalogue ; Historique + Au banc intacts
