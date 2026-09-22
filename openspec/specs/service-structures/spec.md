@@ -32,11 +32,15 @@ For each team and service structure, the system SHALL record an ordered sequence
 - **THEN** that structure requires those posts to be occupied from those times onward until matching departures
 
 ### Requirement: Departure waves
-For each team and service structure, the system SHALL record an ordered sequence of departures: time of departure (on a 15-minute grid), how many people leave, and which post levels MUST remain present after that departure. Waves continue until the service is empty.
+For each team and service structure, the system SHALL record an ordered sequence of departures: time of departure (on a 15-minute grid), how many people leave, and which post levels MUST remain present after that departure. The last remaining bag MAY be non-empty: those leftover posts MUST stay until that last wave’s clock (and never leave before the first departure of the structure). Coverage slices MUST include them for every interval they are still listed.
 
 #### Scenario: First departures leave coverage
 - **WHEN** the restaurateur sets a 14:30 departure of two people and requires at least one level-4 and one level-2 post to remain
 - **THEN** after 14:30 the structure’s remaining posts include those minimum levels until later departures
+
+#### Scenario: Leftover chef after last departure
+- **WHEN** MIDI arrivals are L1 10:00, L3 10:30, L2 11:30 and departures are 15:30 remaining `[1,3]` then 16:00 remaining `[3]`
+- **THEN** the L3 window is 10:30–16:00 (not 10:30–14:30), the first real leave is still 15:30, and slices from 10:30 to 16:00 include level 3
 
 ### Requirement: Structure applies to weekdays
 Once a service structure is defined, the system SHALL ask which weekdays it applies to, and MUST explain that a different structure can be defined for days that run differently. The restaurateur MUST be able to cover every open (team, service, weekday) combination with a structure.
