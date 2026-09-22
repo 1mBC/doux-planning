@@ -15,4 +15,4 @@
 
 ## 3. Tests
 
-- [ ] 3.1 TestClient coverage (`skipif` without `DATABASE_URL`) for generate fields, GET keys, admin vs company cycles, impersonate mint/consume/401, admin session intact, 403/404. Do not fix pre-existing Saint-Cloud / engine-ref failures. Verify new tests green
+- [x] 3.1 TestClient coverage (`skipif` without `DATABASE_URL`) for generate fields, GET keys, admin vs company cycles, impersonate mint/consume/401, admin session intact, 403/404. Do not fix pre-existing Saint-Cloud / engine-ref failures. Verify new tests green

@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from doux_planning.api.app import app, web_dist
+from doux_planning.api.app import app
 from doux_planning.api.auth import (
     DETAIL_ADMIN,
     DETAIL_IMPERSONATE,
@@ -119,16 +119,24 @@ def test_admin_historique_without_database_is_503(monkeypatch):
     assert consume.status_code == 503
 
 
-def test_spa_impersonate_and_admin_planning_serve_index():
-    dist = web_dist()
-    if dist is None:
-        pytest.skip("web/dist absent")
-    index = (dist / "index.html").read_text(encoding="utf-8")
-    client = _client()
+def test_spa_impersonate_and_admin_planning_serve_index(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+
+    from doux_planning.api import app as app_mod
+
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    index = dist / "index.html"
+    index.write_text("<html><body>spa-index</body></html>", encoding="utf-8")
+    monkeypatch.setattr(app_mod, "web_dist", lambda: dist)
+    application = FastAPI()
+    app_mod._mount_spa(application)
+    client = TestClient(application)
+    expected = index.read_text(encoding="utf-8")
     for path in ("/impersonate/example-token", "/admin/planning/example-id"):
         page = client.get(path)
         assert page.status_code == 200
-        assert page.text == index
+        assert page.text == expected
 
 
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
