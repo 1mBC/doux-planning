@@ -128,7 +128,7 @@ Tombstones toujours exclus.
 
 Query `origin` optionnelle, **même** sémantique, pour `scope=below_manuel` et `scope=bank`. `scope=dataset` : `origin` ignoré.
 
-`GET /versions` **inchangé** (la page filtre côté client).
+`GET /versions` : file 74 ajoute `?origin=` (`bench-export-speed.md` **gagne**) — la page n’a plus à tout télécharger.
 
 Pas d’Alembic. Pas de Core.
 
@@ -149,4 +149,4 @@ UI : `npm run build`. Barre **v0.59.0**. Historique : pas de colonnes Warnings /
 
 ## Hors freeze
 
-Solve cuisine. Stats banc séparées IA / manuels. Éditer un jeu importé. Un moteur par resto. Archive / sync.
+Solve cuisine. Stats banc séparées IA / manuels. Éditer un jeu importé. Un moteur par resto. Archive / sync. Export dataset / versions origin = file 74.
