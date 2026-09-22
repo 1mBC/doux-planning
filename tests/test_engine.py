@@ -148,6 +148,16 @@ def test_cycle_wrap_rest_is_interdit():
     assert "rest_between_days" in result.codes()
 
 
+def test_cycle_wrap_rest_skips_sunday_off():
+    person = employee("Noa", "commis", employee_id="noa")
+    assignments = [
+        _shift("noa", 12, 19 * 60 + 30, 24 * 60, 1, weekday="saturday"),
+        _shift("noa", 0, 10 * 60, 16 * 60, 1, weekday="monday"),
+    ]
+    result = evaluate(_draft(assignments, employees=(person,)))
+    assert "rest_between_days" not in result.codes()
+
+
 def test_souhait_consecutive_rest_and_contract_hours():
     person = employee("Sam", "commis", hours=20, employee_id="sam").with_wellbeing(
         Wellbeing(consecutive_rest=True)

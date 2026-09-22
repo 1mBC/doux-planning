@@ -92,7 +92,7 @@ Cycle sans `facts` : Core `cycle_recap` + evaluate sur assignments + fiches (com
 | `contract_hours` | contrat | semaine hors tolérance | semaine dans tolérance (`C > 0`) |
 | `consecutive_rest_days` | wellbeing | sem. sans 2 repos collés | cellule ok |
 | `weekend_rest_day` | wellbeing | sem. sans repos sam/dim | cellule ok |
-| `weekend_every_two_weeks` | wellbeing | pas un we / 14 j. | cellule ok |
+| `weekend_every_two_weeks` | wellbeing | aucun we complet off / 14 j. | cellule ok |
 | `weekend_even_weeks` | wellbeing | we pair non tenu | cellule ok |
 | `weekend_odd_weeks` | wellbeing | we impair non tenu | cellule ok |
 | `max_mornings` / `max_middays` / `max_evenings` | wellbeing | sem. au-dessus du max | cellule ok |
@@ -236,7 +236,7 @@ Titres :
 | `contract_hours` | Heures de contrat |
 | `consecutive_rest_days` | Repos consécutifs |
 | `weekend_rest_day` | Repos week-end |
-| `weekend_every_two_weeks` | Un week-end / 14 j. |
+| `weekend_every_two_weeks` | Au moins un week-end / 14 j. |
 | `weekend_even_weeks` | Week-end pair |
 | `weekend_odd_weeks` | Week-end impair |
 | `max_mornings` | Max petit-déj |

@@ -335,9 +335,7 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
             pairs.append((ordered_days[-1], ordered_days[0] + CYCLE_DAYS))
         for day_a, day_b_raw in pairs:
             day_b = day_b_raw % draft.horizon_days if draft.horizon_days == CYCLE_DAYS else day_b_raw
-            if day_b_raw - day_a > 1 and not (
-                draft.horizon_days == CYCLE_DAYS and day_a == ordered_days[-1]
-            ):
+            if day_b_raw - day_a > 1:
                 continue
             last = max(by_day[day_a], key=lambda item: item.end_minutes)
             first_next_day = day_b if day_b in by_day else None
@@ -496,7 +494,7 @@ def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
         if wish.weekend is not None and draft.horizon_days >= 14:
             off_even = _weekends_off(by_day, 0)
             off_odd = _weekends_off(by_day, 7)
-            if wish.weekend is WeekendChoice.EVERY_TWO and off_even == off_odd:
+            if wish.weekend is WeekendChoice.EVERY_TWO and not (off_even or off_odd):
                 warnings.append(
                     _warning(
                         WarningSeverity.SOUHAIT,
@@ -1302,7 +1300,7 @@ def _build_rest_model(
             model.Add(work[employee.id, 12] + work[employee.id, 13] == 0).OnlyEnforceIf(odd_off)
             model.Add(work[employee.id, 12] + work[employee.id, 13] >= 1).OnlyEnforceIf(odd_off.Not())
             if employee.wellbeing.weekend is WeekendChoice.EVERY_TWO:
-                model.Add(even_off + odd_off == 1)
+                model.Add(even_off + odd_off >= 1)
             elif employee.wellbeing.weekend is WeekendChoice.EVEN:
                 model.Add(even_off == 1)
                 model.Add(odd_off == 0)
