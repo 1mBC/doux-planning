@@ -191,7 +191,7 @@ Route **déjà là**. 200 = **même forme que compare** + **`trace`** (`SearchTr
 
 ### GET versions (matrice)
 
-`GET /v1/admin/bench/versions`
+`GET /v1/admin/bench/versions` — file 74 : query `origin=catalogue|imported` optionnelle (`bench-export-speed.md` **gagne**). Absent = les deux (Stats).
 
 ```
 {
@@ -229,7 +229,8 @@ GET /v1/admin/bench/export?scope=bank
 Bearer admin. 403 / 401 / 503 comme le reste.  
 `scope=dataset` sans run → 404. `below_manuel` vide → 200 `{ … datasets: [] }`. `bank` vide → 200 `{ … datasets: [] }`.
 
-**below_manuel** / export dataset = last-run du **`engine_ref` courant** seulement.  
+**below_manuel** = last-run du **`engine_ref` courant** seulement.  
+**export dataset** (file 74, `bench-export-speed.md` **gagne**) = last-run de **tous** les `engine_ref` de **ce** jeu (comme `bank` une ligne). 404 `Aucun run pour ce jeu.` ssi 0 row.  
 `score.global < expected_score.global` (les deux non null). Un jeu entre dans le pack s’il a **au moins un** effort courant sous le Manuel. Pour ces jeux : **tous** les efforts courants qui ont un run. Chaque effort a `below_manuel: bool` + `engine_ref` + `run_id`.
 
 200 :
