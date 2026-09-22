@@ -1,6 +1,7 @@
 import { isRecord, parseFactsPrefer, PayloadError, requireArray, requireString } from "./api";
 import { sendAuth } from "./auth";
-import type { SearchEffort } from "./generate";
+import { parseRestaurantContext, type RestaurantContext } from "./context";
+import { parseCyclesPayload, type CyclesPayload, type SearchEffort } from "./generate";
 import type { ScoreFact } from "./types";
 
 export type AdminTeam = "salle" | "cuisine";
@@ -10,10 +11,12 @@ export type AdminGenerateEntry = {
   created_at: string;
   email: string;
   restaurant_name: string;
+  restaurant_id: string | null;
   team: AdminTeam;
   search_effort: SearchEffort | null;
   duration_seconds: number | null;
   engine_ref: string | null;
+  score_global: number | null;
   facts: ScoreFact[];
 };
 
@@ -61,6 +64,16 @@ function parseOptionalString(value: unknown, path: string): string | null {
   if (typeof value !== "string") {
     throw new PayloadError(`clé invalide : ${path}`);
   }
+  return value === "" ? null : value;
+}
+
+function parseOptionalScore(value: unknown, path: string): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new PayloadError(`clé invalide : ${path}`);
+  }
   return value;
 }
 
@@ -76,10 +89,12 @@ function parseEntry(value: unknown, path: string): AdminGenerateEntry {
     created_at: requireString(value, "created_at", path),
     email: requireString(value, "email", path),
     restaurant_name: requireString(value, "restaurant_name", path),
+    restaurant_id: parseOptionalString(value.restaurant_id, `${path}.restaurant_id`),
     team: parseTeam(value.team, `${path}.team`),
     search_effort: parseOptionalEffort(value.search_effort, `${path}.search_effort`),
     duration_seconds: parseOptionalDuration(value.duration_seconds, `${path}.duration_seconds`),
     engine_ref: parseOptionalString(value.engine_ref, `${path}.engine_ref`),
+    score_global: parseOptionalScore(value.score_global, `${path}.score_global`),
     facts: parseFactsPrefer(value, path),
   };
 }
@@ -95,6 +110,47 @@ export function parseAdminGenerates(value: unknown): AdminGenerates {
 
 export async function loadAdminGenerates(): Promise<AdminGenerates> {
   return parseAdminGenerates(await sendAuth("/v1/admin/generates", { method: "GET" }, true));
+}
+
+export async function loadAdminRestaurantCycles(restaurantId: string): Promise<CyclesPayload> {
+  return parseCyclesPayload(
+    await sendAuth(`/v1/admin/restaurants/${encodeURIComponent(restaurantId)}/cycles`, { method: "GET" }, true),
+  );
+}
+
+export async function loadAdminRestaurantContext(restaurantId: string): Promise<RestaurantContext> {
+  return parseRestaurantContext(
+    await sendAuth(`/v1/admin/restaurants/${encodeURIComponent(restaurantId)}/context`, { method: "GET" }, true),
+  );
+}
+
+export async function mintImpersonateLink(restaurantId: string): Promise<string> {
+  const value = await sendAuth(
+    "/v1/admin/impersonate",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restaurant_id: restaurantId }),
+    },
+    true,
+  );
+  if (!isRecord(value) || typeof value.url !== "string" || !value.url) {
+    throw new PayloadError("réponse impersonate invalide");
+  }
+  return value.url;
+}
+
+export async function copyToClipboard(value: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = value;
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
 }
 
 export function parisDayKey(iso: string): string {
