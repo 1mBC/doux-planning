@@ -30,7 +30,7 @@ export const KIND_TITLE_FR: Record<string, string> = {
   contract_hours: "Heures de contrat",
   consecutive_rest_days: "Repos consécutifs",
   weekend_rest_day: "Repos week-end",
-  weekend_every_two_weeks: "Un week-end / 14 j.",
+  weekend_every_two_weeks: "Au moins un week-end / 14 j.",
   weekend_even_weeks: "Week-end pair",
   weekend_odd_weeks: "Week-end impair",
   max_mornings: "Max petit-déj",
@@ -57,7 +57,7 @@ const SERVICE_FR: Record<string, string> = {
 };
 
 const WEEKEND_FR: Record<string, string> = {
-  every_two: "un week-end sur deux",
+  every_two: "au moins un week-end sur deux",
   even: "paire",
   odd: "impaire",
 };
@@ -399,7 +399,7 @@ function formatKnownLine(fact: ScoreFact, ctx: FactFormatCtx): string | null {
       return `${who} : pas de repos samedi ou dimanche (sem. ${week})`;
     }
     case "weekend_every_two_weeks":
-      return `${who} : pas exactement un week-end off / 14 j.`;
+      return `${who} : aucun week-end complet off / 14 j.`;
     case "weekend_even_weeks":
       return `${who} : week-end pair non tenu`;
     case "weekend_odd_weeks":

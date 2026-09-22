@@ -640,7 +640,7 @@ function describeWishes(person: ContextEmployee, services: ContextServiceId[]): 
     bits.push("deux repos consécutifs par semaine");
   }
   if (wish.weekend === "every_two") {
-    bits.push("un we sur deux");
+    bits.push("au moins un we sur deux");
   } else if (wish.weekend === "even") {
     bits.push("we paire");
   } else if (wish.weekend === "odd") {
@@ -996,7 +996,7 @@ function UnavailPopup({
 }
 
 const WEEKEND_OPTIONS: { value: WeekendChoice; label: string }[] = [
-  { value: "every_two", label: "Un we sur deux" },
+  { value: "every_two", label: "Au moins un we sur deux" },
   { value: "even", label: "We paire" },
   { value: "odd", label: "We impaire" },
 ];
