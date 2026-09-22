@@ -86,16 +86,16 @@ Lien **Admin** dans le chrome session **ssi** `me.admin`. Sinon : pas de lien ; 
 
 `GET /v1/admin/generates` Bearer au chargement. Vide → « Aucun generate pour l’instant. » (le sélecteur **reste**).
 
-Table **newest-first** (ordre API). **En-tête par jour calendaire** `Europe/Paris` (`created_at`) : `Dimanche 6 septembre 2026`. Un bloc par jour qui a au moins une ligne ; pas de jour vide. Dans le bloc : heure `HH:mm` Paris, email, nom resto, équipe, **effort** (Minimal / Optimisé / Maximal, tiret si null), **durée** (`Ns` / `N min`, tiret si null), **moteur** (`engine_ref`, tiret si null), pastille **N misses**.
+Table **newest-first** (ordre API). **En-tête par jour calendaire** `Europe/Paris` (`created_at`) : `Dimanche 6 septembre 2026`. Un bloc par jour qui a au moins une ligne ; pas de jour vide. Colonnes / hover / boutons = **`admin-ui-pass.md` (file 73) gagne**.
 
-**Hover** = une carte par fact, **dictionnaire `score-facts.md`** : gravité, titre kind, jour + semaine, personne (`employee_name`), gabarit payload. Vieux row sans payload : `message` en dernier recours. `[]` → `aucun warning`. Champs absents → tiret.
+**Hover de la note** = une carte par fact, **dictionnaire `score-facts.md`** : gravité, titre kind, jour + semaine, personne (`employee_name`), gabarit payload. Vieux row sans payload : `message` en dernier recours. `[]` → `aucun warning`. Champs absents → tiret.
 
 Company `/planning` : ligne date/heure + modèle = `generate-versions.md`. **Pas** de sélecteur moteur sur `/planning`.
 
-SPA fallback `/admin` (Railway déjà `index.html` pour `/planning`, `/login`). **Pas** de nouvelle route SPA **dans ce file**. File 70 ajoute `/admin/planning/{id}` et `/impersonate/{token}`.
+SPA fallback `/admin` (Railway déjà `index.html` pour `/planning`, `/login`). File 70 : `/admin/planning/{id}` et `/impersonate/{token}`. File 73 : `/admin/bench/manuels`.
 
-**Note / Voir / lien copiable** = `contracts/domain/admin-historique.md` (**gagne** sur la table `/admin` et le log).
+**Note / lien / import** HTTP = `admin-historique.md` / `bench-import.md`. **Chrome table** = `admin-ui-pass.md` (**gagne**).
 
 ## Hors freeze
 
-Banc + **Versions** = `contracts/domain/bench.md`. Import resto = `bench-import.md`. Chrome banc = `bench-chrome.md`. Un moteur **par** resto. Supprimer un salarié / panneau compte. Archive / sync.
+Banc + **Versions** = `contracts/domain/bench.md`. Import resto = `bench-import.md`. Chrome banc = `bench-chrome.md`. Deux pages banc = `admin-ui-pass.md`. Un moteur **par** resto. Supprimer un salarié / panneau compte. Archive / sync.

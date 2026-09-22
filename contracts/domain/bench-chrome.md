@@ -10,7 +10,7 @@ Suppose file 71 landé (`origin`, importés en base).
 2. Sous le **nom du jeu** : bouton **`…`** → menu : 3 lancements, exporter ce jeu, **supprimer**.
 3. Hover du texte du jeu (id + name) = `challenge_fr` ; si `comment` non null, le commentaire **en plus**.
 4. **Exporter sous le Manuel** + **Exporter tout le banc** déménagent dans le bloc **Lancer** (en haut).
-5. Sous **Derniers runs** : filtre **Tous | IA | Manuels**. IA = `origin=catalogue`. Manuels = `origin=imported`.
+5. Filtre in-page **Tous | IA | Manuels** : **retiré** (file 73, `admin-ui-pass.md` **gagne**) — deux pages **Banc IA** / **Banc Manuels** à la place.
 6. Supprimer = **ce jeu + tous ses résultats** (runs + jobs). Catalogue git **pas** réécrit : tombstone en base pour qu’un redeploy Railway ne le ramène pas.
 
 ## Infra
@@ -38,7 +38,7 @@ Bloc existant (sélecteur moteur, toutes catégories, par compute, trous, loader
 
 ### Derniers runs
 
-Sous le `h2`, **avant** le tableau : trois boutons-filtre **Tous** | **IA** | **Manuels**. Défaut **Tous**. Filtre **client** sur `dataset.origin`. Liste vide → « Aucun jeu. »
+File 72 avait un filtre client Tous | IA | Manuels. **File 73 le retire** : deux routes `/admin/bench` (catalogue) et `/admin/bench/manuels` (importés). Liste vide → « Aucun jeu. »
 
 Tableau :
 
@@ -71,8 +71,8 @@ Stats banc : **inchangée** (elle suit `/versions`, donc tombstones exclus). Pas
 
 Infra : DELETE importé → plus dans `/versions`, runs 0. DELETE `tight/halles` → plus listé, fichiers toujours là, 2ᵉ DELETE 204. Gaps ne requeue pas un tombstone. 404 id inconnu. Non-admin 403.
 
-UI : build. Tableau sans Défi/Lancer ; `…` ouvre 5 actions ; filtre Manuels masque le catalogue ; exports globaux dans Lancer.
+UI file 72 : tableau sans Défi/Lancer ; `…` ; exports globaux dans Lancer. Filtre in-page **file 73**.
 
 ## Hors freeze
 
-Solve cuisine. Relance globale qui écrase. Éditer un jeu importé. Archive / sync.
+Deux pages Banc IA / Manuels = file 73. Solve cuisine. Relance globale qui écrase. Éditer un jeu importé. Archive / sync.
