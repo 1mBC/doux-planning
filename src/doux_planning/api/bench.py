@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import defer
 
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_database
 from doux_planning.api.bench_import import (
@@ -257,7 +258,7 @@ def _tombstone_keys() -> set[tuple[str, str]]:
 def _imported_listings() -> list[BenchListing]:
     return [
         BenchListing(category=row.category, id=row.id, name=row.name, challenge_fr=row.challenge_fr)
-        for row in list_imported_rows()
+        for row in list_imported_rows(include_context=False)
     ]
 
 
@@ -275,14 +276,12 @@ def _listing_origin(item: BenchListing) -> str:
 
 def _all_listings(origin: str | None = None) -> list[BenchListing]:
     hidden = _tombstone_keys()
-    items = [
-        item
-        for item in list(list_bench_datasets()) + _imported_listings()
-        if (item.category, item.id) not in hidden
-    ]
-    if origin is None:
-        return items
-    return [item for item in items if _listing_origin(item) == origin]
+    items: list[BenchListing] = []
+    if origin != "imported":
+        items.extend(list_bench_datasets())
+    if origin != "catalogue":
+        items.extend(_imported_listings())
+    return [item for item in items if (item.category, item.id) not in hidden]
 
 
 def _known_targets(origin: str | None = None) -> list[tuple[str, str]]:
@@ -478,9 +477,16 @@ def _below_manuel(row: BenchRun) -> bool:
     return model < manual
 
 
-def _runs_newest() -> list[BenchRun]:
+def _runs_newest(*, origin: str | None = None, cells_only: bool = False) -> list[BenchRun]:
+    stmt = select(BenchRun).order_by(BenchRun.created_at.desc(), BenchRun.id.desc())
+    if origin == "imported":
+        stmt = stmt.where(BenchRun.category == IMPORTED_CATEGORY)
+    elif origin == "catalogue":
+        stmt = stmt.where(BenchRun.category != IMPORTED_CATEGORY)
+    if cells_only:
+        stmt = stmt.options(defer(BenchRun.assignments), defer(BenchRun.warnings), defer(BenchRun.trace))
     with session_scope() as db:
-        return list(db.scalars(select(BenchRun).order_by(BenchRun.created_at.desc(), BenchRun.id.desc())))
+        return list(db.scalars(stmt))
 
 
 def _latest_current_runs_map() -> dict[tuple[str, str], dict[str, BenchRun]]:
@@ -504,9 +510,10 @@ def _version_cell(row: BenchRun) -> dict[str, Any]:
     }
 
 
-def list_versions(authorization: str | None) -> dict[str, Any]:
+def list_versions(authorization: str | None, origin: str | None = None) -> dict[str, Any]:
     require_admin(authorization)
-    newest = _runs_newest()
+    origin_filter = _parse_origin(origin)
+    newest = _runs_newest(origin=origin_filter, cells_only=True)
     oldest = list(reversed(newest))
     registre = list(list_engine_refs())
     extras: list[str] = []
@@ -525,8 +532,12 @@ def list_versions(authorization: str | None) -> dict[str, Any]:
     for row in oldest:
         first_run.setdefault((row.category, row.dataset_id), row)
     datasets: list[dict[str, Any]] = []
-    imported_rows = {row.id: row for row in list_imported_rows()}
-    for item in _all_listings():
+    imported_rows = (
+        {row.id: row for row in list_imported_rows(include_context=False)}
+        if origin_filter != "catalogue"
+        else {}
+    )
+    for item in _all_listings(origin_filter):
         first = first_run.get((item.category, item.id))
         by_ref: dict[str, dict[str, Any]] = {}
         for ref in engine_refs:
@@ -538,11 +549,10 @@ def list_versions(authorization: str | None) -> dict[str, Any]:
                 )
                 for effort in EFFORTS
             }
-        origin = "catalogue"
+        listing_origin = _listing_origin(item)
         comment = None
         manual: dict[str, Any] | None
-        if item.category == IMPORTED_CATEGORY:
-            origin = "imported"
+        if listing_origin == "imported":
             imported = imported_rows.get(item.id)
             comment = None if imported is None else imported.comment
             override = None if imported is None else imported.manual_score_override
@@ -562,7 +572,7 @@ def list_versions(authorization: str | None) -> dict[str, Any]:
                 "id": item.id,
                 "name": item.name,
                 "challenge_fr": item.challenge_fr,
-                "origin": origin,
+                "origin": listing_origin,
                 "comment": comment,
                 "manual": manual,
                 "by_ref": by_ref,
@@ -644,9 +654,27 @@ def _latest_runs_by_quad() -> dict[tuple[str, str, str, str], BenchRun]:
     return latest
 
 
-def _bank_pack_entry(listing: BenchListing, latest: dict[tuple[str, str, str, str], BenchRun]) -> dict[str, Any] | None:
+def _engine_refs_for_listing(
+    listing: BenchListing, latest: dict[tuple[str, str, str, str], BenchRun]
+) -> list[str]:
+    registre = list(list_engine_refs())
+    seen = set(registre)
+    extras: list[str] = []
+    for category, dataset_id, ref, _effort in latest:
+        if category == listing.category and dataset_id == listing.id and ref not in seen:
+            extras.append(ref)
+            seen.add(ref)
+    return registre + extras
+
+
+def _bank_pack_entry(
+    listing: BenchListing,
+    latest: dict[tuple[str, str, str, str], BenchRun],
+    *,
+    refs: list[str] | None = None,
+) -> dict[str, Any] | None:
     rows: list[tuple[str, str, BenchRun]] = []
-    for ref in list_engine_refs():
+    for ref in refs if refs is not None else list(list_engine_refs()):
         for effort in EFFORTS:
             row = latest.get((listing.category, listing.id, ref, effort))
             if row is not None:
@@ -701,26 +729,26 @@ def export_pack(
             entry = _bank_pack_entry(item, latest)
             if entry is not None:
                 datasets.append(entry)
+    elif scope == "dataset":
+        if not isinstance(category, str) or not category or not isinstance(dataset_id, str) or not dataset_id:
+            raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+        listing = listed.get((category, dataset_id))
+        if listing is None:
+            raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING)
+        latest = _latest_runs_by_quad()
+        entry = _bank_pack_entry(listing, latest, refs=_engine_refs_for_listing(listing, latest))
+        if entry is None:
+            raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
+        datasets.append(entry)
     else:
         grouped = _latest_current_runs_map()
-        if scope == "dataset":
-            if not isinstance(category, str) or not category or not isinstance(dataset_id, str) or not dataset_id:
-                raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
-            listing = listed.get((category, dataset_id))
-            if listing is None:
-                raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING)
-            latest = grouped.get((category, dataset_id)) or {}
+        for item in _all_listings(origin_filter):
+            latest = grouped.get((item.category, item.id)) or {}
             if not latest:
-                raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
-            datasets.append(_dataset_pack_entry(listing, latest))
-        else:
-            for item in _all_listings(origin_filter):
-                latest = grouped.get((item.category, item.id)) or {}
-                if not latest:
-                    continue
-                if not any(_below_manuel(row) for row in latest.values()):
-                    continue
-                datasets.append(_dataset_pack_entry(item, latest))
+                continue
+            if not any(_below_manuel(row) for row in latest.values()):
+                continue
+            datasets.append(_dataset_pack_entry(item, latest))
     ref = engine_ref()
     return {
         "export_version": 1,

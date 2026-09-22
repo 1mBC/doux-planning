@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
+from sqlalchemy.orm import defer
 
 from doux_planning.api.auth import (
     DETAIL_INVALID_FIELDS,
@@ -52,17 +53,16 @@ def _invalid() -> HTTPException:
     return HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
 
 
-def list_imported_rows() -> list[BenchImportedDataset]:
+def list_imported_rows(*, include_context: bool = True) -> list[BenchImportedDataset]:
     require_database()
+    stmt = select(BenchImportedDataset).order_by(
+        BenchImportedDataset.created_at.desc(),
+        BenchImportedDataset.id.desc(),
+    )
+    if not include_context:
+        stmt = stmt.options(defer(BenchImportedDataset.context))
     with session_scope() as db:
-        rows = list(
-            db.scalars(
-                select(BenchImportedDataset).order_by(
-                    BenchImportedDataset.created_at.desc(),
-                    BenchImportedDataset.id.desc(),
-                )
-            )
-        )
+        rows = list(db.scalars(stmt))
         for row in rows:
             db.expunge(row)
         return rows

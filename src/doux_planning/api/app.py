@@ -277,10 +277,13 @@ def admin_bench_compare(
 
 
 @app.get("/v1/admin/bench/versions")
-def admin_bench_versions(authorization: str | None = Header(default=None)) -> dict:
+def admin_bench_versions(
+    authorization: str | None = Header(default=None),
+    origin: str | None = None,
+) -> dict:
     from doux_planning.api.bench import list_versions
 
-    return list_versions(authorization)
+    return list_versions(authorization, origin=origin)
 
 
 @app.get("/v1/admin/bench/export")
