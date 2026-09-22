@@ -271,3 +271,14 @@ Workers SHALL claim one job per process via `SKIP LOCKED`, beat `heartbeat_at` e
 #### Scenario: Catalogue tombstone hides halles
 - **WHEN** an admin DELETEs `tight` / `halles`
 - **THEN** halles is absent from `/versions`, `data/bench/tight/halles` still exists, a second DELETE is 204, and `scope=gaps` does not enqueue halles
+
+### Requirement: Bench run and export accept an origin filter
+`origin` SHALL be optional and MUST be `"catalogue"` or `"imported"` when present. Absent, JSON `null`, or `""` MUST mean no origin filter. Any other value MUST be HTTP 400 `Champs invalides.` `POST /v1/admin/bench/run` MAY include `origin` and MUST filter `scope=all`, `scope=category`, and `scope=gaps` (`catalogue` = not imported, `imported` = imported listings only). `scope=dataset` MUST ignore `origin`. `GET /v1/admin/bench/export` MAY take query `origin` for `below_manuel` and `bank`; `scope=dataset` MUST ignore origin. SPA MUST serve `/admin/bench/manuels` as `index.html`. `GET /versions` MUST stay unfiltered. Non-admin MUST stay HTTP 403 `Action réservée à l’admin.`
+
+#### Scenario: Catalogue all skips imported jobs
+- **WHEN** an admin has imported a restaurant and posts `scope=all` with `origin=catalogue`
+- **THEN** none of the queued jobs have `category=imported`
+
+#### Scenario: Unknown origin is 400
+- **WHEN** an admin posts or exports with `origin=nope`
+- **THEN** the response is HTTP 400 `Champs invalides.`
