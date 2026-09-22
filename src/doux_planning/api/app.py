@@ -171,6 +171,15 @@ def admin_restaurant_context(
     return get_admin_context(authorization, restaurant_id)
 
 
+@app.get("/v1/admin/restaurants/{restaurant_id}/import-preview")
+def admin_restaurant_import_preview(
+    restaurant_id: str, authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.bench_import import import_preview
+
+    return import_preview(authorization, restaurant_id)
+
+
 @app.post("/v1/admin/impersonate")
 def admin_impersonate(
     body: dict[str, Any],
@@ -221,6 +230,13 @@ def admin_bench_run(body: dict[str, Any], authorization: str | None = Header(def
     from doux_planning.api.bench import post_run
 
     return post_run(authorization, body)
+
+
+@app.post("/v1/admin/bench/import")
+def admin_bench_import(body: dict[str, Any], authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench_import import import_restaurant
+
+    return import_restaurant(authorization, body)
 
 
 @app.get("/v1/admin/bench/jobs/{job_id}")

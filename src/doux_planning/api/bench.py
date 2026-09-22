@@ -12,6 +12,16 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_admin, require_database
+from doux_planning.api.bench_import import (
+    DETAIL_NO_SALLE,
+    IMPORTED_CATEGORY,
+    context_has_salle,
+    get_imported_row,
+    imported_context,
+    imported_override,
+    list_imported_rows,
+    load_imported_dataset,
+)
 from doux_planning.api.db import BenchJob, BenchRun, session_scope
 from doux_planning.api.generate import _cycle_recap_json, _cycle_score_json, _fact_json, _shift_json
 from doux_planning.api.sandbox import parse_shift
@@ -25,7 +35,7 @@ from doux_planning.bench import (
     list_bench_datasets,
     list_engine_refs,
     load_bench_dataset,
-    run_bench,
+    run_bench_on,
 )
 from doux_planning.context import cycle_recap_from_draft, expand_typical_week
 from doux_planning.engine import SEARCH_SECONDS, PlanningDraft, evaluate
@@ -84,6 +94,15 @@ def _run_summary(row: BenchRun) -> dict[str, Any]:
 
 def persist_bench_outcome(outcome: BenchOutcome) -> BenchRun:
     created_at = datetime.now(timezone.utc)
+    expected_score = _cycle_score_json(outcome.expected_score)
+    deltas = dict(outcome.deltas)
+    override = imported_override(outcome.id)
+    if override is not None:
+        expected_score = dict(expected_score)
+        expected_score["global"] = override
+        model_global = outcome.score.global_score
+        deltas = dict(deltas)
+        deltas["global"] = None if model_global is None else float(model_global) - float(override)
     row = BenchRun(
         id=secrets.token_urlsafe(12),
         created_at=created_at,
@@ -93,8 +112,8 @@ def persist_bench_outcome(outcome: BenchOutcome) -> BenchRun:
         search_effort=outcome.search_effort.value,
         duration_seconds=max(0.0, float(outcome.duration_seconds)),
         score=_cycle_score_json(outcome.score),
-        expected_score=_cycle_score_json(outcome.expected_score),
-        deltas=dict(outcome.deltas),
+        expected_score=expected_score,
+        deltas=deltas,
         assignments=[_shift_json(shift) for shift in outcome.assignments],
         warnings=[_fact_json(item) for item in outcome.facts],
         trace=asdict(outcome.trace) if outcome.trace is not None else None,
@@ -216,8 +235,35 @@ def _cycle_slice(dataset, assignments) -> dict[str, Any]:
     return body
 
 
+def resolve_bench_dataset(category: str, dataset_id: str):
+    folder = bench_dir() / category / dataset_id
+    if (folder / "context.json").is_file() and (folder / "expected.json").is_file():
+        return load_bench_dataset(category, dataset_id)
+    return load_imported_dataset(category, dataset_id)
+
+
+def _imported_listings() -> list[BenchListing]:
+    return [
+        BenchListing(category=row.category, id=row.id, name=row.name, challenge_fr=row.challenge_fr)
+        for row in list_imported_rows()
+    ]
+
+
+def _all_listings() -> list[BenchListing]:
+    return list(list_bench_datasets()) + _imported_listings()
+
+
 def _known_targets() -> list[tuple[str, str]]:
-    return [(item.category, item.id) for item in list_bench_datasets()]
+    return [(item.category, item.id) for item in _all_listings()]
+
+
+def _target_has_salle(category: str, dataset_id: str) -> bool:
+    if category != IMPORTED_CATEGORY:
+        return True
+    row = get_imported_row(dataset_id)
+    if row is None:
+        return False
+    return context_has_salle(row.context if isinstance(row.context, dict) else None)
 
 
 def _parse_run_body(body: dict[str, Any]) -> tuple[str, str, list[tuple[str, str]], str]:
@@ -238,17 +284,19 @@ def _parse_run_body(body: dict[str, Any]) -> tuple[str, str, list[tuple[str, str
         ref_to_use = engine_ref()
     known = _known_targets()
     if scope == "all":
-        return scope, effort, known, ref_to_use
+        return scope, effort, [item for item in known if _target_has_salle(*item)], ref_to_use
     if not isinstance(category, str) or not category:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
-    if category not in BENCH_CATEGORY_ORDER:
+    if category not in BENCH_CATEGORY_ORDER and category != IMPORTED_CATEGORY:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
     if scope == "category":
-        return scope, effort, [item for item in known if item[0] == category], ref_to_use
+        return scope, effort, [item for item in known if item[0] == category and _target_has_salle(*item)], ref_to_use
     if not isinstance(dataset_id, str) or not dataset_id:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
     if (category, dataset_id) not in known:
         raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING)
+    if not _target_has_salle(category, dataset_id):
+        raise HTTPException(status_code=400, detail=DETAIL_NO_SALLE)
     return scope, effort, [(category, dataset_id)], ref_to_use
 
 
@@ -289,7 +337,7 @@ def list_runs(
 
 def _compare_body(row: BenchRun) -> dict[str, Any]:
     try:
-        dataset = load_bench_dataset(row.category, row.dataset_id)
+        dataset = resolve_bench_dataset(row.category, row.dataset_id)
     except UnknownBenchDataset as exc:
         raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING) from exc
     body = _run_summary(row)
@@ -412,7 +460,8 @@ def list_versions(authorization: str | None) -> dict[str, Any]:
     for row in oldest:
         first_run.setdefault((row.category, row.dataset_id), row)
     datasets: list[dict[str, Any]] = []
-    for item in list_bench_datasets():
+    imported_rows = {row.id: row for row in list_imported_rows()}
+    for item in _all_listings():
         first = first_run.get((item.category, item.id))
         by_ref: dict[str, dict[str, Any]] = {}
         for ref in engine_refs:
@@ -424,40 +473,71 @@ def list_versions(authorization: str | None) -> dict[str, Any]:
                 )
                 for effort in EFFORTS
             }
+        origin = "catalogue"
+        comment = None
+        manual: dict[str, Any] | None
+        if item.category == IMPORTED_CATEGORY:
+            origin = "imported"
+            imported = imported_rows.get(item.id)
+            comment = None if imported is None else imported.comment
+            override = None if imported is None else imported.manual_score_override
+            expected = {} if imported is None or not isinstance(imported.expected, dict) else imported.expected
+            expected_assignments = expected.get("assignments") or []
+            if override is not None:
+                manual = {"global": override}
+            elif expected_assignments:
+                manual = None if first is None else {"global": _score_global(first.expected_score)}
+            else:
+                manual = None
+        else:
+            manual = None if first is None else {"global": _score_global(first.expected_score)}
         datasets.append(
             {
                 "category": item.category,
                 "id": item.id,
                 "name": item.name,
                 "challenge_fr": item.challenge_fr,
-                "manual": None if first is None else {"global": _score_global(first.expected_score)},
+                "origin": origin,
+                "comment": comment,
+                "manual": manual,
                 "by_ref": by_ref,
             }
         )
     return {"engine_ref": engine_ref(), "engine_refs": engine_refs, "datasets": datasets}
 
 
+def _strip_invite_tokens(raw: dict[str, Any]) -> dict[str, Any]:
+    employees = raw.get("employees")
+    if not isinstance(employees, list):
+        return raw
+    cleaned = []
+    for person in employees:
+        if isinstance(person, dict):
+            item = dict(person)
+            item.pop("invite_token", None)
+            cleaned.append(item)
+        else:
+            cleaned.append(person)
+    raw = dict(raw)
+    raw["employees"] = cleaned
+    return raw
+
+
 def _context_json(category: str, dataset_id: str) -> dict[str, Any]:
+    if category == IMPORTED_CATEGORY:
+        stored = imported_context(dataset_id)
+        if stored is None:
+            raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING)
+        return _strip_invite_tokens(stored)
     path = bench_dir() / category / dataset_id / "context.json"
     raw = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(raw, dict):
-        employees = raw.get("employees")
-        if isinstance(employees, list):
-            cleaned = []
-            for person in employees:
-                if isinstance(person, dict):
-                    item = dict(person)
-                    item.pop("invite_token", None)
-                    cleaned.append(item)
-                else:
-                    cleaned.append(person)
-            raw = dict(raw)
-            raw["employees"] = cleaned
+        return _strip_invite_tokens(raw)
     return raw
 
 
 def _dataset_pack_entry(listing: BenchListing, latest: dict[str, BenchRun]) -> dict[str, Any]:
-    dataset = load_bench_dataset(listing.category, listing.id)
+    dataset = resolve_bench_dataset(listing.category, listing.id)
     efforts: list[dict[str, Any]] = []
     for effort in EFFORTS:
         row = latest.get(effort)
@@ -508,7 +588,7 @@ def _bank_pack_entry(listing: BenchListing, latest: dict[tuple[str, str, str, st
                 rows.append((ref, effort, row))
     if not rows:
         return None
-    dataset = load_bench_dataset(listing.category, listing.id)
+    dataset = resolve_bench_dataset(listing.category, listing.id)
     efforts = [
         {
             "search_effort": effort,
@@ -544,11 +624,11 @@ def export_pack(
     require_database()
     if scope not in EXPORT_SCOPES:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
-    listed = {(item.category, item.id): item for item in list_bench_datasets()}
+    listed = {(item.category, item.id): item for item in _all_listings()}
     datasets: list[dict[str, Any]] = []
     if scope == "bank":
         latest = _latest_runs_by_quad()
-        for item in list_bench_datasets():
+        for item in _all_listings():
             entry = _bank_pack_entry(item, latest)
             if entry is not None:
                 datasets.append(entry)
@@ -565,7 +645,7 @@ def export_pack(
                 raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
             datasets.append(_dataset_pack_entry(listing, latest))
         else:
-            for item in list_bench_datasets():
+            for item in _all_listings():
                 latest = grouped.get((item.category, item.id)) or {}
                 if not latest:
                     continue
@@ -587,7 +667,9 @@ def export_pack(
 def _gap_targets() -> list[tuple[str, str, str, str]]:
     latest = _latest_runs_by_quad()
     holes: list[tuple[str, str, str, str]] = []
-    for item in list_bench_datasets():
+    for item in _all_listings():
+        if not _target_has_salle(item.category, item.id):
+            continue
         for effort in EFFORTS:
             for ref in list_engine_refs():
                 row = latest.get((item.category, item.id, ref, effort))
@@ -632,7 +714,11 @@ def post_run(authorization: str | None, body: dict[str, Any]) -> dict[str, Any] 
         return _queued_response(batch_id, job_ids)
     category, dataset_id = targets[0]
     try:
-        outcome = run_bench(category, dataset_id, SearchEffort(effort), engine_ref=ref_to_use)
+        outcome = run_bench_on(
+            resolve_bench_dataset(category, dataset_id),
+            SearchEffort(effort),
+            engine_ref=ref_to_use,
+        )
     except UnknownBenchDataset as exc:
         raise HTTPException(status_code=404, detail=DETAIL_BENCH_MISSING) from exc
     row = persist_bench_outcome(outcome)
