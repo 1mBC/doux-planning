@@ -289,10 +289,13 @@ def admin_bench_export(
     authorization: str | None = Header(default=None),
     category: str | None = None,
     dataset_id: str | None = None,
+    origin: str | None = None,
 ) -> dict:
     from doux_planning.api.bench import export_pack
 
-    return export_pack(authorization, scope=scope, category=category, dataset_id=dataset_id)
+    return export_pack(
+        authorization, scope=scope, category=category, dataset_id=dataset_id, origin=origin
+    )
 
 
 @app.get("/v1/admin/bench/batches/active")
@@ -520,6 +523,7 @@ SPA_PATHS = (
     "/exemple",
     "/admin",
     "/admin/bench",
+    "/admin/bench/manuels",
     "/admin/bench/versions",
 )
 

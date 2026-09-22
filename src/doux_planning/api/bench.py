@@ -261,17 +261,32 @@ def _imported_listings() -> list[BenchListing]:
     ]
 
 
-def _all_listings() -> list[BenchListing]:
+def _parse_origin(raw: Any) -> str | None:
+    if raw is None or raw == "":
+        return None
+    if raw in ("catalogue", "imported"):
+        return raw
+    raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+
+
+def _listing_origin(item: BenchListing) -> str:
+    return "imported" if item.category == IMPORTED_CATEGORY else "catalogue"
+
+
+def _all_listings(origin: str | None = None) -> list[BenchListing]:
     hidden = _tombstone_keys()
-    return [
+    items = [
         item
         for item in list(list_bench_datasets()) + _imported_listings()
         if (item.category, item.id) not in hidden
     ]
+    if origin is None:
+        return items
+    return [item for item in items if _listing_origin(item) == origin]
 
 
-def _known_targets() -> list[tuple[str, str]]:
-    return [(item.category, item.id) for item in _all_listings()]
+def _known_targets(origin: str | None = None) -> list[tuple[str, str]]:
+    return [(item.category, item.id) for item in _all_listings(origin)]
 
 
 def _target_has_salle(category: str, dataset_id: str) -> bool:
@@ -299,7 +314,8 @@ def _parse_run_body(body: dict[str, Any]) -> tuple[str, str, list[tuple[str, str
         ref_to_use = requested_ref
     else:
         ref_to_use = engine_ref()
-    known = _known_targets()
+    origin = _parse_origin(body.get("origin"))
+    known = _known_targets() if scope == "dataset" else _known_targets(origin)
     if scope == "all":
         return scope, effort, [item for item in known if _target_has_salle(*item)], ref_to_use
     if not isinstance(category, str) or not category:
@@ -668,16 +684,20 @@ def export_pack(
     scope: str | None,
     category: str | None = None,
     dataset_id: str | None = None,
+    origin: str | None = None,
 ) -> dict[str, Any]:
     require_admin(authorization)
     require_database()
     if scope not in EXPORT_SCOPES:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    origin_filter = _parse_origin(origin)
+    if scope == "dataset":
+        origin_filter = None
     listed = {(item.category, item.id): item for item in _all_listings()}
     datasets: list[dict[str, Any]] = []
     if scope == "bank":
         latest = _latest_runs_by_quad()
-        for item in _all_listings():
+        for item in _all_listings(origin_filter):
             entry = _bank_pack_entry(item, latest)
             if entry is not None:
                 datasets.append(entry)
@@ -694,7 +714,7 @@ def export_pack(
                 raise HTTPException(status_code=404, detail=DETAIL_BENCH_RUN_MISSING)
             datasets.append(_dataset_pack_entry(listing, latest))
         else:
-            for item in _all_listings():
+            for item in _all_listings(origin_filter):
                 latest = grouped.get((item.category, item.id)) or {}
                 if not latest:
                     continue
@@ -713,10 +733,10 @@ def export_pack(
     }
 
 
-def _gap_targets() -> list[tuple[str, str, str, str]]:
+def _gap_targets(origin: str | None = None) -> list[tuple[str, str, str, str]]:
     latest = _latest_runs_by_quad()
     holes: list[tuple[str, str, str, str]] = []
-    for item in _all_listings():
+    for item in _all_listings(origin):
         if not _target_has_salle(item.category, item.id):
             continue
         for effort in EFFORTS:
@@ -743,8 +763,9 @@ def post_run(authorization: str | None, body: dict[str, Any]) -> dict[str, Any] 
     require_admin(authorization)
     require_database()
     if isinstance(body, dict) and body.get("scope") == "gaps":
+        origin = _parse_origin(body.get("origin"))
         batch_id = secrets.token_urlsafe(12)
-        targets = _gap_targets()
+        targets = _gap_targets(origin)
         if not targets:
             return {"batch_id": batch_id, "job_ids": [], "total": 0, "status": "done"}
         job_ids = [

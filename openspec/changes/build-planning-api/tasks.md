@@ -81,3 +81,7 @@
 ## 15. Bench chrome delete / tombstone (file 72)
 
 - [x] 15.1 Alembic after `20260922_0018`: table `bench_tombstones` (`category`, `dataset_id`, `created_at`; PK couple). `DELETE /v1/admin/bench/datasets/{category}/{dataset_id}` Bearer admin 204: imported drops row+runs+jobs; catalogue INSERT tombstone + drop runs/jobs, files intact, 2nd DELETE 204; unknown 404 `Jeu introuvable.`; 403/401/503. Listings / export / all / category / gaps exclude tombstones. Verify TestClient (`skipif` without `DATABASE_URL`): import DELETE gone from `/versions` with 0 runs/jobs; DELETE `tight/halles` not listed, disk remains, 2nd 204; gaps skip halles; junk 404; non-admin 403. No `web/` / Core outside `api/` / `contracts/` / `engine.py` / `data/bench/`
+
+## 16. Admin UI pass origin / SPA manuels (file 73)
+
+- [x] 16.1 SPA `/admin/bench/manuels` in `SPA_PATHS`. Optional `origin` (`catalogue`|`imported`) on `POST /v1/admin/bench/run` (all/category/gaps) and `GET /v1/admin/bench/export` (below_manuel/bank). Absent/null/"" = both. Unknown 400 `Champs invalides.` Dataset ignores origin. Empty category+origin mismatch is empty not 400. Tombstones and cuisine-only unchanged. Verify TestClient (`skipif` without `DATABASE_URL`): SPA manuels index; after import all+catalogue no imported jobs, all+imported no catalogue, gaps+catalogue no imported; no origin both; origin=nope 400; export bank&origin=catalogue no imported; 403 non-admin. No `web/` / Core outside `api/` / `contracts/` / `engine.py` / `data/bench/`
