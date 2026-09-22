@@ -4,7 +4,7 @@ Freeze **domaine** + HTTP admin. UI = brief UI.
 **Salle only.** Catalogue `data/bench/`.  
 Le banc **n’écrit jamais** dans `published_cycles` / `live_sandboxes` / comptes / generate_logs du resto. State **jetable**. Jobs bench ≠ jobs resto (pas de 409 croisé).  
 **Import snapshot** (file 71, `bench-import.md` **gagne**) : copie ponctuelle contexte + oracle + computes → jeu `origin=imported` en base. Catalogue git inchangé.  
-**Chrome / delete** (file 72, `bench-chrome.md` **gagne**).
+**Chrome / delete** (file 72, `bench-chrome.md` **gagne**). **Deux pages Banc IA / Banc Manuels** (file 73, `admin-ui-pass.md` **gagne** sur le filtre in-page).
 
 ## Identité moteur
 
@@ -151,6 +151,8 @@ Routes run / jobs / datasets **plus** gaps / batch / export `bank`.
 
 `POST /v1/admin/bench/run` accepte un **`engine_ref` optionnel** dans le body. Si présent et valide (`list_engine_refs()`), utilise ce moteur. Si absent ou vide, utilise **VERSION** (défaut). Si invalide → 400.
 
+File 73 : body **`origin`** optionnel `"catalogue"` | `"imported"` — `admin-ui-pass.md` **gagne** (filtre `all` / `category` / `gaps` ; ignoré sur `dataset`).
+
 `POST all` / `category` = un job par jeu **listé**, `engine_ref` = celui du body ou VERSION.
 Dédup / heartbeat / batch / N workers : **`contracts/domain/worker-queue.md`**.
 Persist : `bench_runs.app_version` = `outcome.engine_ref` ; JSONB **`trace`**. Alembic : `trace`, jobs `engine_ref` + `batch_id` + `started_at`, unique partiel élargi.
@@ -221,6 +223,7 @@ Ordre `datasets` = `list_bench_datasets`. Clés d’effort toujours les trois, `
 GET /v1/admin/bench/export?scope=dataset&category=&dataset_id=
 GET /v1/admin/bench/export?scope=below_manuel
 GET /v1/admin/bench/export?scope=bank
+# file 73 : &origin=catalogue|imported optionnel sur below_manuel et bank (`admin-ui-pass.md`)
 ```
 
 Bearer admin. 403 / 401 / 503 comme le reste.  
@@ -269,7 +272,7 @@ Pas d’Alembic (recompute) pour dataset / below_manuel. `bank` lit `trace` pers
 
 ### POST gaps (trous)
 
-`POST /v1/admin/bench/run` `{ "scope": "gaps" }`
+`POST /v1/admin/bench/run` `{ "scope": "gaps" }` — file 73 : `origin` optionnel, `admin-ui-pass.md`.
 
 202 :
 

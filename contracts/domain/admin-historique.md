@@ -15,7 +15,7 @@ Trois gestes sur **Historique des computes** (`/admin`) :
 1. `generate_logs` gagne `restaurant_id` (nullable vieux rows) + `score_global` (nullable).
 2. Voir = lecture seule, session admin **inchangée**. Pas d’édition, pas de generate, pas de sandbox.
 3. Le lien impersonate est **à usage unique**, TTL **15 min**, consommé dans l’autre fenêtre. La session admin d’origine ne bouge pas.
-4. Clic droit sur **l’email** → copie le lien. Clic **Voir** → `/admin/planning/{restaurant_id}`.
+4. Chrome table / gestes visibles = **file 73** (`admin-ui-pass.md` **gagne**) : encart note, hover warnings **sur la note**, Actions `impersonate` | `exporter vers le banc`. HTTP impersonate + GET planning **inchangés**.
 5. Compte / resto disparu → 404, boutons inactifs.
 
 ## Persist (Alembic)
@@ -107,18 +107,9 @@ SPA : `/impersonate/{token}` → `index.html`. Page **sans** session : POST cons
 
 ## UI — `/admin`
 
-Table existante **plus** :
+File 70 a ajouté `score_global` / `restaurant_id` au parser et les routes planning / impersonate.
 
-| Colonne | Contenu |
-|---|---|
-| **Note** | `formatCycleNote(score_global)` (`8,4` / `—`) |
-| **Planning** | bouton **Voir** si `restaurant_id` non null ; sinon inactif |
-
-Ordre des colonnes : Heure, Email, Restaurant, Équipe, Effort, **Note**, Durée, Moteur, Warnings, **Planning**.
-
-- **Clic droit email** : `preventDefault`, `POST /v1/admin/impersonate` `{ restaurant_id }`, copie `url` dans le presse-papiers, toast court **« Lien copié — ouvre-le en navigation privée. »** `restaurant_id` null → toast **« Restaurant introuvable. »**, pas de POST.
-- **Clic Voir** : `go("/admin/planning/" + restaurant_id)`.
-- Hover warnings / en-têtes par jour / sélecteur moteur : **inchangés**.
+**Chrome table (colonnes, hover, boutons)** = `admin-ui-pass.md` (**gagne**, file 73). Ne plus suivre le tableau Warnings / Planning / clic droit de ce file.
 
 `/admin/planning/{id}` : `me.admin` seulement (sinon message réservé, 0 fetch). Titre = nom du resto. Menu admin (Historique | Banc | Stats). **Reprend** la grille `/planning` en **lecture seule** : 4 crans, recaps, export client si déjà branché sur les cycles chargés. **Pas** (Re)Calculer, **pas** « Entrer en mode édition », **pas** overlay live. Load = les deux GET admin. 404 → `Restaurant introuvable.`
 
@@ -138,8 +129,8 @@ Infra (`skipif` sans `DATABASE_URL`) :
 - Session admin d’origine encore valide après consume (autre token).
 - SPA routes `/impersonate/{token}` et `/admin/planning/{id}` servent `index.html` si `dist` présent (skip sinon).
 
-UI : `npm run build`. Admin : colonne Note ; Voir mène à la route planning admin ; clic droit email copie (mock clipboard OK). Non-admin : 0 POST impersonate.
+UI file 70 : parser + routes planning / impersonate. Chrome table file 73.
 
 ## Hors freeze
 
-Import resto → banc (file 71). Ranger le chrome banc (file 72). Jeux cuisine. Un moteur par resto.
+Import resto → banc (file 71). Ranger le chrome banc (file 72). Repasse chrome table (file 73). Jeux cuisine. Un moteur par resto.
