@@ -158,6 +158,17 @@ def _clear_active_bench_jobs() -> None:
             job.error = "test cleanup"
 
 
+def _set_bench_engine(engine_ref: str) -> None:
+    from doux_planning.api.db import BenchEngine
+
+    with session_scope() as db:
+        row = db.get(BenchEngine, 1)
+        if row is None:
+            db.add(BenchEngine(id=1, engine_ref=engine_ref))
+        else:
+            row.engine_ref = engine_ref
+
+
 def _insert_bench_run(
     *,
     app_version: str,
@@ -1013,6 +1024,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     promote_admin_email()
     assert client.get("/v1/me", headers=headers).json()["admin"] is True
     _clear_active_bench_jobs()
+    _set_bench_engine("core-3")
 
     datasets = client.get("/v1/admin/bench/datasets", headers=headers)
     assert datasets.status_code == 200
@@ -1444,7 +1456,6 @@ def test_cancel_bench_batch(monkeypatch):
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
 def test_bench_run_optional_engine_ref(monkeypatch):
     from doux_planning.api.worker import tick_bench_job
-    from doux_planning.bench import engine_ref as current_version
 
     client = _client()
     password = "password1"
@@ -1460,9 +1471,7 @@ def test_bench_run_optional_engine_ref(monkeypatch):
     monkeypatch.setenv("ADMIN_EMAIL", email)
     promote_admin_email()
     assert client.get("/v1/me", headers=headers).json()["admin"] is True
-
-    version = current_version()
-    assert version == "core-5"
+    _set_bench_engine("core-5")
 
     without_ref = client.post(
         "/v1/admin/bench/run",

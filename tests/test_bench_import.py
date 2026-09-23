@@ -268,8 +268,8 @@ def test_bench_import_preview_flags_override_runs_cuisine_and_auth(monkeypatch):
     assert imported_row["origin"] == "imported"
     assert imported_row["comment"] == "note banc"
     assert imported_row["manual"]["global"] == 7.3
-    current = versions.json()["engine_ref"]
-    last_run = imported_row["by_ref"][current]["minimal"]
+    generated_ref = generated.json()["published"]["salle"]["versions"]["minimal"]["engine_ref"]
+    last_run = imported_row["by_ref"][generated_ref]["minimal"]
     assert last_run is not None
     assert last_run["run_id"]
 

@@ -11,7 +11,9 @@ from sqlalchemy import func, select
 
 from doux_planning.api.app import app
 from doux_planning.api.auth import DETAIL_ADMIN, promote_admin_email
-from doux_planning.api.db import GenerateLog, RestaurateurAccount, reset_engine, session_scope
+from doux_planning.api.db import BenchEngine, GenerateLog, LiveEngine, RestaurateurAccount, reset_engine, session_scope
+from doux_planning.bench import bench_dir
+from doux_planning.engines.registry import list_engine_refs
 from doux_planning.types import WEEKDAYS
 
 
@@ -325,17 +327,22 @@ def test_admin_promote_generate_logs_and_auth(monkeypatch):
 
 
 def _clear_live_engine() -> None:
-    from doux_planning.api.db import LiveEngine
-
     with session_scope() as db:
         for row in db.scalars(select(LiveEngine)):
             db.delete(row)
 
 
+def _set_bench_engine(engine_ref: str) -> None:
+    with session_scope() as db:
+        row = db.get(BenchEngine, 1)
+        if row is None:
+            db.add(BenchEngine(id=1, engine_ref=engine_ref))
+        else:
+            row.engine_ref = engine_ref
+
+
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
 def test_admin_live_engine_get_put_and_generate(monkeypatch):
-    from doux_planning.bench import engine_ref as bench_version
-
     client = _client()
     password = "password1"
     email = f"live-engine-{secrets.token_hex(4)}@example.com"
@@ -355,19 +362,19 @@ def test_admin_live_engine_get_put_and_generate(monkeypatch):
     _clear_live_engine()
     _clear_generate_logs()
 
-    version = bench_version()
-    assert version == "core-5"
+    refs = list(list_engine_refs())
+    fallback = refs[-1]
+    assert not (bench_dir() / "VERSION").is_file()
 
     unset = client.get("/v1/admin/live-engine", headers=headers)
     assert unset.status_code == 200
-    assert unset.json()["engine_ref"] == "core-5"
-    assert unset.json()["engine_refs"] == ["core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6"]
-    assert len(unset.json()["engine_refs"]) == 7
+    assert unset.json()["engine_ref"] == fallback
+    assert unset.json()["engine_refs"] == refs
 
     put_6 = client.put("/v1/admin/live-engine", headers=headers, json={"engine_ref": "core-6"})
     assert put_6.status_code == 200
     assert put_6.json()["engine_ref"] == "core-6"
-    assert put_6.json()["engine_refs"] == ["core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6"]
+    assert put_6.json()["engine_refs"] == refs
 
     get_6 = client.get("/v1/admin/live-engine", headers=headers)
     assert get_6.status_code == 200
@@ -384,6 +391,9 @@ def test_admin_live_engine_get_put_and_generate(monkeypatch):
     put_wrong_type = client.put("/v1/admin/live-engine", headers=headers, json={"engine_ref": 123})
     assert put_wrong_type.status_code == 400
     assert put_wrong_type.json()["detail"] == "Moteur inconnu."
+    still_6 = client.get("/v1/admin/live-engine", headers=headers)
+    assert still_6.status_code == 200
+    assert still_6.json()["engine_ref"] == "core-6"
 
     other = client.post(
         "/v1/auth/register",
@@ -401,6 +411,7 @@ def test_admin_live_engine_get_put_and_generate(monkeypatch):
     put_2 = client.put("/v1/admin/live-engine", headers=headers, json={"engine_ref": "core-2"})
     assert put_2.status_code == 200
     assert put_2.json()["engine_ref"] == "core-2"
+    _set_bench_engine("mix-0")
 
     fiche_id = f"live-eng-{secrets.token_hex(4)}"
     patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id, "Chez LiveEngine"))
@@ -416,6 +427,10 @@ def test_admin_live_engine_get_put_and_generate(monkeypatch):
     slot = generated.json()["published"]["salle"]["versions"]["minimal"]
     assert slot["engine_ref"] == "core-2"
     assert slot["search_effort"] == "minimal"
+    with session_scope() as db:
+        bench_row = db.get(BenchEngine, 1)
+        assert bench_row is not None
+        assert bench_row.engine_ref == "mix-0"
 
     cycles = client.get("/v1/cycles", headers=headers)
     assert cycles.status_code == 200
@@ -471,6 +486,47 @@ def test_admin_live_engine_get_put_and_generate(monkeypatch):
     assert no_bearer_get.status_code == 401
     no_bearer_put = client.put("/v1/admin/live-engine", json={"engine_ref": "core-3"})
     assert no_bearer_put.status_code == 401
+
+    _clear_live_engine()
+    generated_fallback = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "minimal"},
+    )
+    assert generated_fallback.status_code == 200
+    fallback_slot = generated_fallback.json()["published"]["salle"]["versions"]["minimal"]
+    assert fallback_slot["engine_ref"] == fallback
+    shown = client.get("/v1/admin/live-engine", headers=headers)
+    assert shown.status_code == 200
+    assert shown.json()["engine_ref"] == fallback
+
+    with session_scope() as db:
+        live_row = db.get(LiveEngine, 1)
+        assert live_row is not None
+        live_row.engine_ref = "hors-liste"
+    rewritten = client.get("/v1/admin/live-engine", headers=headers)
+    assert rewritten.status_code == 200
+    assert rewritten.json()["engine_ref"] == fallback
+    rewritten_again = client.get("/v1/admin/live-engine", headers=headers)
+    assert rewritten_again.json()["engine_ref"] == fallback
+    with session_scope() as db:
+        assert db.get(LiveEngine, 1).engine_ref == fallback
+    generated_rewritten = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "minimal"},
+    )
+    assert generated_rewritten.status_code == 200
+    assert generated_rewritten.json()["published"]["salle"]["versions"]["minimal"]["engine_ref"] == fallback
+
+    rejected = client.put("/v1/admin/live-engine", headers=headers, json={"engine_ref": "core-9"})
+    assert rejected.status_code == 400
+    assert rejected.json()["detail"] == "Moteur inconnu."
+    kept = client.get("/v1/admin/live-engine", headers=headers)
+    assert kept.status_code == 200
+    assert kept.json()["engine_ref"] == fallback
+    with session_scope() as db:
+        assert db.get(LiveEngine, 1).engine_ref == fallback
 
     example = client.get("/v1/examples/saint-cloud")
     assert example.status_code == 200

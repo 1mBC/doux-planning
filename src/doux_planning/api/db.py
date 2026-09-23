@@ -121,6 +121,13 @@ class LiveEngine(Base):
     engine_ref: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class BenchEngine(Base):
+    __tablename__ = "bench_engine"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    engine_ref: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 class GenerateLog(Base):
     __tablename__ = "generate_logs"
 
