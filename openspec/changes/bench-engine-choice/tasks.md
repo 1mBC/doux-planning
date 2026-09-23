@@ -2,7 +2,7 @@
 
 ## 1. Core
 
-- [ ] 1.1 Supprimer `data/bench/VERSION` et `engine_ref()`. `generate_team` et `run_bench` sans moteur utilisent `list_engine_refs()[-1]`. `core-5` reste le nom de `engine.py` dans le registre. Vérifier qu'aucun module domaine ne lit le fichier, et que `pytest` du moteur est vert sans éditer `api/`, `web/` ni `contracts/`.
+- [x] 1.1 Supprimer `data/bench/VERSION` et `engine_ref()`. `generate_team` et `run_bench` sans moteur utilisent `list_engine_refs()[-1]`. `core-5` reste le nom de `engine.py` dans le registre. Vérifier qu'aucun module domaine ne lit le fichier, et que `pytest` du moteur est vert sans éditer `api/`, `web/` ni `contracts/`.
 
 ## 2. Infra
 
