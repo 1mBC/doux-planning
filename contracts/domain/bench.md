@@ -162,6 +162,8 @@ Export / compare-chemin = last-run du **`engine_ref` courant** (VERSION).
 Tableau Banc = **toutes** les refs (`GET /versions`), les trois computes.  
 Un nouveau run **n’écrase pas** les scores d’un autre `engine_ref`.
 
+File 76 (`bench-score-live.md` **gagne**) : `run_bench_on` note le généré avec `evaluate` live + `cycle_recap_from_draft` des créneaux générés — **même** note que `GET /runs/{id}` `model.score`. Pas les `warnings` du moteur/expert. `GET /versions` `cell.global` = ce JSON persisté (file 74 : pas de recalcul à la volée).
+
 Vieux `"0.27.0"` lu comme `"core-0"`.
 
 ### GET compare (moteur courant)
