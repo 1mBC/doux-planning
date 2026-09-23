@@ -12,7 +12,7 @@ from doux_planning.api.app import app
 from doux_planning.api.auth import DETAIL_ADMIN, DETAIL_INVALID_FIELDS, promote_admin_email
 from doux_planning.api.bench import DETAIL_BENCH_RUN_MISSING
 from doux_planning.api.db import BenchRun, reset_engine, session_scope
-from doux_planning.bench import engine_ref, list_engine_refs
+from doux_planning.bench import list_engine_refs
 from doux_planning.types import WEEKDAYS
 
 
@@ -140,7 +140,7 @@ def test_bench_export_dataset_all_engines_and_versions_origin(monkeypatch):
     assert empty.status_code == 404
     assert empty.json()["detail"] == DETAIL_BENCH_RUN_MISSING
 
-    current = engine_ref()
+    current = list_engine_refs()[-1]
     older = next(ref for ref in list_engine_refs() if ref != current)
     monkeypatch.setattr("doux_planning.api.generate.get_effective_engine_ref", lambda: older)
 

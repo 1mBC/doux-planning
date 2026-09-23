@@ -8,7 +8,7 @@ Le banc **n’écrit jamais** dans `published_cycles` / `live_sandboxes` / compt
 
 ## Identité moteur
 
-Un nom par version de moteur : `engine_ref`. **Une** source : `trim(data/bench/VERSION)` (une ligne).  
+Un nom par version de moteur : `engine_ref`. La liste est `list_engine_refs()`. Le choix courant est en base (`bench-engine-choice.md` **gagne**).  
 Ce n’est **pas** le numéro UI (`web/src/release.ts`).
 
 `core-5` = pipe seeds + fill **déjà là aujourd’hui** (`engine-core-5.md`). `core-6` = seeds + recase **seulement les rares** (`engine-core-6.md`). `core-4` = anti-coupure s’il y a le choix. `core-3` = seeds, anti-coupure toujours. `core-2` = fill **fewest** sans seeds. `core-1` = plafonds durs, ordre chrono. `core-0` = avant les plafonds.  
@@ -16,12 +16,11 @@ HTTP et rows émettent `engine_ref` **et** `app_version` = **le même string** (
 
 Vieux runs `app_version = "0.27.0"` : à la **lecture** `engine_ref = "core-0"` (même moteur). On n’écrit plus `0.27.0`.
 
-Live resto (`POST /v1/generate`) = **`live_engine_ref`** admin (`admin.md`), défaut `VERSION`. Banc : moteurs **vendored** (`engines.md`) — on peut relancer `core-0`…`core-6` sans revert. Le picker **n’affecte pas** le banc (lancer habituel = `VERSION`).
+Live resto (`POST /v1/generate`) = **`live_engine_ref`** admin (`admin.md`). Banc : moteurs **vendored** (`engines.md`). File 77 (`bench-engine-choice.md` **gagne**) : banc et client ont chacun un choix persisté, repli = dernier du registre. Pas de fichier `VERSION`.
 
 ## Catalogue (repo)
 
 ```
-data/bench/VERSION          # une ligne = engine_ref, ex. core-0
 data/bench/{category}/{id}/context.json
 data/bench/{category}/{id}/expected.json
 ```
@@ -85,7 +84,7 @@ Catégories **figées** (ordre d’affichage) — **50 jeux**. Les **30** déjà
 Les 24 non-`crafted` (déjà au catalogue) : manuel **0 interdit** seulement — **on ne les retire pas**, on ne les réécrit pas.  
 Les **20** nouveaux sont **tous** `crafted` (pas de diversité-de-forme sans oracle).  
 Scan disque. Jeu sans les deux JSON → **omit**, pas 500.  
-`engine_ref()` = trim `VERSION` — **`core-5`** après land Core (`engine-core-5.md`). Catalogue 50 **inchangé**.
+Pas de fichier `VERSION`. Catalogue 50 **inchangé**. `core-5` = `engine.py` (`engine-core-5.md`).
 
 Parmi les **20** nouveaux : ≥ 4 à 3 services (`morning`) ; ≥ 4 à **2 types ou plus** sur le même `service_id` ; ≥ 4 avec un rôle **level ≥ 6**.  
 Méthode **obligatoire** pour chaque nouveau : écrire `expected.json` (grille 14 j) **avant** de figer `context.json` ; `evaluate` → **0 interdit**, **0 hours_miss**, **0 below_role**.
@@ -121,8 +120,7 @@ Planning **manuel**. `evaluate` → **0 interdit**. `crafted` (26, dont les 6 d�
 ## Core
 
 ```
-engine_ref() -> str            # trim VERSION (live)
-list_engine_refs() -> [str]    # core-0 … VERSION, ordre chrono
+list_engine_refs() -> [str]    # ordre du registre, dernier = repli
 list_bench_datasets() -> [ … ]
 load_bench_dataset(category, id) -> BenchDataset
 run_bench(category, id, effort, engine_ref: str | None = None) -> BenchOutcome
@@ -130,7 +128,7 @@ UnknownBenchDataset
 UnknownEngineRef
 ```
 
-`run_bench` : `engine_ref` omis = `VERSION`. Dispatch `list_engine_refs` → `generate_cycle` figé ou live. Recap ×2 + `deltas` inchangés.  
+`run_bench` : `engine_ref` omis = dernier de `list_engine_refs()`. Dispatch vers `generate_cycle` figé ou live. Recap ×2 + `deltas` inchangés.  
 `BenchOutcome.engine_ref` = le ref **demandé**. `BenchOutcome.trace` = `SearchTrace` (toujours présent).  
 **Zéro** `published_cycles`. Keep-best / `SEARCH_*` / pipe seeds **inchangés**. Fill live = `engine-core-5.md`. Tests generate = **`minimal`**.
 
@@ -149,16 +147,16 @@ Banc : `run_bench` l’appelle sur le draft généré **et** sur `expected` (`ev
 
 Routes run / jobs / datasets **plus** gaps / batch / export `bank`.
 
-`POST /v1/admin/bench/run` accepte un **`engine_ref` optionnel** dans le body. Si présent et valide (`list_engine_refs()`), utilise ce moteur. Si absent ou vide, utilise **VERSION** (défaut). Si invalide → 400.
+`POST /v1/admin/bench/run` accepte un **`engine_ref` optionnel** dans le body. Si présent et valide (`list_engine_refs()`), utilise ce moteur. Si absent ou vide, utilise le **choix banc** (`bench-engine-choice.md`). Si invalide → 400.
 
 File 73 : body **`origin`** optionnel `"catalogue"` | `"imported"` — `admin-ui-pass.md` **gagne** (filtre `all` / `category` / `gaps` ; ignoré sur `dataset`).
 
-`POST all` / `category` = un job par jeu **listé**, `engine_ref` = celui du body ou VERSION.
+`POST all` / `category` = un job par jeu **listé**, `engine_ref` = celui du body ou le choix banc.
 Dédup / heartbeat / batch / N workers : **`contracts/domain/worker-queue.md`**.
 Persist : `bench_runs.app_version` = `outcome.engine_ref` ; JSONB **`trace`**. Alembic : `trace`, jobs `engine_ref` + `batch_id` + `started_at`, unique partiel élargi.
 
 **Last-run** = le plus récent par `(category, dataset_id, search_effort, engine_ref)`.  
-Export / compare-chemin = last-run du **`engine_ref` courant** (VERSION).  
+Export / compare-chemin = last-run du **choix banc**.  
 Tableau Banc = **toutes** les refs (`GET /versions`), les trois computes.  
 Un nouveau run **n’écrase pas** les scores d’un autre `engine_ref`.
 
@@ -197,7 +195,7 @@ Route **déjà là**. 200 = **même forme que compare** + **`trace`** (`SearchTr
 
 ```
 {
-  engine_ref,                    # VERSION courant
+  engine_ref,                    # choix banc effectif
   engine_refs: ["core-0", "core-1", "core-2", "core-3", "core-4", "core-5", "core-6"],
   # = list_engine_refs() (registre) ∪ refs déjà en base ; ordre registre puis extras
   datasets: [
@@ -268,7 +266,7 @@ Bearer admin. 403 / 401 / 503 comme le reste.
 ```
 
 Ordre datasets = `list_bench_datasets`. Efforts = minimal → optimized → maximal s’ils existent.  
-`scope=bank` : **tous** les last-run de **tous** les `engine_ref` (registre), pas seulement VERSION. Un jeu entre s’il a **au moins un** run. Chaque effort d’un ref = une entrée dans `efforts` (tri ref puis effort). `below_manuel` = vs Manuel de ce run. `trace` inclus.  
+`scope=bank` : **tous** les last-run de **tous** les `engine_ref` (registre), pas seulement le choix banc. Un jeu entre s’il a **au moins un** run. Chaque effort d’un ref = une entrée dans `efforts` (tri ref puis effort). `below_manuel` = vs Manuel de ce run. `trace` inclus.  
 Fichier UI : `bench-bank.json`.
 
 Pas d’Alembic (recompute) pour dataset / below_manuel. `bank` lit `trace` persisté. Keep-best inchangé.
@@ -348,7 +346,7 @@ Colonne **Lancer** (par jeu) : les 3 boutons effort **puis** Exporter, **pile ve
 - **Grid vertical** : les 3 lignes (Minimal, Optimisé, Maximal) d'une cellule sont alignées en hauteur fixe, même si l'une est une bulle et l'autre un chiffre simple. Pas de décalage vertical entre colonnes.  
 - Clic → `/admin/bench/run/{run_id}`. Clic = bulle ou chiffre.
 
-Sous-titre : `moteur {engine_ref}` = VERSION courant (celui qu'on lance). Pas de bouton revert.
+Sous-titre : `moteur {engine_ref}` = choix banc effectif (celui qu'on lance). Pas de bouton revert.
 
 ### Recap → page Stats banc
 
@@ -413,7 +411,7 @@ Ordre page : d’abord les 3 graphes moyenne/min/max (inchangés), **puis** les 
 
 Plus une rangée par catégorie.
 
-**Sélecteur moteur** (dropdown) : sur la **même ligne** que les boutons effort, à gauche. Liste = `engine_refs` de `GET /versions`. Défaut = `engine_ref` (VERSION courant). Le moteur sélectionné est utilisé pour **tous** les lancements (`scope=all`, `category`, `dataset`). `scope=gaps` ignore le sélecteur (remplit tous les refs).
+**Sélecteur moteur** (dropdown) : sur la **même ligne** que les boutons effort, à gauche. Liste = `engine_refs` de `GET /versions`. Valeur = `engine_ref` (choix banc, persisté). Le moteur sélectionné est utilisé pour **tous** les lancements (`scope=all`, `category`, `dataset`). `scope=gaps` ignore le sélecteur (remplit tous les refs).
 
 1. **Global** : « Toutes les catégories » + 3 boutons effort → `scope=all` + `engine_ref` du dropdown.
 2. **Par compute** : 3 contrôles (Minimal / Optimisé / Maximal) → catégories → `scope=category` + `engine_ref` du dropdown.

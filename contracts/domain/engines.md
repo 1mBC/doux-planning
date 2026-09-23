@@ -1,7 +1,7 @@
 # Moteurs figés (banc)
 
-Freeze **Core**. Live resto **développement** = `engine.py` / `VERSION` (`core-5`).  
-Live resto **client** (POST generate) = `live_engine_ref` admin (`admin.md`) — **pas** forcément `VERSION`.  
+Freeze **Core**. `core-5` = `engine.py` live. Pas de fichier `VERSION`.  
+Live resto **client** (POST generate) = `live_engine_ref` admin (`admin.md`), repli = dernier de `list_engine_refs()` (`bench-engine-choice.md` **gagne**).  
 Banc peut rejouer d’anciens `engine_ref` **sans** checkout git.
 
 Keep-best / `_attempt_key` **inchangés**. Pipe seeds = `core-3` (`engine-seeds.md`).  
@@ -38,7 +38,7 @@ src/doux_planning/engines/
 | `core-2.5` | `engines/core_2_5.py` | réserves ≤ 8 h (`engine-core-2-5.md`) |
 | `core-3` | `engines/core_3.py` | `3167392bd974be8da70cb1a23274ed2675cc7ead` |
 | `core-4` | `engines/core_4.py` | `da1ef781ef572eb3eb30cde97060dd31788f79b5` |
-| `core-5` | `engine.py` **live** | `VERSION` |
+| `core-5` | `engine.py` **live** | registre, pas un fichier |
 | `core-6` | `engines/core_6.py` | nouveau (pas un snapshot live) |
 | `cp-0` | `engines/cp_0.py` | CP-SAT global (`engine-cp-0.md`) |
 | `iter-0` | `engines/iter_0.py` | post-traitement itératif (`engine-iter-0.md`) |
@@ -49,7 +49,7 @@ src/doux_planning/engines/
 
 Copie du `engine.py` à ce SHA (adapter le package), **sauf** `core-6` (écrit d’après `engine-core-6.md`). Imports `types` / `staff` / `coverage` / `warnings` **live**. Chaque module expose `generate_cycle(draft, search)`.
 
-`generate_team(state, team, search, engine_ref=None)` : omis = `VERSION` ; sinon `generate_for`. Pas un 2ᵉ fill HTTP.
+`generate_team(state, team, search, engine_ref=None)` : omis = dernier de `list_engine_refs()` ; sinon `generate_for`. Pas un 2ᵉ fill HTTP.
 
 ## `SearchTrace`
 
@@ -75,7 +75,7 @@ Toujours renvoyé (jamais null sur un run neuf) :
 `mix-0` : `seeder="mix"` + `mix: { experts, picker, winner, runs }` (`engine-mix-0.md`). `SearchTrace.mix` optionnel.  
 `core-3` / `core-4` / live `core-5` / `core-6` : **`result.trace`** du keep-best (seeder gagnant, locks, calendriers **remplis** par seeder, seeds jetés) — pas le stub empty.
 
-`run_bench(..., engine_ref=)` pose `outcome.engine_ref` et `outcome.trace`. Omis → `VERSION`.
+`run_bench(..., engine_ref=)` pose `outcome.engine_ref` et `outcome.trace`. Omis → dernier de `list_engine_refs()`.
 
 ## Tests
 
@@ -84,10 +84,11 @@ Toujours renvoyé (jamais null sur un run neuf) :
 - `core-2` **n’appelle pas** les seeders (pas de locks).
 - `core-3` figé : pipe seeds `engine-seeds.md` (anti-coupure **toujours**).
 - `core-4` figé : fill `engine-core-4.md`.
-- `core-5` / omis : pipe seeds, fill `engine-core-5.md`, `trace.seeder` renseigné.
+- `core-5` explicite : pipe seeds, fill `engine-core-5.md`, `trace.seeder` renseigné.
+- Omis (`run_bench` / `generate_team`) : dernier de `list_engine_refs()` (aujourd'hui `mix-0`), pas le fill `core-5`.
 - `core-6` : pipe seeds, fill `engine-core-6.md`, `trace.seeder` renseigné.
 - Ref inconnue → `UnknownEngineRef`.
-- `engine_ref() == "core-5"`. 50 jeux. Keep-best inchangé.
+- Pas de `engine_ref()`. Pas de fichier `VERSION`. 50 jeux. Keep-best inchangé.
 
 ## Hors freeze
 

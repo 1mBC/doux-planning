@@ -468,6 +468,31 @@ export async function loadBenchVersions(origin?: BenchOrigin): Promise<BenchVers
   return parseBenchVersions(await sendAuth(path, { method: "GET" }, true));
 }
 
+export async function putBenchEngine(engineRef: string): Promise<{ engine_ref: string; engine_refs: string[] }> {
+  const value = await sendAuth(
+    "/v1/admin/bench/engine",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ engine_ref: engineRef }),
+    },
+    true,
+  );
+  if (!isRecord(value)) {
+    throw new PayloadError("réponse bench engine invalide");
+  }
+  const refs = requireArray(value, "engine_refs", "bench-engine").map((item, i) => {
+    if (typeof item !== "string" || !item) {
+      throw new PayloadError(`clé invalide : bench-engine.engine_refs[${i}]`);
+    }
+    return item;
+  });
+  return {
+    engine_ref: requireString(value, "engine_ref", "bench-engine"),
+    engine_refs: refs,
+  };
+}
+
 export async function deleteBenchDataset(category: string, datasetId: string): Promise<void> {
   await sendAuth(
     `/v1/admin/bench/datasets/${encodeURIComponent(category)}/${encodeURIComponent(datasetId)}`,

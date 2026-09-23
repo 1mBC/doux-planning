@@ -18,7 +18,6 @@ from doux_planning.bench import (
     BenchOutcome,
     bench_dataset_from_json,
     bench_dir,
-    engine_ref as current_engine_ref,
     list_bench_datasets,
     list_engine_refs,
     load_bench_dataset,
@@ -114,7 +113,7 @@ def _salle_patch(fiche_id: str) -> dict:
 def _stub_run_bench(category, dataset_id, effort, engine_ref=None):
     notes = ScoreNotes(10.0, 10.0, 10.0, None, 10.0)
     score = CycleScore(notes=notes, weights=dict(SCORE_WEIGHTS), global_score=10.0)
-    ref = engine_ref if engine_ref is not None else current_engine_ref()
+    ref = engine_ref if engine_ref is not None else list_engine_refs()[-1]
     return BenchOutcome(
         category=category,
         id=dataset_id,
@@ -157,6 +156,17 @@ def _clear_active_bench_jobs() -> None:
         for job in db.scalars(select(BenchJob).where(BenchJob.status.in_(("queued", "running")))):
             job.status = "failed"
             job.error = "test cleanup"
+
+
+def _set_bench_engine(engine_ref: str) -> None:
+    from doux_planning.api.db import BenchEngine
+
+    with session_scope() as db:
+        row = db.get(BenchEngine, 1)
+        if row is None:
+            db.add(BenchEngine(id=1, engine_ref=engine_ref))
+        else:
+            row.engine_ref = engine_ref
 
 
 def _insert_bench_run(
@@ -530,9 +540,9 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
         fact.polarity == "hit" and fact.kind in {"post_held", "role_gap"}
         for fact in (*outcome.facts, *outcome.expected_facts)
     )
-    assert outcome.engine_ref == "core-5"
+    assert not (bench_dir() / "VERSION").is_file()
+    assert outcome.engine_ref == list_engine_refs()[-1]
     _assert_complete_trace(outcome.trace, frozen=False)
-    assert current_engine_ref() == "core-5"
 
 
 def test_run_bench_on_matches_run_bench_halles_minimal():
@@ -902,7 +912,7 @@ def test_run_bench_core25_clichy_optimized_fewer_empty():
 
 
 def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
-    outcome = run_bench("crafted", "atelier", SearchEffort.MINIMAL)
+    outcome = run_bench("crafted", "atelier", SearchEffort.MINIMAL, engine_ref="core-5")
     assert outcome.engine_ref == "core-5"
     saturday_evening_empties = [
         fact
@@ -916,7 +926,7 @@ def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
 
 
 def test_run_bench_marais_minimal_hard_max_evenings():
-    outcome = run_bench("crafted", "marais", SearchEffort.MINIMAL)
+    outcome = run_bench("crafted", "marais", SearchEffort.MINIMAL, engine_ref="core-5")
     assert outcome.engine_ref == "core-5"
     assert not any(fact.polarity == "miss" and fact.kind == "max_evenings" for fact in outcome.facts)
     assert not any(shift.employee_id == "e" and shift.service_id == "evening" for shift in outcome.assignments)
@@ -933,7 +943,7 @@ def test_run_bench_rivoli_minimal_expected_zero_interdit():
 
 def test_run_bench_campus_minimal_runs():
     outcome = run_bench("wishes", "campus", SearchEffort.MINIMAL)
-    assert outcome.engine_ref == "core-5"
+    assert outcome.engine_ref == list_engine_refs()[-1]
     assert outcome.search_effort == SearchEffort.MINIMAL
 
 
@@ -1014,6 +1024,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     promote_admin_email()
     assert client.get("/v1/me", headers=headers).json()["admin"] is True
     _clear_active_bench_jobs()
+    _set_bench_engine("core-3")
 
     datasets = client.get("/v1/admin/bench/datasets", headers=headers)
     assert datasets.status_code == 200
@@ -1083,12 +1094,12 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert halles_pack["context"]
     assert all("invite_token" not in person for person in halles_pack["context"]["employees"])
     assert halles_pack["manual"]["facts"]
-    assert halles_pack["efforts"][0]["search_effort"] == "minimal"
-    assert halles_pack["efforts"][0]["run_id"] == first["id"]
-    assert halles_pack["efforts"][0]["engine_ref"] == "core-3"
-    assert "trace" in halles_pack["efforts"][0]
-    assert "below_manuel" in halles_pack["efforts"][0]
-    assert halles_pack["efforts"][0]["model"]["facts"]
+    core3_effort = next(item for item in halles_pack["efforts"] if item["run_id"] == first["id"])
+    assert core3_effort["search_effort"] == "minimal"
+    assert core3_effort["engine_ref"] == "core-3"
+    assert "trace" in core3_effort
+    assert "below_manuel" in core3_effort
+    assert core3_effort["model"]["facts"]
 
     below = client.get("/v1/admin/bench/export", headers=headers, params={"scope": "below_manuel"})
     assert below.status_code == 200
@@ -1130,7 +1141,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     versions = client.get("/v1/admin/bench/versions", headers=headers)
     assert versions.status_code == 200
     assert versions.json()["engine_ref"] == "core-3"
-    assert versions.json()["engine_refs"][:4] == ["core-0", "core-1", "core-2", "core-3"]
+    assert versions.json()["engine_refs"][:4] == list(list_engine_refs())[:4]
     assert "core-3" in versions.json()["engine_refs"]
     assert "core-1" in versions.json()["engine_refs"]
     assert "0.27.0" not in versions.json()["engine_refs"]
@@ -1204,7 +1215,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     queued = client.post(
         "/v1/admin/bench/run",
         headers=headers,
-        json={"scope": "all", "search_effort": "maximal"},
+        json={"scope": "all", "search_effort": "maximal", "origin": "catalogue"},
     )
     assert queued.status_code == 202
     assert queued.json()["status"] == "queued"
@@ -1331,7 +1342,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert forbidden_active.json()["detail"] == DETAIL_ADMIN
     versions_refs = client.get("/v1/admin/bench/versions", headers=headers)
     assert versions_refs.status_code == 200
-    assert versions_refs.json()["engine_refs"][:4] == ["core-0", "core-1", "core-2", "core-3"]
+    assert versions_refs.json()["engine_refs"][:4] == list(list_engine_refs())[:4]
     with session_scope() as db:
         for job in db.scalars(select(BenchJob).where(BenchJob.status.in_(("queued", "running")))):
             job.status = "failed"
@@ -1352,7 +1363,11 @@ def test_admin_bench_gaps_zero_holes_is_200(monkeypatch):
     token = registered.json()["token"]
     monkeypatch.setenv("ADMIN_EMAIL", email)
     promote_admin_email()
-    posted = client.post("/v1/admin/bench/run", headers=_bearer(token), json={"scope": "gaps"})
+    posted = client.post(
+        "/v1/admin/bench/run",
+        headers=_bearer(token),
+        json={"scope": "gaps", "origin": "catalogue"},
+    )
     assert posted.status_code == 200
     body = posted.json()
     assert body["batch_id"]
@@ -1445,7 +1460,6 @@ def test_cancel_bench_batch(monkeypatch):
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
 def test_bench_run_optional_engine_ref(monkeypatch):
     from doux_planning.api.worker import tick_bench_job
-    from doux_planning.bench import engine_ref as current_version
 
     client = _client()
     password = "password1"
@@ -1461,9 +1475,7 @@ def test_bench_run_optional_engine_ref(monkeypatch):
     monkeypatch.setenv("ADMIN_EMAIL", email)
     promote_admin_email()
     assert client.get("/v1/me", headers=headers).json()["admin"] is True
-
-    version = current_version()
-    assert version == "core-5"
+    _set_bench_engine("core-5")
 
     without_ref = client.post(
         "/v1/admin/bench/run",
