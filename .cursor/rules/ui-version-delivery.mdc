@@ -3,12 +3,13 @@ description: Livrer un numéro de version et un mot sur le dernier changement UI
 alwaysApply: true
 ---
 
-# Version UI à chaque livraison
+# Version UI à chaque livraison sur master
 
-Quand tu changes l’interface (`web/`) :
+Seul le tech lead incrémente la version, une fois, sur la branche du change, juste avant le merge sur `master`.
 
 1. Incrémente `version` et mets à jour `note` (une phrase française) dans `web/src/release.ts`. Aligne `web/package.json` `version`.
-2. La barre de version dans l’app doit afficher ce couple version + note.
-3. Dans la réponse chat, ouvre par **vX.Y.Z** et le petit mot du dernier changement visible.
+2. Patch pour une correction, mineure pour un comportement nouveau. La barre doit bouger même si le reste de `web/` n'a pas changé.
+3. Les spécialistes Core, Infra et UI ne modifient ni `web/src/release.ts` ni le champ `version` de `web/package.json`.
+4. Au message de livraison, ouvre par **vX.Y.Z** et la note.
 
-Ne pas lancer Vite s’il tourne déjà dans le terminal `web/` de l’utilisateur.
+Ne pas lancer Vite s'il tourne déjà dans le terminal `web/` de l'utilisateur.
