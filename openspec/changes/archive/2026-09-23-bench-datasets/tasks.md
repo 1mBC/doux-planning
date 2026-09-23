@@ -23,8 +23,3 @@
 
 - [x] 5.1 Add the 20 freeze `crafted` folders (grid first, then context), leave the 30 existing files bit-identical, keep `VERSION` `core-2`
 - [x] 5.2 Verify 50 listed pairs, every expected 0 `interdit`, 26 crafted global ≥ 9.5, the 20 new have 0 `hours_miss` and 0 `below_role`, coverage of morning / multi-type / L6 among the 20, and `run_bench(tight, halles, minimal)` still green
-
-## 6. Vendored engines
-
-- [ ] 6.1 Vendor `core_0` / `core_1` / `core_2` from freeze SHAs, add `list_engine_refs` / `generate_for` / `UnknownEngineRef`, keep `VERSION` `core-3` and the 50 folders bit-identical
-- [ ] 6.2 Verify four refs on `run_bench(tight, halles, minimal)` each have a complete `trace` and the requested `engine_ref`; core-2 does not call seeders; unknown ref raises; 50 listings; live `engine_ref()` is `core-3`
