@@ -19,11 +19,10 @@ Au boot (après Alembic / seed), si un compte **restaurateur** existe avec cet e
 ## Moteur client (`live_engine_ref`)
 
 C’est le `engine_ref` lancé quand un **restaurateur** (pas l’admin banc) fait `POST /v1/generate` (sync **et** worker).  
-Le banc ignore cette valeur (lancer habituel = `VERSION`).
+Le banc a son propre choix (`bench-engine-choice.md`).
 
-Persist : **une** ligne (table dédiée ou settings). `engine_ref` text. Alembic oui.  
-Unset / row absente → traiter comme `VERSION`.  
-Si la valeur stockée **n’est plus** dans `list_engine_refs()` → traiter comme `VERSION` (ne **pas** 500 sur un generate client).
+Persist : **une** ligne `live_engine`. `engine_ref` text.  
+File 77 **gagne** pour le repli : ligne absente, vide, ou hors registre → dernier de `list_engine_refs()`, écrit en base. Pas de fichier `VERSION`. Ne **pas** 500 sur un generate client.
 
 ```
 GET /v1/admin/live-engine   Bearer admin → 200
@@ -37,7 +36,7 @@ PUT /v1/admin/live-engine   Bearer admin → 200
 ```
 
 `engine_refs` = `list_engine_refs()` (ordre registre).  
-`engine_ref` = valeur **effective** (stockée si connue, sinon `VERSION`).
+`engine_ref` = valeur **effective** (stockée si elle est dans le registre, sinon le dernier nom, réécrit).
 
 PUT body : `{ "engine_ref": "core-6" }`. Inconnu / vide / type faux → 400 `Moteur inconnu.`  
 Non-admin → 403 `Action réservée à l’admin.` Sans session 401. Sans DB 503.

@@ -13,7 +13,8 @@ Le sélecteur de moteur du banc repart sur le fichier `data/bench/VERSION` à ch
 - `GET /v1/admin/bench/versions` `engine_ref`, un `POST /v1/admin/bench/run` sans `engine_ref`, le compare-chemin et l'export `below_manuel` utilisent ce choix effectif.
 - Un `POST` avec un `engine_ref` valide lance ce moteur pour cet appel seulement. Il ne change pas le choix enregistré.
 - Un enregistrement invalide (vide, inconnu, mauvais type) répond 400 et laisse le choix précédent.
-- **BREAKING** : sans choix valable, le banc ne lit plus `data/bench/VERSION`. Le défaut passe de `core-5` au dernier du registre.
+- Le moteur client (`live_engine_ref`) suit la même règle, avec sa propre valeur en base. Liste persistante. Rien de valable en base → dernier du registre, et on réécrit cette valeur.
+- **BREAKING** : le fichier `data/bench/VERSION` disparaît. Sans choix valable, le banc et le generate restaurant passent de `core-5` au dernier du registre. `core-5` reste un moteur de la liste : c'est le code de `engine.py`, plus le défaut.
 
 ### Cas limites retenus
 
@@ -25,8 +26,8 @@ Le sélecteur de moteur du banc repart sur le fichier `data/bench/VERSION` à ch
 
 ### Hors-scope
 
-- Le sélecteur du restaurant (`live_engine_ref`) et son repli sur `VERSION`.
-- Supprimer le fichier `data/bench/VERSION`.
+- Fusionner les deux choix. Le banc et le restaurant gardent chacun le leur.
+- Un moteur ajouté ensuite ne déplace pas un choix déjà enregistré. Seule une base vide ou un nom hors liste retombe sur le nouveau dernier.
 - « Compléter les trous » : un job par moteur de la liste, sans utiliser le choix du banc.
 - Le catalogue des 50 jeux, les formules de note, keep-best.
 - Un choix par admin, ou une liste de moteurs saisie à la main.
@@ -39,14 +40,15 @@ Le sélecteur de moteur du banc repart sur le fichier `data/bench/VERSION` à ch
 - Lancer tout, une catégorie, ou une ligne utilise le moteur choisi.
 - Compléter les trous remplit encore chaque moteur de la liste.
 - L'export sous le Manuel et le compare-chemin suivent le choix effectif.
-- Un generate restaurant suit toujours `live_engine_ref`, et `VERSION` si rien de valable n'est stocké pour le restaurant.
+- Un generate restaurant suit le choix client. Rien de valable en base → le dernier du registre, encore là après rechargement du sélecteur admin. Le choix du banc ne le change pas.
+- Le fichier `data/bench/VERSION` n'existe plus. Aucun calcul ne le lit.
 - Un nom invalide à l'enregistrement : 400, le choix précédent reste.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `bench-engine-choice`: le banc retient un moteur choisi, et retombe sur le dernier du registre quand la base n'a pas de nom valable.
+- `bench-engine-choice`: le banc et le moteur client retiennent chacun un moteur choisi, et retombent sur le dernier du registre quand la base n'a pas de nom valable.
 
 ### Modified Capabilities
 
@@ -54,7 +56,7 @@ Le sélecteur de moteur du banc repart sur le fichier `data/bench/VERSION` à ch
 
 ## Impact
 
-- Infra : Alembic après `20260922_0019`, lecture et écriture du choix, défaut des routes banc qui disaient « moteur courant = VERSION ».
-- UI : liste déroulante des deux pages banc, rechargement, erreur si l'enregistrement échoue. Pas de `release.ts`.
-- Core : le registre `list_engine_refs()` ne change pas. `engine_ref()` et le fichier `VERSION` restent le défaut du restaurant.
-- Contrat : `contracts/domain/bench-engine-choice.md` gagne sur `bench.md` pour le moteur courant du banc.
+- Core : supprimer `data/bench/VERSION`. Un moteur omis au calcul domaine = le dernier du registre.
+- Infra : Alembic `bench_engine` après `20260922_0019`. Le choix banc et le choix client (`live_engine`) utilisent le même repli. Plus aucune lecture du fichier.
+- UI : listes du banc et du moteur client, rechargement, erreur si l'enregistrement échoue. Pas de `release.ts`.
+- Contrat : `contracts/domain/bench-engine-choice.md` gagne sur `bench.md` et sur le repli de `admin.md`.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The admin bench remembers one chosen engine across reloads and falls back to the last engine in the code registry when nothing valid is stored.
+The bench and the restaurant each remember one chosen engine. When nothing valid is stored, both use the last engine in the code registry. No version file names a default.
 
 ## ADDED Requirements
 
@@ -64,13 +64,24 @@ Filling bench gaps SHALL enqueue one job per listed dataset, effort, and registr
 - **WHEN** an admin fills gaps while a bench engine is stored
 - **THEN** missing runs are enqueued for every engine in the registry, not only the stored one
 
-### Requirement: Restaurant engine choice stays independent
-The restaurant generate engine (`live_engine_ref`) SHALL stay independent of the bench choice. When the restaurant has no valid stored engine, generate SHALL still fall back to `data/bench/VERSION`.
+### Requirement: Restaurant engine choice uses the same fallback
+The restaurant generate engine SHALL stay a separate stored choice from the bench. The admin picklist SHALL persist it. When that choice is missing or not in the registry, the system SHALL use the last registry name, store it, and use it for restaurant generate. A bench choice SHALL NOT change it.
 
 #### Scenario: Bench choice does not change generate
 - **WHEN** an admin selects a bench engine different from the restaurant engine
 - **THEN** a restaurant generate still uses the restaurant engine
 
-#### Scenario: Restaurant fallback unchanged
-- **WHEN** no valid restaurant engine is stored
-- **THEN** generate uses the engine named in `data/bench/VERSION`
+#### Scenario: Empty restaurant choice
+- **WHEN** no restaurant engine is stored
+- **THEN** generate uses the last registry name and that name is stored
+
+#### Scenario: Unknown restaurant choice
+- **WHEN** the stored restaurant engine is no longer in the registry
+- **THEN** generate uses the last registry name, that name replaces the stored value, and the admin picklist shows it after reload
+
+### Requirement: No version file
+The system SHALL NOT read or require `data/bench/VERSION`. The last registry name SHALL be the only fallback for both choices.
+
+#### Scenario: File absent
+- **WHEN** `data/bench/VERSION` is absent
+- **THEN** a bench load and a restaurant generate still resolve to a registry name

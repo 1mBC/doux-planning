@@ -87,7 +87,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 74 — export jeu + versions origin | `domain/bench-export-speed.md` ; briefs `infra-bench-export-speed.md`, `ui-bench-export-speed.md` | **landed** Infra `73e5dca` + UI `cf90828` (v0.60.0) |
 | 75 — leftover + 11 h wrap + every_two au moins un | `domain/coverage-rest-weekend.md`, `wellbeing.md`, `score-facts.md` ; OpenSpec `changes/coverage-rest-weekend/` ; briefs `core-coverage-rest-weekend.md`, `ui-coverage-rest-weekend.md` | **landed** Core `8502a5e` + UI `50b7f29` (v0.61.0) |
 | 76 — note banc = evaluate live | `domain/bench-score-live.md` + patch `bench.md` ; OpenSpec `changes/bench-score-live/` ; brief `core-bench-score-live.md` | **landed** Core `0208f7f` |
-| 77 — choix moteur du banc | `domain/bench-engine-choice.md` (gagne sur le moteur courant du banc) ; OpenSpec `changes/bench-engine-choice/` | **ouvert** |
+| 77 — choix moteur banc + client | `domain/bench-engine-choice.md` (gagne sur le moteur courant du banc et le repli client) ; OpenSpec `changes/bench-engine-choice/` | **ouvert** |
 
 ## Ownership git (ne pas croiser)
 

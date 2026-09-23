@@ -2,8 +2,9 @@
 
 Freeze **Infra** + **UI**. Pas de Core.
 
-Gagne sur `bench.md` pour le moteur **courant du banc** (versions `engine_ref`, `POST` sans ref, compare-chemin, `below_manuel`).  
-`admin.md` (`live_engine_ref`) **inchangé**. `engines.md` **inchangé**. Fichier `data/bench/VERSION` **inchangé** : il reste le repli du generate restaurant.
+Gagne sur `bench.md` pour le moteur **courant du banc**, et sur `admin.md` pour le **repli** de `live_engine_ref`.  
+Les deux choix restent **deux lignes**. `engines.md` : `core-5` = `engine.py`, plus un fichier.  
+`data/bench/VERSION` **supprimé**. Personne ne le lit.
 
 ## Liste
 
@@ -15,12 +16,12 @@ Pas de table catalogue. Ajouter ou retirer un moteur = un change qui édite le r
 Table **`bench_engine`**, une ligne. Colonnes : `id` entier clé primaire, `engine_ref` texte nullable.  
 Alembic après `20260922_0019`. Pas de backfill. Pas une colonne de `live_engine`.
 
-Résolveur :
+Même règle pour `bench_engine` et pour `live_engine` :
 
 - ligne absente, `null`, vide, ou nom hors `list_engine_refs()` → écrire `list_engine_refs()[-1]`, retourner ce nom
 - sinon retourner le nom stocké
 
-La réécriture a lieu à la lecture, pour que le rechargement voie le même nom.
+La réécriture a lieu à la lecture. Un choix déjà valable ne bouge pas quand le registre gagne un nom.
 
 ## HTTP (admin)
 
@@ -57,6 +58,13 @@ Compare-chemin `GET /v1/admin/bench/compare/{category}/{dataset_id}/{search_effo
 `below_manuel` = last-run du **résolveur** seulement.  
 `dataset` et `bank` = tous les `engine_ref`, inchangés.
 
+## Moteur client
+
+`GET` et `PUT /v1/admin/live-engine` inchangés dans leur forme.  
+`engine_ref` du GET = résolveur **client** (plus `VERSION`).  
+`PUT` invalide → 400 `Moteur inconnu.`, ligne précédente inchangée.  
+`POST /v1/generate` (sync et worker) lance le résolveur client. Le choix banc ne le change pas.
+
 ## UI
 
 Les deux pages Banc IA et Banc Manuels.  
@@ -66,6 +74,8 @@ Pas de souvenir local qui contredit le GET au chargement.
 
 Lancer tout, une catégorie, ou une ligne : body `engine_ref` = le nom affiché.  
 Compléter les trous : ne pas envoyer `engine_ref`.
+
+Sélecteur admin du moteur client : valeur = `GET /v1/admin/live-engine` `engine_ref`. Changement → `PUT` existant. Pas de nom de moteur codé en dur. Les deux sélecteurs ne s'écrasent pas.
 
 Pas de `web/src/release.ts`. Pas de version dans `web/package.json`.
 
