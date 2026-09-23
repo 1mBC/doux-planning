@@ -20,8 +20,15 @@ from doux_planning.api.auth import (
     require_database,
 )
 from doux_planning.api.context import _load_company, _state_from_rows
-from doux_planning.api.db import Company, GenerateJob, GenerateLog, LiveEngine, RestaurateurAccount, session_scope
-from doux_planning.bench import engine_ref as bench_version
+from doux_planning.api.db import (
+    BenchEngine,
+    Company,
+    GenerateJob,
+    GenerateLog,
+    LiveEngine,
+    RestaurateurAccount,
+    session_scope,
+)
 from doux_planning.context import CycleRecap, RecapCell, TeamNotReady, cycle_recap, generate_team, team_ready
 from doux_planning.engines.registry import list_engine_refs
 from doux_planning.planning import PublishedCycle, RestaurantState
@@ -42,6 +49,7 @@ SCORE_AXES = ("couverture", "legal", "contrat", "wellbeing", "roles")
 MAXIMAL_ESTIMATED_SECONDS = 600
 EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3, "manuel": 4}
 LIVE_ENGINE_ROW_ID = 1
+BENCH_ENGINE_ROW_ID = 1
 
 
 class StaleGenerateStaff(Exception):
@@ -58,22 +66,27 @@ def iso_log(event: str, **fields: Any) -> None:
     print(line, file=sys.stderr, flush=True)
 
 
-def _get_stored_engine_ref() -> str | None:
+def _resolve_stored_engine(model: type, row_id: int) -> str:
+    refs = list_engine_refs()
+    fallback = refs[-1]
     with session_scope() as db:
-        row = db.get(LiveEngine, LIVE_ENGINE_ROW_ID)
+        row = db.get(model, row_id)
+        stored = None if row is None else row.engine_ref
+        if isinstance(stored, str) and stored in refs:
+            return stored
         if row is None:
-            return None
-        return row.engine_ref
+            db.add(model(id=row_id, engine_ref=fallback))
+        else:
+            row.engine_ref = fallback
+        return fallback
 
 
 def get_effective_engine_ref() -> str:
-    stored = _get_stored_engine_ref()
-    version = bench_version()
-    if stored is None:
-        return version
-    if stored not in list_engine_refs():
-        return version
-    return stored
+    return _resolve_stored_engine(LiveEngine, LIVE_ENGINE_ROW_ID)
+
+
+def get_effective_bench_engine_ref() -> str:
+    return _resolve_stored_engine(BenchEngine, BENCH_ENGINE_ROW_ID)
 
 
 def get_live_engine(authorization: str | None) -> dict[str, Any]:

@@ -23,8 +23,23 @@ from doux_planning.api.bench_import import (
     list_imported_rows,
     load_imported_dataset,
 )
-from doux_planning.api.db import BenchImportedDataset, BenchJob, BenchRun, BenchTombstone, session_scope
-from doux_planning.api.generate import _cycle_recap_json, _cycle_score_json, _fact_json, _shift_json
+from doux_planning.api.db import (
+    BenchEngine,
+    BenchImportedDataset,
+    BenchJob,
+    BenchRun,
+    BenchTombstone,
+    session_scope,
+)
+from doux_planning.api.generate import (
+    BENCH_ENGINE_ROW_ID,
+    DETAIL_UNKNOWN_ENGINE,
+    _cycle_recap_json,
+    _cycle_score_json,
+    _fact_json,
+    _shift_json,
+    get_effective_bench_engine_ref,
+)
 from doux_planning.api.sandbox import parse_shift
 from doux_planning.bench import (
     BENCH_CATEGORY_ORDER,
@@ -32,7 +47,6 @@ from doux_planning.bench import (
     BenchOutcome,
     UnknownBenchDataset,
     bench_dir,
-    engine_ref,
     list_bench_datasets,
     list_engine_refs,
     load_bench_dataset,
@@ -67,7 +81,7 @@ CANONICAL_CORE_ZERO = "core-0"
 
 
 def bench_app_version() -> str:
-    return engine_ref()
+    return get_effective_bench_engine_ref()
 
 
 def _display_engine_ref(stored: str | None) -> str:
@@ -312,7 +326,7 @@ def _parse_run_body(body: dict[str, Any]) -> tuple[str, str, list[tuple[str, str
             raise HTTPException(status_code=400, detail=DETAIL_ENGINE_REF_UNKNOWN)
         ref_to_use = requested_ref
     else:
-        ref_to_use = engine_ref()
+        ref_to_use = get_effective_bench_engine_ref()
     origin = _parse_origin(body.get("origin"))
     known = _known_targets() if scope == "dataset" else _known_targets(origin)
     if scope == "all":
@@ -335,7 +349,7 @@ def _parse_run_body(body: dict[str, Any]) -> tuple[str, str, list[tuple[str, str
 def list_datasets(authorization: str | None) -> dict[str, Any]:
     require_admin(authorization)
     hidden = _tombstone_keys()
-    ref = engine_ref()
+    ref = get_effective_bench_engine_ref()
     return {
         "engine_ref": ref,
         "app_version": ref,
@@ -350,6 +364,22 @@ def list_datasets(authorization: str | None) -> dict[str, Any]:
             if (item.category, item.id) not in hidden
         ],
     }
+
+
+def put_bench_engine(authorization: str | None, body: dict[str, Any]) -> dict[str, Any]:
+    require_admin(authorization)
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail=DETAIL_UNKNOWN_ENGINE)
+    new_ref = body.get("engine_ref")
+    if not isinstance(new_ref, str) or not new_ref or new_ref not in list_engine_refs():
+        raise HTTPException(status_code=400, detail=DETAIL_UNKNOWN_ENGINE)
+    with session_scope() as db:
+        row = db.get(BenchEngine, BENCH_ENGINE_ROW_ID)
+        if row is None:
+            db.add(BenchEngine(id=BENCH_ENGINE_ROW_ID, engine_ref=new_ref))
+        else:
+            row.engine_ref = new_ref
+    return {"engine_ref": new_ref, "engine_refs": list(list_engine_refs())}
 
 
 def _purge_bench_results(db, category: str, dataset_id: str) -> None:
@@ -444,7 +474,7 @@ def compare(authorization: str | None, category: str, dataset_id: str, search_ef
     require_admin(authorization)
     if search_effort not in EFFORTS:
         raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
-    current = engine_ref()
+    current = get_effective_bench_engine_ref()
     with session_scope() as db:
         rows = list(
             db.scalars(
@@ -490,7 +520,7 @@ def _runs_newest(*, origin: str | None = None, cells_only: bool = False) -> list
 
 
 def _latest_current_runs_map() -> dict[tuple[str, str], dict[str, BenchRun]]:
-    current = engine_ref()
+    current = get_effective_bench_engine_ref()
     grouped: dict[tuple[str, str], dict[str, BenchRun]] = {}
     for row in _runs_newest():
         if _display_engine_ref(row.app_version) != current:
@@ -578,7 +608,7 @@ def list_versions(authorization: str | None, origin: str | None = None) -> dict[
                 "by_ref": by_ref,
             }
         )
-    return {"engine_ref": engine_ref(), "engine_refs": engine_refs, "datasets": datasets}
+    return {"engine_ref": get_effective_bench_engine_ref(), "engine_refs": engine_refs, "datasets": datasets}
 
 
 def _strip_invite_tokens(raw: dict[str, Any]) -> dict[str, Any]:
@@ -749,7 +779,7 @@ def export_pack(
             if not any(_below_manuel(row) for row in latest.values()):
                 continue
             datasets.append(_dataset_pack_entry(item, latest))
-    ref = engine_ref()
+    ref = get_effective_bench_engine_ref()
     return {
         "export_version": 1,
         "kind": "bench-pack",

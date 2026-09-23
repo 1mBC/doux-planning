@@ -236,6 +236,15 @@ def admin_bench_runs(
     return list_runs(authorization, category=category, dataset_id=dataset_id)
 
 
+@app.put("/v1/admin/bench/engine")
+def admin_put_bench_engine(
+    body: dict[str, Any], authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.bench import put_bench_engine
+
+    return put_bench_engine(authorization, body)
+
+
 @app.post("/v1/admin/bench/run")
 def admin_bench_run(body: dict[str, Any], authorization: str | None = Header(default=None)):
     from doux_planning.api.bench import post_run
