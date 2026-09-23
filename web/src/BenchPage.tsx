@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { effortLabel } from "./admin";
 import { AdminNav } from "./AdminPage";
 import { go } from "./AuthScreens";
@@ -16,6 +16,7 @@ import {
   loadBenchVersions,
   pollBenchBatch,
   postBenchRun,
+  putBenchEngine,
   type BenchBatch,
   type BenchOrigin,
   type BenchScope,
@@ -324,7 +325,7 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
   const [exporting, setExporting] = useState(false);
   const [batch, setBatch] = useState<BenchBatch | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const [selectedEngine, setSelectedEngine] = useState<string | null>(null);
+  const [savingEngine, setSavingEngine] = useState(false);
   const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
   const cancelled = useRef(false);
   const navCurrent = origin === "imported" ? "bench-manuels" : "bench";
@@ -386,7 +387,6 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
           return;
         }
         setVersions(next);
-        setSelectedEngine(next.engine_ref);
         const active = await loadActiveBenchBatch();
         if (cancelled.current || !active || active.pct >= 100) {
           return;
@@ -432,7 +432,10 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
     setBusy(true);
     setError(null);
     try {
-      const payload = body.scope === "dataset" ? body : { ...body, origin };
+      const payload = body.scope === "dataset" ? { ...body } : { ...body, origin };
+      if (payload.scope === "gaps") {
+        delete payload.engine_ref;
+      }
       const result = await postBenchRun(payload);
       if (result.kind === "queued") {
         setBatch({
@@ -554,6 +557,33 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
     }
   }
 
+  async function changeBenchEngine(event: ChangeEvent<HTMLSelectElement>) {
+    const previous = versions?.engine_ref ?? "";
+    const next = event.target.value;
+    if (!previous || next === previous || savingEngine) {
+      event.target.value = previous;
+      return;
+    }
+    setSavingEngine(true);
+    try {
+      const saved = await putBenchEngine(next);
+      if (cancelled.current) {
+        return;
+      }
+      setVersions((current) => (current ? { ...current, engine_ref: saved.engine_ref } : current));
+      setError(null);
+    } catch (err: unknown) {
+      event.target.value = previous;
+      if (!cancelled.current) {
+        setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
+      }
+    } finally {
+      if (!cancelled.current) {
+        setSavingEngine(false);
+      }
+    }
+  }
+
   if (error && !versions) {
     return (
       <main className="page">
@@ -574,6 +604,7 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
   }
 
   const locked = busy || exporting;
+  const benchEngine = versions.engine_ref;
 
   return (
     <main className="page admin-page">
@@ -608,9 +639,9 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
           <div className="bench-toolbar-row">
             <select
               className="bench-engine-select"
-              value={selectedEngine ?? versions.engine_ref}
-              onChange={(e) => setSelectedEngine(e.target.value)}
-              disabled={locked}
+              value={benchEngine}
+              onChange={(event) => void changeBenchEngine(event)}
+              disabled={locked || savingEngine}
             >
               {versions.engine_refs.map((ref) => (
                 <option key={ref} value={ref}>
@@ -619,13 +650,13 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
               ))}
             </select>
             <span>Toutes les catégories</span>
-            <LaunchButtons disabled={locked} onLaunch={(effort) => void launch({ scope: "all", search_effort: effort, engine_ref: selectedEngine ?? versions.engine_ref })} />
+            <LaunchButtons disabled={locked} onLaunch={(effort) => void launch({ scope: "all", search_effort: effort, engine_ref: benchEngine })} />
           </div>
           {origin === "catalogue" ? (
             <CategoryLaunch
               categories={categories}
               disabled={locked}
-              onLaunch={(effort, category) => void launch({ scope: "category", category, search_effort: effort, engine_ref: selectedEngine ?? versions.engine_ref })}
+              onLaunch={(effort, category) => void launch({ scope: "category", category, search_effort: effort, engine_ref: benchEngine })}
             />
           ) : null}
           <div className="bench-toolbar-row">
@@ -682,7 +713,7 @@ export function BenchPage({ origin }: { origin: BenchOrigin }) {
                             category: dataset.category,
                             dataset_id: dataset.id,
                             search_effort: effort,
-                            engine_ref: selectedEngine ?? versions.engine_ref,
+                            engine_ref: benchEngine,
                           })
                         }
                         onExport={() => void exportDataset(dataset)}
