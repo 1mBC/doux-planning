@@ -16,7 +16,7 @@
 
 ## 3. UI
 
-- [ ] 3.1 Au changement de `.bench-engine-select`, `PUT /v1/admin/bench/engine`. Succès : la valeur affichée est celle enregistrée. Échec : montrer le `detail`, la liste reste sur le choix effectif précédent. Au chargement, la valeur vient de `GET /versions` `engine_ref`. Vérifier le parcours dans le navigateur sur Banc IA : choisir, recharger, le même moteur est sélectionné. Base vide : le dernier nom du registre est sélectionné, sans nom codé en dur.
-- [ ] 3.2 Banc Manuels affiche le même moteur. Lancer tout, une catégorie, ou une ligne envoie ce `engine_ref`. Compléter les trous n'envoie pas `engine_ref`. Vérifier ces lancements (le corps de la requête) et le Banc Manuels après un choix fait sur Banc IA.
-- [ ] 3.3 Le sélecteur admin du moteur client affiche `engine_ref` du `GET /v1/admin/live-engine` et enregistre encore par `PUT`. Base vide : le dernier nom du registre. Un choix client ne change pas la liste du banc, et l'inverse non plus. Vérifier les deux sélecteurs dans le navigateur.
-- [ ] 3.4 `npm run build` vert. Ne pas modifier `web/src/release.ts` ni la version de `web/package.json`.
+- [x] 3.1 Au changement de `.bench-engine-select`, `PUT /v1/admin/bench/engine`. Succès : la valeur affichée est celle enregistrée. Échec : montrer le `detail`, la liste reste sur le choix effectif précédent. Au chargement, la valeur vient de `GET /versions` `engine_ref`. Vérifier le parcours dans le navigateur sur Banc IA : choisir, recharger, le même moteur est sélectionné. Base vide : le dernier nom du registre est sélectionné, sans nom codé en dur.
+- [x] 3.2 Banc Manuels affiche le même moteur. Lancer tout, une catégorie, ou une ligne envoie ce `engine_ref`. Compléter les trous n'envoie pas `engine_ref`. Vérifier ces lancements (le corps de la requête) et le Banc Manuels après un choix fait sur Banc IA.
+- [x] 3.3 Le sélecteur admin du moteur client affiche `engine_ref` du `GET /v1/admin/live-engine` et enregistre encore par `PUT`. Base vide : le dernier nom du registre. Un choix client ne change pas la liste du banc, et l'inverse non plus. Vérifier les deux sélecteurs dans le navigateur.
+- [x] 3.4 `npm run build` vert. Ne pas modifier `web/src/release.ts` ni la version de `web/package.json`.
