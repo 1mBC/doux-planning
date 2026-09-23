@@ -4,7 +4,11 @@ from doux_planning.engine import (
     GENERATION_HORIZON_DAYS,
     MINIMAL_CALENDARS,
     OPTIMIZED_CALENDAR_MULTIPLIER,
+    REST_ENUMERATION_SECONDS,
     SEARCH_CALENDAR_LIMITS,
+    SEARCH_PROGRESS,
+    SEARCH_SECONDS,
+    SEED_TIGHT_THRESHOLD,
     SEQUENTIAL_WEEK_SOLVE,
     EngineResult,
     PlanningDraft,
@@ -15,14 +19,20 @@ from doux_planning.engine import (
     rank_candidates,
     swap_shifts,
     _attempt_key,
+    _build_rest_model,
     _coupure_count_in_week,
     _enumerate_rest_days,
+    _fill_assignments,
+    _first_rest_calendar,
+    _lock_key,
     _pick_for_post,
     _plan_rest_days,
 )
 from doux_planning.staff import Unavailability
 from doux_planning.structures import ArrivalWave, DepartureWave, RestaurantHours, ServiceStructure
-from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WellbeingPreference, WEEKDAYS
+from doux_planning.staff import Wellbeing
+from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WeekendChoice, WEEKDAYS
+from doux_planning.warnings import freeze_payload
 from tests.fixtures import employee, kitchen_midday_structure, kitchen_staff
 
 
@@ -67,8 +77,23 @@ def test_empty_plonge_is_couverture_warning():
 def test_chef_starting_late_leaves_morning_hole():
     assignments = [_shift("chef-a", 0, 11 * 60, 16 * 60, 4)]
     result = evaluate(_draft(assignments))
-    messages = " ".join(item.message for item in result.of_severity(WarningSeverity.COUVERTURE))
-    assert "10:00" in messages
+    hole = next(
+        item
+        for item in result.of_severity(WarningSeverity.COUVERTURE)
+        if item.code == "empty_post"
+        and item.payload.get("post_level") == 4
+        and item.payload.get("start_minutes") == 10 * 60
+    )
+    assert hole.day_index == 0
+    assert hole.payload == {
+        "weekday": "monday",
+        "service_id": ServiceName.MIDDAY.value,
+        "team": Team.CUISINE.value,
+        "start_minutes": 10 * 60,
+        "end_minutes": 11 * 60,
+        "post_level": 4,
+    }
+    assert "lundi" not in hole.payload.values()
 
 
 def test_interdit_fixtures():
@@ -106,7 +131,9 @@ def test_interdit_fixtures():
         _draft(long_week, employees=(employee("ChefA", "chef", employee_id="chef-a"),))
     ).codes()
 
-    unavailable = employee("ChefA", "chef", employee_id="chef-a").with_unavailability(Unavailability(weekday="monday"))
+    unavailable = employee("ChefA", "chef", employee_id="chef-a").with_unavailability(
+        Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value)
+    )
     assigned = [_shift("chef-a", 0, 10 * 60, 16 * 60, 4)]
     assert "unavailability" in evaluate(_draft(assigned, employees=(unavailable,))).codes()
 
@@ -121,9 +148,19 @@ def test_cycle_wrap_rest_is_interdit():
     assert "rest_between_days" in result.codes()
 
 
+def test_cycle_wrap_rest_skips_sunday_off():
+    person = employee("Noa", "commis", employee_id="noa")
+    assignments = [
+        _shift("noa", 12, 19 * 60 + 30, 24 * 60, 1, weekday="saturday"),
+        _shift("noa", 0, 10 * 60, 16 * 60, 1, weekday="monday"),
+    ]
+    result = evaluate(_draft(assignments, employees=(person,)))
+    assert "rest_between_days" not in result.codes()
+
+
 def test_souhait_consecutive_rest_and_contract_hours():
     person = employee("Sam", "commis", hours=20, employee_id="sam").with_wellbeing(
-        WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS
+        Wellbeing(consecutive_rest=True)
     )
     assignments = [
         _shift("sam", 0, 11 * 60, 15 * 60, 2),
@@ -149,6 +186,9 @@ def test_publish_with_acknowledged_interdit():
     assert not publish_allowed(result, frozenset())
     acked = frozenset(item.key() for item in interdits)
     assert publish_allowed(result, acked)
+    assert all(len(item.key()) == 5 for item in interdits)
+    assert all(isinstance(item.payload, dict) for item in interdits)
+    assert all(item.key()[4] == freeze_payload(item.payload) for item in interdits)
 
 
 def test_rank_candidates_orders_by_warnings_then_fit():
@@ -200,7 +240,7 @@ def test_generate_is_fourteen_day_single_solve():
     assert GENERATION_HORIZON_DAYS == 14
     assert SEQUENTIAL_WEEK_SOLVE is False
     person = employee("ChefA", "chef", hours=35, employee_id="chef-a").with_wellbeing(
-        WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS
+        Wellbeing(weekend=WeekendChoice.EVERY_TWO)
     )
     draft = _draft(employees=(person,))
     result = generate_cycle(draft)
@@ -216,7 +256,7 @@ def test_generate_is_fourteen_day_single_solve():
 
 def test_generate_skips_monday_unavailability():
     blocked = employee("ChefA", "chef", employee_id="chef-a").with_unavailability(
-        Unavailability(weekday="monday")
+        Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value)
     )
     other = employee("ChefB", "chef", employee_id="chef-b")
     result = generate_cycle(_draft(employees=(blocked, other)))
@@ -423,18 +463,18 @@ def test_generate_does_not_rest_the_only_people_who_can_cover():
     }
 
 
-def test_weekend_off_does_not_count_as_weekday_consecutive_rest():
+def test_weekend_off_counts_as_consecutive_rest():
     person = employee("Sam", "commis", hours=20, employee_id="sam").with_wellbeing(
-        WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS
+        Wellbeing(consecutive_rest=True)
     )
     assignments = [_shift("sam", day, 11 * 60, 15 * 60, 2) for day in range(5)]
     result = evaluate(_draft(assignments, employees=(person,)))
-    assert "consecutive_rest_days" in result.codes()
+    assert "consecutive_rest_days" not in result.codes()
 
 
 def test_generate_consecutive_rest_still_works_saturday():
     theo = employee("Theo", "chef", hours=39, employee_id="theo").with_wellbeing(
-        WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS
+        Wellbeing(consecutive_rest=True)
     )
     emma = employee("Emma", "sous-chef", hours=39, employee_id="emma")
     weekday = ServiceStructure(
@@ -456,7 +496,7 @@ def test_generate_consecutive_rest_still_works_saturday():
     hours = RestaurantHours.multi_service(ServiceName.MIDDAY.value, closed_weekdays={"sunday"})
     draft = PlanningDraft(employees=(theo, emma), structures=(weekday, saturday), hours=hours)
     off = _plan_rest_days(draft)
-    assert 5 not in off["theo"] and 12 not in off["theo"]
+    assert off["theo"]
     result = generate_cycle(draft)
     saturday_posts = [
         shift for shift in result.assignments if shift.weekday == "saturday"
@@ -467,7 +507,7 @@ def test_generate_consecutive_rest_still_works_saturday():
 def test_generate_keeps_opener_for_earlier_level1():
     opener = employee("Aurore", "commis", hours=30, employee_id="aurore")
     later = employee("Vlad", "commis", hours=35, employee_id="vlad").with_unavailability(
-        Unavailability(every_morning=True)
+        Unavailability(weekday="monday", service_id=ServiceName.MORNING.value)
     )
     chef = employee("Emma", "sous-chef", hours=39, employee_id="emma")
     structure = ServiceStructure(
@@ -500,7 +540,8 @@ def test_generate_keeps_opener_for_earlier_level1():
     assert l2[0].employee_id == "vlad"
 
 
-def test_prefer_completing_a_started_day():
+def test_core_5_prefers_already_on_duty():
+    """core-5: prefer employee already working this day (recase like core-2)."""
     on_duty = employee("Aurore", "commis", hours=20, employee_id="aurore")
     idle = employee("Lucie", "plongeur", hours=15, employee_id="lucie")
     evening = ServiceStructure(
@@ -531,13 +572,162 @@ def test_prefer_completing_a_started_day():
     )
     assert picked is not None
     chosen, assigned = picked
-    assert chosen.id == "aurore"
+    assert chosen.id == "aurore", "core-5 prefers employee already on duty this day"
     assert assigned.end_minutes - assigned.start_minutes >= 4 * 60
+
+
+def test_core_6_wide_window_penalizes_coupure():
+    """core-6: on a wide window (many eligible), penalize coupure like core-3."""
+    from doux_planning.engines.core_6 import _pick_for_post as core_6_pick
+
+    on_duty = employee("Aurore", "commis", hours=20, employee_id="aurore")
+    idle = employee("Lucie", "plongeur", hours=15, employee_id="lucie")
+    extra1 = employee("Paul", "commis", hours=20, employee_id="paul")
+    extra2 = employee("Marie", "commis", hours=20, employee_id="marie")
+    evening = ServiceStructure(
+        id="eve-wide",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(18 * 60, (1,)),),
+        departures=(DepartureWave(22 * 60, ()),),
+    )
+    draft = _draft(employees=(on_duty, idle, extra1, extra2), extra_structures=(evening,))
+    assignments = [
+        _shift("aurore", 0, 10 * 60, 14 * 60, 2),
+        _shift("lucie", 1, 11 * 60, 14 * 60, 1),
+    ]
+    picked = core_6_pick(
+        draft,
+        assignments,
+        employee_pool=[on_duty, idle, extra1, extra2],
+        window_level=1,
+        day_index=0,
+        weekday="monday",
+        service_id=ServiceName.EVENING.value,
+        team=Team.CUISINE,
+        start_minutes=18 * 60,
+        end_minutes=22 * 60,
+        off_days={"aurore": set(), "lucie": set(), "paul": set(), "marie": set()},
+    )
+    assert picked is not None
+    chosen, _ = picked
+    assert chosen.id != "aurore", "core-6 on wide window should not prefer someone creating coupure"
+
+
+def test_core_6_rare_already_on_duty_preferred():
+    """core-6: rare candidate already on duty is preferred (recase like core-2)."""
+    from doux_planning.engines.core_6 import _pick_for_post as core_6_pick
+
+    chef = employee("Chef", "chef", hours=39, employee_id="chef")
+    plongeur = employee("Plongeur", "plongeur", hours=20, employee_id="plongeur")
+    midday = ServiceStructure(
+        id="mid-rare",
+        team=Team.CUISINE,
+        service_id=ServiceName.MIDDAY.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(10 * 60, (4,)),),
+        departures=(DepartureWave(16 * 60, ()),),
+    )
+    evening = ServiceStructure(
+        id="eve-rare",
+        team=Team.CUISINE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(18 * 60, (4,)),),
+        departures=(DepartureWave(22 * 60, ()),),
+    )
+    draft = _draft(employees=(chef, plongeur), extra_structures=(midday, evening))
+    assignments = [
+        _shift("chef", 0, 10 * 60, 16 * 60, 4),
+    ]
+    picked = core_6_pick(
+        draft,
+        assignments,
+        employee_pool=[chef, plongeur],
+        window_level=4,
+        day_index=0,
+        weekday="monday",
+        service_id=ServiceName.EVENING.value,
+        team=Team.CUISINE,
+        start_minutes=18 * 60,
+        end_minutes=22 * 60,
+        off_days={"chef": set(), "plongeur": set()},
+    )
+    assert picked is not None
+    chosen, _ = picked
+    assert chosen.id == "chef", "core-6 rare candidate already on duty should be preferred"
+
+
+def test_iter0_illegal_swap_not_applied():
+    """iter-0: _is_legal_assignment prevents illegal swaps."""
+    from doux_planning.engines.iter_0 import _is_legal_assignment
+
+    chef = employee("Chef", "chef", hours=39, employee_id="chef")
+    commis = employee("Sam", "commis", hours=20, employee_id="sam")
+    draft = _draft(employees=(chef, commis))
+    
+    shift1 = _shift("chef", 0, 10 * 60, 14 * 60, 4)
+    shift2 = _shift("chef", 0, 18 * 60, 22 * 60, 4)
+    assignments = [shift1, shift2]
+    
+    illegal_shift = Shift(
+        employee_id="sam",
+        day_index=0,
+        weekday="monday",
+        service_id=ServiceName.MIDDAY.value,
+        team=Team.CUISINE,
+        start_minutes=10 * 60,
+        end_minutes=14 * 60,
+        post_level=4,
+    )
+    assert not _is_legal_assignment(draft, assignments, illegal_shift, "sam"), \
+        "Sam (level 2) cannot take a level 4 post"
+
+
+def test_seed_tight_threshold_is_three():
+    assert SEED_TIGHT_THRESHOLD == 3
+
+
+def test_minimal_has_no_locks_and_at_most_sixteen_calendars():
+    generate_cycle(_draft(), SearchEffort.MINIMAL)
+    assert SEARCH_PROGRESS["calendars"] <= MINIMAL_CALENDARS == 16
+
+
+def test_fill_does_not_move_a_lock():
+    chef = employee("Chef", "chef", hours=39, employee_id="chef-a")
+    commis = employee("Sam", "commis", hours=39, employee_id="sam")
+    draft = _draft(employees=(chef, commis))
+    lock = _shift("chef-a", 0, 10 * 60, 16 * 60, 4)
+    off_days = _plan_rest_days(draft)
+    filled = _fill_assignments(draft, off_days, [chef, commis], locks=(lock,))
+    assert _lock_key(lock) in {_lock_key(shift) for shift in filled}
+    assert any(
+        shift.employee_id == "chef-a"
+        and shift.day_index == 0
+        and shift.start_minutes == 10 * 60
+        and shift.end_minutes == 16 * 60
+        and shift.post_level == 4
+        for shift in filled
+    )
+
+
+def test_infeasible_locked_seed_yields_no_calendar():
+    blocked = replace(
+        employee("Chef", "chef", hours=39, employee_id="chef-a"),
+        forced_off_days=frozenset({0}),
+    )
+    draft = _draft(employees=(blocked,))
+    lock = _shift("chef-a", 0, 10 * 60, 16 * 60, 4)
+    model, work, _unders = _build_rest_model(draft, hard_coverage=True, locks=(lock,))
+    assert _first_rest_calendar(model, work, draft, 1.0) is None
+    result = generate_cycle(draft, SearchEffort.MINIMAL)
+    assert result is not None
 
 
 def test_generate_does_not_exceed_weekly_coupure_cap():
     emma = employee("Emma", "sous-chef", hours=39, employee_id="emma").with_wellbeing(
-        WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK
+        Wellbeing(max_coupures_per_week=2)
     )
     vlad = employee("Vlad", "commis", hours=39, employee_id="vlad")
     open_days = frozenset({"monday", "tuesday", "wednesday"})
@@ -572,7 +762,7 @@ def test_generate_does_not_exceed_weekly_coupure_cap():
 
 def test_coupures_are_counted_per_week_not_per_cycle():
     person = employee("Emma", "sous-chef", hours=39, employee_id="emma").with_wellbeing(
-        WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK
+        Wellbeing(max_coupures_per_week=2)
     )
     assignments = []
     for day in (0, 1, 2):
@@ -633,6 +823,14 @@ def test_generate_cycle_default_search_is_optimized():
     first = generate_cycle(draft)
     second = generate_cycle(draft, search=SearchEffort.OPTIMIZED)
     assert first.assignments == second.assignments
+    assert _attempt_key(draft, first) == _attempt_key(draft, second)
+
+
+def test_attempt_key_keep_best_tuple_unchanged():
+    chef = employee("Chef", "chef", hours=4, employee_id="chef-a")
+    draft = _draft(employees=(chef,))
+    exact = EngineResult(assignments=(_shift("chef-a", 0, 10 * 60, 14 * 60, 4),), warnings=())
+    assert _attempt_key(draft, exact) == (0, 0, 4.0, 0, 0, 0)
 
 
 def test_search_effort_calendar_limits():
@@ -652,11 +850,11 @@ def test_attempt_prefers_fewer_shifts_below_role():
 def test_generate_reassigns_same_day_to_fill_a_hole():
     alex = employee("Alex", "commis", hours=4, employee_id="alex")
     blair = employee("Blair", "commis", hours=4, employee_id="blair").with_unavailability(
-        Unavailability(every_evening=True)
+        Unavailability(weekday="monday", service_id=ServiceName.EVENING.value)
     )
     casey = replace(
         employee("Casey", "plongeur", hours=4, employee_id="casey").with_unavailability(
-            Unavailability(every_morning=True)
+            Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value)
         ),
         forced_off_days=frozenset({0}),
     )
@@ -732,7 +930,10 @@ def test_short_post_stays_empty_when_service_cannot_reach_min_shift():
 
 
 def test_lower_personal_min_shift_fills_a_short_post():
-    person = replace(employee("Lucie", "plongeur", hours=20, employee_id="lucie"), min_shift_hours=3.0)
+    person = replace(
+        employee("Lucie", "plongeur", hours=20, employee_id="lucie"),
+        min_shift_hours={"evening": 3.0},
+    )
     evening = ServiceStructure(
         id="three-hour",
         team=Team.CUISINE,
@@ -748,3 +949,193 @@ def test_lower_personal_min_shift_fills_a_short_post():
     monday = [shift for shift in result.assignments if shift.day_index == 0]
     assert monday
     assert monday[0].duration_hours == 3.0
+
+
+def test_evening_min_three_leaves_short_midday_empty():
+    person = replace(
+        employee("Lucie", "plongeur", hours=20, employee_id="lucie"),
+        min_shift_hours={"evening": 3.0},
+    )
+    midday = ServiceStructure(
+        id="three-hour-midday",
+        team=Team.CUISINE,
+        service_id=ServiceName.MIDDAY.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(ArrivalWave(11 * 60, (1,)),),
+        departures=(DepartureWave(14 * 60, ()),),
+    )
+    hours = RestaurantHours.multi_service(
+        ServiceName.MIDDAY.value, closed_weekdays=set(WEEKDAYS) - {"monday"}
+    )
+    result = generate_cycle(PlanningDraft(employees=(person,), structures=(midday,), hours=hours))
+    assert not [shift for shift in result.assignments if shift.day_index == 0]
+    assert "empty_post" in {warning.code for warning in result.warnings if warning.day_index == 0}
+
+
+def _first_payload(result, code: str) -> dict:
+    return next(item.payload for item in result.warnings if item.code == code)
+
+
+def _assert_no_french_payload(payload: dict) -> None:
+    markers = (
+        "lundi",
+        "mardi",
+        "mercredi",
+        "jeudi",
+        "vendredi",
+        "samedi",
+        "dimanche",
+        "déjeuner",
+        "dîner",
+        "sem.",
+        "contrat",
+        "repos",
+        "max ",
+        "h de",
+    )
+
+    def walk(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict):
+            for item in value.values():
+                yield from walk(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                yield from walk(item)
+
+    for text in walk(payload):
+        lowered = text.lower()
+        assert not any(marker in lowered for marker in markers), text
+
+
+def test_evaluate_payloads_are_typed_not_french():
+    chef = employee("ChefA", "chef", employee_id="chef-a")
+    long_day = evaluate(_draft([_shift("chef-a", 0, 8 * 60, 21 * 60, 4)], employees=(chef,)))
+    assert _first_payload(long_day, "max_daily_hours") == {"hours": 13, "limit_hours": 11}
+    _assert_no_french_payload(_first_payload(long_day, "max_daily_hours"))
+
+    no_rest = evaluate(
+        _draft([_shift("chef-a", day, 10 * 60, 16 * 60, 4) for day in range(7)], employees=(chef,))
+    )
+    assert _first_payload(no_rest, "weekly_rest_days") == {"rest_days": 0, "required": 2, "week_start": 0}
+    _assert_no_french_payload(_first_payload(no_rest, "weekly_rest_days"))
+
+    coupure = evaluate(
+        PlanningDraft(
+            employees=(chef,),
+            structures=(kitchen_midday_structure(),),
+            hours=RestaurantHours.multi_service(
+                ServiceName.MORNING.value, ServiceName.MIDDAY.value, ServiceName.EVENING.value
+            ),
+            assignments=(
+                _shift("chef-a", 0, 8 * 60, 11 * 60, 4, service=ServiceName.MORNING.value),
+                _shift("chef-a", 0, 18 * 60, 22 * 60, 4, service=ServiceName.EVENING.value),
+            ),
+        )
+    )
+    assert _first_payload(coupure, "max_coupure") == {"gap_minutes": 7 * 60, "limit_hours": 5}
+    _assert_no_french_payload(_first_payload(coupure, "max_coupure"))
+
+    long_week = evaluate(
+        _draft([_shift("chef-a", day, 8 * 60, 18 * 60, 4) for day in range(6)], employees=(chef,))
+    )
+    assert _first_payload(long_week, "max_weekly_hours") == {"hours": 60, "limit_hours": 48, "week_start": 0}
+    _assert_no_french_payload(_first_payload(long_week, "max_weekly_hours"))
+
+    blocked = chef.with_unavailability(Unavailability(weekday="monday", service_id=ServiceName.MIDDAY.value))
+    indispo = evaluate(_draft([_shift("chef-a", 0, 10 * 60, 16 * 60, 4)], employees=(blocked,)))
+    assert _first_payload(indispo, "unavailability") == {
+        "weekday": "monday",
+        "service_id": ServiceName.MIDDAY.value,
+    }
+    _assert_no_french_payload(_first_payload(indispo, "unavailability"))
+
+    closed = evaluate(
+        PlanningDraft(
+            employees=(chef,),
+            structures=(kitchen_midday_structure(),),
+            hours=RestaurantHours.multi_service(ServiceName.MIDDAY.value, closed_weekdays={"sunday"}),
+            assignments=(_shift("chef-a", 6, 11 * 60, 15 * 60, 4),),
+        )
+    )
+    assert _first_payload(closed, "assigned_on_closure") == {
+        "weekday": "sunday",
+        "service_id": ServiceName.MIDDAY.value,
+    }
+    _assert_no_french_payload(_first_payload(closed, "assigned_on_closure"))
+
+    sam = employee("Sam", "commis", hours=20, employee_id="sam").with_wellbeing(Wellbeing(consecutive_rest=True))
+    souhait = evaluate(
+        _draft(
+            [
+                _shift("sam", 0, 11 * 60, 15 * 60, 2),
+                _shift("sam", 1, 11 * 60, 15 * 60, 2),
+                _shift("sam", 3, 11 * 60, 15 * 60, 2),
+                _shift("sam", 5, 11 * 60, 15 * 60, 2),
+            ],
+            employees=(sam,),
+        )
+    )
+    assert _first_payload(souhait, "consecutive_rest_days") == {"week_start": 0}
+    contract = _first_payload(souhait, "contract_hours")
+    assert contract["contracted"] == 20
+    assert contract["week_start"] in {0, 7}
+    _assert_no_french_payload(contract)
+    assert all(
+        item.severity is WarningSeverity.SOUHAIT
+        for item in souhait.warnings
+        if item.code == "contract_hours"
+    )
+
+    ada = employee("Ada", "commis", hours=20, employee_id="ada").with_wellbeing(
+        Wellbeing(weekend_rest_day=True, weekend=WeekendChoice.EVEN)
+    )
+    bea = employee("Bea", "commis", hours=20, employee_id="bea").with_wellbeing(Wellbeing(weekend=WeekendChoice.ODD))
+    cal = employee("Cal", "commis", hours=20, employee_id="cal").with_wellbeing(
+        Wellbeing(weekend=WeekendChoice.EVERY_TWO)
+    )
+    both_weekends = [_shift("ada", day, 11 * 60, 15 * 60, 2) for day in (5, 6, 12, 13)]
+    both_weekends += [_shift("bea", day, 11 * 60, 15 * 60, 2) for day in (5, 6, 12, 13)]
+    both_weekends += [_shift("cal", day, 11 * 60, 15 * 60, 2) for day in (5, 6, 12, 13)]
+    weekends = evaluate(
+        PlanningDraft(
+            employees=(ada, bea, cal),
+            structures=(kitchen_midday_structure(),),
+            hours=RestaurantHours.multi_service(ServiceName.MIDDAY.value),
+            assignments=tuple(both_weekends),
+        )
+    )
+    assert _first_payload(weekends, "weekend_rest_day") == {"week_start": 0}
+    assert _first_payload(weekends, "weekend_even_weeks") == {"off_week_0": False, "off_week_7": False}
+    assert _first_payload(weekends, "weekend_odd_weeks") == {"off_week_0": False, "off_week_7": False}
+    assert _first_payload(weekends, "weekend_every_two_weeks") == {"off_week_0": False, "off_week_7": False}
+    for code in (
+        "weekend_rest_day",
+        "weekend_even_weeks",
+        "weekend_odd_weeks",
+        "weekend_every_two_weeks",
+    ):
+        _assert_no_french_payload(_first_payload(weekends, code))
+
+
+def test_maximal_honors_search_seconds_including_fill():
+    import time as time_mod
+
+    from doux_planning.hydrate import load_delivered_cycle
+
+    delivered = load_delivered_cycle("saint-cloud")
+    draft = PlanningDraft(
+        employees=tuple(item for item in delivered.employees if item.team == Team.SALLE),
+        structures=tuple(item for item in delivered.structures if item.team == Team.SALLE),
+        hours=delivered.hours,
+    )
+    SEARCH_SECONDS[SearchEffort.MAXIMAL] = 0.4
+    try:
+        started = time_mod.perf_counter()
+        result = generate_cycle(draft, SearchEffort.MAXIMAL)
+        elapsed = time_mod.perf_counter() - started
+    finally:
+        SEARCH_SECONDS[SearchEffort.MAXIMAL] = REST_ENUMERATION_SECONDS
+    assert result.assignments
+    assert elapsed < 2.5

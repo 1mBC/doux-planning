@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from doux_planning.api.db import Base
+from doux_planning.api.db import Base, database_url as api_database_url
 
 config = context.config
 if config.config_file_name is not None:
@@ -18,7 +17,7 @@ target_metadata = Base.metadata
 
 
 def _database_url() -> str:
-    url = os.environ.get("DATABASE_URL")
+    url = api_database_url()
     if not url:
         raise RuntimeError("DATABASE_URL is required for migrations")
     return url

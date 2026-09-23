@@ -5,7 +5,18 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, create_engine
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    String,
+    UniqueConstraint,
+    create_engine,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -68,22 +79,23 @@ class Company(Base):
     live_sandboxes: Mapped[dict] = mapped_column(
         JSONB, nullable=False, default=lambda: {"salle": None, "cuisine": None}
     )
+    hours: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class StaffFiche(Base):
     __tablename__ = "staff_fiches"
 
+    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), primary_key=True)
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
     team: Mapped[str] = mapped_column(String, nullable=False)
     invite_token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     role_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     contractual_hours_per_week: Mapped[float] = mapped_column(Float, nullable=False, default=35)
-    min_shift_hours: Mapped[float] = mapped_column(Float, nullable=False, default=4)
+    min_shift_hours: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     unavailabilities: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
-    wellbeing: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    wellbeing: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
 
 class AccountEmail(Base):
@@ -99,16 +111,125 @@ class RestaurateurAccount(Base):
     email: Mapped[str] = mapped_column(ForeignKey("account_emails.email"), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     restaurant_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), unique=True, nullable=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class LiveEngine(Base):
+    __tablename__ = "live_engine"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    engine_ref: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class GenerateLog(Base):
+    __tablename__ = "generate_logs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False)
+    restaurant_name: Mapped[str] = mapped_column(String, nullable=False)
+    team: Mapped[str] = mapped_column(String, nullable=False)
+    search_effort: Mapped[str | None] = mapped_column(String, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    engine_ref: Mapped[str | None] = mapped_column(String, nullable=True)
+    restaurant_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    score_global: Mapped[float | None] = mapped_column(Float, nullable=True)
+    warnings: Mapped[list] = mapped_column(JSONB, nullable=False)
+
+
+class GenerateJob(Base):
+    __tablename__ = "generate_jobs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    restaurant_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    team: Mapped[str] = mapped_column(String, nullable=False)
+    search_effort: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    estimated_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class BenchJob(Base):
+    __tablename__ = "bench_jobs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    category: Mapped[str] = mapped_column(String, nullable=False)
+    dataset_id: Mapped[str] = mapped_column(String, nullable=False)
+    search_effort: Mapped[str] = mapped_column(String, nullable=False)
+    engine_ref: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    batch_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class BenchRun(Base):
+    __tablename__ = "bench_runs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    app_version: Mapped[str] = mapped_column(String, nullable=False)
+    category: Mapped[str] = mapped_column(String, nullable=False)
+    dataset_id: Mapped[str] = mapped_column(String, nullable=False)
+    search_effort: Mapped[str] = mapped_column(String, nullable=False)
+    duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    score: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    expected_score: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    deltas: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    assignments: Mapped[list] = mapped_column(JSONB, nullable=False)
+    warnings: Mapped[list] = mapped_column(JSONB, nullable=False)
+    trace: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+
+class BenchImportedDataset(Base):
+    __tablename__ = "bench_imported_datasets"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    category: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    challenge_fr: Mapped[str] = mapped_column(String, nullable=False)
+    comment: Mapped[str | None] = mapped_column(String, nullable=True)
+    origin: Mapped[str] = mapped_column(String, nullable=False)
+    source_restaurant_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    context: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    expected: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    manual_score_override: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BenchTombstone(Base):
+    __tablename__ = "bench_tombstones"
+
+    category: Mapped[str] = mapped_column(String, primary_key=True)
+    dataset_id: Mapped[str] = mapped_column(String, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class EmployeeAccountRow(Base):
     __tablename__ = "employee_accounts"
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "employee_id", name="employee_accounts_restaurant_employee_key"),
+        ForeignKeyConstraint(
+            ["restaurant_id", "employee_id"],
+            ["staff_fiches.company_id", "staff_fiches.id"],
+            name="employee_accounts_restaurant_employee_fkey",
+        ),
+        CheckConstraint(
+            "(restaurant_id IS NULL) = (employee_id IS NULL)",
+            name="employee_accounts_affiliation_nulls_check",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     email: Mapped[str] = mapped_column(ForeignKey("account_emails.email"), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
-    restaurant_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), nullable=False)
-    employee_id: Mapped[str] = mapped_column(ForeignKey("staff_fiches.id"), unique=True, nullable=False)
+    restaurant_id: Mapped[str | None] = mapped_column(ForeignKey("companies.id"), nullable=True)
+    employee_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class AuthSession(Base):
@@ -118,12 +239,36 @@ class AuthSession(Base):
     token_hash: Mapped[str] = mapped_column(String, primary_key=True)
     kind: Mapped[str] = mapped_column(String, nullable=False)
     account_id: Mapped[str] = mapped_column(String, nullable=False)
-    restaurant_id: Mapped[str] = mapped_column(String, nullable=False)
+    restaurant_id: Mapped[str | None] = mapped_column(String, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class ImpersonateToken(Base):
+    __tablename__ = "impersonate_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String, primary_key=True)
+    account_id: Mapped[str] = mapped_column(String, nullable=False)
+    restaurant_id: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+def normalize_database_url(url: str) -> str:
+    if url.startswith("postgresql+"):
+        return url
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url[len("postgres://") :]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://") :]
+    return url
+
+
 def database_url() -> str | None:
-    return os.environ.get("DATABASE_URL") or None
+    raw = os.environ.get("DATABASE_URL") or None
+    if not raw:
+        return None
+    return normalize_database_url(raw)
 
 
 def get_engine() -> Engine:

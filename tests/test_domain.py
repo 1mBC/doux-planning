@@ -1,4 +1,6 @@
-from doux_planning.hydrate import hydrate_delivered_cycle
+from dataclasses import replace
+
+from doux_planning.hydrate import _employee, hydrate_delivered_cycle
 from doux_planning.invites import (
     InvalidInviteCode,
     InviteAlreadyRedeemed,
@@ -17,9 +19,11 @@ from doux_planning.staff import (
     TeamMismatchError,
     Unavailability,
     default_legal_rules,
+    min_shift_for,
 )
 from doux_planning.structures import ArrivalWave, RestaurantHours, ServiceStructure
-from doux_planning.types import ServiceName, Team, WellbeingPreference, validate_quantum
+from doux_planning.staff import Wellbeing
+from doux_planning.types import ServiceName, Team, WeekendChoice, validate_quantum
 from tests.fixtures import cuisine_ladder, employee
 
 
@@ -57,25 +61,66 @@ def test_employee_contract_profile():
     assert person.level == 2
     assert person.team is Team.CUISINE
     assert person.contractual_hours_per_week == 35
-    assert person.min_shift_hours == 4
+    assert dict(person.min_shift_hours) == {}
+    assert min_shift_for(person, ServiceName.EVENING.value) == 4
+    assert min_shift_for(person, ServiceName.MIDDAY.value) == 4
+    assert min_shift_for(person, "continuous") == 4
+
+
+def test_min_shift_hours_sparse_map_defaults_and_rejects_non_positive():
+    person = employee("Sam", "commis")
+    evening_three = replace(person, min_shift_hours={"evening": 3})
+    assert min_shift_for(evening_three, ServiceName.EVENING.value) == 3
+    assert min_shift_for(evening_three, ServiceName.MIDDAY.value) == 4
+    try:
+        replace(person, min_shift_hours={"evening": 0})
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "min_shift_hours must be > 0" in str(exc)
+    try:
+        replace(person, min_shift_hours=-1)
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "min_shift_hours must be > 0" in str(exc)
+    try:
+        replace(person, min_shift_hours={"continuous": 3})
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "Unknown min_shift_hours key" in str(exc)
+
+
+def test_hydrate_numeric_min_shift_three_applies_to_draft_services():
+    raw = {
+        "id": "lucie",
+        "name": "Lucie",
+        "team": "cuisine",
+        "role": {"name": "plongeur", "level": 1, "team": "cuisine"},
+        "contractual_hours_per_week": 20,
+        "min_shift_hours": 3,
+    }
+    person = _employee(raw, ("midday", "evening"))
+    assert dict(person.min_shift_hours) == {"midday": 3.0, "evening": 3.0}
+    assert min_shift_for(person, ServiceName.MORNING.value) == 4
+    omitted = {key: value for key, value in raw.items() if key != "min_shift_hours"}
+    assert dict(_employee(omitted, ("midday", "evening")).min_shift_hours) == {}
+    four = dict(raw)
+    four["min_shift_hours"] = 4
+    assert dict(_employee(four, ("midday", "evening")).min_shift_hours) == {}
 
 
 def test_unavailability_patterns_round_trip():
-    tuesday = Unavailability(weekday="tuesday")
-    mornings = Unavailability(every_morning=True)
-    midi = Unavailability(service_id=ServiceName.MIDDAY.value)
-    person = employee("Sam", "commis").with_unavailability(tuesday).with_unavailability(mornings).with_unavailability(midi)
-    assert tuesday.blocks("tuesday", ServiceName.MIDDAY.value, False, False)
-    assert not tuesday.blocks("monday", ServiceName.MIDDAY.value, False, False)
-    assert mornings.blocks("monday", ServiceName.MORNING.value, True, False)
-    assert not mornings.blocks("monday", ServiceName.EVENING.value, False, True)
-    assert midi.blocks("friday", ServiceName.MIDDAY.value, False, False)
-    assert len(person.unavailabilities) == 3
+    tuesday = Unavailability(weekday="tuesday", service_id=ServiceName.MIDDAY.value)
+    person = employee("Sam", "commis").with_unavailability(tuesday)
+    assert tuesday.blocks("tuesday", ServiceName.MIDDAY.value)
+    assert not tuesday.blocks("monday", ServiceName.MIDDAY.value)
+    assert not tuesday.blocks("tuesday", ServiceName.EVENING.value)
+    assert len(person.unavailabilities) == 1
 
 
 def test_wellbeing_consecutive_rest_is_recorded():
-    person = employee("Sam", "commis").with_wellbeing(WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS)
-    assert WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS in person.wellbeing
+    person = employee("Sam", "commis").with_wellbeing(Wellbeing(consecutive_rest=True))
+    assert person.wellbeing.consecutive_rest is True
+    assert person.wellbeing.weekend is None
 
 
 def test_legal_rules_visible_without_generation():
@@ -171,6 +216,8 @@ def test_hydrate_saint_cloud_employees_have_invite_tokens():
     state = hydrate_delivered_cycle(PlanningStore(), "saint-cloud")
     assert state.employees
     assert all(person.invite_token and person.invite_token != person.id for person in state.employees)
+    assert all(dict(person.min_shift_hours) == {} for person in state.employees)
+    assert all(min_shift_for(person, ServiceName.EVENING.value) == 4 for person in state.employees)
 
 
 def test_continuous_vs_services_and_closures():

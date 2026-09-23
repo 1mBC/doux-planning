@@ -13,7 +13,7 @@ Engine time bounds already exist (`SEARCH_SECONDS`: minimal 3s, optimized 30s, m
 - Generate as a Postgres job + worker poll; other engine calls stay in-request.
 
 **Non-Goals:**
-- React, CORS-for-UI unless a later verify forces it, Redis/Celery, OAuth, SMTP, multi-restaurant, employee-authored constraints, rebuilding `legal_rows` / `wish_rows` on live results, changing keep-best / rest / coupure / min-shift rules.
+- React, CORS-for-UI unless a later verify forces it, Redis/Celery, OAuth, SMTP, multi-restaurant, employee-authored constraints, inventing recap stats/cells in `api/` (wrap Core `cycle_recap` only), changing keep-best / rest / coupure / min-shift rules.
 
 ## Decisions
 
@@ -32,7 +32,7 @@ Seed writes:
 
 `GET /v1/examples/{id}` reads `example_snapshots` + `legal_contexts` + restaurant public fields. It never calls `generate_cycle`. Live generate/publish update cycle/sandbox tables only, so the UI example contract cannot drift.
 
-Alternative: public GET returns the live published cycle. Rejected — `build-planning-ui` and the frozen file are a contract; a later generate would change stats (70 assignments, etc.).
+Alternative: public GET returns the live published cycle. Rejected — `build-planning-ui` and the frozen file are a contract; a later generate would change stats (92 assignments, etc.).
 
 ### 3. After seed, no file runtime
 
@@ -50,6 +50,14 @@ Do not implement `/v1/auth/restaurateur/*` or `/v1/auth/employee/*`. Without `DA
 
 Live context (`contracts/http/v1-context.md`): extend `companies` / `staff_fiches`. `GET` / `PATCH /v1/context` wrap Core `empty_restaurant`, mutators, and `team_ready`. Register company already persists an empty live company; GET returns that empty shape (`ready` false) without `generate_cycle`. PATCH keys are optional section replacements. New fiches get a Core `invite_token`; rotate stays `POST /v1/staff/{id}/invite-token`. Do not write `example_snapshots` or Saint-Cloud files.
 
+HTTP wellbeing wrap (Core already owns the model): persist `staff_fiches.wellbeing` as the Core object JSON. PATCH / import stay strict: legacy preference keys, key lists, `every_morning` / `every_evening`, or fiche-level `max_*_per_week` → HTTP 400 `Champs invalides.` No aliases, no `WellbeingPreference`. GET / export / generate / me/planning **coerce-on-read** per `contracts/domain/coerce-railway.md` (list keys, removed keys, `every_*`, `service_id` null, fiche `max_*_per_week`) then heal the JSONB if it differs from `wellbeing_to_json` / new indispos. `[]` / absent → `Wellbeing()`. Already-Core object unchanged (`weekend_rest_day` absent → `false`). GET never emits the old JSON. PATCH/GET `employees[]` use `wellbeing` object + `unavailabilities: [{ weekday, service_id }]`. `GET /v1/context` and `GET /v1/me/planning` add `week_labels` from `week_label_scheme` (`"ab"` | `"parity"`). `week_labels` is read-only — PATCH must not accept it (same as `ready`). `GET /v1/me/planning` wishes are Core `BoardWish` (`kind`, `held`, optional `value` / `service_id` / `limit`), never `{ key }`. Public example stays the stored Core snapshot (92 / 17 / 10/12 / 47). Do not edit `engine.py`, `staff.py`, `hydrate.py`, or `data/examples/saint-cloud.json`.
+
+`weekend_rest_day` is part of that same JSONB object (no Alembic). Parse missing key as Core default `false`; GET always emits the bool. Stored Railway list key `at_least_one_weekend_rest_day` maps to `weekend_rest_day: true` on **read/heal only**; PATCH / import of that key stay 400. `GET /v1/me/planning` must pass through Core `BoardWish` `kind: "weekend_rest_day"` when the box is posed (no kind filter).
+
+HTTP example seed: `POST /v1/context/seed-example` loads the live company, wraps Core `seed_example_context` (file `restaurant` section only — never `hydrate_delivered_cycle` / `generate_cycle`), persists services, `hours` JSONB, ladders, types, typical week, and example fiches with Core `invite_token`s, then returns the same `Context` body as GET. Smash includes already-linked fiches (no 409). Clear `published_cycles`, `live_sandboxes`, and `linked_employee_ids`. Delete employee accounts and their sessions for **this** company (so an old employee Bearer is 401). Keep `companies.id`, `name`, `invite_code`, `legal_context_id`. Employee Bearer → 403. Without `DATABASE_URL` → 503. Public example stays 92.
+
+Config export/import (`contracts/domain/export-config.md`): `GET /v1/context/export` serializes the live context now as `{ export_version: 1, name, services, ladders, employees, types, typical_week }` with `invite_token` stripped from every fiche and no `company_code`. `POST /v1/context/import` accepts that shape, ignores forbidden keys (`company_code`, `invite_token`, `ready`, `week_labels`, `legal_context_id`), and smashes like seed (reuse `_persist_state(..., smash_live=True)`). Apply name/services/ladders/employees/types/typical_week via the same Core mutators as PATCH; hours stay derived. Mint new Core tokens (do not reuse JSON tokens). `export_version` other than integer `1` → 400 `Champs invalides.` No Alembic, no `generate_cycle`.
+
 ### 5. Route map (restaurant id never in the path)
 
 Public:
@@ -65,10 +73,18 @@ Session:
 
 Restaurateur (company Bearer), this slice:
 - `GET|PATCH /v1/context`
+- `POST /v1/context/seed-example` (wrap `seed_example_context`; smash live context; no body)
+- `GET /v1/context/export` / `POST /v1/context/import` (portable config JSON `export_version: 1`; import smash like seed)
 - `POST /v1/staff/{id}/invite-token`
 - `POST /v1/generate` (sync `generate_team`)
 - `GET /v1/cycles`
 - `/v1/live/sandbox/{team}` enter / GET / preview / commit / undo / discard / publish
+- `GET /v1/admin/generates` (Bearer, `me.admin` true)
+- `GET /v1/admin/bench/datasets`, `DELETE /v1/admin/bench/datasets/{category}/{dataset_id}`, `GET /v1/admin/bench/runs`, `POST /v1/admin/bench/run`, `GET /v1/admin/bench/jobs/{id}`, `GET /v1/admin/bench/runs/{id}`, `GET /v1/admin/bench/compare/{category}/{dataset_id}/{search_effort}`, `GET /v1/admin/bench/export`, `GET /v1/admin/bench/versions`, `GET /v1/admin/bench/batches/active`, `GET /v1/admin/bench/batches/{batch_id}`
+
+Boot after seed: if `ADMIN_EMAIL` matches an existing restaurateur (lowercase), set `is_admin`. Skip when unset/empty or when no restaurateur row exists — never insert an account. `me` always includes `admin` (company from `is_admin`, employee always false). `kind` stays company|employee. Log generate on HTTP 200 and worker job `done` (`email`, `restaurant_name`, `team`, `search_effort`, `duration_seconds` wall-clock of `generate_team`, `facts` = evaluate misses of the team just solved plus `employee_name` from the fiche at log time, else null). `GET /v1/admin/generates` always emits `search_effort`, `duration_seconds` (null on old rows), and `facts` (dual-read stored JSONB `warnings`; old items with `message` and no `payload` keep `message` last-resort). Alembic adds `restaurateur_accounts.is_admin`, `generate_logs`, and nullable `generate_logs.search_effort` / `generate_logs.duration_seconds`.
+
+Admin bench (`contracts/domain/bench.md`) wraps Core `list_bench_datasets` / `load_bench_dataset` / `run_bench` / `engine_ref` / `list_engine_refs` / `UnknownBenchDataset`. Disposable state only — never write `published_cycles` or `generate_logs`. Persist writes `bench_runs.app_version` = `outcome.engine_ref` and JSONB `trace` (`SearchTrace`). HTTP summaries, datasets, and export emit `engine_ref` and `app_version` as the same string; stored `"0.27.0"` reads as `"core-0"`. Last-run is newest per `(category, dataset_id, search_effort, engine_ref)`. `POST /v1/admin/bench/run` with `scope=dataset` and `minimal`/`optimized` is a 200 `{ runs: [RunSummary] }` and one `bench_runs` row. `all`, `category`, dataset `maximal`, or `scope=gaps` is 202 `{ batch_id, job_ids, total, status: queued }` with one shared `batch_id`. Habitual enqueue uses VERSION (`core-3`). Gaps = each listed jeu × three efforts × `list_engine_refs()` minus last-runs whose `trace` has `seeder`, `seed_index`, `n_locks`, `calendars_by_seeder`, `calendars_total`, `seeds_infeasible`, `attempt_key`; zero holes → 200 `{ batch_id, job_ids: [], total: 0, status: done }`. Enqueue is idempotent on the 4-key partial unique index (`category`, `dataset_id`, `search_effort`, `engine_ref`) for `queued`/`running` — two refs are two jobs. Worker claims `queued` → `running` + `heartbeat_at` + `started_at`, then `run_bench(..., engine_ref=job.engine_ref)`. GET `/batches/active` (registered before `{batch_id}`) is the newest incomplete batch or 404; GET `/batches/{id}` returns counts, `pct` = `100 * (done+failed) / total` (100 if total=0), and pessimistic `eta_max_seconds` from `SEARCH_SECONDS` caps, `n = max(1, running)`, remaining running time, queued FIFO round-robin. GET datasets is 50 jeux with current `engine_ref` (`core-3`). Worker replicas share the same image: heartbeat every 10 s, reclaim only stale (`heartbeat_at` NULL or older than 180 s; clear `started_at`) at start and each loop. Alembic adds `bench_runs.trace`, `bench_jobs.engine_ref` / `batch_id` / `started_at`, drops the 3-key unique index, creates the 4-key one (`heartbeat_at` already landed). The same worker loop claims `bench_jobs` independently of `generate_jobs` (no cross 409). A `done` job always inserts `bench_runs`. Failed job → `error` FR, no run. GET compare path returns the **current** `engine_ref` last-run plus `employees` and `model` / `manual` `CycleSlice` recomputed via Core `cycle_recap_from_draft`. GET `/runs/{id}` is the same shape plus `trace` (`null` if missing). GET `/versions` lists registre refs then extras, three effort keys. GET `/v1/admin/bench/export` `dataset` / `below_manuel` uses current last-runs and includes `trace`; `scope=bank` packs every registre last-run (jeu enters if ≥1 run; efforts sorted ref then effort). `below_manuel` / `bank` empty → 200 `datasets: []`. Dataset without a current run → 404. Generate resto unchanged. SPA fallback `/admin`, `/admin/bench`, `/admin/bench/manuels`, `/admin/bench/versions`, `/admin/bench/run/{run_id}`, `/admin/bench/{category}/{dataset_id}/{search_effort}`. Pytest ticks an exported bench function with `run_bench` stubbed (0 s, not 600×600 s). Do not edit `engine.py` or `data/bench/**`.
 
 Restaurateur:
 - `GET|PATCH /v1/restaurant` (hours, name, legal_context id)
@@ -85,17 +101,21 @@ Employee:
 
 Errors: `{ "error": { "code": "...", "message": "<French>" } }`. Existing example 404 may keep FastAPI `detail` only if tests already assert it; prefer the structured shape for new routes and align the example route if it does not break the UI (UI only needs 200 body keys).
 
-### 6. Generate is sync `generate_team` (no jobs in this slice)
+### 6. Generate is hybrid C (`contracts/domain/generate-jobs.md`)
 
-`POST /v1/generate` `{ team, search_effort? }` (Bearer company) loads the live context, wraps Core `generate_team`, persists `published_cycles` JSONB on the company (`salle` / `cuisine` independently), and returns 200 `{ team, search_effort, published }`. Omitted effort is `optimized`. `TeamNotReady` → 409 `Cette équipe n'est pas prête à calculer.` with no solver call. `GET /v1/cycles` returns the persisted `{ published }` (both null until generated). Tests use `minimal` only.
+`POST /v1/generate` `{ team, search_effort? }` (Bearer company). Omitted effort is `optimized`. `minimal` / `optimized` stay in-request: wrap Core `generate_team`, persist `published_cycles`, return 200 `{ team, search_effort, published }` and one `generate_logs` row. `maximal` MUST NOT call `generate_team` in uvicorn: insert `generate_jobs` (`queued`) and return 202 `{ job_id, team, search_effort: maximal, status: queued, estimated_seconds: 600 }` (no `published`). `TeamNotReady` → 409 `Cette équipe n'est pas prête à calculer.` with no job and no solver. A second `maximal` for the same company+team while `queued`/`running` → 409 `Un calcul maximal est déjà en cours.` The other team stays free.
 
-Do **not** add a `jobs` table, Compose worker, or `SKIP LOCKED` in this slice. The old async-job design is deferred. Do not write `example_snapshots` or Saint-Cloud files.
+`GET /v1/generate/jobs/{job_id}` (Bearer company, same restaurant): `{ job_id, team, search_effort, status, estimated_seconds }`; `published` only when `done`; `error` only when `failed`. Other company / unknown id → 404. Employee → 403. No session → 401. No `DATABASE_URL` → 503.
+
+Worker process (`python -m doux_planning.api.worker`, Compose `worker`, Railway 2nd service, same image / `DATABASE_URL`): `SELECT … FOR UPDATE SKIP LOCKED` one `queued` → `running` → `generate_team(…, maximal)` → persist cycles like the 200 → `done` + `generate_logs`. Exception → `failed` + French `error`. Pytest calls one exported tick with `generate_team` stubbed (0 s). Do not wait 600 s. Alembic table `generate_jobs`. Do not write `example_snapshots` or Saint-Cloud files.
+
+`published_cycles` JSONB is three slots per team (`contracts/domain/generate-versions.md`): `{ versions: { minimal, optimized, maximal }, latest }`. Each **new** cycle is assignments + facts + Core recap + `generated_at` (ISO UTC) + `search_effort` + `duration_seconds` (float, wall-clock of `generate_team`). POST / job `done` writes **that** slot only, stamps `generated_at` now, and sets `latest` to the newest stamp (tie: maximal > optimized > minimal). A stored flat cycle (no `versions`) is coerced on read to `versions.optimized` with `generated_at` / `duration_seconds` absent and `latest: optimized` (no Alembic). Old slots MUST NOT invent `duration_seconds`. Never-generated team stays `null`. `GET /v1/me/planning` hydrates `versions[latest]`. Live `enter` accepts `search_effort` (body or query, default `latest`); empty slot → 409. `publish` rewrites that same slot and MUST keep `generated_at` and `duration_seconds` when present. Worker and uvicorn emit one ISO stdout line per event (process start, job taken, generate start/end + duration, 202, done/failed). Do not edit `engine.py` / `SEARCH_*`.
 
 evaluate / swap / rank stay later. Live sandbox HTTP is this slice (`/v1/live/sandbox/{team}`).
 
 ### 7. Serialize `EngineResult` only
 
-JSON: `assignments` (including `duration_hours` as a derived field already on `Shift`) and `warnings` (`severity`, `code`, `message`, `employee_id`, `day_index`). Optional `stats` = counts from that result (`assignments`, `empty` from `empty_post`, `interdit`, `souhait`, `below_role` from assignments vs roles). Do not generate `legal_rows` / `wish_rows` on live adapters in this change; those stay on the frozen example snapshot.
+JSON: `assignments` (including `duration_hours` as a derived field already on `Shift`) and `facts` (`axis`, `kind`, `polarity`, `severity`, `employee_id`, `day_index`, `payload`) per `contracts/domain/score-facts.md`. A non-null published cycle also carries Core `cycle_recap` (`stats`, `legal_cols`, `legal_rows`, `wish_cols`, `wish_rows`, `score`). HTTP MUST serialize that object — it MUST NOT invent counts or cells. `score` is `{ notes, global, weights }` from `CycleScore` (`global` = `global_score`; five `notes` keys always present, null when omitted; **no `resumes`**). Recap cells are `{ ok, kind, payload }` (no `text`). HTTP MUST NOT emit `warnings`. `null` cycles have no recap keys. A stored cycle missing `facts`, still carrying `warnings`/`message`, `score.resumes`, or `cell.text` is hydrated via Core `cycle_recap` on GET (no 500). Persist inside existing `published_cycles` JSONB (no Alembic). Public example snapshot is Core dual-read (92 assignments, 17 evaluate misses). Joujou `/v1/sandbox/*` planning emits `facts` (no `warnings`); preview `impact` lists are facts (no `message`). `POST /v1/live/sandbox/{team}/publish` returns the same `published` shape. `generate_logs` JSONB column stays `warnings`; GET maps to `facts`. `bench_runs.warnings` stores evaluate-miss facts. Do not edit `engine.py`.
 
 ### 8. Schema and stack
 
@@ -113,6 +133,12 @@ PostgreSQL 16, SQLAlchemy 2 (sync) + Alembic, psycopg, Argon2. FastAPI handlers 
 - [Restaurateur register race] → Unique email constraint (global) + one restaurateur per new live company, never bind to Saint-Cloud.
 - [Invite preview leaks first names] → Acceptable: the code is the secret, human-scale staff list.
 - [Temptation to “fix” the engine while wiring jobs] → Call `generate_cycle` / `evaluate` as-is; stop and ask if a result looks wrong.
+
+File 70 admin historique: Alembic after `20260921_0016` adds nullable `generate_logs.restaurant_id` (no FK) + `score_global` and table `impersonate_tokens`. Admin GET cycles/context reuse company serializers and 404 when the company is missing. Impersonate mint hashes `token_urlsafe` like sessions, TTL 15 min; consume issues a new company session and sets `consumed_at` without deleting other sessions. Absolute URL uses forwarded proto+host when both headers are present.
+
+File 72 bench chrome: Alembic after `20260922_0018` adds `bench_tombstones` (PK `(category, dataset_id)`). DELETE `/v1/admin/bench/datasets/{category}/{dataset_id}` drops an imported row plus its runs/jobs, or tombstones a catalogue game without deleting files. Second catalogue DELETE is 204. Unknown pair is 404 `Jeu introuvable.` `_all_listings` / `list_datasets` / export / all / category / gaps omit tombstones. No Core rewrite.
+
+File 73 admin-ui-pass: SPA `/admin/bench/manuels` in `SPA_PATHS`. Optional `origin` (`catalogue` | `imported`) on POST `/v1/admin/bench/run` (all / category / gaps) and GET export (`below_manuel` / `bank`). Absent / null / `""` = both origins. Unknown value 400 `Champs invalides.` `scope=dataset` ignores origin. GET `/versions` unchanged. No Alembic.
 
 ## Migration Plan
 

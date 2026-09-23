@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import random
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from ortools.sat.python import cp_model
 
 from doux_planning.coverage import derive_post_windows, derive_slices, stretch_to_min_shift, PostWindow
-from doux_planning.staff import Employee, LegalRule, Unavailability, default_legal_rules
+from doux_planning.staff import Employee, LegalRule, Unavailability, default_legal_rules, min_shift_for
 from doux_planning.structures import RestaurantHours, ServiceStructure
 from doux_planning.types import (
     CYCLE_DAYS,
@@ -19,7 +22,7 @@ from doux_planning.types import (
     ServiceName,
     Team,
     WarningSeverity,
-    WellbeingPreference,
+    WeekendChoice,
     WEEKDAYS,
 )
 from doux_planning.warnings import Warning
@@ -39,6 +42,13 @@ SEARCH_SECONDS = {
     SearchEffort.OPTIMIZED: 30.0,
     SearchEffort.MAXIMAL: REST_ENUMERATION_SECONDS,
 }
+
+# Worker heartbeat reads this while generate_cycle runs (unique rest calendars filled).
+SEARCH_PROGRESS: dict[str, int] = {"calendars": 0}
+
+SEED_TIGHT_THRESHOLD = 3
+SEEDERS = ("tight-frozen", "tight-dynamic", "high-role", "weekend-scarce", "empty")
+WEEKEND_WEEKDAYS = frozenset({"saturday", "sunday"})
 
 
 @dataclass(frozen=True)
@@ -92,9 +102,23 @@ class PlanningDraft:
 
 
 @dataclass(frozen=True)
+class SearchTrace:
+    seeder: str
+    seed_index: int
+    n_locks: int
+    calendars_by_seeder: dict[str, int]
+    calendars_total: int
+    seeds_infeasible: int
+    attempt_key: dict[str, float | int]
+    repairs: dict | None = None
+    mix: dict | None = None
+
+
+@dataclass(frozen=True)
 class EngineResult:
     assignments: tuple[Shift, ...]
     warnings: tuple[Warning, ...]
+    trace: SearchTrace | None = None
 
     def of_severity(self, severity: WarningSeverity) -> tuple[Warning, ...]:
         return tuple(item for item in self.warnings if item.severity == severity)
@@ -160,6 +184,32 @@ def _is_evening(service_id: str, start_minutes: int) -> bool:
     return service_id == ServiceName.EVENING.value or start_minutes >= 18 * 60
 
 
+def _qty(value: float) -> float | int:
+    rounded = round(float(value), 4)
+    if abs(rounded - round(rounded)) < 1e-9:
+        return int(round(rounded))
+    return rounded
+
+
+def _warning(
+    severity: WarningSeverity,
+    code: str,
+    payload: dict,
+    *,
+    employee_id: str | None = None,
+    day_index: int | None = None,
+) -> Warning:
+    return Warning(severity, code, payload, employee_id, day_index)
+
+
+def _day_indexes_with_service(by_day: dict[int, list[Shift]], week_start: int, service_id: str) -> list[int]:
+    return [
+        day
+        for day in range(week_start, week_start + 7)
+        if any(item.service_id == service_id for item in by_day.get(day, []))
+    ]
+
+
 def _coverage_warnings(draft: PlanningDraft) -> list[Warning]:
     warnings: list[Warning] = []
     by_day: dict[tuple[int, str, str, Team], list[Shift]] = {}
@@ -175,10 +225,10 @@ def _coverage_warnings(draft: PlanningDraft) -> list[Warning]:
                     for shift in draft.assignments
                 ):
                     warnings.append(
-                        Warning(
+                        _warning(
                             WarningSeverity.COUVERTURE,
                             "assigned_on_closure",
-                            f"Assignment on closed {weekday} {service_id}",
+                            {"weekday": weekday, "service_id": service_id},
                             day_index=day_index,
                         )
                     )
@@ -205,17 +255,89 @@ def _coverage_warnings(draft: PlanningDraft) -> list[Warning]:
                         if higher:
                             remaining_required.remove(max(higher))
                     for leftover in remaining_required:
-                        start_h, start_m = divmod(slice_.start_minutes, 60)
-                        end_h, end_m = divmod(slice_.end_minutes, 60)
                         warnings.append(
-                            Warning(
+                            _warning(
                                 WarningSeverity.COUVERTURE,
                                 "empty_post",
-                                f"Unfilled level-{leftover} post {start_h:02d}:{start_m:02d}-{end_h:02d}:{end_m:02d}",
+                                {
+                                    "weekday": weekday,
+                                    "service_id": service_id,
+                                    "team": team.value,
+                                    "start_minutes": slice_.start_minutes,
+                                    "end_minutes": slice_.end_minutes,
+                                    "post_level": leftover,
+                                },
                                 day_index=day_index,
                             )
                         )
     return warnings
+
+
+def coverage_held_posts(draft: PlanningDraft) -> list[tuple[int, dict]]:
+    held: list[tuple[int, dict]] = []
+    by_day: dict[tuple[int, str, str, Team], list[Shift]] = {}
+    for shift in draft.assignments:
+        by_day.setdefault((shift.day_index, shift.weekday, shift.service_id, shift.team), []).append(shift)
+    for day_index in range(draft.horizon_days):
+        weekday = WEEKDAYS[day_index % 7]
+        for service_id in draft.hours.services:
+            if draft.hours.is_closed(weekday, service_id):
+                continue
+            for team in Team:
+                structure = draft.structure_for(team, service_id, weekday)
+                if structure is None:
+                    continue
+                shifts = by_day.get((day_index, weekday, service_id, team), [])
+                for slice_ in derive_slices(structure):
+                    present = [
+                        shift
+                        for shift in shifts
+                        if shift.start_minutes <= slice_.start_minutes < shift.end_minutes
+                    ]
+                    remaining_required = list(slice_.post_levels)
+                    occupied = sorted((shift.post_level for shift in present), reverse=True)
+                    filled: list[int] = []
+                    for level in occupied:
+                        if level in remaining_required:
+                            remaining_required.remove(level)
+                            filled.append(level)
+                            continue
+                        higher = [item for item in remaining_required if item <= level]
+                        if higher:
+                            matched = max(higher)
+                            remaining_required.remove(matched)
+                            filled.append(matched)
+                    for post_level in filled:
+                        held.append(
+                            (
+                                day_index,
+                                {
+                                    "weekday": weekday,
+                                    "service_id": service_id,
+                                    "team": team.value,
+                                    "start_minutes": slice_.start_minutes,
+                                    "end_minutes": slice_.end_minutes,
+                                    "post_level": post_level,
+                                },
+                            )
+                        )
+    return held
+
+
+def _required_post_count(draft: PlanningDraft) -> int:
+    total = 0
+    for day_index in range(draft.horizon_days):
+        weekday = WEEKDAYS[day_index % 7]
+        for service_id in draft.hours.services:
+            if draft.hours.is_closed(weekday, service_id):
+                continue
+            for team in Team:
+                structure = draft.structure_for(team, service_id, weekday)
+                if structure is None:
+                    continue
+                for slice_ in derive_slices(structure):
+                    total += len(slice_.post_levels)
+    return total
 
 
 def _shifts_by_employee(draft: PlanningDraft) -> dict[str, list[Shift]]:
@@ -246,10 +368,10 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
             day_hours = sum(item.duration_hours for item in by_day.get(day_index, []))
             if day_hours > max_daily + 1e-9:
                 warnings.append(
-                    Warning(
+                    _warning(
                         WarningSeverity.INTERDIT,
                         "max_daily_hours",
-                        f"{employee.name} exceeds daily hours ({day_hours}h)",
+                        {"hours": _qty(day_hours), "limit_hours": _qty(max_daily)},
                         employee_id=employee.id,
                         day_index=day_index,
                     )
@@ -259,10 +381,10 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
                 gap = second.start_minutes - first.end_minutes
                 if gap > max_coupure:
                     warnings.append(
-                        Warning(
+                        _warning(
                             WarningSeverity.INTERDIT,
                             "max_coupure",
-                            f"{employee.name} coupure exceeds {MAX_COUPURE_HOURS}h",
+                            {"gap_minutes": gap, "limit_hours": 5},
                             employee_id=employee.id,
                             day_index=day_index,
                         )
@@ -273,10 +395,10 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
             rest_days = sum(1 for day in week_days if day not in by_day)
             if rest_days < REST_DAYS_PER_WEEK:
                 warnings.append(
-                    Warning(
+                    _warning(
                         WarningSeverity.INTERDIT,
                         "weekly_rest_days",
-                        f"{employee.name} has fewer than {REST_DAYS_PER_WEEK} rest days",
+                        {"rest_days": rest_days, "required": 2, "week_start": week_start},
                         employee_id=employee.id,
                         day_index=week_start,
                     )
@@ -286,10 +408,10 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
             )
             if week_hours > MAX_WEEKLY_HOURS + 1e-9:
                 warnings.append(
-                    Warning(
+                    _warning(
                         WarningSeverity.INTERDIT,
                         "max_weekly_hours",
-                        f"{employee.name} exceeds {MAX_WEEKLY_HOURS}h ({week_hours}h)",
+                        {"hours": _qty(week_hours), "limit_hours": 48, "week_start": week_start},
                         employee_id=employee.id,
                         day_index=week_start,
                     )
@@ -303,9 +425,7 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
             pairs.append((ordered_days[-1], ordered_days[0] + CYCLE_DAYS))
         for day_a, day_b_raw in pairs:
             day_b = day_b_raw % draft.horizon_days if draft.horizon_days == CYCLE_DAYS else day_b_raw
-            if day_b_raw - day_a > 1 and not (
-                draft.horizon_days == CYCLE_DAYS and day_a == ordered_days[-1]
-            ):
+            if day_b_raw - day_a > 1:
                 continue
             last = max(by_day[day_a], key=lambda item: item.end_minutes)
             first_next_day = day_b if day_b in by_day else None
@@ -320,10 +440,16 @@ def _legal_warnings(draft: PlanningDraft) -> list[Warning]:
                 continue
             if rest < rest_needed:
                 warnings.append(
-                    Warning(
+                    _warning(
                         WarningSeverity.INTERDIT,
                         "rest_between_days",
-                        f"{employee.name} has less than {MIN_REST_BETWEEN_DAYS_HOURS}h rest",
+                        {
+                            "day_index_b": day_b,
+                            "end_minutes": last.end_minutes,
+                            "start_minutes_b": first.start_minutes,
+                            "rest_minutes": rest,
+                            "required_minutes": 660,
+                        },
                         employee_id=employee.id,
                         day_index=day_a,
                     )
@@ -335,15 +461,13 @@ def _unavailability_warnings(draft: PlanningDraft) -> list[Warning]:
     warnings: list[Warning] = []
     for shift in draft.assignments:
         employee = draft.employee(shift.employee_id)
-        morning = _is_morning(shift.service_id, shift.start_minutes)
-        evening = _is_evening(shift.service_id, shift.start_minutes)
         for pattern in employee.unavailabilities:
-            if pattern.blocks(shift.weekday, shift.service_id, morning, evening):
+            if pattern.blocks(shift.weekday, shift.service_id):
                 warnings.append(
-                    Warning(
+                    _warning(
                         WarningSeverity.INTERDIT,
                         "unavailability",
-                        f"{employee.name} assigned while unavailable",
+                        {"weekday": shift.weekday, "service_id": shift.service_id},
                         employee_id=employee.id,
                         day_index=shift.day_index,
                     )
@@ -352,15 +476,45 @@ def _unavailability_warnings(draft: PlanningDraft) -> list[Warning]:
     return warnings
 
 
-WEEKDAY_CONSECUTIVE_OFFSETS = (0, 1, 2, 3)  # Mon-Tue .. Thu-Fri; not Fri-Sat or Sat-Sun
+def _adjacent_rest_pairs(week_start: int) -> tuple[tuple[int, int], ...]:
+    return tuple((week_start + offset, week_start + ((offset + 1) % 7)) for offset in range(7))
 
 
-def _has_weekday_consecutive_rest(off_days: set[int] | list[int], week_start: int) -> bool:
-    offs = set(off_days)
-    return any(
-        (week_start + offset) in offs and (week_start + offset + 1) in offs
-        for offset in WEEKDAY_CONSECUTIVE_OFFSETS
-    )
+def _closed_days(hours: RestaurantHours, week_start: int) -> set[int]:
+    closed: set[int] = set()
+    for day in range(week_start, week_start + 7):
+        weekday = WEEKDAYS[day % 7]
+        if all(hours.is_closed(weekday, service_id) for service_id in hours.services):
+            closed.add(day)
+    return closed
+
+
+def _has_weekday_consecutive_rest(
+    off_days: set[int] | list[int], week_start: int, closed: set[int] | None = None
+) -> bool:
+    closed_days = set(closed or ())
+    rest = set(off_days) | closed_days
+    pairs = _adjacent_rest_pairs(week_start)
+    extra = rest - closed_days
+    n_closed = len(closed_days)
+    closed_pair = any(left in closed_days and right in closed_days for left, right in pairs)
+    if n_closed == 0:
+        return any(left in rest and right in rest for left, right in pairs)
+    if n_closed == 1:
+        closed_day = next(iter(closed_days))
+        neighbors = {right for left, right in pairs if left == closed_day} | {
+            left for left, right in pairs if right == closed_day
+        }
+        return bool(extra & neighbors)
+    if closed_pair:
+        return True
+    for closed_day in closed_days:
+        neighbors = {right for left, right in pairs if left == closed_day} | {
+            left for left, right in pairs if right == closed_day
+        }
+        if extra & neighbors:
+            return True
+    return False
 
 
 def _weekends_off(by_day: dict[int, list[Shift]], week_start: int) -> bool:
@@ -369,132 +523,131 @@ def _weekends_off(by_day: dict[int, list[Shift]], week_start: int) -> bool:
     return saturday not in by_day and sunday not in by_day
 
 
+def _has_weekend_rest_day(
+    by_day: dict[int, list[Shift]], week_start: int, hours: RestaurantHours
+) -> bool:
+    saturday = week_start + 5
+    sunday = week_start + 6
+    closed = _closed_days(hours, week_start)
+    sat_off = saturday not in by_day or saturday in closed
+    sun_off = sunday not in by_day or sunday in closed
+    return sat_off or sun_off
+
+
+def _service_count(by_day: dict[int, list[Shift]], week_start: int, service_id: str) -> int:
+    return sum(
+        1
+        for day in range(week_start, week_start + 7)
+        for item in by_day.get(day, [])
+        if item.service_id == service_id
+    )
+
+
 def _wellbeing_warnings(draft: PlanningDraft) -> list[Warning]:
     warnings: list[Warning] = []
     grouped = _shifts_by_employee(draft)
     for employee in draft.employees:
-        prefs = employee.wellbeing
+        wish = employee.wellbeing
         shifts = grouped.get(employee.id, [])
         by_day: dict[int, list[Shift]] = {}
         for shift in shifts:
             by_day.setdefault(shift.day_index, []).append(shift)
 
-        if WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS in prefs:
+        if wish.consecutive_rest:
             for week_start in range(0, draft.horizon_days, 7):
-                offs = [
-                    day
-                    for day in range(week_start, week_start + 7)
-                    if day not in by_day
-                ]
-                if not _has_weekday_consecutive_rest(offs, week_start):
+                offs = {day for day in range(week_start, week_start + 7) if day not in by_day}
+                closed = _closed_days(draft.hours, week_start)
+                if not _has_weekday_consecutive_rest(offs, week_start, closed):
                     warnings.append(
-                        Warning(
+                        _warning(
                             WarningSeverity.SOUHAIT,
                             "consecutive_rest_days",
-                            f"{employee.name} missing two consecutive rest days",
+                            {"week_start": week_start},
                             employee_id=employee.id,
                             day_index=week_start,
                         )
                     )
 
-        if WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS in prefs and draft.horizon_days >= 14:
-            off_a = _weekends_off(by_day, 0)
-            off_b = _weekends_off(by_day, 7)
-            if off_a == off_b:
+        if wish.weekend_rest_day:
+            for week_start in range(0, draft.horizon_days, 7):
+                if not _has_weekend_rest_day(by_day, week_start, draft.hours):
+                    warnings.append(
+                        _warning(
+                            WarningSeverity.SOUHAIT,
+                            "weekend_rest_day",
+                            {"week_start": week_start},
+                            employee_id=employee.id,
+                            day_index=week_start,
+                        )
+                    )
+
+        if wish.weekend is not None and draft.horizon_days >= 14:
+            off_even = _weekends_off(by_day, 0)
+            off_odd = _weekends_off(by_day, 7)
+            if wish.weekend is WeekendChoice.EVERY_TWO and not (off_even or off_odd):
                 warnings.append(
-                    Warning(
+                    _warning(
                         WarningSeverity.SOUHAIT,
                         "weekend_every_two_weeks",
-                        f"{employee.name} should have exactly one weekend off in 14 days",
+                        {"off_week_0": off_even, "off_week_7": off_odd},
+                        employee_id=employee.id,
+                    )
+                )
+            if wish.weekend is WeekendChoice.EVEN and not (off_even and not off_odd):
+                warnings.append(
+                    _warning(
+                        WarningSeverity.SOUHAIT,
+                        "weekend_even_weeks",
+                        {"off_week_0": off_even, "off_week_7": off_odd},
+                        employee_id=employee.id,
+                    )
+                )
+            if wish.weekend is WeekendChoice.ODD and not (off_odd and not off_even):
+                warnings.append(
+                    _warning(
+                        WarningSeverity.SOUHAIT,
+                        "weekend_odd_weeks",
+                        {"off_week_0": off_even, "off_week_7": off_odd},
                         employee_id=employee.id,
                     )
                 )
 
-        if WellbeingPreference.AT_LEAST_ONE_WEEKEND_REST_DAY in prefs:
+        service_codes = {
+            ServiceName.MORNING.value: "max_mornings",
+            ServiceName.MIDDAY.value: "max_middays",
+            ServiceName.EVENING.value: "max_evenings",
+        }
+        for service_id, limit in wish.max_services.items():
+            code = service_codes[service_id]
             for week_start in range(0, draft.horizon_days, 7):
-                sat, sun = week_start + 5, week_start + 6
-                if sat in by_day and sun in by_day:
+                count = _service_count(by_day, week_start, service_id)
+                if count > limit:
                     warnings.append(
-                        Warning(
+                        _warning(
                             WarningSeverity.SOUHAIT,
-                            "weekend_rest_day",
-                            f"{employee.name} works both weekend days",
+                            code,
+                            {
+                                "count": count,
+                                "limit": limit,
+                                "week_start": week_start,
+                                "service_id": service_id,
+                                "day_indexes": _day_indexes_with_service(by_day, week_start, service_id),
+                            },
                             employee_id=employee.id,
                             day_index=week_start,
                         )
                     )
 
-        if WellbeingPreference.NO_EVENING_SERVICE in prefs:
-            for shift in shifts:
-                if _is_evening(shift.service_id, shift.start_minutes):
-                    warnings.append(
-                        Warning(
-                            WarningSeverity.SOUHAIT,
-                            "no_evening",
-                            f"{employee.name} prefers no evening service",
-                            employee_id=employee.id,
-                            day_index=shift.day_index,
-                        )
-                    )
-        if WellbeingPreference.NO_MORNING_SERVICE in prefs:
-            for shift in shifts:
-                if _is_morning(shift.service_id, shift.start_minutes):
-                    warnings.append(
-                        Warning(
-                            WarningSeverity.SOUHAIT,
-                            "no_morning",
-                            f"{employee.name} prefers no morning service",
-                            employee_id=employee.id,
-                            day_index=shift.day_index,
-                        )
-                    )
-
-        if employee.max_evenings_per_week is not None:
-            for week_start in range(0, draft.horizon_days, 7):
-                evenings = sum(
-                    1
-                    for day in range(week_start, week_start + 7)
-                    for item in by_day.get(day, [])
-                    if _is_evening(item.service_id, item.start_minutes)
-                )
-                if evenings > employee.max_evenings_per_week:
-                    warnings.append(
-                        Warning(
-                            WarningSeverity.SOUHAIT,
-                            "max_evenings",
-                            f"{employee.name} has {evenings} evenings (max {employee.max_evenings_per_week})",
-                            employee_id=employee.id,
-                            day_index=week_start,
-                        )
-                    )
-        if employee.max_mornings_per_week is not None:
-            for week_start in range(0, draft.horizon_days, 7):
-                mornings = sum(
-                    1
-                    for day in range(week_start, week_start + 7)
-                    for item in by_day.get(day, [])
-                    if _is_morning(item.service_id, item.start_minutes)
-                )
-                if mornings > employee.max_mornings_per_week:
-                    warnings.append(
-                        Warning(
-                            WarningSeverity.SOUHAIT,
-                            "max_mornings",
-                            f"{employee.name} has {mornings} mornings (max {employee.max_mornings_per_week})",
-                            employee_id=employee.id,
-                            day_index=week_start,
-                        )
-                    )
-        max_coupures = _max_coupures_per_week(employee)
+        max_coupures = wish.max_coupures_per_week
         if max_coupures is not None:
             for week_start in range(0, draft.horizon_days, 7):
                 coupures = _coupure_count_in_week(grouped.get(employee.id, ()), employee.id, week_start)
                 if coupures > max_coupures:
                     warnings.append(
-                        Warning(
+                        _warning(
                             WarningSeverity.SOUHAIT,
                             "max_coupures",
-                            f"{employee.name} has more than {max_coupures} coupures",
+                            {"count": coupures, "limit": max_coupures, "week_start": week_start},
                             employee_id=employee.id,
                             day_index=week_start,
                         )
@@ -514,10 +667,14 @@ def _contract_hours_warnings(draft: PlanningDraft) -> list[Warning]:
             )
             if abs(hours - employee.contractual_hours_per_week) > 0.5:
                 warnings.append(
-                    Warning(
+                    _warning(
                         WarningSeverity.SOUHAIT,
                         "contract_hours",
-                        f"{employee.name} has {hours}h vs {employee.contractual_hours_per_week}h contract",
+                        {
+                            "hours": _qty(hours),
+                            "contracted": _qty(employee.contractual_hours_per_week),
+                            "week_start": week_start,
+                        },
                         employee_id=employee.id,
                         day_index=week_start,
                     )
@@ -580,12 +737,7 @@ def swap_shifts(draft: PlanningDraft, first: Shift, second: Shift) -> EngineResu
 
 
 def _unavailable(employee: Employee, weekday: str, service_id: str, start_minutes: int) -> bool:
-    morning = _is_morning(service_id, start_minutes)
-    evening = _is_evening(service_id, start_minutes)
-    return any(
-        pattern.blocks(weekday, service_id, morning, evening)
-        for pattern in employee.unavailabilities
-    )
+    return any(pattern.blocks(weekday, service_id) for pattern in employee.unavailabilities)
 
 
 def _hours_in_week(assignments: list[Shift], employee_id: str, day_index: int) -> float:
@@ -641,11 +793,7 @@ def _teammate_under_hours(
 
 
 def _max_coupures_per_week(employee: Employee) -> int | None:
-    if WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK in employee.wellbeing:
-        return 2
-    if WellbeingPreference.MAX_THREE_COUPURES_PER_WEEK in employee.wellbeing:
-        return 3
-    return None
+    return employee.wellbeing.max_coupures_per_week
 
 
 def _has_gap(shifts: list[Shift]) -> bool:
@@ -699,12 +847,24 @@ def _would_exceed_coupures(assignments: list[Shift], employee: Employee, trial: 
     return _coupure_count_in_week(with_trial, employee.id, week_start) > cap
 
 
+def _would_exceed_max_services(assignments: list[Shift], employee: Employee, trial: Shift) -> bool:
+    if trial.service_id not in employee.wellbeing.max_services:
+        return False
+    week_start = (trial.day_index // 7) * 7
+    by_day: dict[int, list[Shift]] = {}
+    for shift in assignments:
+        if shift.employee_id == employee.id:
+            by_day.setdefault(shift.day_index, []).append(shift)
+    return _service_count(by_day, week_start, trial.service_id) + 1 > employee.wellbeing.max_services[trial.service_id]
+
+
 def _assigned_window(
     employee: Employee, window: PostWindow, structure: ServiceStructure
 ) -> PostWindow | None:
-    stretched = stretch_to_min_shift(window, employee.min_shift_hours, structure)
+    min_hours = min_shift_for(employee, structure.service_id)
+    stretched = stretch_to_min_shift(window, min_hours, structure)
     duration = stretched.end_minutes - stretched.start_minutes
-    if duration < int(employee.min_shift_hours * 60):
+    if duration < int(min_hours * 60):
         return None
     return stretched
 
@@ -813,18 +973,6 @@ def _soft_penalty(
     over_day_cap = day_hours + duration > max_daily + 1e-9
     rest_bad = not _rest_between_ok(assignments, trial)
     pause_bad = not _pause_within_legal(assignments, trial)
-    evenings = sum(
-        1
-        for shift in assignments
-        if shift.employee_id == employee.id
-        and (shift.day_index // 7) == (trial.day_index // 7)
-        and _is_evening(shift.service_id, shift.start_minutes)
-    )
-    if _is_evening(trial.service_id, trial.start_minutes):
-        evenings += 1
-    over_evenings = (
-        employee.max_evenings_per_week is not None and evenings > employee.max_evenings_per_week
-    )
     overqual = employee.level - trial.post_level
     current_ratio = week_hours / max(employee.contractual_hours_per_week, 1.0)
     projected_ratio = (week_hours + duration) / max(employee.contractual_hours_per_week, 1.0)
@@ -834,11 +982,21 @@ def _soft_penalty(
         current_ratio,
         int(not started_day),
         overqual,
-        int(over_evenings),
         projected_ratio,
         pool_index,
         employee.id,
     )
+
+
+def _creates_coupure(assignments: list[Shift], trial: Shift) -> bool:
+    day_shifts = [
+        shift
+        for shift in assignments
+        if shift.employee_id == trial.employee_id and shift.day_index == trial.day_index
+    ]
+    if not day_shifts:
+        return False
+    return _has_gap([*day_shifts, trial])
 
 
 def _can_fill_window(
@@ -877,6 +1035,8 @@ def _can_fill_window(
         post_level=window.level,
     )
     if _has_overlap(assignments, trial):
+        return False
+    if _would_exceed_max_services(assignments, employee, trial):
         return False
     if _would_exceed_coupures(assignments, employee, trial):
         return False
@@ -976,6 +1136,8 @@ def _pick_for_post(
             post_level=window_level,
         )
         if _has_overlap(assignments, trial):
+            continue
+        if _would_exceed_max_services(assignments, employee, trial):
             continue
         if _would_exceed_coupures(assignments, employee, trial):
             continue
@@ -1087,13 +1249,20 @@ class _RestCollector(cp_model.CpSolverSolutionCallback):
         work: dict[tuple[str, int], cp_model.IntVar],
         employees: tuple[Employee, ...],
         limit: int | None = None,
+        deadline: float | None = None,
+        on_unique: Callable[[dict[str, set[int]]], None] | None = None,
+        store: bool = True,
     ):
         super().__init__()
         self._work = work
         self._employees = employees
         self._limit = limit
+        self._deadline = deadline
+        self._on_unique = on_unique
+        self._store = store
         self.patterns: list[dict[str, set[int]]] = []
         self._seen: set[tuple] = set()
+        self.unique_count = 0
 
     def on_solution_callback(self) -> None:
         fingerprint = []
@@ -1110,19 +1279,35 @@ class _RestCollector(cp_model.CpSolverSolutionCallback):
         if key in self._seen:
             return
         self._seen.add(key)
-        self.patterns.append(off)
-        if self._limit is not None and len(self.patterns) >= self._limit:
+        self.unique_count += 1
+        if self._store:
+            self.patterns.append(off)
+        if self._on_unique is not None:
+            self._on_unique(off)
+        if self._limit is not None and self.unique_count >= self._limit:
+            self.StopSearch()
+            return
+        if self._deadline is not None and time.perf_counter() >= self._deadline:
             self.StopSearch()
 
 
 def _build_rest_model(
-    draft: PlanningDraft, *, hard_coverage: bool
+    draft: PlanningDraft,
+    *,
+    hard_coverage: bool,
+    locks: tuple[Shift, ...] | list[Shift] = (),
 ) -> tuple[cp_model.CpModel, dict[tuple[str, int], cp_model.IntVar], list]:
     """14-day rest model. Coverage is per service. No sequential week A then B."""
     if SEQUENTIAL_WEEK_SOLVE:
         raise RuntimeError("Sequential week solves are forbidden")
     model = cp_model.CpModel()
     work: dict[tuple[str, int], cp_model.IntVar] = {}
+    lock_days: dict[str, set[int]] = {}
+    lock_cover: dict[tuple[int, Team, str], int] = {}
+    for shift in locks:
+        lock_days.setdefault(shift.employee_id, set()).add(shift.day_index)
+        key = (shift.day_index, shift.team, shift.service_id)
+        lock_cover[key] = lock_cover.get(key, 0) + 1
     for employee in draft.employees:
         for day in range(CYCLE_DAYS):
             work[employee.id, day] = model.NewBoolVar(f"work_{employee.id}_{day}")
@@ -1131,6 +1316,8 @@ def _build_rest_model(
                 model.Add(work[employee.id, day] == 0)
             if day in employee.forced_off_days:
                 model.Add(work[employee.id, day] == 0)
+            if day in lock_days.get(employee.id, set()):
+                model.Add(work[employee.id, day] == 1)
 
     covers_by_emp_day: dict[tuple[str, int], list] = {}
     minutes_by_emp_day: dict[tuple[str, int], list[tuple[int, cp_model.IntVar]]] = {}
@@ -1145,7 +1332,10 @@ def _build_rest_model(
             covers_by_emp_day.setdefault((employee_id, day_index), []).append(var)
             minutes_by_emp_day.setdefault((employee_id, day_index), []).append((shortest, var))
             service_covers.append(var)
-        need = min(posts, len(eligible_ids))
+        held = lock_cover.get((day_index, team, service_id), 0)
+        need = max(0, min(posts, len(eligible_ids)) - held)
+        if need == 0:
+            continue
         if hard_coverage:
             model.Add(sum(service_covers) >= need)
         else:
@@ -1202,24 +1392,41 @@ def _build_rest_model(
                 continue
             hours_open_rest = max(0, len(open_days) - max_shifts)
             legal_open_rest = max(0, REST_DAYS_PER_WEEK - len(already_days))
-            wants_pair = WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS in employee.wellbeing
-            has_pair = any(
-                (week_start + offset) in already_days and (week_start + offset + 1) in already_days
-                for offset in WEEKDAY_CONSECUTIVE_OFFSETS
-            )
+            wants_pair = employee.wellbeing.consecutive_rest
+            has_pair = _has_weekday_consecutive_rest(already_days, week_start, _closed_days(draft.hours, week_start))
             if wants_pair and not has_pair:
                 legal_open_rest = max(legal_open_rest, 2)
             open_rest_target = min(len(open_days), max(legal_open_rest, hours_open_rest))
             model.Add(sum(1 - work[employee.id, day] for day in open_days) == open_rest_target)
-        if WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS in employee.wellbeing:
+        if employee.wellbeing.consecutive_rest:
             for week_start in (0, 7):
                 pair_hits = []
-                for offset in WEEKDAY_CONSECUTIVE_OFFSETS:
-                    pair = model.NewBoolVar(f"pair_{employee.id}_{week_start}_{offset}")
-                    model.Add(work[employee.id, week_start + offset] == 0).OnlyEnforceIf(pair)
-                    model.Add(work[employee.id, week_start + offset + 1] == 0).OnlyEnforceIf(pair)
+                for left, right in _adjacent_rest_pairs(week_start):
+                    pair = model.NewBoolVar(f"pair_{employee.id}_{week_start}_{left}_{right}")
+                    model.Add(work[employee.id, left] == 0).OnlyEnforceIf(pair)
+                    model.Add(work[employee.id, right] == 0).OnlyEnforceIf(pair)
                     pair_hits.append(pair)
                 model.Add(sum(pair_hits) >= 1)
+        if employee.wellbeing.weekend is not None:
+            even_off = model.NewBoolVar(f"we_even_{employee.id}")
+            odd_off = model.NewBoolVar(f"we_odd_{employee.id}")
+            model.Add(work[employee.id, 5] + work[employee.id, 6] == 0).OnlyEnforceIf(even_off)
+            model.Add(work[employee.id, 5] + work[employee.id, 6] >= 1).OnlyEnforceIf(even_off.Not())
+            model.Add(work[employee.id, 12] + work[employee.id, 13] == 0).OnlyEnforceIf(odd_off)
+            model.Add(work[employee.id, 12] + work[employee.id, 13] >= 1).OnlyEnforceIf(odd_off.Not())
+            if employee.wellbeing.weekend is WeekendChoice.EVERY_TWO:
+                model.Add(even_off + odd_off >= 1)
+            elif employee.wellbeing.weekend is WeekendChoice.EVEN:
+                model.Add(even_off == 1)
+                model.Add(odd_off == 0)
+            else:
+                model.Add(odd_off == 1)
+                model.Add(even_off == 0)
+        if employee.wellbeing.weekend_rest_day:
+            for week_start in (0, 7):
+                saturday = week_start + 5
+                sunday = week_start + 6
+                model.Add(work[employee.id, saturday] + work[employee.id, sunday] <= 1)
     return model, work, unders
 
 
@@ -1227,8 +1434,19 @@ def _fallback_rest_days(draft: PlanningDraft) -> dict[str, set[int]]:
     off: dict[str, set[int]] = {employee.id: set() for employee in draft.employees}
     for employee in draft.employees:
         off[employee.id].update({0, 1, 7, 8})
-        if WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS in employee.wellbeing:
+        if employee.wellbeing.weekend is WeekendChoice.EVERY_TWO:
             off[employee.id].update({5, 6})
+        elif employee.wellbeing.weekend is WeekendChoice.EVEN:
+            off[employee.id].update({5, 6})
+        elif employee.wellbeing.weekend is WeekendChoice.ODD:
+            off[employee.id].update({12, 13})
+        if employee.wellbeing.weekend_rest_day:
+            for week_start in (0, 7):
+                closed = _closed_days(draft.hours, week_start)
+                saturday = week_start + 5
+                sunday = week_start + 6
+                if saturday not in closed and sunday not in closed:
+                    off[employee.id].add(saturday)
     return off
 
 
@@ -1250,19 +1468,48 @@ def _collect_rest_solutions(
     *,
     limit: int | None,
     seconds: float,
-) -> list[dict[str, set[int]]]:
+    deadline: float | None = None,
+    on_unique: Callable[[dict[str, set[int]]], None] | None = None,
+    store: bool = True,
+) -> _RestCollector:
     solver = cp_model.CpSolver()
     solver.parameters.num_search_workers = 1
-    solver.parameters.max_time_in_seconds = seconds
+    cap = deadline if deadline is not None else time.perf_counter() + seconds
+    solver.parameters.max_time_in_seconds = max(0.01, cap - time.perf_counter())
+    collector = _RestCollector(
+        work,
+        draft.employees,
+        limit=limit,
+        deadline=cap,
+        on_unique=on_unique,
+        store=store,
+    )
     if limit == 1:
         status = solver.Solve(model)
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            return [_off_from_solver(solver, work, draft)]
-        return []
-    collector = _RestCollector(work, draft.employees, limit=limit)
+            off = _off_from_solver(solver, work, draft)
+            collector.unique_count = 1
+            if store:
+                collector.patterns = [off]
+            if on_unique is not None:
+                on_unique(off)
+        return collector
     solver.parameters.enumerate_all_solutions = True
     solver.Solve(model, collector)
-    return collector.patterns
+    return collector
+
+
+def _slack_or_fallback(draft: PlanningDraft, seconds: float) -> dict[str, set[int]]:
+    slack, slack_work, unders = _build_rest_model(draft, hard_coverage=False)
+    if unders:
+        slack.Minimize(sum(unders))
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = max(0.01, seconds)
+    solver.parameters.num_search_workers = 1
+    status = solver.Solve(slack)
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return _fallback_rest_days(draft)
+    return _off_from_solver(solver, slack_work, draft)
 
 
 def _enumerate_rest_days(
@@ -1272,19 +1519,10 @@ def _enumerate_rest_days(
     limit = SEARCH_CALENDAR_LIMITS[search]
     seconds = SEARCH_SECONDS[search]
     hard, work, _unders = _build_rest_model(draft, hard_coverage=True)
-    covering = _collect_rest_solutions(hard, work, draft, limit=limit, seconds=seconds)
-    if covering:
-        return covering
-    slack, slack_work, unders = _build_rest_model(draft, hard_coverage=False)
-    if unders:
-        slack.Minimize(sum(unders))
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = seconds
-    solver.parameters.num_search_workers = 1
-    status = solver.Solve(slack)
-    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return [_fallback_rest_days(draft)]
-    return [_off_from_solver(solver, slack_work, draft)]
+    collector = _collect_rest_solutions(hard, work, draft, limit=limit, seconds=seconds)
+    if collector.unique_count:
+        return collector.patterns
+    return [_slack_or_fallback(draft, seconds)]
 
 
 def _plan_rest_days(draft: PlanningDraft, seed: int = 0) -> dict[str, set[int]]:
@@ -1309,6 +1547,69 @@ def _iter_service_windows(draft: PlanningDraft, start_day: int = 0):
                     key=lambda item: (-item.level, item.start_minutes),
                 )
                 yield day_index, weekday, service_id, team, windows
+
+
+@dataclass(frozen=True)
+class _FillWindowJob:
+    eligible_count: int
+    day_index: int
+    weekday: str
+    service_id: str
+    team: Team
+    window: PostWindow
+    cell_windows: tuple[PostWindow, ...]
+
+
+def _fill_window_jobs(
+    draft: PlanningDraft,
+    off_days: dict[str, set[int]],
+    employee_pool: list[Employee],
+    start_day: int = 0,
+) -> list[_FillWindowJob]:
+    """Windows ordered fewest static eligibles first (core-2)."""
+    service_rank = {service_id: index for index, service_id in enumerate(draft.hours.services)}
+    jobs: list[_FillWindowJob] = []
+    for day_index, weekday, service_id, team, windows in _iter_service_windows(draft, start_day):
+        cell_windows = tuple(windows)
+        for window in windows:
+            eligible = sum(
+                1
+                for employee in employee_pool
+                if _can_fill_window(
+                    draft,
+                    [],
+                    employee,
+                    window=window,
+                    day_index=day_index,
+                    weekday=weekday,
+                    service_id=service_id,
+                    team=team,
+                    off_days=off_days,
+                    employee_pool=employee_pool,
+                )
+            )
+            jobs.append(
+                _FillWindowJob(
+                    eligible_count=eligible,
+                    day_index=day_index,
+                    weekday=weekday,
+                    service_id=service_id,
+                    team=team,
+                    window=window,
+                    cell_windows=cell_windows,
+                )
+            )
+    jobs.sort(
+        key=lambda job: (
+            job.eligible_count,
+            job.day_index,
+            service_rank[job.service_id],
+            -job.window.level,
+            job.window.start_minutes,
+            job.team.value,
+        )
+    )
+    return jobs
 
 
 def _shift_covers_window(
@@ -1376,44 +1677,79 @@ def _append_shift(
     )
 
 
+def _lock_key(shift: Shift) -> tuple:
+    return (
+        shift.employee_id,
+        shift.day_index,
+        shift.service_id,
+        shift.team,
+        shift.start_minutes,
+        shift.end_minutes,
+        shift.post_level,
+    )
+
+
 def _fill_assignments(
     draft: PlanningDraft,
     off_days: dict[str, set[int]],
     employee_pool: list[Employee],
     start_day: int = 0,
+    locks: tuple[Shift, ...] | list[Shift] = (),
 ) -> list[Shift]:
-    assignments: list[Shift] = []
-    for day_index, weekday, service_id, team, windows in _iter_service_windows(draft, start_day):
-        pending = list(windows)
-        for window in windows:
-            picked = _pick_for_post(
-                draft,
-                assignments,
-                employee_pool=employee_pool,
-                window_level=window.level,
-                day_index=day_index,
-                weekday=weekday,
-                service_id=service_id,
-                team=team,
-                start_minutes=window.start_minutes,
-                end_minutes=window.end_minutes,
-                off_days=off_days,
-                remaining_windows=tuple(pending),
-            )
-            pending.remove(window)
-            if picked is None:
-                continue
-            chosen, assigned = picked
-            _append_shift(
-                assignments,
-                chosen,
-                day_index=day_index,
-                weekday=weekday,
-                service_id=service_id,
-                team=team,
-                window=assigned,
-            )
-    _repair_holes(draft, assignments, off_days, employee_pool, start_day=start_day)
+    assignments: list[Shift] = list(locks)
+    locked = frozenset(_lock_key(shift) for shift in locks)
+    jobs = _fill_window_jobs(draft, off_days, employee_pool, start_day)
+    pending_by_cell: dict[tuple[int, str, Team], list[PostWindow]] = {}
+    for job in jobs:
+        cell = (job.day_index, job.service_id, job.team)
+        pending_by_cell.setdefault(cell, list(job.cell_windows))
+    for job in jobs:
+        pending = pending_by_cell[(job.day_index, job.service_id, job.team)]
+        taken = _taken_windows(
+            assignments,
+            day_index=job.day_index,
+            service_id=job.service_id,
+            team=job.team,
+            windows=job.cell_windows,
+        )
+        if job.window in taken:
+            pending.remove(job.window)
+            continue
+        picked = _pick_for_post(
+            draft,
+            assignments,
+            employee_pool=employee_pool,
+            window_level=job.window.level,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            start_minutes=job.window.start_minutes,
+            end_minutes=job.window.end_minutes,
+            off_days=off_days,
+            remaining_windows=tuple(pending),
+        )
+        pending.remove(job.window)
+        if picked is None:
+            continue
+        chosen, assigned = picked
+        _append_shift(
+            assignments,
+            chosen,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            window=assigned,
+        )
+    _repair_holes(
+        draft,
+        assignments,
+        off_days,
+        employee_pool,
+        start_day=start_day,
+        locked=locked,
+    )
     return assignments
 
 
@@ -1428,6 +1764,7 @@ def _displace_for_window(
     team: Team,
     off_days: dict[str, set[int]],
     employee_pool: list[Employee],
+    locked: frozenset[tuple] = frozenset(),
 ) -> bool:
     same_day = [
         shift
@@ -1442,6 +1779,8 @@ def _displace_for_window(
     overlap_ids = {id(shift) for shift in overlapping}
     held_order = overlapping + [shift for shift in same_day if id(shift) not in overlap_ids]
     for held in held_order:
+        if _lock_key(held) in locked:
+            continue
         person = draft.employee(held.employee_id)
         without = [shift for shift in assignments if shift is not held]
         if not _can_fill_window(
@@ -1507,52 +1846,57 @@ def _repair_holes(
     off_days: dict[str, set[int]],
     employee_pool: list[Employee],
     start_day: int = 0,
+    locked: frozenset[tuple] = frozenset(),
 ) -> None:
-    for day_index, weekday, service_id, team, windows in _iter_service_windows(draft, start_day):
+    for job in _fill_window_jobs(draft, off_days, employee_pool, start_day):
         taken = _taken_windows(
-            assignments, day_index=day_index, service_id=service_id, team=team, windows=windows
+            assignments,
+            day_index=job.day_index,
+            service_id=job.service_id,
+            team=job.team,
+            windows=job.cell_windows,
         )
-        pending = [window for window in windows if window not in taken]
-        for window in list(pending):
-            picked = _pick_for_post(
-                draft,
+        if job.window in taken:
+            continue
+        pending = [window for window in job.cell_windows if window not in taken]
+        picked = _pick_for_post(
+            draft,
+            assignments,
+            employee_pool=employee_pool,
+            window_level=job.window.level,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            start_minutes=job.window.start_minutes,
+            end_minutes=job.window.end_minutes,
+            off_days=off_days,
+            remaining_windows=tuple(pending),
+        )
+        if picked is not None:
+            chosen, assigned = picked
+            _append_shift(
                 assignments,
-                employee_pool=employee_pool,
-                window_level=window.level,
-                day_index=day_index,
-                weekday=weekday,
-                service_id=service_id,
-                team=team,
-                start_minutes=window.start_minutes,
-                end_minutes=window.end_minutes,
-                off_days=off_days,
-                remaining_windows=tuple(pending),
+                chosen,
+                day_index=job.day_index,
+                weekday=job.weekday,
+                service_id=job.service_id,
+                team=job.team,
+                window=assigned,
             )
-            if picked is not None:
-                chosen, assigned = picked
-                _append_shift(
-                    assignments,
-                    chosen,
-                    day_index=day_index,
-                    weekday=weekday,
-                    service_id=service_id,
-                    team=team,
-                    window=assigned,
-                )
-                pending.remove(window)
-                continue
-            if _displace_for_window(
-                draft,
-                assignments,
-                hole=window,
-                day_index=day_index,
-                weekday=weekday,
-                service_id=service_id,
-                team=team,
-                off_days=off_days,
-                employee_pool=employee_pool,
-            ):
-                pending.remove(window)
+            continue
+        _displace_for_window(
+            draft,
+            assignments,
+            hole=job.window,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            off_days=off_days,
+            employee_pool=employee_pool,
+            locked=locked,
+        )
 
 
 def _hours_miss(draft: PlanningDraft, assignments: tuple[Shift, ...] | list[Shift]) -> float:
@@ -1603,19 +1947,481 @@ def _attempt_key(draft: PlanningDraft, result: EngineResult) -> tuple:
     )
 
 
+def _seeder_rng(seeder: str, seed_index: int) -> random.Random:
+    return random.Random(SEEDERS.index(seeder) * 1_000_003 + seed_index + 1)
+
+
+def _seed_specs(effort: SearchEffort) -> list[tuple[str, int]]:
+    if effort is SearchEffort.MINIMAL:
+        return [("empty", 0)]
+    copies = 10 if effort is SearchEffort.OPTIMIZED else 50
+    specs = [
+        (seeder, index)
+        for seeder in ("tight-frozen", "tight-dynamic", "high-role", "weekend-scarce")
+        for index in range(copies)
+    ]
+    specs.append(("empty", 0))
+    return specs
+
+
+def _forced_off_days(draft: PlanningDraft) -> dict[str, set[int]]:
+    return {employee.id: set(employee.forced_off_days) for employee in draft.employees}
+
+
+def _window_covered(
+    assignments: list[Shift],
+    *,
+    day_index: int,
+    service_id: str,
+    team: Team,
+    window: PostWindow,
+    cell_windows: tuple[PostWindow, ...],
+) -> bool:
+    return window in _taken_windows(
+        assignments,
+        day_index=day_index,
+        service_id=service_id,
+        team=team,
+        windows=cell_windows,
+    )
+
+
+def _eligible_count_for_job(
+    draft: PlanningDraft,
+    assignments: list[Shift],
+    job: _FillWindowJob,
+    off_days: dict[str, set[int]],
+    employee_pool: list[Employee],
+) -> int:
+    return sum(
+        1
+        for employee in employee_pool
+        if _can_fill_window(
+            draft,
+            assignments,
+            employee,
+            window=job.window,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            off_days=off_days,
+            employee_pool=employee_pool,
+        )
+    )
+
+
+def _empty_windows(
+    draft: PlanningDraft,
+    assignments: list[Shift],
+    jobs: list[_FillWindowJob],
+) -> list[_FillWindowJob]:
+    return [
+        job
+        for job in jobs
+        if not _window_covered(
+            assignments,
+            day_index=job.day_index,
+            service_id=job.service_id,
+            team=job.team,
+            window=job.window,
+            cell_windows=job.cell_windows,
+        )
+    ]
+
+
+def _versatility(
+    draft: PlanningDraft,
+    assignments: list[Shift],
+    employee: Employee,
+    jobs: list[_FillWindowJob],
+    current: _FillWindowJob,
+    off_days: dict[str, set[int]],
+    employee_pool: list[Employee],
+) -> int:
+    count = 0
+    for job in jobs:
+        if (
+            job.day_index == current.day_index
+            and job.service_id == current.service_id
+            and job.team == current.team
+            and job.window == current.window
+        ):
+            continue
+        if _can_fill_window(
+            draft,
+            assignments,
+            employee,
+            window=job.window,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            off_days=off_days,
+            employee_pool=employee_pool,
+        ):
+            count += 1
+    return count
+
+
+def _try_seed_shift(
+    draft: PlanningDraft,
+    assignments: list[Shift],
+    job: _FillWindowJob,
+    off_days: dict[str, set[int]],
+    employee_pool: list[Employee],
+    empty_jobs: list[_FillWindowJob],
+    rng: random.Random,
+) -> bool:
+    legal: list[Employee] = []
+    for employee in employee_pool:
+        if _can_fill_window(
+            draft,
+            assignments,
+            employee,
+            window=job.window,
+            day_index=job.day_index,
+            weekday=job.weekday,
+            service_id=job.service_id,
+            team=job.team,
+            off_days=off_days,
+            employee_pool=employee_pool,
+        ):
+            legal.append(employee)
+    exact = [employee for employee in legal if employee.level == job.window.level]
+    if not exact:
+        return False
+
+    def sort_key(employee: Employee) -> tuple:
+        remaining = employee.contractual_hours_per_week - _hours_in_week(
+            assignments, employee.id, job.day_index
+        )
+        return (
+            _versatility(draft, assignments, employee, empty_jobs, job, off_days, employee_pool),
+            -remaining,
+            employee.id,
+        )
+
+    ranked = sorted(exact, key=sort_key)
+    best = sort_key(ranked[0])
+    tied = [employee for employee in ranked if sort_key(employee) == best]
+    chosen = rng.choice(tied)
+    structure = draft.structure_for(job.team, job.service_id, job.weekday)
+    if structure is None:
+        return False
+    assigned = _assigned_window(chosen, job.window, structure)
+    if assigned is None:
+        return False
+    _append_shift(
+        assignments,
+        chosen,
+        day_index=job.day_index,
+        weekday=job.weekday,
+        service_id=job.service_id,
+        team=job.team,
+        window=assigned,
+    )
+    return True
+
+
+def _order_jobs(
+    jobs: list[_FillWindowJob],
+    rng: random.Random,
+    *,
+    key,
+) -> list[_FillWindowJob]:
+    decorated = [(key(job), rng.random(), job) for job in jobs]
+    decorated.sort(key=lambda item: (item[0], item[1]))
+    return [item[2] for item in decorated]
+
+
+def _build_seed(
+    draft: PlanningDraft,
+    seeder: str,
+    seed_index: int,
+    jobs: list[_FillWindowJob] | None = None,
+    deadline: float | None = None,
+) -> tuple[Shift, ...]:
+    if seeder == "empty":
+        return ()
+    rng = _seeder_rng(seeder, seed_index)
+    off_days = _forced_off_days(draft)
+    pool = list(draft.employees)
+    if jobs is None:
+        jobs = _fill_window_jobs(draft, off_days, pool)
+    assignments: list[Shift] = []
+
+    def frozen_eligible(job: _FillWindowJob) -> int:
+        return job.eligible_count
+
+    if seeder == "tight-dynamic":
+        skipped: set[tuple] = set()
+        while True:
+            empty = [
+                job
+                for job in _empty_windows(draft, assignments, jobs)
+                if (
+                    job.day_index,
+                    job.service_id,
+                    job.team,
+                    job.window.level,
+                    job.window.start_minutes,
+                )
+                not in skipped
+            ]
+            scored: list[tuple[int, _FillWindowJob]] = []
+            for job in empty:
+                count = _eligible_count_for_job(draft, assignments, job, off_days, pool)
+                if 1 <= count <= SEED_TIGHT_THRESHOLD:
+                    scored.append((count, job))
+            if not scored:
+                break
+            if deadline is not None and time.perf_counter() >= deadline:
+                break
+            ordered = _order_jobs(
+                [job for _count, job in scored],
+                rng,
+                key=lambda job: min(count for count, item in scored if item is job),
+            )
+            target = ordered[0]
+            empty_now = _empty_windows(draft, assignments, jobs)
+            if not _try_seed_shift(draft, assignments, target, off_days, pool, empty_now, rng):
+                skipped.add(
+                    (
+                        target.day_index,
+                        target.service_id,
+                        target.team,
+                        target.window.level,
+                        target.window.start_minutes,
+                    )
+                )
+        return tuple(assignments)
+
+    if seeder == "high-role":
+        candidates = list(jobs)
+        ordered = _order_jobs(
+            candidates,
+            rng,
+            key=lambda job: (-job.window.level, frozen_eligible(job)),
+        )
+    elif seeder == "weekend-scarce":
+        candidates = [
+            job
+            for job in jobs
+            if job.weekday in WEEKEND_WEEKDAYS and frozen_eligible(job) <= SEED_TIGHT_THRESHOLD
+        ]
+        ordered = _order_jobs(candidates, rng, key=frozen_eligible)
+    else:
+        candidates = [job for job in jobs if frozen_eligible(job) <= SEED_TIGHT_THRESHOLD]
+        ordered = _order_jobs(candidates, rng, key=frozen_eligible)
+
+    for job in ordered:
+        if _window_covered(
+            assignments,
+            day_index=job.day_index,
+            service_id=job.service_id,
+            team=job.team,
+            window=job.window,
+            cell_windows=job.cell_windows,
+        ):
+            continue
+        empty_now = _empty_windows(draft, assignments, jobs)
+        _try_seed_shift(draft, assignments, job, off_days, pool, empty_now, rng)
+    return tuple(assignments)
+
+
+def _exclude_calendar(
+    model: cp_model.CpModel,
+    work: dict[tuple[str, int], cp_model.IntVar],
+    draft: PlanningDraft,
+    off_days: dict[str, set[int]],
+) -> None:
+    diffs = []
+    for employee in draft.employees:
+        rest = off_days.get(employee.id, set())
+        for day in range(CYCLE_DAYS):
+            if day in rest:
+                diffs.append(work[employee.id, day])
+            else:
+                diffs.append(1 - work[employee.id, day])
+    if diffs:
+        model.Add(sum(diffs) >= 1)
+
+
+def _first_rest_calendar(
+    model: cp_model.CpModel,
+    work: dict[tuple[str, int], cp_model.IntVar],
+    draft: PlanningDraft,
+    seconds: float,
+) -> dict[str, set[int]] | None:
+    collector = _collect_rest_solutions(model, work, draft, limit=1, seconds=max(0.01, seconds))
+    if collector.unique_count:
+        return collector.patterns[0]
+    return None
+
+
+def _attempt_key_payload(key: tuple) -> dict[str, float | int]:
+    empty, interdit, hours_miss, souhait, below_role, overqual = key
+    return {
+        "empty": empty,
+        "interdit": interdit,
+        "hours_miss": hours_miss,
+        "souhait": souhait,
+        "below_role": below_role,
+        "overqual": overqual,
+    }
+
+
+def _search_trace(
+    *,
+    seeder: str,
+    seed_index: int,
+    locks: tuple[Shift, ...] | list[Shift],
+    calendars_by_seeder: dict[str, int],
+    seeds_infeasible: int,
+    attempt_key: tuple,
+) -> SearchTrace:
+    filled = dict(calendars_by_seeder)
+    return SearchTrace(
+        seeder=seeder,
+        seed_index=seed_index,
+        n_locks=len(locks),
+        calendars_by_seeder=filled,
+        calendars_total=sum(filled.values()),
+        seeds_infeasible=seeds_infeasible,
+        attempt_key=_attempt_key_payload(attempt_key),
+    )
+
+
 def generate_cycle(draft: PlanningDraft, search: SearchEffort | None = None) -> EngineResult:
     if SEQUENTIAL_WEEK_SOLVE:
         raise RuntimeError("Sequential week-A-then-week-B generation is not used")
     effort = search if search is not None else draft.search_effort
+    limit = SEARCH_CALENDAR_LIMITS[effort]
+    seconds = SEARCH_SECONDS[effort]
+    deadline = time.perf_counter() + seconds
     best: EngineResult | None = None
     best_key: tuple | None = None
+    winner_seeder = "empty"
+    winner_index = 0
+    winner_locks: tuple[Shift, ...] = ()
+    calendars_by_seeder: dict[str, int] = {}
+    seeds_infeasible = 0
     roster = list(draft.employees)
-    for off_days in _enumerate_rest_days(draft, effort):
-        assignments = _fill_assignments(draft, off_days, roster)
+    SEARCH_PROGRESS["calendars"] = 0
+
+    def consider(
+        off_days: dict[str, set[int]],
+        locks: tuple[Shift, ...] = (),
+        seeder: str = "empty",
+        seed_index: int = 0,
+    ) -> None:
+        nonlocal best, best_key, winner_seeder, winner_index, winner_locks
+        assignments = _fill_assignments(draft, off_days, roster, locks=locks)
         result = evaluate(draft.with_assignments(assignments))
         key = _attempt_key(draft, result)
         if best_key is None or key < best_key:
             best = result
             best_key = key
-    assert best is not None
-    return best
+            winner_seeder = seeder
+            winner_index = seed_index
+            winner_locks = tuple(locks)
+        SEARCH_PROGRESS["calendars"] = SEARCH_PROGRESS.get("calendars", 0) + 1
+        calendars_by_seeder[seeder] = calendars_by_seeder.get(seeder, 0) + 1
+
+    if effort is SearchEffort.MINIMAL:
+        hard, work, _unders = _build_rest_model(draft, hard_coverage=True)
+        collector = _collect_rest_solutions(
+            hard,
+            work,
+            draft,
+            limit=limit,
+            seconds=seconds,
+            deadline=deadline,
+            on_unique=consider,
+            store=False,
+        )
+        if collector.unique_count == 0:
+            consider(_slack_or_fallback(draft, max(0.01, deadline - time.perf_counter())))
+        assert best is not None and best_key is not None
+        return EngineResult(
+            assignments=best.assignments,
+            warnings=best.warnings,
+            trace=_search_trace(
+                seeder=winner_seeder,
+                seed_index=winner_index,
+                locks=winner_locks,
+                calendars_by_seeder=calendars_by_seeder,
+                seeds_infeasible=seeds_infeasible,
+                attempt_key=best_key,
+            ),
+        )
+
+    states: list[dict] = []
+    seed_jobs = _fill_window_jobs(draft, _forced_off_days(draft), roster)
+    for seeder, seed_index in _seed_specs(effort):
+        if time.perf_counter() >= deadline:
+            break
+        locks = _build_seed(draft, seeder, seed_index, jobs=seed_jobs, deadline=deadline)
+        remaining = max(0.01, deadline - time.perf_counter())
+        model, work, _unders = _build_rest_model(draft, hard_coverage=True, locks=locks)
+        first = _first_rest_calendar(model, work, draft, remaining)
+        if first is None:
+            if seeder == "empty":
+                consider(_slack_or_fallback(draft, remaining), locks, seeder, seed_index)
+            else:
+                seeds_infeasible += 1
+            continue
+        states.append(
+            {
+                "locks": locks,
+                "model": model,
+                "work": work,
+                "next": first,
+                "seeder": seeder,
+                "seed_index": seed_index,
+            }
+        )
+
+    produced = 0
+    while states and (limit is None or produced < limit) and time.perf_counter() < deadline:
+        progressed = False
+        surviving: list[dict] = []
+        for state in states:
+            if limit is not None and produced >= limit:
+                surviving.append(state)
+                continue
+            if time.perf_counter() >= deadline:
+                surviving.append(state)
+                continue
+            off = state.pop("next", None)
+            if off is None:
+                remaining = max(0.01, deadline - time.perf_counter())
+                _exclude_calendar(state["model"], state["work"], draft, state["last"])
+                off = _first_rest_calendar(state["model"], state["work"], draft, remaining)
+            if off is None:
+                continue
+            consider(off, state["locks"], state["seeder"], state["seed_index"])
+            state["last"] = off
+            produced += 1
+            progressed = True
+            surviving.append(state)
+        states = surviving
+        if not progressed:
+            break
+
+    if best is None:
+        consider(_slack_or_fallback(draft, max(0.01, deadline - time.perf_counter())))
+    assert best is not None and best_key is not None
+    return EngineResult(
+        assignments=best.assignments,
+        warnings=best.warnings,
+        trace=_search_trace(
+            seeder=winner_seeder,
+            seed_index=winner_index,
+            locks=winner_locks,
+            calendars_by_seeder=calendars_by_seeder,
+            seeds_infeasible=seeds_infeasible,
+            attempt_key=best_key,
+        ),
+    )

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Overlay, FillOverlay } from "./Overlay";
 import {
   ApiHttpError,
@@ -17,18 +17,37 @@ import {
   type LiveState,
 } from "./liveSandbox";
 import { loadContext, CONTEXT_SERVICES, type ContextServiceId, type RestaurantContext, type TeamId } from "./context";
-import { loadCycles, postGenerate, type CycleAssignment, type PublishedCycles } from "./generate";
+import { CycleScoreNotes, LegalAndContractRecap, WellbeingRecap, AlertsList } from "./cycleRecaps";
+import {
+  buildPlanningExport,
+  exportPublishedPlanning,
+  type PlanningExportFormat,
+} from "./exportPlanning";
+import {
+  cycleOf,
+  emptySlotCopy,
+  isSearchEffort,
+  loadCycles,
+  PLANNING_SLOT_CHOICES,
+  postGenerate,
+  type CycleAssignment,
+  type CyclesPayload,
+  type PlanningSlot,
+  type PublishedCycles,
+  type SearchEffort,
+} from "./generate";
 import {
   DAYS_FR,
   GESTURE_HISTORY_FR,
   formatClock,
+  formatGeneratedAt,
+  formatSolveDuration,
   formatDuration,
   formatHoursTotal,
   groupedEmployees,
   personInk,
-  SEVERITY_FR,
-  warningTitle,
   weekdayFromDayIndex,
+  weekSheetTitle,
 } from "./format";
 import { cranHow, fillHow, fillSlotSummary, GestureImpact, slotSummary } from "./impact";
 import type {
@@ -39,7 +58,6 @@ import type {
   HistoryEntry,
   PreviewProposal,
   ShiftIdentity,
-  WarningItem,
 } from "./types";
 import { toShiftIdentity } from "./types";
 
@@ -96,7 +114,7 @@ function asAssignment(shift: CycleAssignment): Assignment {
   return shift as Assignment;
 }
 
-function PublishedSheet({
+export function PublishedSheet({
   title,
   weekOffset,
   employees,
@@ -176,6 +194,7 @@ function PublishedSheet({
                           key={`${person.id}-${service.id}-${day}-${field}`}
                           className={[
                             fieldIndex === 0 ? "d" : "",
+                            field === "hours" ? "h" : "",
                             worked ? "work" : "rest",
                             worked && onOccupiedClick ? "slot" : "",
                             !worked && onEmptyClick ? "empty-slot" : "",
@@ -261,51 +280,47 @@ function HistoryList({
   );
 }
 
-function WarningsList({ warnings }: { warnings: WarningItem[] }) {
-  return (
-    <section>
-      <h2>Alertes</h2>
-      <p className="sub">
-        {warnings.length} warning{warnings.length > 1 ? "s" : ""} du moteur — affichés tels quels.
-      </p>
-      <ol className="warnings">
-        {warnings.map((warning, index) => {
-          const title = warningTitle(warning.code);
-          return (
-            <li
-              key={`${warning.severity}-${warning.code}-${warning.employee_id}-${warning.day_index}-${index}`}
-              className={`warn-${warning.severity}`}
-            >
-              <span className="sev">{SEVERITY_FR[warning.severity]}</span>
-              {title ? <span className="code">{title}</span> : null}
-              <span className="msg">{warning.message}</span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
+export type PublishedPlanningProps = {
+  mode?: "company" | "readonly";
+  loadContextFn?: () => Promise<RestaurantContext>;
+  loadCyclesFn?: () => Promise<CyclesPayload>;
+  header?: ReactNode;
+};
 
-export function PublishedPlanning() {
+export function PublishedPlanning({
+  mode = "company",
+  loadContextFn = loadContext,
+  loadCyclesFn = loadCycles,
+  header,
+}: PublishedPlanningProps = {}) {
+  const readOnly = mode === "readonly";
   const [ctx, setCtx] = useState<RestaurantContext | null>(null);
   const [published, setPublished] = useState<PublishedCycles | null>(null);
   const [team, setTeam] = useState<TeamId>("salle");
+  const [effort, setEffort] = useState<PlanningSlot>("minimal");
+  const hydratedEffort = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [calculating, setCalculating] = useState<SearchEffort | null>(null);
   const [live, setLive] = useState<LiveState | null>(null);
   const [overlay, setOverlay] = useState<OverlayTarget | null>(null);
-  const editing = live !== null;
+  const [exportOpen, setExportOpen] = useState(false);
+  const sheetsRef = useRef<HTMLDivElement>(null);
+  const editing = !readOnly && live !== null;
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadContext(), loadCycles()])
+    Promise.all([loadContextFn(), loadCyclesFn()])
       .then(([nextCtx, cycles]) => {
         if (cancelled) {
           return;
         }
         setCtx(nextCtx);
         setPublished(cycles.published);
+        if (!hydratedEffort.current) {
+          setEffort(cycles.published.salle?.latest ?? "minimal");
+          hydratedEffort.current = true;
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -315,49 +330,59 @@ export function PublishedPlanning() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadContextFn, loadCyclesFn]);
 
-  const cycle = published?.[team] ?? null;
+  const pack = published?.[team] ?? null;
+  const cycle = cycleOf(pack, effort);
   const people = useMemo(
     () =>
-      editing
+      editing && live
         ? live.restaurant.employees
         : ctx
           ? ctx.employees.filter((person) => person.team === team).map(toGridEmployee)
           : [],
     [ctx, team, editing, live],
   );
-  const assignments = editing ? (live.planning.assignments as CycleAssignment[]) : (cycle?.assignments ?? []);
-  const warnings = editing ? live.planning.warnings : (cycle?.warnings ?? []);
+  const assignments = editing && live ? (live.planning.assignments as CycleAssignment[]) : (cycle?.assignments ?? []);
+  const facts = editing && live ? live.planning.facts : (cycle?.facts ?? []);
   const byKey = useMemo(() => indexCycle(assignments), [assignments]);
   const services = ctx ? serviceRows(ctx, assignments) : [];
-  const canCalculate = ctx?.ready[team] === true && !editing;
-  const canEdit = cycle !== null && !editing;
+  const canCalculate = !readOnly && isSearchEffort(effort) && ctx?.ready[team] === true && !editing && calculating === null;
+  const canEdit =
+    !readOnly && (effort === "manuel" ? ctx?.ready[team] === true : cycle !== null) && !editing && calculating === null;
+  const canExport = cycle !== null && !editing && calculating === null;
 
   async function calculate() {
-    if (!canCalculate) {
+    if (!canCalculate || !isSearchEffort(effort)) {
       return;
     }
-    setBusy(true);
+    const started = Date.now();
+    setCalculating(effort);
     setError(null);
     try {
-      const result = await postGenerate(team);
+      const result = await postGenerate(team, effort);
       setPublished(result.published);
     } catch (err) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {
-      setBusy(false);
+      const wait = Math.max(0, 1000 - (Date.now() - started));
+      if (wait > 0) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, wait);
+        });
+      }
+      setCalculating(null);
     }
   }
 
   async function startEdit() {
-    if (!cycle) {
+    if (!canEdit) {
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      setLive(await enterLiveSandbox(team));
+      setLive(await enterLiveSandbox(team, effort));
     } catch (err) {
       setError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     } finally {
@@ -415,6 +440,23 @@ export function PublishedPlanning() {
     }
   }
 
+  async function exportFormat(format: PlanningExportFormat) {
+    if (!ctx || !cycle || !canExport) {
+      return;
+    }
+    setExportOpen(false);
+    setBusy(true);
+    setError(null);
+    try {
+      const sheets = sheetsRef.current ? [...sheetsRef.current.querySelectorAll<HTMLElement>(":scope > .sheet")] : [];
+      await exportPublishedPlanning(buildPlanningExport(ctx, team, cycle), format, sheets, ctx.services);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "erreur inattendue");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function publish() {
     setBusy(true);
     setError(null);
@@ -433,20 +475,35 @@ export function PublishedPlanning() {
   if (!ctx && !error) {
     return (
       <main className="page">
+        {header}
         <p className="sub">Chargement du planning…</p>
+      </main>
+    );
+  }
+
+  if (readOnly && error && !ctx) {
+    return (
+      <main className="page">
+        {header}
+        <p className="error" role="alert">
+          {error}
+        </p>
       </main>
     );
   }
 
   return (
     <main className="page planning-page">
-      <h1>Planning {editing ? "— édition" : "publié"}</h1>
-      <p className="sub">
-        {editing
-          ? "Brouillon live persisté. Lecture quitte sans jeter. Publier écrit le cycle."
-          : "Cycle persisté par équipe."}
-      </p>
-      {ctx ? (
+      {header}
+      <h1>{readOnly ? (ctx?.name ?? "Planning") : `Planning ${editing ? "— édition" : "publié"}`}</h1>
+      {readOnly ? null : (
+        <p className="sub">
+          {editing
+            ? "Brouillon live persisté. Lecture quitte sans jeter. Publier écrit le cycle."
+            : "Cycle persisté par équipe."}
+        </p>
+      )}
+      {!readOnly && ctx ? (
         <p className="ready-badges">
           <span className={ctx.ready.salle ? "badge-ready" : "badge-wait"}>
             Salle · {ctx.ready.salle ? "Prêt à calculer" : "Pas encore prêt"}
@@ -457,7 +514,7 @@ export function PublishedPlanning() {
         </p>
       ) : null}
 
-      <div className="auth-switch">
+      <div className="auth-switch planning-row">
         {TEAMS.map((item) => (
           <button
             key={item.id}
@@ -465,32 +522,103 @@ export function PublishedPlanning() {
             className={team === item.id ? "choice active" : "choice"}
             onClick={() => {
               setTeam(item.id);
+              setEffort(published?.[item.id]?.latest ?? "minimal");
               setLive(null);
               setOverlay(null);
+              setExportOpen(false);
             }}
           >
             {item.label}
           </button>
         ))}
-        <button type="button" className="choice active" disabled={!canCalculate || busy} onClick={() => void calculate()}>
-          {busy ? "Calcul…" : "Calculer"}
-        </button>
-        {canEdit ? (
-          <button type="button" className="choice active" disabled={busy} onClick={() => void startEdit()}>
-            {busy ? "Ouverture…" : "Mode édition"}
+      </div>
+      <div className="auth-switch planning-row">
+        {PLANNING_SLOT_CHOICES.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={effort === item.id ? "choice active" : "choice"}
+            disabled={editing || calculating !== null}
+            onClick={() => {
+              setEffort(item.id);
+              setExportOpen(false);
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="auth-switch planning-actions planning-row">
+        {!readOnly && isSearchEffort(effort) ? (
+          <button
+            type="button"
+            className="choice action"
+            disabled={!canCalculate || busy}
+            onClick={() => void calculate()}
+          >
+            (Re)Calculer le planning
           </button>
         ) : null}
-        {editing ? (
+        {!readOnly && canEdit ? (
+          <button type="button" className="choice action" disabled={busy} onClick={() => void startEdit()}>
+            Entrer en mode édition
+          </button>
+        ) : null}
+        {!readOnly && editing ? (
           <>
-            <button type="button" className="choice" onClick={leaveEdit}>
-              Lecture
+            <button type="button" className="choice action" onClick={leaveEdit}>
+              Quitter le mode édition
             </button>
-            <button type="button" className="choice active" disabled={busy} onClick={() => void publish()}>
-              {busy ? "Publication…" : "Publier"}
+            <button type="button" className="choice action" disabled={busy} onClick={() => void publish()}>
+              Publier
             </button>
           </>
         ) : null}
+        <div className="export-menu">
+          <button
+            type="button"
+            className="choice action"
+            disabled={!canExport || busy}
+            aria-haspopup="menu"
+            aria-expanded={exportOpen && canExport}
+            onClick={() => setExportOpen((open) => !open)}
+          >
+            Exporter
+          </button>
+          {exportOpen && canExport ? (
+            <div className="export-menu-list" role="menu">
+              {(["json", "csv", "xlsx", "jpeg"] as const).map((format) => (
+                <button
+                  key={format}
+                  type="button"
+                  role="menuitem"
+                  className="choice action"
+                  onClick={() => void exportFormat(format)}
+                >
+                  {format === "jpeg" ? "JPEG" : format.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
+      <p className="generated-at">
+        {cycle ? (
+          <>
+            {formatGeneratedAt(cycle.generated_at)}
+            {effort !== "manuel" && cycle.engine_ref ? ` · ${cycle.engine_ref}` : null}
+          </>
+        ) : (
+          "—"
+        )}
+      </p>
+      <p className="generated-duration">{cycle ? formatSolveDuration(cycle.duration_seconds) : "—"}</p>
+
+      {calculating && !readOnly ? (
+        <div className="calc-overlay" role="status" aria-live="polite">
+          <p>Calcul en cours…</p>
+        </div>
+      ) : null}
 
       {error ? (
         <p className="error" role="alert">
@@ -500,32 +628,60 @@ export function PublishedPlanning() {
 
       {cycle || editing ? (
         <>
-          <PublishedSheet
-            title="Semaine A"
-            weekOffset={0}
-            employees={people}
-            assignments={assignments}
-            services={services}
-            byKey={byKey}
-            onOccupiedClick={
-              editing ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) }) : undefined
-            }
-            onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
-          />
-          <PublishedSheet
-            title="Semaine B"
-            weekOffset={7}
-            employees={people}
-            assignments={assignments}
-            services={services}
-            byKey={byKey}
-            onOccupiedClick={
-              editing ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) }) : undefined
-            }
-            onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
-          />
-          <WarningsList warnings={warnings} />
-          {editing ? (
+          {cycle && !editing ? (
+            <CycleScoreNotes
+              score={cycle.score}
+              facts={cycle.facts}
+              stats={cycle.stats}
+              legalRows={cycle.legal_rows}
+              wishRows={cycle.wish_rows}
+              employees={people}
+              weekScheme={ctx?.week_labels ?? "ab"}
+            />
+          ) : null}
+          <div ref={sheetsRef} className="export-sheets">
+            <PublishedSheet
+              title={weekSheetTitle(ctx?.week_labels ?? "ab", 0)}
+              weekOffset={0}
+              employees={people}
+              assignments={assignments}
+              services={services}
+              byKey={byKey}
+              onOccupiedClick={
+                !readOnly && editing
+                  ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) })
+                  : undefined
+              }
+              onEmptyClick={!readOnly && editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
+            />
+            <PublishedSheet
+              title={weekSheetTitle(ctx?.week_labels ?? "ab", 7)}
+              weekOffset={7}
+              employees={people}
+              assignments={assignments}
+              services={services}
+              byKey={byKey}
+              onOccupiedClick={
+                !readOnly && editing
+                  ? (shift) => setOverlay({ kind: "occupied", shift: toShiftIdentity(asAssignment(shift)) })
+                  : undefined
+              }
+              onEmptyClick={!readOnly && editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
+            />
+          </div>
+          <AlertsList facts={facts} employees={people} weekScheme={ctx?.week_labels ?? "ab"} />
+          {cycle && !editing ? (
+            <>
+              <LegalAndContractRecap
+                legalCols={cycle.legal_cols}
+                legalRows={cycle.legal_rows}
+                wishCols={cycle.wish_cols}
+                wishRows={cycle.wish_rows}
+              />
+              <WellbeingRecap wishCols={cycle.wish_cols} wishRows={cycle.wish_rows} />
+            </>
+          ) : null}
+          {editing && live ? (
             <section>
               <h2>Historique</h2>
               <p className="sub">Annuler enlève uniquement le dernier cran. Tout annuler revient au cycle publié.</p>
@@ -544,10 +700,10 @@ export function PublishedPlanning() {
           ) : null}
         </>
       ) : (
-        <p className="sub">Pas encore calculé</p>
+        <p className="sub">{emptySlotCopy(effort)}</p>
       )}
 
-      {overlay?.kind === "occupied" && live ? (
+      {overlay?.kind === "occupied" && live && !readOnly ? (
         <Overlay
           shift={overlay.shift}
           employees={people}
@@ -557,7 +713,7 @@ export function PublishedPlanning() {
           preview={(gesture, shift, hours) => previewLiveOccupied(team, gesture, shift, hours)}
         />
       ) : null}
-      {overlay?.kind === "fill" && live ? (
+      {overlay?.kind === "fill" && live && !readOnly ? (
         <FillOverlay
           slot={overlay.slot}
           employees={people}

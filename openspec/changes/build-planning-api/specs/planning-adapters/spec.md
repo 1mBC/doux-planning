@@ -31,7 +31,7 @@ Evaluate, swap, rank, sandbox enter, sandbox edit, sandbox discard, and publish 
 - **THEN** no generation job row is created
 
 ### Requirement: Live sandbox HTTP wraps Core per team
-The restaurateur SHALL edit a published team cycle through `/v1/live/sandbox/{team}` (Bearer company). Routes MUST wrap Core `enter_live_sandbox`, preview / apply / undo (same proposal shapes as the public joujou), `discard_live_sandbox`, and `publish_live_sandbox`. `team` is `salle` or `cuisine`. `NoPublishedCycle` MUST be HTTP 409 `Aucun cycle publié pour cette équipe.` Discard MUST re-enter the current published cycle (empty history). Publish MUST write only that team’s `published_cycles` key, close the draft (`GET` live → 404), and leave the other team intact. Public `/v1/sandbox/*` MUST stay unauthenticated and unchanged. Week reconciliation, evaluate / swap / rank, and `/me/shifts` remain later slices.
+The restaurateur SHALL edit a published team cycle through `/v1/live/sandbox/{team}` (Bearer company). Routes MUST wrap Core `enter_live_sandbox`, preview / apply / undo (same proposal shapes as the public joujou), `discard_live_sandbox`, and `publish_live_sandbox`. `team` is `salle` or `cuisine`. `NoPublishedCycle` MUST be HTTP 409 `Aucun cycle publié pour cette équipe.` Discard MUST re-enter the current published cycle (empty history). Publish MUST write only that team’s `published_cycles` key, close the draft (`GET` live → 404), and leave the other team intact. A non-null cycle on `POST /v1/live/sandbox/{team}/publish` MUST include the same Core `cycle_recap` keys as `POST /v1/generate` (`stats`, `legal_cols`, `legal_rows`, `wish_cols`, `wish_rows`) — serialized from `cycle_recap`, not invented in `api/`. Public `/v1/sandbox/*` MUST stay unauthenticated and unchanged. Week reconciliation, evaluate / swap / rank, and `/me/shifts` remain later slices.
 
 #### Scenario: Enter salle after generate
 - **WHEN** salle has a published cycle and the restaurateur posts enter for `salle`
@@ -49,6 +49,10 @@ The restaurateur SHALL edit a published team cycle through `/v1/live/sandbox/{te
 - **WHEN** the restaurateur publishes a retuned salle draft
 - **THEN** `GET /v1/cycles` shows the new salle cycle, `cuisine` stays `null`, and `GET /v1/live/sandbox/salle` is 404
 
+#### Scenario: Publish includes cycle recap
+- **WHEN** the restaurateur publishes a live salle sandbox
+- **THEN** `published.salle` includes `stats`, `legal_cols`, `legal_rows`, `wish_cols`, and `wish_rows` from Core `cycle_recap`, and `published.cuisine` stays `null`
+
 ### Requirement: Restaurateur can persist configuration
 Authenticated restaurateur routes SHALL allow reading and updating staff, structures, hours, cycle, weeks, and intents for the session restaurant. Employee sessions MUST be rejected on those writes. Updates that change coverage MUST go through the cycle sandbox as already required by cruise-planning.
 
@@ -61,11 +65,22 @@ Authenticated restaurateur routes SHALL allow reading and updating staff, struct
 - **THEN** the request is rejected and hours are unchanged
 
 ### Requirement: Employee planning route
-`GET /v1/me/planning` (Bearer employee) SHALL wrap Core `employee_board` for `me.employee_id`. The 200 body MUST be `{ employee_id, team, employees, assignments, contract, wishes, unavailabilities }` per `contracts/http/v1-me-planning.md`. `assignments` MUST be the full published team grid (empty if that team has no cycle). `employees` MUST be the fiches of that team (no `invite_token`). The route MUST NOT return live sandbox drafts, `/me/shifts`, or snapshot `legal_rows` / `wish_rows`. A company session MUST receive HTTP 403 `Action réservée au salarié.`
+`GET /v1/me/planning` (Bearer employee) SHALL wrap Core `employee_board` for `me.employee_id`. The 200 body MUST be `{ employee_id, team, week_labels, employees, assignments, contract, wishes, unavailabilities }` per `contracts/http/v1-me-planning.md`. `week_labels` MUST be Core `week_label_scheme`. `wishes` MUST be Core `BoardWish` objects (`kind`, `held`, optional `value` / `service_id` / `limit`) and MUST NOT use `{ key }`. A posed `weekend_rest_day` MUST appear as `{ kind: "weekend_rest_day", held }` — the adapter MUST NOT filter that kind. `unavailabilities` MUST be `{ weekday, service_id }`. `assignments` MUST be the full published team grid from `versions[latest]` (empty if `latest` is null). `employees` MUST be the fiches of that team (no `invite_token`). The route MUST NOT return live sandbox drafts, `/me/shifts`, or snapshot `legal_rows` / `wish_rows`. A company session MUST receive HTTP 403 `Action réservée au salarié.`
 
 #### Scenario: Salle employee sees the published team grid
 - **WHEN** a linked salle employee gets `/v1/me/planning` after a salle generate
-- **THEN** `assignments` matches the published salle cycle (every teammate’s shifts), `employee_id` is that account, and `contract` / `wishes` are present
+- **THEN** `assignments` matches the published salle cycle (every teammate’s shifts), `employee_id` is that account, `contract` is present, and each wish has `kind` (not `key`)
+
+### Requirement: Context exposes Core wellbeing and week labels
+`GET /v1/context` (Bearer company) MUST include `week_labels` from Core `week_label_scheme` (`"ab"` or `"parity"`) and serialize each employee `wellbeing` as the Core object plus `unavailabilities` `{ weekday, service_id }`. GET / export / generate / me/planning MUST coerce stored Railway wellbeing JSONB to that Core shape before serializing and MUST NOT emit a key list or `every_*`. PATCH MUST accept that same employee shape, MUST reject `week_labels` as a written field, and MUST reject legacy wellbeing / indispo shapes with HTTP 400 `Champs invalides.` `weekend` `even` or `odd` on any fiche MUST yield `"parity"`; `every_two` alone MUST yield `"ab"`.
+
+#### Scenario: Even weekend switches restaurant labels to parity
+- **WHEN** a restaurateur patches one fiche `wellbeing.weekend` `even` then gets `/v1/context`
+- **THEN** `week_labels` is `parity` and the fiche wellbeing is an object
+
+#### Scenario: Every-two weekend keeps A/B labels
+- **WHEN** the only weekend choice on staff is `every_two`
+- **THEN** `GET /v1/context` returns `week_labels` `ab`
 
 #### Scenario: Unpublished live cran is invisible
 - **WHEN** the restaurateur has an uncommitted-to-publish live sandbox edit
@@ -74,6 +89,32 @@ Authenticated restaurateur routes SHALL allow reading and updating staff, struct
 #### Scenario: Company cannot read employee planning
 - **WHEN** a company session gets `/v1/me/planning`
 - **THEN** the response is HTTP 403 French
+
+### Requirement: Example seed HTTP wraps Core
+`POST /v1/context/seed-example` (Bearer company, no body) SHALL wrap Core `seed_example_context` and return HTTP 200 with the same `Context` body as `GET /v1/context`. An employee session MUST receive HTTP 403 `Action réservée au restaurateur.` Missing Bearer MUST be 401. Without `DATABASE_URL` the route MUST be 503 `Base indisponible.` The public example MUST stay 92 assignments. The adapter MUST NOT call `hydrate_delivered_cycle`.
+
+#### Scenario: Company seed returns the smashed context
+- **WHEN** a company session posts `/v1/context/seed-example`
+- **THEN** the 200 body matches a subsequent GET (ready salle, not cuisine, example fiches, `week_labels` `ab`)
+
+#### Scenario: Employee cannot seed
+- **WHEN** an employee session posts `/v1/context/seed-example`
+- **THEN** the response is HTTP 403 French
+
+### Requirement: Context export and import
+`GET /v1/context/export` (Bearer company) SHALL return `{ export_version: 1, name, services, ladders, employees, types, typical_week }` generated from the live context. The body MUST NOT include `company_code` or `invite_token`. `POST /v1/context/import` SHALL accept that shape, ignore forbidden keys (`company_code`, `invite_token`, `ready`, `week_labels`, `legal_context_id`), smash like `POST /v1/context/seed-example` (clear cycles / live sandboxes / linked ids, delete this company’s employee accounts), apply the JSON `name`, mint new Core `invite_token`s, and return the same `Context` body as GET. `export_version` other than `1` MUST be HTTP 400 `Champs invalides.` Employee Bearer MUST be 403. Missing Bearer MUST be 401. Without `DATABASE_URL` MUST be 503. The public example MUST stay 92. The adapter MUST NOT call `generate_cycle`.
+
+#### Scenario: Export strips secrets
+- **WHEN** a company session gets `/v1/context/export`
+- **THEN** `export_version` is `1` and the JSON has no `company_code` or `invite_token`
+
+#### Scenario: Import smashes a linked company
+- **WHEN** a company with a linked employee and a published cycle posts a valid export body
+- **THEN** the response is HTTP 200, cycles are null, linked ids are empty, and the old employee Bearer is HTTP 401
+
+#### Scenario: Unknown export version is rejected
+- **WHEN** the restaurateur posts import with `export_version` `2`
+- **THEN** the response is HTTP 400 `Champs invalides.`
 
 ### Requirement: Product errors are French
 Protected and public API error bodies SHALL present a French `message` suitable to show in the product. OpenSpec requirements remain in English.

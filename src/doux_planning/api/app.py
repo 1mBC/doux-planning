@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import Response
+from fastapi import Body, FastAPI, Header, HTTPException, Request
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from doux_planning.api.examples import ExampleNotFound, LegalContextNotFound, example_payload
 from doux_planning.planning import EmptyHistoryError
@@ -14,9 +16,11 @@ from doux_planning.planning import EmptyHistoryError
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     if os.environ.get("DATABASE_URL"):
+        from doux_planning.api.auth import promote_admin_email
         from doux_planning.api.seed import seed_from_files
 
         seed_from_files()
+        promote_admin_email()
     yield
 
 
@@ -37,12 +41,26 @@ def auth_login(body: dict[str, Any]) -> dict:
     return login(body)
 
 
+@app.post("/v1/auth/impersonate")
+def auth_impersonate(body: dict[str, Any]) -> dict:
+    from doux_planning.api.auth import consume_impersonate
+
+    return consume_impersonate(body)
+
+
 @app.post("/v1/auth/logout", status_code=204)
 def auth_logout(authorization: str | None = Header(default=None)) -> Response:
     from doux_planning.api.auth import logout
 
     logout(authorization)
     return Response(status_code=204)
+
+
+@app.post("/v1/auth/link")
+def auth_link(body: dict[str, Any], authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.auth import link_account
+
+    return link_account(body, authorization)
 
 
 @app.get("/v1/me")
@@ -75,6 +93,13 @@ def auth_rotate_invite_token(
     return rotate_invite_token(employee_id, authorization)
 
 
+@app.delete("/v1/staff/{employee_id}")
+def delete_staff_route(employee_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.context import delete_staff
+
+    return delete_staff(employee_id, authorization)
+
+
 @app.get("/v1/context")
 def get_context(authorization: str | None = Header(default=None)) -> dict:
     from doux_planning.api.context import get_context as read_context
@@ -91,6 +116,29 @@ def patch_context(
     return write_context(authorization, body)
 
 
+@app.post("/v1/context/seed-example")
+def seed_example_context_route(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.context import seed_example
+
+    return seed_example(authorization)
+
+
+@app.get("/v1/context/export")
+def export_context_route(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.context import export_context
+
+    return export_context(authorization)
+
+
+@app.post("/v1/context/import")
+def import_context_route(
+    body: dict[str, Any], authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.context import import_context
+
+    return import_context(authorization, body)
+
+
 @app.get("/v1/cycles")
 def get_cycles(authorization: str | None = Header(default=None)) -> dict:
     from doux_planning.api.generate import get_cycles as read_cycles
@@ -98,20 +146,208 @@ def get_cycles(authorization: str | None = Header(default=None)) -> dict:
     return read_cycles(authorization)
 
 
+@app.get("/v1/admin/generates")
+def admin_generates(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.generate import list_generate_logs
+
+    return list_generate_logs(authorization)
+
+
+@app.get("/v1/admin/restaurants/{restaurant_id}/cycles")
+def admin_restaurant_cycles(
+    restaurant_id: str, authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.generate import get_admin_cycles
+
+    return get_admin_cycles(authorization, restaurant_id)
+
+
+@app.get("/v1/admin/restaurants/{restaurant_id}/context")
+def admin_restaurant_context(
+    restaurant_id: str, authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.context import get_admin_context
+
+    return get_admin_context(authorization, restaurant_id)
+
+
+@app.get("/v1/admin/restaurants/{restaurant_id}/import-preview")
+def admin_restaurant_import_preview(
+    restaurant_id: str, authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.bench_import import import_preview
+
+    return import_preview(authorization, restaurant_id)
+
+
+@app.post("/v1/admin/impersonate")
+def admin_impersonate(
+    body: dict[str, Any],
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    from doux_planning.api.auth import mint_impersonate
+
+    return mint_impersonate(authorization, body, request)
+
+
+@app.get("/v1/admin/live-engine")
+def admin_get_live_engine(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.generate import get_live_engine
+
+    return get_live_engine(authorization)
+
+
+@app.put("/v1/admin/live-engine")
+def admin_put_live_engine(
+    body: dict[str, Any], authorization: str | None = Header(default=None)
+) -> dict:
+    from doux_planning.api.generate import put_live_engine
+
+    return put_live_engine(authorization, body)
+
+
+@app.get("/v1/admin/bench/datasets")
+def admin_bench_datasets(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import list_datasets
+
+    return list_datasets(authorization)
+
+
+@app.delete("/v1/admin/bench/datasets/{category}/{dataset_id}", status_code=204)
+def admin_bench_delete_dataset(
+    category: str,
+    dataset_id: str,
+    authorization: str | None = Header(default=None),
+) -> Response:
+    from doux_planning.api.bench import delete_dataset
+
+    return delete_dataset(authorization, category, dataset_id)
+
+
+@app.get("/v1/admin/bench/runs")
+def admin_bench_runs(
+    authorization: str | None = Header(default=None),
+    category: str | None = None,
+    dataset_id: str | None = None,
+) -> dict:
+    from doux_planning.api.bench import list_runs
+
+    return list_runs(authorization, category=category, dataset_id=dataset_id)
+
+
+@app.post("/v1/admin/bench/run")
+def admin_bench_run(body: dict[str, Any], authorization: str | None = Header(default=None)):
+    from doux_planning.api.bench import post_run
+
+    return post_run(authorization, body)
+
+
+@app.post("/v1/admin/bench/import")
+def admin_bench_import(body: dict[str, Any], authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench_import import import_restaurant
+
+    return import_restaurant(authorization, body)
+
+
+@app.get("/v1/admin/bench/jobs/{job_id}")
+def admin_bench_job(job_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import get_job
+
+    return get_job(authorization, job_id)
+
+
+@app.get("/v1/admin/bench/runs/{run_id}")
+def admin_bench_run_get(run_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import get_run
+
+    return get_run(authorization, run_id)
+
+
+@app.get("/v1/admin/bench/compare/{category}/{dataset_id}/{search_effort}")
+def admin_bench_compare(
+    category: str,
+    dataset_id: str,
+    search_effort: str,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    from doux_planning.api.bench import compare
+
+    return compare(authorization, category, dataset_id, search_effort)
+
+
+@app.get("/v1/admin/bench/versions")
+def admin_bench_versions(
+    authorization: str | None = Header(default=None),
+    origin: str | None = None,
+) -> dict:
+    from doux_planning.api.bench import list_versions
+
+    return list_versions(authorization, origin=origin)
+
+
+@app.get("/v1/admin/bench/export")
+def admin_bench_export(
+    scope: str,
+    authorization: str | None = Header(default=None),
+    category: str | None = None,
+    dataset_id: str | None = None,
+    origin: str | None = None,
+) -> dict:
+    from doux_planning.api.bench import export_pack
+
+    return export_pack(
+        authorization, scope=scope, category=category, dataset_id=dataset_id, origin=origin
+    )
+
+
+@app.get("/v1/admin/bench/batches/active")
+def admin_bench_batch_active(authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import get_active_batch
+
+    return get_active_batch(authorization)
+
+
+@app.get("/v1/admin/bench/batches/{batch_id}")
+def admin_bench_batch(batch_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import get_batch
+
+    return get_batch(authorization, batch_id)
+
+
+@app.post("/v1/admin/bench/batches/{batch_id}/cancel")
+def cancel_bench_batch(batch_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.bench import cancel_batch
+
+    return cancel_batch(authorization, batch_id)
+
+
 @app.post("/v1/generate")
 def post_generate(
     body: dict[str, Any], authorization: str | None = Header(default=None)
-) -> dict:
+):
     from doux_planning.api.generate import post_generate as write_generate
 
     return write_generate(authorization, body)
 
 
+@app.get("/v1/generate/jobs/{job_id}")
+def get_generate_job(job_id: str, authorization: str | None = Header(default=None)) -> dict:
+    from doux_planning.api.generate import get_generate_job as read_job
+
+    return read_job(authorization, job_id)
+
+
 @app.post("/v1/live/sandbox/{team}/enter")
-def live_sandbox_enter(team: str, authorization: str | None = Header(default=None)) -> dict:
+def live_sandbox_enter(
+    team: str,
+    authorization: str | None = Header(default=None),
+    search_effort: str | None = None,
+    body: dict[str, Any] | None = Body(default=None),
+) -> dict:
     from doux_planning.api.live_sandbox import enter
 
-    return enter(authorization, team)
+    return enter(authorization, team, body=body, search_effort=search_effort)
 
 
 @app.get("/v1/live/sandbox/{team}")
@@ -271,3 +507,68 @@ def sandbox_discard() -> dict:
         raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
     except (RuntimeError, KeyError):
         raise HTTPException(status_code=404, detail="Aucun bac à sable n'est ouvert.") from None
+
+
+def web_dist() -> Path | None:
+    here = Path(__file__).resolve()
+    for root in (here.parents[3], here.parents[2], Path.cwd()):
+        index = root / "web" / "dist" / "index.html"
+        if index.is_file():
+            return index.parent
+    return None
+
+
+SPA_PATHS = (
+    "/planning",
+    "/login",
+    "/register",
+    "/context",
+    "/exemple",
+    "/admin",
+    "/admin/bench",
+    "/admin/bench/manuels",
+    "/admin/bench/versions",
+)
+
+
+def _mount_spa(application: FastAPI) -> None:
+    dist = web_dist()
+    if dist is None:
+        return
+    assets = dist / "assets"
+    if assets.is_dir():
+        application.mount("/assets", StaticFiles(directory=assets), name="web-assets")
+
+    def _index() -> FileResponse:
+        return FileResponse(dist / "index.html")
+
+    application.add_api_route("/", _index, methods=["GET"], include_in_schema=False)
+    for spa_path in SPA_PATHS:
+        application.add_api_route(spa_path, _index, methods=["GET"], include_in_schema=False)
+    application.add_api_route(
+        "/admin/bench/run/{run_id}",
+        _index,
+        methods=["GET"],
+        include_in_schema=False,
+    )
+    application.add_api_route(
+        "/admin/bench/{category}/{dataset_id}/{search_effort}",
+        _index,
+        methods=["GET"],
+        include_in_schema=False,
+    )
+    application.add_api_route(
+        "/impersonate/{token}",
+        _index,
+        methods=["GET"],
+        include_in_schema=False,
+    )
+    application.add_api_route(
+        "/admin/planning/{restaurant_id}",
+        _index,
+        methods=["GET"],
+        include_in_schema=False,
+    )
+
+
+_mount_spa(app)

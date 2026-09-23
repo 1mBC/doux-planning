@@ -18,13 +18,16 @@ GET /v1/examples/saint-cloud
 uvicorn  :8000  --  GET /v1/examples/saint-cloud   (public)
                  --  /v1/sandbox/*                 (public)
                  --  /v1/auth/*  /v1/me  /v1/invites/{code}
+                 --  POST /v1/auth/link      (Bearer employee)
+                 --  DELETE /v1/staff/{id}   (Bearer company)
                  --  GET|PATCH /v1/context   (Bearer company)
-                 --  POST /v1/generate  GET /v1/cycles  (Bearer company)
+                 --  POST /v1/context/seed-example  GET /v1/context/export  POST /v1/context/import
+                 --  POST /v1/generate  GET /v1/generate/jobs/{id}  GET /v1/cycles  (Bearer company)
                  --  /v1/live/sandbox/{team}/*  (Bearer company)
                  --  GET /v1/me/planning         (Bearer employee)
                          ^
                          | proxy /v1
-vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
+vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning, /admin, /admin/planning/{id}, /impersonate/{token}
 ```
 
 ## Goals / Non-Goals
@@ -33,14 +36,17 @@ vite SPA :5173  --  pathname : / login, /register, /exemple, /context, /planning
 - Keep the Vite + React + TypeScript app under `web/` as the restaurateur’s first useful screen.
 - Keep presentation (layout, French chrome, time formatting) strictly downstream of the snapshot.
 - Add login / register / QR / session chrome that follow `contracts/http/v1-auth.md` without scoring or inventing fields.
-- Company wizard at `/context` following `contracts/http/v1-context.md`.
-- Company published cycle at `/planning` following `contracts/http/v1-generate.md` (`search_effort: "minimal"`).
+- Company wizard at `/context` following `contracts/domain/wizard-ui.md` + `v1-context.md` (Services first, `weekend_rest_day`, Services types waves).
+- Company published cycle at `/planning` following `contracts/http/v1-generate.md` + `cycle-recaps.md` (pastilles + tableaux hors édition).
 - Live sandbox Mode édition on `/planning` following `contracts/http/v1-live-sandbox.md` (shapes from `v1-sandbox-edit.md`).
-- Employee `/planning` following `contracts/http/v1-me-planning.md` (team grid, highlight, read-only contract panel).
+- Employee `/planning` following `contracts/http/v1-me-planning.md` (team grid, highlight, read-only contract panel) only when affiliated (`employee_id` string). Unaffiliated employee: company-code + fiche list + `POST /v1/auth/link`.
+- Company Équipe trash following `contracts/domain/delete-employee.md` (`DELETE /v1/staff/{id}` then GET, or local drop).
+- Company `/context` seed button following `POST /v1/context/seed-example`.
+- Company `/context` export / import following `contracts/domain/export-config.md` § UI.
 
 **Non-Goals:**
-- `optimized` / `maximal` UI, changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit.
-- Merging `employee/infra` / `employee/core`, new FastAPI routes, a second scoring path, react-router.
+- Changing the public `/v1/sandbox/*` joujou, rotate invite-token, employee constraint edit.
+- Merging `recaps/infra` / `recaps/core`, new FastAPI routes, a second scoring path, react-router.
 - Pixel-identical clone of the GitHub Pages HTML.
 - Translating engine messages into a new diagnosis.
 - « Mot de passe oublié ».
@@ -83,39 +89,403 @@ No react-router: `pathname` + `URLSearchParams` + `history.pushState`.
 - `/register` : bascule **Entreprise** / **Salarié**. Entreprise → `{ kind: company, email, password }` seulement. Salarié → code → `GET /v1/invites/{company_code}` → choisir une fiche (`id`, `name`, `role`, `team`) → `{ kind: employee, company_code, employee_id, email, password }` (pas de token).
 - QR : `/register?company_code=…&employee_token=…` — kind salarié verrouillé, pas de liste, POST avec `employee_token` (pas d’`employee_id`).
 - Password ≥ 8. Afficher `detail` tel quel. Pas de « mot de passe oublié ».
-- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/generate`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
+- Token : `sessionStorage`. Bearer sur register/login/logout/`GET /v1/me`, GET/PATCH `/v1/context`, `POST /v1/context/seed-example`, `GET /v1/context/export`, `POST /v1/context/import`, `POST /v1/generate`, `GET /v1/generate/jobs/{id}`, `GET /v1/cycles`, `/v1/live/sandbox/{team}/*`, `GET /v1/me/planning`, `GET /v1/admin/generates`, `GET /v1/admin/restaurants/{id}/import-preview`, `POST /v1/admin/bench/import`, `DELETE /v1/admin/bench/datasets/{category}/{id}`. Jamais sur `/v1/examples/*` ni `/v1/sandbox/*`.
 - Reload : si token, `GET /v1/me` ; 401 → login + oublier le token. 503 n’empêche pas l’exemple.
-- Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`. Employee : lien **Planning** → `/planning`.
+- Session chrome : email + kind + **Déconnexion**. Company : lien **Mon restaurant** → `/context` ; lien **Planning** → `/planning`. Employee : lien **Planning** → `/planning`. Lien **Admin** seulement si `me.admin`.
 - Sans session : login/register **et** `/exemple`. La grille d’exemple n’est pas derrière le login.
 - `kind: employee` : pas de Mode édition ; pas de wizard ; `/planning` = `GET /v1/me/planning` (pas Calculer / live). Login/register atterrit sur `/planning`.
 - `kind: company` : wizard `/context` + `/planning` + grille / sandbox exemple.
 
 ### 8. Context wizard (company)
 
-Séquentiel puis tout éditable. Salle et cuisine indépendantes.
+Séquentiel puis tout éditable. Salle et cuisine indépendantes. Onglets : **Services → Rôles → Équipe → Souhaits bien-être → Services types → Semaine type**. « Fiches » / « Types » n’existent plus. Service non offert **invisible** (pas de fallback les 3).
 
-1. Rôles (équipe) : nom + niveau ≥ 1. Afficher : un niveau plus élevé peut tenir un poste inférieur. PATCH `ladders` avec `substitution_explained: true` (les deux équipes).
-2. Fiches (équipe) : nom, rôle de l’échelle, heures contrat, indispos, wellbeing (clés contrat), `min_shift_hours` 4. PATCH `employees` = liste complète. Afficher `invite_token` + URL register QR. Pas de rotate.
-3. Services (resto, une fois) : petit-déj / déj / dîner → `morning` / `midday` / `evening`. PATCH `services`.
-4. Types (équipe × service) : nom, vagues ±15, `post_levels`. PATCH `types` = liste complète.
-5. Semaine type : type ou Fermé. PATCH `typical_week` = `{ salle, cuisine }`. Fermé : `closed: true`, `type_id` null.
+1. Services (resto, une fois) : petit-déj / déj / dîner. Liste vide → on reste ici. Décocher → warning FR puis purge types / semaine / indispos / `max_services` des **deux** équipes ; PATCH `services` + `employees` + `types` + `typical_week` nettoyés.
+2. Rôles (équipe) : nom + niveau ≥ 1. PATCH `ladders` avec `substitution_explained: true`.
+3. Équipe : une ligne par salarié + poubelle (chrome rôles) ; popup indispo jours × **services offerts**. Min. créneau : un `Stepper` par service **offert** (`CONTEXT_SERVICES.filter`, PDJ → déj → dîner), défaut 4, `step={0.5}` `min={0.5}` — plus d’input unique. `min_shift_hours` = map sparse ; GET nombre encore lu (compat Infra) ; PATCH objet. Service non offert : pas de stepper, pas de clé (purge au décocher). PATCH `employees` = liste complète pour l’édition. **Supprimer** : confirm FR (`delete-employee.md`) ; ligne jamais PATCH → retrait local ; persistée → `DELETE /v1/staff/{id}` puis GET context. Compte plateforme conservé ; planning **de cette équipe** jeté, l’autre intacte.
+4. Souhaits bien-être : `Wellbeing` (cases `consecutive_rest` + **`weekend_rest_day`** à côté de la radio `weekend`, chiffres `max_services` **offerts seulement**, `max_coupures_per_week`). Pas un prérequis de `ready`. Bool `weekend_rest_day` requis au parse.
+5. Services types (équipe × service offert) : sous-onglets = `CONTEXT_SERVICES.filter(s => offered.includes(s.id))` (jamais `services.map`) ; **Ajouter un type** en bas. **Une `<table>` par feuille** (plus de cartes `wave-line`). Colonnes Type (Arrivée | **Départ**) · Heure (cadran overlay + ±15 stepper compact) · Niveaux · **STAFF minimal resultant** (sac / erreur, même calcul) · poubelle. Persist / pire-cas / JSON `departures` inchangés. PATCH `types` = liste complète. Cadran / réordre : §42.
+6. Semaine type : type ou Fermé, colonnes = **même** `CONTEXT_SERVICES.filter(...)` (pas l’ordre persisté). PATCH `typical_week` = `{ salle, cuisine }`. Libellés A/B ou Paire/Impaire selon `week_labels`.
 
-Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`.  
-`ready.salle` / `ready.cuisine` = JSON seulement, badges « Prêt à calculer » / « Pas encore prêt ».
+Identité : PATCH `name` (`""` OK). « Droit du travail : France » lecture seule (`legal_context_id`). Afficher `company_code`. Bouton **Inviter mes employés** (popup : copier `origin + /register?company_code={code}` + QR identique). Bouton **Intégrer l’exemple Saint-Cloud** à côté du code (tous les comptes company). Confirm FR puis `POST /v1/context/seed-example` (Bearer, pas de body). 200 = même parse que GET ; rester sur `/context`. Même `seed-row` : **Exporter la config** / **Importer une config** (§19).  
+`ready.salle` / `ready.cuisine` = JSON seulement, badges « Prêt à calculer » / « Pas encore prêt ». Jeton / URL d’invite **masqués** sous les fiches.
 
 ### 9. Published cycle (company)
 
-Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Sélecteur Salle / Cuisine. **Calculer** actif seulement si `ready[team] === true` (badge context). Sinon disabled, pas de POST. POST `{ team, search_effort: "minimal" }`. Busy + `detail` si 409/400. Si `published[team]` non null : grille 14 j. (A/B) fiches de l’équipe + assignments + warnings (message moteur, sévérité FR). Pas de stats / legal_rows / wish_rows inventés. Cuisine `null` : « Pas encore calculé », salle intacte. Reload = même GET. Recalculer remplace cette équipe. Mode édition live = §10.
+Route `/planning`. Au load : `GET /v1/cycles` + `GET /v1/context`. Chrome **3 rangées** : (1) Salle | Cuisine (bleu = équipe) ; (2) Minimal | Optimisé | Maximal | **Manuel** (bleu = **sélection**, pas de POST, défaut = `latest`) ; (3) actions **blanches** (Re)Calculer (computes) / Entrer en mode édition / Quitter / Publier / Exporter. Recalculer = POST de l’effort **compute** sélectionné. Slot compute vide → « Pas encore calculé » (pas l’autre version). Cran Manuel : §45. Sous la rangée 3 : `generated_at` Europe/Paris, absent → tiret. Parse `published[team].versions` + `latest` (`generated_at` / `search_effort` sur le cycle) ; clé `manuel` absente → `null`. Minimal / Optimisé = POST sync. Maximal = POST 202 puis poll. Loader ≥ 1 s. Mode édition compute : enter avec l’effort sélectionné ssi cycle non null ; cacher les recaps. Export = version affichée. Cuisine / slot compute vide : « Pas encore calculé ». Salarié : pas de sélecteur. Menu **Exporter** = §20. Versions chrome = §23. Manuel = §45.
 
 ### 10. Live sandbox on `/planning`
 
-Mode édition seulement si `published[team]` existe. POST `/v1/live/sandbox/{team}/enter` (Bearer). Cuisine sans cycle : pas de bouton (409 API). Overlays = joujou (injecter le client live, ne pas appeler `/v1/sandbox/*`). Lecture quitte l’UI sans discard. Reload / ré-enter = GET/enter live (cran conservé). Publier → Cycles, sortir d’édition, l’autre équipe intacte. Tout annuler = discard live.
+Mode édition compute seulement si le **slot sélectionné** existe. POST `/v1/live/sandbox/{team}/enter` (Bearer) avec `{ search_effort }` (défaut API = `latest`). Slot compute vide → 409, pas de bouton. Cran **Manuel** : bouton si `ready[team]`, même slot null ; enter `{ search_effort: "manuel" }` (409 tant qu’Infra n’a pas mergé : chrome locale, pas de persist). Overlays = joujou (injecter le client live, ne pas appeler `/v1/sandbox/*`). Lecture quitte l’UI sans discard. Reload / ré-enter = GET/enter live (cran conservé). Publier → Cycles (slot compute : `generated_at` inchangé ; slot manuel : tamponné maintenant côté Infra), sortir d’édition, l’autre équipe / les autres efforts intacts. Tout annuler = discard live. `/exemple` joujou inchangé (`/v1/sandbox/*`).
 
-Hors slice : rotate invite-token, `optimized` 30 s, edit contraintes salarié.
+Hors slice : rotate invite-token, edit contraintes salarié, panneau compte, unlink sans delete fiche.
 
 ### 11. Employee board
 
-`kind: employee` → `/planning`. GET `/v1/me/planning` (Bearer). Grille 14 j. (A/B) depuis `employees` + `assignments` de **son** équipe. Lignes `employee_id === me` colorées ; collègues visibles, atténués. Assignments vides → « Pas encore publié ». Panneau lecture : `contract` (weekly / assigned / ok), `unavailabilities`, `wishes` (`key` → libellé FR, `held` tenu / non tenu). Aucun edit. Pas de `wish_rows` inventés. Company `/planning` / `/context` / live et `/exemple` inchangés.
+`kind: employee` **affilié** (`employee_id` string, `restaurant_id` string) → `/planning`. GET `/v1/me/planning` (Bearer). Grille 14 j. depuis `employees` + `assignments` de **son** équipe ; titres A/B ou Paire/Impaire selon `week_labels`. Lignes `employee_id === me` colorées ; collègues visibles, atténués. Assignments vides → « Pas encore publié ». Panneau lecture : `contract`, `unavailabilities` `{ weekday, service_id }`, `wishes` `{ kind, held, … }` y compris `weekend_rest_day` (« Au moins un repos samedi ou dimanche »). Aucun edit. Pas de `key` / `wish_rows` inventés.
+
+`kind: employee` **sans affiliation** (`employee_id` et `restaurant_id` `null`) : **pas** `/planning`, pas de lien chrome « Planning ». Écran code entreprise → `GET /v1/invites/{code}` (fiches non liées) → choisir fiche → `POST /v1/auth/link` `{ company_code, employee_id }` Bearer. 200 `me` affilié → `/planning`. `/exemple` inchangé.
+
+### 12. Week labels
+
+`week_labels` du GET context / me/planning (`"ab"` | `"parity"`) : tout le resto. `"ab"` → A / B. `"parity"` → Paire / Impaire (paire = j0–6). Semaine type + grilles `/planning` company et salarié. L’exemple Saint-Cloud reste A / B.
+
+### 13. Seed example
+
+Tous les comptes `kind: company` sur `/context`. Confirm d’une phrase (remplace rôles / équipe / souhaits / types / semaine, garde le nom, casse les comptes salariés liés, ne colle pas le planning exemple). POST sans body. Pas de bouton salarié, `/exemple`, `/planning`, login. Pas de generate.
+
+### 14. Weekend rest + Services-first types
+
+Suivre `contracts/domain/wizard-ui.md`. Déblocage : services → rôles ; échelle → équipe ; ≥1 fiche → souhaits **et** types ; types de l’équipe → semaine type. Pire-cas départ : réserver les `N_L` par niveau, retirer les K plus hauts parmi le reste, PATCH le sac trié croissant. K trop grand ou `N_L` > présence → bloquer (phrase FR).
+
+### 15. One-line types + live recaps
+
+Services types : liste chronologique, une ligne, +/− par niveau d’échelle, colonne **STAFF après** (plus « sac »). `/planning` company lit le `CycleRecap` persisté.
+
+### 16. Chrome polish (contrat, orange, invite)
+
+Suivre `cycle-recaps.md` § UI + `wizard-ui.md` (horloge collée, STAFF en en-tête, N lisible, rôles stepper, invite QR, plus de sous-texte we). Version `0.16.0`.
+
+### 17. Refreshed exemple snapshot
+
+`/exemple` lit `GET /v1/examples/saint-cloud` tel quel (`exemple-snapshot.md`) : pastilles 92 / 0 / 0 / 47 / 84 % / 10 / 12, **17** warnings FR, `wish_cols` live (contrat / indispo / consecutive_rest / max_evening / max_coupures…). Diane `30h · 29h / 39h`. Théo 11h–16h. Pas de `we1j` / `weA` inventés. Chrome v0.16.0 inchangé. Version `0.17.0`.
+
+### 18. Wizard polish (invite abs, types cards, we column)
+
+Invite : afficher + copier `origin + /register?company_code={code}` (QR identique). Services types : cartes `wave-line`, libellés courts une fois, plus de `wave-table`. Souhaits : `<th>` **Au moins un repos samedi ou dimanche**, case hors cellule Week-end. Version `0.18.0`.
+
+### 19. Export / import restaurant config
+
+Suivre `export-config.md` § UI. **Exporter la config** : `GET /v1/context/export` Bearer → parse `export_version === 1` (throw sinon) → télécharger `{name}-config.json` ou `config-resto.json`. **Importer une config** : `.json` → confirm FR (remplace nom, rôles, équipe, souhaits, types, semaine ; casse les salariés liés ; pas de planning) → `POST /v1/context/import` → `adopt` comme le seed. Annuler le confirm = no-op. `detail` si erreur. Pas de bouton salarié / `/exemple` / `/planning` / login. Version `0.19.0`.
+
+### 20. Export planning (client)
+
+Suivre `export-planning.md`. Menu **Exporter** dans `planning-actions` (JSON / CSV / XLSX / JPEG). Actif ssi `published[team]` non null et pas en Mode édition. Cuisine `null` → off. Source = cycle chargé + fiches de **cette** équipe, sans `invite_token`. Pas de nouvelle route. Chiffres = payload. Fichier `{slug}-{salle|cuisine}.{ext}` (`name` vide → `planning`). JSON / CSV inchangés. XLSX = 2 feuilles Semaine A / B (ou Paire / Impaire), titre **Planning validé en date du :** + horodatage local, une ligne par personne × service offert. JPEG = les deux feuilles, 2× CSS pixels, qualité ≥ 0.95. Pas de bouton salarié / `/exemple`. Version `0.20.0` ; polish = §22.
+
+### 21. Admin generate table
+
+Suivre `admin.md` § UI + `v1-auth.md` `me.admin`. `parseMe` exige `admin: bool` ; employee → `false`. Lien **Admin** ssi `me.admin`. `/admin` admin → `GET /v1/admin/generates` ; sinon message `Action réservée à l’admin.` sans fetch. Table newest-first, en-tête jour `Europe/Paris` (`Dimanche 6 septembre 2026`), heure `HH:mm`, hover = `warnings[].message` (vide → `aucun warning`). Version `0.21.0`.
+
+### 22. Planning polish (steppers, types table, exports, three generate)
+
+Suivre `wizard-ui.md` (stepper / table), `export-planning.md`, `generate-jobs.md` + `v1-generate.md` — les suivre, ne pas les modifier.
+
+- Stepper compact **partout** (rôles Niveau, types N + niveaux, overlay sandbox, ±15) : label à part, `[−]` petit, chiffre **centré**, `[+]`. Plus de `.choice` nav sur les ±.
+- Services types : **une `<table>` par feuille**, colonnes Type · Heure · N · Niveaux · **STAFF minimal resultant** · poubelle. Persist / pire-cas / sous-onglets inchangés.
+- JPEG : `devicePixelRatio` ≥ 2, police lisible, qualité ≥ 0.95, toujours les 2 semaines.
+- XLSX : 2 feuilles (pas un dump CSV), titre daté, Lun–Dim × DEBUT / FIN / NB HEURES, une ligne par service offert (PDJ / DJ / Dîner), un peu de couleur.
+- Trois boutons **Minimal** · **Optimisé** · **Maximal** si `ready[team]`. Loader ≥ 1 s. Maximal = 202 + poll. Mode édition : calcul off. Pas salarié / `/exemple`.
+
+Version `0.22.0`.
+
+### 23. Planning chrome (versions, steppers cadrés, types sans N)
+
+Suivre `generate-versions.md`, `wizard-ui.md` (stepper / colonnes), `v1-generate.md` — les suivre, ne pas les modifier.
+
+- 3 rangées company : équipe · sélection d’effort · actions blanches. Défaut = `latest`. Recalculer POST seulement depuis la rangée 3. Horodatage `generated_at` Paris.
+- Stepper **encadré**, libellé **gras**, chiffre **centré** (rôles, types niveaux, overlay, ±15).
+- Types : plus de colonne N. Titre **Niveaux minimal requis (par arrivée | après départ)**. K = sac avant − somme(à garder). Persist inchangée.
+- Salarié : `me/planning` latest, pas de sélecteur.
+
+Version `0.23.0`.
+
+### 24. Admin recap + wizard polish
+
+Suivre `admin.md` § UI + `wizard-ui.md` — les suivre, ne pas les modifier.
+
+- Admin : colonnes **Effort** (Minimal / Optimisé / Maximal, tiret si null) + **Durée** (`Ns` / `N min`, tiret si null). Hover = **une carte par warning** (gravité, libellé, jour + semaine A/B, `employee_name`, `message`). Vide → `aucun warning`.
+- Planning : sous le timestamp, `duration_seconds` du slot affiché (tiret si absent).
+- Rôles : `<table>` Nom / Niveau (stepper) / poubelle. Confirm FR liste les fiches, dit de revoir / recalculer, conseille de renommer. Confirmé = retire la ligne (fiches inchangées jusqu’au save).
+- Copies retirées (Équipe sous-titre + ligne texte d’indispos ; Souhaits sous-titre ; « Sous-onglets = services offerts » ; Semaine type « Libellés… » / « L’autre équipe… »).
+- Invite : afficher + copier `company_code` en plus de l’URL / QR.
+
+Version `0.24.0`. Pas de delete salarié.
+
+### 25. Notes de cycle /10
+
+Suivre `score.md` — le suivre, ne pas le modifier.
+
+- Company `/planning` : 5 notes + globale du **slot affiché** (effort courant). `null` → tiret. Une décimale FR (`8,4`).
+- Pas d’édition des poids. Pas de bench admin. Pas salarié. `/exemple` seulement si le payload a `score`.
+
+Version `0.25.0`.
+
+### 26. Score chrome (Occupation, résumés, couleur linéaire)
+
+Suivre `score.md` § UI (cette tranche) — le suivre, ne pas le modifier.
+
+- `/planning` company **et** `/exemple` : rangée `CycleScoreNotes` **au-dessus** de la grille. Retirer `CycleStats` / `Stats`. Tableaux légal / souhaits inchangés **sous** la grille.
+- Libellé `notes.contrat` : **Occupation /10**. Clé JSON `contrat` inchangée.
+- Parser : exiger `resumes` (5 clés, `string | null`). Payload sans `resumes` → omettre les notes, pas de crash.
+- Sous chaque pastille d’axe : `resumes[clé]` tel quel. Globale : pas de sous-ligne.
+- Couleur linéaire 0→10 : `hue = 12 × note` (HSL). `null` → tiret, neutre.
+- Pas d’édition des poids. Pas de bench.
+
+Version `0.26.0`.
+
+### 27. Score gauges (globale à gauche)
+
+Suivre `score.md` § UI (cette tranche) — le suivre, ne pas le modifier.
+
+- `/planning` company **et** `/exemple` : **Globale /10 en premier à gauche.** Cadre contrasté (bordure plus épaisse, fond plus saturé, même HSL). Pas de résumé sous la globale.
+- Jauge horizontale sous le chiffre (5 axes + globale) : remplissage `note / 10`, `hue = 12 × note`. `null` → jauge vide, neutre.
+- `resumes` : `white-space: pre-line` (`occupées` + indispos à la ligne ; rôles `affectés` / sous-rôle). Libellés inchangés.
+- Parser `resumes` déjà là. Pas de cartes stats. Tableaux légal / souhaits sous la grille.
+
+Version `0.27.0`.
+
+### 28. Banc admin (table + compare)
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier.
+
+- `/admin` : lien **Banc** (log generate reste). `me.admin` only ; sinon message habituel, pas d’appel bench.
+- `/admin/bench` : datasets + runs. Lancer all | catégorie | jeu × 3 efforts. Tableau une ligne par jeu ; cellule = dernier run (globale · oracle · Δ) ou tiret. Clic → compare.
+- `dataset` + minimal|optimized → 200. `all` | `category` | `maximal` → 202 + poll jobs **ou** refresh runs. Quitter la page OK.
+- `/admin/bench/{category}/{id}/{effort}` : titre `catégorie · id · effort`. Planning généré puis oracle, notes + resumes, grilles lecture. 404 / vide → FR.
+
+Version `0.28.0`.
+
+### 29. Menu admin + banc Modèle / Manuel / Delta
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier.
+
+- Menu **Historique des computes | Banc** sur `/admin`, `/admin/bench` et compare. Plus de bouton isolé « Banc » / « ← Admin ». Entrée courante marquée.
+- Tableau : sous chaque effort, 3 sous-colonnes **Modèle** / **Manuel** / **Delta**. Clic → compare.
+- Compare : blocs **Modèle** puis **Manuel**. Liste API = 7 jeux (dont 3 crafted).
+
+Version `0.29.0`.
+
+### 30. Score facts (dictionnaire + clic notes)
+
+Suivre `score-facts.md` (gagne) + `score.md` § UI — les suivre, ne pas les modifier.
+
+- Parser : `facts[]` (`axis`, `kind`, `polarity`, `payload`) ; cellules `{ ok, kind, payload }` ; `score` sans `resumes` (ignorer si présent). Plus de `message` requis.
+- Dictionnaire kind → titre + gabarit. Kind inconnu → `kind` + payload brut, ne pas inventer.
+- Pastilles `/planning` + `/exemple` **cliquables** : une liste, misses de l’axe puis hits. Globale = tous les facts (y compris `role_gap`).
+- Liste alertes sous la grille : misses evaluate (`kind != role_gap`).
+- Résumés sous pastille composés UI (`stats` + comptes). Tableaux légal / souhaits rendus depuis payload (Diane `30h · 29h / 39h`).
+- Overlay sandbox : `impact` via le dictionnaire ; `contract` / `role_fit` inchangés.
+- Admin hover + export JSON : `facts`. Vieux log `message` + payload vide : fallback `message`.
+- Banc compare : ne pas crasher si `warnings` legacy ; préférer `facts`.
+
+Version `0.30.0`.
+
+### 31. Banc mêmes pastilles + export pack
+
+Suivre `bench.md` § UI + `score.md` § UI — les suivre, ne pas les modifier.
+
+- `CycleScoreNotes` **partout** (planning, exemple, banc) : (1) titre (2) note + jauge **même ligne** (3) totaux (4) clic miss puis hit. Globale d’abord, cadre contrasté, pas de totaux.
+- Compare : parser `employees` + `model` + `manual` (`CycleSlice`). Les deux blocs = même composant, facts complets, noms réels (plus l’id à la place du nom).
+- **Exporter ce jeu** (compare + ligne tableau) → `GET /v1/admin/bench/export?scope=dataset`. **Exporter sous le Manuel** (tableau) → `scope=below_manuel`. Download JSON, fichiers `bench-{category}-{id}.json` / `bench-below-manuel.json`.
+
+Version `0.31.0`.
+
+### 32. Score tables Contrat + Légal & Contrat + Bien-être
+
+Suivre `score-facts.md` (gagne) + `score.md` § UI — les suivre, ne pas les modifier.
+
+- Pastille `contrat` : **Contrat /10**. Titres d’axe **gras**. Totaux : `occupées / {h}` sans le mot contrat ; `indispos respectées`.
+- Clic pastille **et** Alertes : même tableau Catégorie | Sous-catégorie | Statut (⚠️/✅) | Détail. Miss groupés par catégorie, puis hits. Zéro sous-titre sous les `h2`.
+- `/planning` + `/exemple` : après Alertes → **Légal & Contrat** (legal_cols + Contrat + Indispos) puis **Bien-être** (wish_cols moins contrat/indispo ; omettre si vide). Cellules emoji + mesure. Wizard inchangé. Banc compare : pastilles + clic seulement.
+
+Version `0.32.0`.
+
+### 33. Banc versions moteur
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier.
+
+- Menu admin à plat **Historique des computes | Banc | Versions**. Entrée courante marquée.
+- Banc last-run inchangé, filtré `engine_ref` courant. Sous-titre `moteur {engine_ref}` (parser `engine_ref` ou `app_version`, même string).
+- `/admin/bench/versions` : GET `/v1/admin/bench/versions`. Lignes = jeux, colonnes = `engine_refs`. Cellule = Maximal (globale + delta vs Manuel, tiret si null). Clic → `/admin/bench/run/{run_id}`.
+- Page run : même écran compare, chargé via `GET /v1/admin/bench/runs/{run_id}`. Compare-chemin = last-run courant. Pas de bouton revert. Export banc inchangé.
+
+Version `0.33.0`.
+
+### 34. Banc tableau toutes versions
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier.
+
+- Menu **Historique des computes | Banc**. Plus d’entrée Versions. `/admin/bench/versions` redirige vers `/admin/bench`.
+- Un seul tableau Banc, source `GET /v1/admin/bench/versions`. Pour Minimal, Optimisé, Maximal : sous-colonnes `Manuel | {engine_refs…}`. Manuel = `dataset.manual.global`. Cellule moteur = globale + delta (tiret si null). Clic moteur → `/admin/bench/run/{run_id}`. Clic Manuel → compare-chemin de cet effort.
+- Après un launch, recharger `/versions`. Lancer / export / page run / compare-chemin inchangés. Pas de bouton revert.
+
+Version `0.34.0`.
+
+### 35. Banc 30 jeux
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier. Liste = API.
+
+- Tableau + barre Lancer : **aucun** 7 / 4 catégories en dur. Source `GET /v1/admin/bench/datasets` / `GET /v1/admin/bench/versions` (30 lignes, ordre API).
+- Une rangée Lancer par catégorie listée (`hours`, `shapes`, …).
+- Compare / export / 3 computes × versions inchangés.
+
+Version `0.35.0`.
+
+### 36. Banc 50 jeux (20 oracles crafted)
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier. Liste = API.
+
+- Tableau + barre Lancer : **aucun** 30 / 7 / 6 en dur. Source `GET /v1/admin/bench/datasets` / `GET /v1/admin/bench/versions` (50 lignes, dont 26 `crafted`, ordre API).
+- Une rangée Lancer par catégorie listée (inchangé).
+- Compare / export / 3 computes × versions inchangés. Pas de chrome worker.
+
+Version `0.36.0`.
+
+### 37. Banc inversé + deltas colorés
+
+Suivre `bench.md` § UI — le suivre, ne pas le modifier.
+
+- **Un** Manuel à gauche (`dataset.manual.global`). Clic → compare-chemin `optimized` moteur courant.
+- Une famille par `engine_ref`, sous-colonnes Minimal | Optimisé | Maximal.
+- Cellule = **delta seul** vs Manuel. Tiret si pas de run. Clic → `/admin/bench/run/{run_id}`.
+- Couleur : delta 0 = vert ; négatif = crescendo rouge (clamp −1) ; positif = crescendo bleu (clamp +1).
+- Lancer / export / 50 lignes inchangés. Sous-titre `moteur {engine_ref}`.
+
+Version `0.37.0`.
+
+### 38. Banc recap vs modèle précédent + lancer 2 lignes
+
+Suivre `bench.md` § Recap + Lancer — les suivre, ne pas les modifier.
+
+- Après Lancer, avant le tableau : un bloc `{ref} vs {prev}` par `engine_ref` sauf le premier. Par effort : % `100 × mean(d) / 10`, max, min sur l’intersection des globales. Couleurs = mêmes deltas. Vide → tiret.
+- Lancer = 2 lignes : Toutes les catégories × 3 efforts ; 3 dropdowns d’effort → catégories (`scope=category`). Plus de rangée par catégorie.
+- Tableau / export / 50 lignes inchangés.
+
+Version `0.38.0`.
+
+### 39. Banc trous + loader + export bank
+
+Suivre `bench.md` § Lancer + loader + export — les suivre, ne pas les modifier.
+
+- **Compléter les trous** → `POST scope=gaps`. Pile unique, quitter = OK.
+- Loader si batch actif (`GET /batches/active` au mount + `batch_id` après lot / gaps) : `pct` + `eta_max_seconds` (`~ 12 min`). Poll ~2 s jusqu’à 100 % puis refresh versions.
+- **Exporter tout le banc** → `scope=bank`, `bench-bank.json`.
+- Tableau / recap / lancer 2 lignes inchangés.
+
+Version `0.39.0`.
+
+### 40. Banc loader inline sous Lancer
+
+Suivre `bench.md` § Loader inline — le suivre, ne pas le modifier.
+
+- `%` + temps max restant **dans** Lancer, juste sous le `h2`.
+- Plus de `calc-overlay` / flou sur `/admin/bench`. Tableau, recap, export restent cliquables pendant le batch.
+- Overlay planning resto inchangé. Poll / `batches/active` / gaps inchangés.
+
+Version `0.40.0`.
+
+### 41. Banc computes empilés par modèle
+
+Suivre `bench.md` § UI tableau — le suivre, ne pas le modifier.
+
+- En-tête **une** ligne : une colonne par `engine_ref` (plus de `colSpan=3` / 2ᵉ rangée Mini|Opti|Max).
+- Cellule modèle = 3 deltas verticaux (Minimal, Optimisé, Maximal), petit libellé, même ordre que Lancer. Clic = compare de ce `run_id`.
+- Colonne Lancer (par jeu) : **retirée** par §48 (`bench-chrome.md` gagne) — menu `…` sous le nom.
+- Toolbar globale Lancer inchangée (rangées horizontales) **plus** les deux exports globaux. Manuel / recap / loader / gaps inchangés.
+
+Version `0.41.0`.
+
+### 42. Services types : ordre canonique, Départ, cadran, réordre
+
+Suivre `contracts/domain/wizard-ui.md` (gagne) — le suivre, ne pas le modifier.
+
+- Sous-onglets Services types **et** colonnes semaine type : `CONTEXT_SERVICES.filter(s => offered.includes(s.id))` = Petit-déjeuner → Déjeuner → Dîner parmi les offerts. **Jamais** `services.map` pour l’affichage. Persist `services[]` inchangé.
+- Table types : libellé **Départ** (plus « Sortie ») dans la cellule Type et le thead « après départ ». JSON `departures` / clés moteur intouchables. Bouton déjà « Ajouter un départ ».
+- **Cadran** (`overlay-backdrop` + `overlay`, pas de `prompt()`) : ajouter arrivée/départ ouvre le cadran **avant** d’insérer (prérempli 11h00 / 16h00). Annuler / Escape / backdrop = pas de ligne. Clic sur l’heure du stepper = même cadran (édition). Heure : boutons 0–23 **ou** saisie entière 0–23. Minutes : 00 / 15 / 30 / 45 **ou** saisie 0–59. Valider off si invalide. `time_minutes = hour * 60 + minutes` (0…1439) ; si la ligne éditée a déjà `time_minutes >= 1440`, garder `floor(old / 1440) * 1440` + cadran. ±15 inchangé, pas de plafond.
+- Réordre après changement d’heure (± ou cadran) si l’ordre chrono bouge : animation **≥ 500 ms**, visible. Fond focus sur la ligne éditée jusqu’à la prochaine édition d’heure. `prefers-reduced-motion` : snap + focus. Clés React `a-${index}` / `d-${index}` du draft. Pas d’anim sur ± niveaux. Pas de nouvelle dep npm.
+- Hors freeze : `SERVICE_ROWS` Matin/Soir du joujou `/exemple`, overlay sandbox.
+
+Version `0.52.0`.
+
+### 43. Delete employee, keep account
+
+Suivre `contracts/domain/delete-employee.md` UI (gagne sur `wizard-ui.md` ex-« annulé ») — le suivre, ne pas le modifier.
+
+- Équipe : poubelle par fiche (🗑 chrome rôles). Confirm FR : fiche + indispos / souhaits ; s’il a un compte : *« Son accès à ce restaurant sera retiré. Il pourra se reconnecter avec le code entreprise. »* ; *« Le planning publié de la {salle|cuisine} sera retiré. L’autre équipe est inchangée. »*
+- Ligne jamais PATCH : retrait local, pas d’HTTP. Persistée : `DELETE /v1/staff/{id}` Bearer puis `GET /v1/context`. Ne pas omettre une fiche liée via PATCH.
+- `parseMe` : `restaurant_id: string | null` (company = string ; employee affilié = les deux strings ; employee sans affiliation = les deux `null`).
+- Salarié non affilié : écran rattachement (code → invites → link). Barre : pas « Planning ». Succès link → `/planning`.
+- Bearer aussi sur `DELETE /v1/staff/{id}` et `POST /v1/auth/link`. `/exemple` + wizard hors poubelle inchangés.
+
+Version `0.53.0`.
+
+### 44. Min. créneau par service
+
+Suivre `contracts/domain/min-shift-per-service.md` UI + `wizard-ui.md` Équipe (gagnent) — les suivre, ne pas les modifier.
+
+- Équipe : plus l’`<input type="number">` unique. Un `Stepper` par service offert (`CONTEXT_SERVICES.filter`, Petit-déjeuner → Déjeuner → Dîner). Défaut 4, `step={0.5}`, `min={0.5}`. Réutiliser `web/src/Stepper.tsx` (déjà `step` / `min`). Ne pas changer le chrome des autres steppers (rôles, types, overlay). Service non offert : pas de stepper, pas de clé.
+- Types : `min_shift_hours` = `Record<string, number>` sparse. Parser GET : objet **ou** nombre (nombre `4` → map vide ; autre N → N sur chaque service offert). Map vide = 4 à l’affichage. PATCH envoie l’objet. Nouvelle fiche : services offerts à 4.
+- Décocher un service : retirer `min_shift_hours.<id>` sur toutes les fiches (déjà dans `purgeRemovedServices` pour max/indispos).
+- `/exemple` inchangé.
+
+Version `0.54.0`.
+
+### 45. Planning manuel (4ᵉ slot)
+
+Suivre `contracts/domain/manual-planning.md` UI (gagne) — le suivre, ne pas le modifier.
+
+- Rangée 2 : **Minimal | Optimisé | Maximal | Manuel**.
+- Cran Manuel : **pas** de bouton (Re)Calculer. `ctx.ready[team]` → **Entrer en mode édition** même si `versions.manuel` est null. Vide hors édition : « Pas encore publié ». Enter `{ search_effort: "manuel" }` + mêmes Overlay / FillOverlay / undo / discard / publish. Timestamp : `generated_at` Paris ; pas de ` · engine_ref` ; durée `—` si absente.
+- Computes inchangés (Recalculer + édition ssi cycle non null).
+- Parser cycles : 4ᵉ clé optionnelle. `postGenerate` **jamais** `"manuel"`. `SearchEffort` banc / generate reste 3. `BENCH_EFFORTS` reste `["minimal","optimized","maximal"]` ; parsers banc rejettent `manuel`.
+- `/exemple` et overlay chrome compute inchangés.
+- Enter 409 / cycles sans clé : ship chrome + parser. Persist live seulement si enter 200.
+
+Version `0.55.0`.
+
+### 46. Admin historique (note, voir, se connecter)
+
+Suivre `contracts/domain/admin-historique.md` UI (gagne) — le suivre, ne pas le modifier. File 70 inchangé. Import = §47. Chrome banc = §48.
+
+- `/admin` table existante **plus** colonnes **Note** (après Effort) et **Planning** (dernière). Ordre : Heure, Email, Restaurant, Équipe, Effort, Note, Durée, Moteur, Warnings, Planning. `formatCycleNote(score_global)`. **Voir** inactif si `restaurant_id` null. File 70 inchangé.
+- Parser `AdminGenerateEntry` : `restaurant_id: string | null`, `score_global: number | null`. Clés absentes (Infra pas encore mergé) → null, pas de crash.
+- Clic droit email : `preventDefault` ; POST mint impersonate ; copie `url` ; toast « Lien copié — ouvre-le en navigation privée. » Null resto → toast « Restaurant introuvable. » **Jamais** `window.open`.
+- Clic Voir : `go("/admin/planning/" + restaurant_id)`.
+- `/admin/planning/{id}` : `me.admin` ; menu Historique | Banc | Stats ; GET admin cycles + context ; **PublishedPlanning** `mode=readonly` (4 crans, recaps, export ; pas Recalculer, pas enter live, pas overlay). Titre = `context.name`. 404 → detail.
+- `/impersonate/{token}` : public, avant Login dans `Root`. POST consume sans Bearer ; `persistSession` ; `go("/planning")`. Échec → `detail`. Ne pas loadMe / 401→login sur cette route (évite d’écraser le consume).
+- Hover facts, en-têtes jour, sélecteur moteur : inchangés.
+
+Version `0.56.0`.
+
+### 47. Import resto vers le banc
+
+Suivre `contracts/domain/bench-import.md` UI (gagne) — le suivre, ne pas le modifier. File 70 (Note / Voir / clic droit email) inchangé. Chrome banc (`…` / filtre / DELETE) = §48.
+
+- Clic droit **nom restaurant** (`preventDefault`) **et** bouton **Au banc** dans Planning, à côté de Voir → modal (`overlay-backdrop` + `overlay`).
+- `restaurant_id` null → pas de popup, toast `Restaurant introuvable.`
+- Clic droit **email** reste mint impersonate + copie `url` (file 70). Ne pas voler ce geste.
+- Popup : en-tête nom + email ; GET preview (encadré **complet ?** par équipe : prêt / manuel publié / computes ; `generate_count`) ; si Infra pas là / HTTP erreur → `detail` dans le popup, pas de crash de `/admin` ; 4 cases défaut **cochées** (Salle, Cuisine, Dernier planning manuel publié, Computes déjà publiés) ; **Note manuel /10** optionnelle (input number 0–10, pas de 0,1 forcé, vide = pas d’override) + aide « Si le planning à la main n'est pas complet. » ; **Commentaire** textarea optionnel ; Annuler / **Importer**.
+- POST `{ restaurant_id, include_salle, include_cuisine, include_manuel, include_runs, manual_score, comment }` — les 4 bools **toujours** envoyés (défaut UI true). Vide note → `manual_score: null`. Vide commentaire (trim) → `comment: null`.
+- 200 → fermer, toast « Jeu importé. » + bouton `go("/admin/bench")`. Erreur → `detail`.
+- Parser `/versions` datasets : `origin` / `comment` si présents ; absents → `origin: "catalogue"`, `comment: null`.
+
+Version `0.57.0`.
+
+### 48. Banc chrome (menu jeu, filtre origine)
+
+Suivre `contracts/domain/bench-chrome.md` UI (gagne sur `bench.md` colonnes Lancer / Défi, exports, lancer par jeu) — le suivre, ne pas le modifier. File 70 (Note / Voir / clic droit email) et file 71 (popup Au banc) inchangés. Stats banc inchangée.
+
+- Bloc **Lancer** : sélecteur moteur, toutes catégories, dropdowns par compute, trous, loader **plus** **Exporter sous le Manuel** et **Exporter tout le banc** (déménagés depuis Derniers runs).
+- Sous **Derniers runs**, avant le tableau : **Tous | IA | Manuels**. Défaut **Tous**. Filtre **client** sur `dataset.origin` (`catalogue` = IA, `imported` = Manuels). Liste filtrée vide → « Aucun jeu. »
+- Tableau : Catégorie · Jeu · Manuel · `engine_ref`. **Plus** de `th` Défi / Lancer. **Plus** de pile LaunchButtons / Exporter dans la ligne.
+- Jeu : `id` + `name` ; hover du texte = `challenge_fr` ; si `comment` non null, le commentaire en plus (`title` natif). Sous le nom : bouton **`…`**.
+- Menu `…` (fermer clic extérieur / Escape) : Lancer Minimal · Lancer Optimisé · Lancer Maximal · Exporter ce jeu · Supprimer… Lancer / exporter = **mêmes** POST/GET. Erreur → `detail` (ex. cuisine-only 400).
+- **Supprimer** : `window.confirm('Supprimer ce jeu et tous ses résultats ?')` puis `DELETE /v1/admin/bench/datasets/{category}/{id}` Bearer. 204 → refresh `/versions`. Infra absente / HTTP erreur → `detail`.
+- Compare conserve **Exporter ce jeu**. Pas de menu `…` sur Stats.
+
+Version `0.58.0`.
+
+### 49. Repasse UI admin (note encart, actions, deux bancs)
+
+Suivre `contracts/domain/admin-ui-pass.md` UI (gagne sur le chrome table de `admin-historique.md` / `admin.md` et sur le filtre banc de `bench-chrome.md`) — le suivre, ne pas le modifier. Popup import file 71 inchangée. HTTP impersonate, GET planning admin, DELETE jeu, `origin` sur `/versions` : inchangés. Pas de Python.
+
+- `/admin` colonnes : Heure, Email, **Actions**, Restaurant, Équipe, Effort, **Note**, Durée, Moteur. **Plus** Warnings / Planning / Voir / Au banc. **Plus** de `onContextMenu` email / restaurant.
+- **Actions** (après Email) : `choice` **`impersonate`** | **`exporter vers le banc`**. `restaurant_id` null → les deux disabled, pas de POST. impersonate = mint + copie + toast privée (jamais `window.open`). exporter = popup file 71. Toast « Jeu importé. » + **Ouvrir le banc** → `/admin/bench/manuels`.
+- **Note** : bouton `.bench-cell` + span `.bench-delta-bubble`, texte `formatCycleNote`. Teinte `noteHue` / `noteTint` (`hue = 12 × note`), **pas** `deltaBackground`. Score null : encart sans teinte, `—`. Clic si resto → `/admin/planning/{id}`. Hover **de l’encart seulement** → `FactTip` (facts vides → `aucun warning`). Pas de `title` natif. Plus de `tr:hover .admin-tip`.
+- Nav : **Historique des computes | Banc IA | Banc Manuels | Stats banc**. `AdminNavCurrent` : `"history" | "bench" | "bench-manuels" | "bench-stats"`. Banc IA → `/admin/bench`. Banc Manuels → `/admin/bench/manuels`. Run/compare : aucun des deux Banc n’est disabled.
+- Une `BenchPage`, `origin` d’après le path (`catalogue` / `imported`). Matcher `/admin/bench/manuels` **avant** le fallback compare. `h1` = le nom de la page. Filtre client `dataset.origin`. **Plus** de Tous | IA | Manuels. Banc IA : catégories catalogue seulement. Banc Manuels : cacher le lanceur par catégorie ; « Toutes les catégories » lance les importés. `postBenchRun` all/category/gaps + exports `below_manuel`/`bank` : `origin` de la page. `scope=dataset` : pas d’`origin`.
+
+Version `0.59.0`.
 
 ## Risks / Trade-offs
 
@@ -129,4 +499,4 @@ Greenfield `web/`. Rollback = delete `web/` (and revert CORS if it was added). E
 
 ## Open Questions
 
-None that block this slice. `optimized` waits.
+None that block this slice.

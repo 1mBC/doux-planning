@@ -1,0 +1,173 @@
+{
+  "id": "madeleine",
+  "category": "crafted",
+  "name": "La Madeleine",
+  "team": "salle",
+  "challenge_fr": "Oracle échelle L1–L6 : midi L6+L1, soir L4+L2, niveaux pile.",
+  "hours": {
+    "mode": "services",
+    "services": [
+      "midday",
+      "evening"
+    ],
+    "closed_weekdays": [
+      "sunday"
+    ]
+  },
+  "roles": [
+    {
+      "name": "EQUIPIER",
+      "level": 1,
+      "team": "salle"
+    },
+    {
+      "name": "SERVEUR",
+      "level": 2,
+      "team": "salle"
+    },
+    {
+      "name": "MAITRE",
+      "level": 4,
+      "team": "salle"
+    },
+    {
+      "name": "DIRECTEUR",
+      "level": 6,
+      "team": "salle"
+    }
+  ],
+  "types": [
+    {
+      "id": "midi",
+      "name": "Midi",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 720,
+          "post_levels": [
+            6,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir",
+      "name": "Soir",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            4,
+            2
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1380,
+          "remaining_post_levels": []
+        }
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "lara",
+      "name": "Lara",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 4.0
+    },
+    {
+      "id": "leo",
+      "name": "Léo",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 20.0
+    },
+    {
+      "id": "liam",
+      "name": "Liam",
+      "role": {
+        "name": "DIRECTEUR",
+        "level": 6,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 4.0
+    },
+    {
+      "id": "lila",
+      "name": "Lila",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 20.0
+    },
+    {
+      "id": "lina",
+      "name": "Lina",
+      "role": {
+        "name": "MAITRE",
+        "level": 4,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 4.0
+    },
+    {
+      "id": "lise",
+      "name": "Lise",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 4.0
+    },
+    {
+      "id": "lou",
+      "name": "Lou",
+      "role": {
+        "name": "MAITRE",
+        "level": 4,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 20.0
+    },
+    {
+      "id": "luce",
+      "name": "Luce",
+      "role": {
+        "name": "DIRECTEUR",
+        "level": 6,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 20.0
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { dayThenClock, formatClock, formatContractPercents, hoursDeltaMinutes, SERVICE_ROWS } from "./format";
+import { formatFactLine, nameMap } from "./scoreFacts";
 import type { ContractImpact, Employee, FillSlot, Gesture, Impact, PreviewProposal, RoleFit, ShiftIdentity } from "./types";
 
 export function employeeName(employees: Employee[], id: string | null): string {
@@ -54,6 +55,7 @@ function RoleFitLines({ rows }: { rows: RoleFit[] }) {
 
 export function HoursImpact({ impact, employees }: { impact: Impact; employees: Employee[] }) {
   const contracts = changedContract(impact);
+  const names = nameMap(employees);
   if (
     impact.new_interdits.length === 0 &&
     impact.coverage_added.length === 0 &&
@@ -64,14 +66,14 @@ export function HoursImpact({ impact, employees }: { impact: Impact; employees: 
   }
   return (
     <ul className="impact-list">
-      {impact.new_interdits.map((warning, index) => (
-        <li key={`interdit-${warning.code}-${index}`} className="impact-orange">
-          {warning.message}
+      {impact.new_interdits.map((fact, index) => (
+        <li key={`interdit-${fact.kind}-${index}`} className="impact-orange">
+          {formatFactLine(fact, { names })}
         </li>
       ))}
-      {impact.coverage_added.map((warning, index) => (
-        <li key={`couverture-${warning.code}-${index}`} className="impact-orange">
-          {warning.message}
+      {impact.coverage_added.map((fact, index) => (
+        <li key={`couverture-${fact.kind}-${index}`} className="impact-orange">
+          {formatFactLine(fact, { names })}
         </li>
       ))}
       {contracts.map((row) => (
@@ -89,6 +91,7 @@ export function HoursImpact({ impact, employees }: { impact: Impact; employees: 
 
 export function SwapReplaceImpact({ impact, employees }: { impact: Impact; employees: Employee[] }) {
   const contracts = changedContract(impact);
+  const names = nameMap(employees);
   if (
     impact.new_interdits.length === 0 &&
     impact.broken_wishes.length === 0 &&
@@ -99,14 +102,14 @@ export function SwapReplaceImpact({ impact, employees }: { impact: Impact; emplo
   }
   return (
     <ul className="impact-list">
-      {impact.new_interdits.map((warning, index) => (
-        <li key={`interdit-${warning.code}-${index}`} className="impact-red">
-          {warning.message}
+      {impact.new_interdits.map((fact, index) => (
+        <li key={`interdit-${fact.kind}-${index}`} className="impact-red">
+          {formatFactLine(fact, { names })}
         </li>
       ))}
-      {impact.broken_wishes.map((warning, index) => (
-        <li key={`souhait-${warning.code}-${index}`} className="impact-orange">
-          {warning.message}
+      {impact.broken_wishes.map((fact, index) => (
+        <li key={`souhait-${fact.kind}-${index}`} className="impact-orange">
+          {formatFactLine(fact, { names })}
         </li>
       ))}
       {contracts.map((row) => (

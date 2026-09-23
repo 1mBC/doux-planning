@@ -1,0 +1,306 @@
+{
+  "id": "triple",
+  "category": "shapes",
+  "name": "Triple Forme",
+  "team": "salle",
+  "challenge_fr": "Trois types : lun–ven / samedi / dimanche, y compris le dimanche ouvert.",
+  "hours": {
+    "mode": "services",
+    "services": [
+      "midday",
+      "evening"
+    ],
+    "closed_weekdays": []
+  },
+  "roles": [
+    {
+      "name": "RESPONSABLE",
+      "level": 3,
+      "team": "salle"
+    },
+    {
+      "name": "SERVEUR",
+      "level": 2,
+      "team": "salle"
+    },
+    {
+      "name": "EQUIPIER",
+      "level": 1,
+      "team": "salle"
+    }
+  ],
+  "types": [
+    {
+      "id": "midi-sem",
+      "name": "Midi semaine",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 720,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "midi-sam",
+      "name": "Midi samedi",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 660,
+          "post_levels": [
+            2,
+            1,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "midi-dim",
+      "name": "Midi dimanche",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 750,
+          "post_levels": [
+            2
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir",
+      "name": "Soir",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1380,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir-dim",
+      "name": "Soir dimanche",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            2
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1320,
+          "remaining_post_levels": []
+        }
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "lea",
+      "name": "Léa",
+      "role": {
+        "name": "RESPONSABLE",
+        "level": 3,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "marc",
+      "name": "Marc",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "nina",
+      "name": "Nina",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "omar",
+      "name": "Omar",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "pia",
+      "name": "Pia",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "quin",
+      "name": "Quentin",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    }
+  ],
+  "typical_week": [
+    {
+      "weekday": "monday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "monday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "tuesday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "tuesday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "wednesday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "wednesday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "thursday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "thursday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "friday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "friday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "saturday",
+      "service_id": "midday",
+      "type_id": "midi-sam",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "saturday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "sunday",
+      "service_id": "midday",
+      "type_id": "midi-dim",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "sunday",
+      "service_id": "evening",
+      "type_id": "soir-dim",
+      "closed": false,
+      "team": "salle"
+    }
+  ]
+}

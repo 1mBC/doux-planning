@@ -1,0 +1,149 @@
+{
+  "id": "sentier",
+  "category": "crafted",
+  "name": "Le Sentier",
+  "team": "salle",
+  "challenge_fr": "Oracle 3 services : matin, midi, soir, couverture pleine.",
+  "hours": {
+    "mode": "services",
+    "services": [
+      "morning",
+      "midday",
+      "evening"
+    ],
+    "closed_weekdays": [
+      "sunday"
+    ]
+  },
+  "roles": [
+    {
+      "name": "EQUIPIER",
+      "level": 1,
+      "team": "salle"
+    },
+    {
+      "name": "SERVEUR",
+      "level": 2,
+      "team": "salle"
+    }
+  ],
+  "types": [
+    {
+      "id": "matin",
+      "name": "Matin",
+      "team": "salle",
+      "service_id": "morning",
+      "arrivals": [
+        {
+          "time_minutes": 420,
+          "post_levels": [
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 660,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "midi",
+      "name": "Midi",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 720,
+          "post_levels": [
+            2
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir",
+      "name": "Soir",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            2
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1380,
+          "remaining_post_levels": []
+        }
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "ada",
+      "name": "Ada",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 20.0
+    },
+    {
+      "id": "ben",
+      "name": "Benoît",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 20.0
+    },
+    {
+      "id": "cam",
+      "name": "Camille",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 20.0
+    },
+    {
+      "id": "die",
+      "name": "Diego",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 8.0
+    },
+    {
+      "id": "els",
+      "name": "Elsa",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 4.0
+    }
+  ]
+}

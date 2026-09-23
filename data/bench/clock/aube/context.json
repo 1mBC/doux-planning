@@ -1,0 +1,156 @@
+{
+  "id": "aube",
+  "category": "clock",
+  "name": "Café de l'Aube",
+  "team": "salle",
+  "challenge_fr": "Soir 19h–minuit puis petit-déj 7h–11h : moins de 11 h. Qui ferme ne peut pas ouvrir.",
+  "hours": {
+    "mode": "services",
+    "services": [
+      "morning",
+      "midday",
+      "evening"
+    ],
+    "closed_weekdays": [
+      "sunday"
+    ]
+  },
+  "roles": [
+    {
+      "name": "RESPONSABLE",
+      "level": 3,
+      "team": "salle"
+    },
+    {
+      "name": "SERVEUR",
+      "level": 2,
+      "team": "salle"
+    },
+    {
+      "name": "EQUIPIER",
+      "level": 1,
+      "team": "salle"
+    }
+  ],
+  "types": [
+    {
+      "id": "matin",
+      "name": "Petit-déj",
+      "team": "salle",
+      "service_id": "morning",
+      "arrivals": [
+        {
+          "time_minutes": 420,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 660,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "midi",
+      "name": "Midi",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 720,
+          "post_levels": [
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir",
+      "name": "Soir tard",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1440,
+          "remaining_post_levels": []
+        }
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "lea",
+      "name": "Léa",
+      "role": {
+        "name": "RESPONSABLE",
+        "level": 3,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "marc",
+      "name": "Marc",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "nina",
+      "name": "Nina",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "omar",
+      "name": "Omar",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "pia",
+      "name": "Pia",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    }
+  ]
+}

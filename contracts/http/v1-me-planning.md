@@ -1,8 +1,9 @@
 # Planning salarié
 
 Freeze HTTP. Wrappe `employee_board` (`contracts/domain/employee-board.md`).  
-Bearer **employee** (`me.employee_id`). Pas d’id resto / fiche dans le path.  
+Bearer **employee** affilié (`me.employee_id` string). Pas d’id resto / fiche dans le path.  
 `kind: company` → 403 `Action réservée au salarié.`  
+Sans affiliation (`employee_id` null) → 409 `Vous n'êtes rattaché à aucun restaurant.`  
 Sans Bearer → 401 `Session invalide.`  
 Sans `DATABASE_URL` → 503 `Base indisponible.`
 
@@ -18,17 +19,18 @@ GET /v1/me/planning   Bearer employee → 200 EmployeePlanning
 {
   "employee_id": "...",
   "team": "salle"|"cuisine",
+  "week_labels": "ab"|"parity",
   "employees": [{ "id", "name", "role": { "name", "level", "team" }, "team" }],
   "assignments": [ Shift ],
   "contract": { "weekly": number, "assigned": number, "ok": bool },
-  "wishes": [{ "key": "<WellbeingPreference>", "held": bool }],
-  "unavailabilities": [{ "weekday"?, "every_morning", "every_evening", "service_id"? }]
+  "wishes": [ /* forme wellbeing.md : kind consecutive_rest | weekend_rest_day | weekend | max_services | max_coupures */ ],
+  "unavailabilities": [{ "weekday", "service_id" }]
 }
 ```
 
 `Shift` = mêmes clés que `GET /v1/cycles`.  
 `employees` = fiches **de son équipe** (noms pour la grille).  
-`assignments` = **toute** l’équipe publiée (`employee_board`) ; vide si pas de cycle.  
+`assignments` = **toute** l’équipe du cycle `versions[latest]` (`employee_board`, `contracts/domain/generate-versions.md`) ; vide si `latest` null.  
 `wishes` / `contract` / `unavailabilities` = Core, lecture seule.
 
 ## UI (cette tranche)

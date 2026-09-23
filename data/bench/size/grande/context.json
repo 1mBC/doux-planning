@@ -1,0 +1,200 @@
+{
+  "id": "grande",
+  "category": "size",
+  "name": "Grande Salle",
+  "team": "salle",
+  "challenge_fr": "9 fiches, 3 services, 5 postes / jour ouvert.",
+  "hours": {
+    "mode": "services",
+    "services": [
+      "morning",
+      "midday",
+      "evening"
+    ],
+    "closed_weekdays": [
+      "sunday"
+    ]
+  },
+  "roles": [
+    {
+      "name": "RESPONSABLE",
+      "level": 3,
+      "team": "salle"
+    },
+    {
+      "name": "SERVEUR",
+      "level": 2,
+      "team": "salle"
+    },
+    {
+      "name": "EQUIPIER",
+      "level": 1,
+      "team": "salle"
+    }
+  ],
+  "types": [
+    {
+      "id": "matin",
+      "name": "Matin",
+      "team": "salle",
+      "service_id": "morning",
+      "arrivals": [
+        {
+          "time_minutes": 420,
+          "post_levels": [
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 660,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "midi",
+      "name": "Midi",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 720,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir",
+      "name": "Soir",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1380,
+          "remaining_post_levels": []
+        }
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "a",
+      "name": "Ada",
+      "role": {
+        "name": "RESPONSABLE",
+        "level": 3,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "b",
+      "name": "Benoît",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "c",
+      "name": "Camille",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "d",
+      "name": "Diego",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "e",
+      "name": "Elsa",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 28
+    },
+    {
+      "id": "f",
+      "name": "Farid",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 24
+    },
+    {
+      "id": "g",
+      "name": "Gina",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 24
+    },
+    {
+      "id": "h",
+      "name": "Hugo",
+      "role": {
+        "name": "RESPONSABLE",
+        "level": 3,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 35
+    },
+    {
+      "id": "i",
+      "name": "Iris",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 20
+    }
+  ]
+}

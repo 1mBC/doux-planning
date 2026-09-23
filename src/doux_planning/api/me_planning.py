@@ -4,19 +4,21 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from doux_planning.api.auth import require_database, require_employee_session
+from doux_planning.api.auth import DETAIL_UNAFFILIATED, require_database, require_employee_account
 from doux_planning.api.context import _load_company, _state_from_rows
-from doux_planning.api.generate import _shift_json
+from doux_planning.api.generate import _shift_json, latest_cycle_blob, normalize_team_published
 from doux_planning.api.live_sandbox import TEAMS, _published_from_json
-from doux_planning.context import employee_board
+from doux_planning.api.wellbeing_codec import unavailability_to_json, wish_to_json
+from doux_planning.context import employee_board, week_label_scheme
 from doux_planning.invites import UnknownEmployee
-from doux_planning.staff import Employee, Unavailability
+from doux_planning.staff import Employee
 
 
 def _hydrate_published(state, company) -> None:
     raw = company.published_cycles or {}
     for team in TEAMS:
-        state.published_cycles[team] = _published_from_json(state, team, raw.get(team.value))
+        pack, _ = normalize_team_published(raw.get(team.value), state, team)
+        state.published_cycles[team] = _published_from_json(state, team, latest_cycle_blob(pack))
 
 
 def _employee_json(person: Employee) -> dict[str, Any]:
@@ -28,18 +30,12 @@ def _employee_json(person: Employee) -> dict[str, Any]:
     }
 
 
-def _unavailability_json(item: Unavailability) -> dict[str, Any]:
-    return {
-        "weekday": item.weekday,
-        "every_morning": item.every_morning,
-        "every_evening": item.every_evening,
-        "service_id": item.service_id,
-    }
-
-
 def get_me_planning(authorization: str | None) -> dict[str, Any]:
     require_database()
-    restaurant_id, employee_id = require_employee_session(authorization)
+    account = require_employee_account(authorization)
+    if account.employee_id is None or account.restaurant_id is None:
+        raise HTTPException(status_code=409, detail=DETAIL_UNAFFILIATED)
+    restaurant_id, employee_id = account.restaurant_id, account.employee_id
     company, fiches = _load_company(restaurant_id)
     state = _state_from_rows(company, fiches)
     _hydrate_published(state, company)
@@ -51,6 +47,7 @@ def get_me_planning(authorization: str | None) -> dict[str, Any]:
     return {
         "employee_id": board.employee_id,
         "team": board.team.value,
+        "week_labels": week_label_scheme(state),
         "employees": [_employee_json(person) for person in teammates],
         "assignments": [_shift_json(shift) for shift in board.assignments],
         "contract": {
@@ -58,6 +55,6 @@ def get_me_planning(authorization: str | None) -> dict[str, Any]:
             "assigned": board.contract.assigned,
             "ok": board.contract.ok,
         },
-        "wishes": [{"key": wish.key.value, "held": wish.held} for wish in board.wishes],
-        "unavailabilities": [_unavailability_json(item) for item in board.unavailabilities],
+        "wishes": [wish_to_json(wish) for wish in board.wishes],
+        "unavailabilities": [unavailability_to_json(item) for item in board.unavailabilities],
     }

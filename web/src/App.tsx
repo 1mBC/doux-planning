@@ -15,8 +15,6 @@ import {
   indexAssignments,
   legalColumns,
   personInk,
-  SEVERITY_FR,
-  warningTitle,
   weekdayFromDayIndex,
   weekHours,
 } from "./format";
@@ -30,11 +28,11 @@ import type {
   PreviewProposal,
   SandboxState,
   ShiftIdentity,
-  WarningItem,
 } from "./types";
 import { toShiftIdentity } from "./types";
 import { cranHow, fillHow, fillSlotSummary, GestureImpact, slotSummary } from "./impact";
 import { UI_RELEASE } from "./release";
+import { AlertsList, CycleScoreNotes, LegalAndContractRecap, WellbeingRecap } from "./cycleRecaps";
 import "./App.css";
 
 function PlanningSheet({
@@ -164,64 +162,6 @@ function PlanningSheet({
   );
 }
 
-function Stats({ stats }: { stats: ExamplePayload["planning"]["stats"] }) {
-  const items: { value: string; label: string; tone?: "ok" | "warn" }[] = [
-    { value: String(stats.assignments), label: "Shifts posés" },
-    { value: String(stats.empty), label: "Postes vides", tone: stats.empty === 0 ? "ok" : "warn" },
-    {
-      value: String(stats.interdit),
-      label: "Alertes légales",
-      tone: stats.interdit === 0 ? "ok" : "warn",
-    },
-    {
-      value: `${stats.below_role} / ${stats.assignments}`,
-      label: "Shifts sous le rôle",
-      tone: stats.below_role === 0 ? "ok" : "warn",
-    },
-    {
-      value: `${stats.hours.percent} %`,
-      label: "Heures vs contrat",
-      tone: stats.hours.percent === 100 ? "ok" : "warn",
-    },
-    {
-      value: `${stats.wellbeing.held} / ${stats.wellbeing.total}`,
-      label: "Souhaits bien-être",
-      tone: stats.wellbeing.held === stats.wellbeing.total ? "ok" : "warn",
-    },
-  ];
-  return (
-    <div className="stats">
-      {items.map((item) => (
-        <div key={item.label} className={`stat ${item.tone ?? ""}`}>
-          <b>{item.value}</b>
-          <span>{item.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function WarningsList({ warnings }: { warnings: WarningItem[] }) {
-  return (
-    <section>
-      <h2>Alertes</h2>
-      <p className="sub">{warnings.length} warning{warnings.length > 1 ? "s" : ""} du moteur — affichés tels quels.</p>
-      <ol className="warnings">
-        {warnings.map((warning, index) => {
-          const title = warningTitle(warning.code);
-          return (
-            <li key={`${warning.severity}-${warning.code}-${warning.employee_id}-${warning.day_index}-${index}`} className={`warn-${warning.severity}`}>
-              <span className="sev">{SEVERITY_FR[warning.severity]}</span>
-              {title ? <span className="code">{title}</span> : null}
-              <span className="msg">{warning.message}</span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
 function HistoryList({
   entries,
   employees,
@@ -298,7 +238,6 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
 
   const employees = editing ? sandbox.restaurant.employees : payload?.restaurant.employees ?? [];
   const assignments = editing ? sandbox.planning.assignments : payload?.planning.assignments ?? [];
-  const warnings = editing ? sandbox.planning.warnings : payload?.planning.warnings ?? [];
   const byKey = useMemo(() => indexAssignments(assignments), [assignments]);
 
   async function startEdit() {
@@ -437,7 +376,16 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
         </p>
       ) : null}
 
-      {!editing ? <Stats stats={planning.stats} /> : null}
+      {!editing ? (
+        <CycleScoreNotes
+          score={planning.score}
+          facts={planning.facts}
+          stats={planning.stats}
+          legalRows={planning.legal_rows}
+          wishRows={planning.wish_rows}
+          employees={employees}
+        />
+      ) : null}
 
       <PlanningSheet
         title="Semaine A"
@@ -458,7 +406,7 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
         onEmptyClick={editing ? (slot) => setOverlay({ kind: "fill", slot }) : undefined}
       />
 
-      {!editing ? <WarningsList warnings={warnings} /> : null}
+      {!editing ? <AlertsList facts={planning.facts} employees={employees} /> : null}
 
       {editing ? (
         <section>
@@ -480,65 +428,13 @@ export default function App({ canEdit = true }: { canEdit?: boolean }) {
 
       {!editing ? (
         <>
-          <section>
-            <h2>Règles légales</h2>
-            <p className="sub">Plafonds interdits, mesurés sur le cycle. Colonnes présentes dans le snapshot uniquement.</p>
-            <table className="matrix">
-              <thead>
-                <tr>
-                  <th>Personne</th>
-                  {legalCols.map((col) => (
-                    <th key={col.id}>{col.label_fr}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {planning.legal_rows.map((row) => {
-                  const bad = legalCols.some((col) => row.cells[col.id] && !row.cells[col.id]!.ok);
-                  return (
-                    <tr key={row.employee_id} className={bad ? "warn" : "ok"}>
-                      <td>{row.name}</td>
-                      {legalCols.map((col) => (
-                        <td key={col.id}>{row.cells[col.id]?.text ?? ""}</td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
-
-          <section>
-            <h2>Souhaits</h2>
-            <p className="sub">Colonnes = types de souhait. Case vide = non émis.</p>
-            <table className="matrix">
-              <thead>
-                <tr>
-                  <th>Personne</th>
-                  {planning.wish_cols.map((col) => (
-                    <th key={col.key}>{col.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {planning.wish_rows.map((row) => {
-                  const bad = planning.wish_cols.some((col) => {
-                    const cell = row.cells[col.key];
-                    return cell && !cell.ok && col.key !== "contrat";
-                  });
-                  return (
-                    <tr key={row.employee_id} className={bad ? "warn" : "ok"}>
-                      <td>{row.name}</td>
-                      {planning.wish_cols.map((col) => {
-                        const cell = row.cells[col.key];
-                        return <td key={col.key}>{cell ? cell.text : ""}</td>;
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
+          <LegalAndContractRecap
+            legalCols={legalCols}
+            legalRows={planning.legal_rows}
+            wishCols={planning.wish_cols}
+            wishRows={planning.wish_rows}
+          />
+          <WellbeingRecap wishCols={planning.wish_cols} wishRows={planning.wish_rows} />
         </>
       ) : null}
 

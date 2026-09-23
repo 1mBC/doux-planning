@@ -115,3 +115,170 @@ An employee session SHALL receive only that employee’s shifts from the last pu
 #### Scenario: Sandbox is hidden
 - **WHEN** the restaurateur has unpublished sandbox edits
 - **THEN** the employee planning response still matches the last published assignments for that employee
+
+### Requirement: Admin promote and generate log read
+`me` SHALL include `admin` (bool). Company `admin` MUST be the restaurateur `is_admin` flag. Employee `admin` MUST be false. `kind` MUST stay `"company"` or `"employee"` (never `"admin"`). At boot, `ADMIN_EMAIL` MUST promote an existing restaurateur with that lowercase email and MUST NOT insert a row when the email is missing or the env is empty. `GET /v1/admin/generates` SHALL require `admin` true and return `{ entries }` newest-first. Each entry MUST include `id`, `created_at`, `email`, `restaurant_name`, `team`, `search_effort`, `duration_seconds`, and `facts` (evaluate misses plus `employee_name`). GET MUST NOT emit `warnings`. Old rows MUST emit `search_effort` and `duration_seconds` as `null`. A stored log item with `message` and no `payload` MUST hydrate to a fact (`kind` = `code`, `polarity` `miss`, `payload` `{}`) and MAY keep `message` on that item only. A company or employee session with `admin` false MUST receive HTTP 403 `Action réservée à l’admin.`
+
+#### Scenario: Promote is idempotent
+- **WHEN** `ADMIN_EMAIL` matches an existing restaurateur and promote runs twice
+- **THEN** that account is the only row for the email and `me.admin` is true
+
+#### Scenario: Unknown admin email creates nothing
+- **WHEN** `ADMIN_EMAIL` does not match a restaurateur
+- **THEN** no account is inserted
+
+#### Scenario: Non-admin cannot list generates
+- **WHEN** a company session with `admin` false gets `/v1/admin/generates`
+- **THEN** the response is HTTP 403 French
+
+### Requirement: Admin bench runs and jobs
+Admin bench routes SHALL require `admin` true (`contracts/domain/bench.md`). `POST /v1/admin/bench/run` with `scope` `dataset` and `search_effort` `minimal` or `optimized` MUST be HTTP 200 `{ runs }` and MUST insert one `bench_runs` row (`app_version` = `outcome.engine_ref`, JSONB `trace` persisted). `all`, `category`, dataset `maximal`, or `scope` `gaps` MUST be HTTP 202 `{ batch_id, job_ids, total, status: queued }` with one shared `batch_id` and MUST NOT call `run_bench` in the request. Habitual enqueue (`all` / `category` / `dataset`) MUST set `engine_ref` to the current VERSION. The worker SHALL claim `bench_jobs` independently of `generate_jobs` (no HTTP 409 cross-lock), call `run_bench(..., engine_ref=job.engine_ref)`, and persist `trace`. A `done` job MUST insert one `bench_runs` row. Bench MUST NOT write `published_cycles` or `generate_logs`. A company or employee session with `admin` false MUST receive HTTP 403 `Action réservée à l’admin.`
+
+#### Scenario: Dataset minimal persists a run
+- **WHEN** an admin posts bench run `scope` `dataset` `search_effort` `minimal` for a known jeu
+- **THEN** the response is HTTP 200 with one `RunSummary` and GET runs includes that row
+
+#### Scenario: All maximal enqueues one job per jeu
+- **WHEN** an admin posts bench run `scope` `all` `search_effort` `maximal`
+- **THEN** the response is HTTP 202 with fifty `job_ids` and worker ticks (stubbed `run_bench`) insert fifty `bench_runs`
+
+#### Scenario: Category crafted enqueues twenty-six jobs
+- **WHEN** an admin posts bench run `scope` `category` `category` `crafted`
+- **THEN** the response is HTTP 202 with twenty-six `job_ids`
+
+#### Scenario: GET datasets lists fifty jeux
+- **WHEN** an admin gets `/v1/admin/bench/datasets`
+- **THEN** the response is HTTP 200 with fifty datasets and `engine_ref` `"core-3"`
+
+#### Scenario: Duplicate Maximal enqueue is idempotent
+- **WHEN** an admin posts the same dataset Maximal twice while the first job is still `queued`
+- **THEN** both responses share one `job_id`
+
+#### Scenario: Non-admin cannot run bench
+- **WHEN** a company session with `admin` false posts `/v1/admin/bench/run`
+- **THEN** the response is HTTP 403 French
+
+### Requirement: Admin bench compare slices and export pack
+GET `/v1/admin/bench/compare/{category}/{dataset_id}/{search_effort}` MUST return the last-run summary plus `employees` and `model` / `manual` `CycleSlice` (`assignments`, `facts`, `score`, `stats`, `legal_cols`, `legal_rows`, `wish_cols`, `wish_rows`) recomputed via Core `cycle_recap_from_draft` from persisted assignments, `expected.json`, and catalogue context. GET MUST NOT emit top-level `facts`, `assignments`, `expected`, or `warnings`. GET `/v1/admin/bench/export` with `scope` `dataset` (plus `category` and `dataset_id`), `below_manuel`, or `bank` MUST return `{ export_version: 1, kind: "bench-pack", engine_ref, app_version, exported_at, scope, datasets }`. Each effort MUST include `trace` (`null` if the stored run has no complete JSON). Catalogue `context` MUST omit `invite_token`. A jeu enters `below_manuel` when at least one **current** last-run effort has `score.global < expected_score.global` (both non-null); the pack MUST include every **current** run effort of those jeux. `scope=bank` MUST include last-runs of **all** `list_engine_refs()` (a jeu enters if it has at least one run; `efforts` sorted by ref then effort). Unknown jeu or `scope=dataset` with no run MUST be HTTP 404 French. Empty `below_manuel` or `bank` MUST be HTTP 200 with `datasets: []`. A company or employee session with `admin` false MUST receive HTTP 403 `Action réservée à l’admin.`
+
+#### Scenario: Compare after halles minimal has recap hits
+- **WHEN** an admin gets compare `tight` / `halles` / `minimal` after a dataset run
+- **THEN** the response is HTTP 200 with `employees`, `model.facts` hits, and `manual.facts` hits, and MUST NOT include top-level `facts`
+
+#### Scenario: Export dataset pack
+- **WHEN** an admin gets `/v1/admin/bench/export` `scope` `dataset` for `tight` / `halles` after a run
+- **THEN** the response is HTTP 200 `kind` `bench-pack` with one dataset, `manual`, and that effort
+
+#### Scenario: Export below_manuel
+- **WHEN** an admin gets `/v1/admin/bench/export` `scope` `below_manuel`
+- **THEN** the response is HTTP 200 with `datasets` as a list (empty when no last-run is below Manuel)
+
+#### Scenario: Export bank pack
+- **WHEN** an admin gets `/v1/admin/bench/export` `scope` `bank`
+- **THEN** the response is HTTP 200 `kind` `bench-pack` with `datasets` as a list (empty when no run exists)
+
+#### Scenario: Non-admin cannot export bench pack
+- **WHEN** a company session with `admin` false gets `/v1/admin/bench/export`
+- **THEN** the response is HTTP 403 French
+
+### Requirement: Admin bench engine_ref versions and run compare
+HTTP bench summaries, GET datasets, GET runs, and export MUST emit `engine_ref` and `app_version` as the same string (`outcome.engine_ref` on persist; current `engine_ref()` on datasets / pack root). A stored `app_version` `"0.27.0"` MUST read as `"core-0"`. Last-run MUST be the newest row per `(category, dataset_id, search_effort, engine_ref)` so a `core-1` run MUST NOT replace a `core-0` last-run. GET compare by path MUST return the last-run of the current VERSION and HTTP 404 when that current last-run is missing. GET `/v1/admin/bench/runs/{run_id}` MUST return the same 200 shape as compare (`employees`, `model`, `manual`) plus `trace` (`SearchTrace` JSON or `null` if the stored row has none) and MUST NOT emit top-level `assignments` or `facts`. GET `/v1/admin/bench/versions` MUST return `{ engine_ref, engine_refs, datasets }` with `engine_refs` = `list_engine_refs()` then extras already in the database, three effort keys always present (`null` if no run), and `manual.global` from the first known run. Export dataset / `below_manuel` MUST use current last-runs only and include `engine_ref` plus `run_id` and `trace` on each effort. SPA `/admin/bench/versions` and `/admin/bench/run/{run_id}` MUST serve `index.html`. A company or employee session with `admin` false MUST receive HTTP 403 `Action réservée à l’admin.`
+
+#### Scenario: Halles minimal summaries use current engine_ref
+- **WHEN** an admin runs halles `minimal` on the current engine
+- **THEN** summaries, datasets, and export have `engine_ref` equal to `app_version` equal to `"core-3"`
+
+#### Scenario: GET run is compare shape
+- **WHEN** an admin gets `/v1/admin/bench/runs/{id}` after that halles run
+- **THEN** the response is HTTP 200 with `model` and `manual` facts hits and no top-level `assignments` / `facts`
+
+#### Scenario: Other engine_ref does not steal current compare
+- **WHEN** a second row is inserted for the same jeu/effort with `app_version` `"core-1"`
+- **THEN** GET versions lists the four registre refs including both `core-3` and `core-1`, and GET compare path still returns the current `core-3` run
+
+#### Scenario: Legacy 0.27.0 reads as core-0
+- **WHEN** a stored run has `app_version` `"0.27.0"`
+- **THEN** GET that run emits `engine_ref` and `app_version` `"core-0"`
+
+#### Scenario: Non-admin cannot read versions
+- **WHEN** a company session with `admin` false gets `/v1/admin/bench/versions`
+- **THEN** the response is HTTP 403 French
+
+### Requirement: Safe parallel workers
+Workers SHALL claim one job per process via `SKIP LOCKED`, beat `heartbeat_at` every 10 s on generate and bench, and reclaim only `running` rows whose heartbeat is NULL or older than 180 s. Claim on a bench job MUST set `started_at = now()`; reclaim MUST clear `started_at`. Start MUST NOT requeue every `running` job. `bench_jobs` MUST have a partial unique key on `(category, dataset_id, search_effort, engine_ref)` for `queued`/`running`. Generate 409 when a Maximal is already queued/running for the same company+team MUST stay unchanged.
+
+#### Scenario: Concurrent ticks claim distinct jobs
+- **WHEN** two worker ticks run at once against two `queued` bench jobs
+- **THEN** they claim two distinct job ids
+
+#### Scenario: Fresh heartbeat is not reclaimed
+- **WHEN** a `running` job has a fresh `heartbeat_at`
+- **THEN** reclaim returns 0
+
+#### Scenario: Stale heartbeat is requeued
+- **WHEN** a `running` job has `heartbeat_at` older than 180 s
+- **THEN** reclaim returns 1 and status is `queued`
+
+### Requirement: Admin bench gaps, batches, and four-key dedup
+`POST /v1/admin/bench/run` `{ "scope": "gaps" }` MUST enqueue one job per hole `(category, dataset_id, search_effort, engine_ref)` across `list_bench_datasets()` × `{minimal,optimized,maximal}` × `list_engine_refs()`, excluding last-runs whose JSONB `trace` includes `seeder`, `seed_index`, `n_locks`, `calendars_by_seeder`, `calendars_total`, `seeds_infeasible`, and `attempt_key`. Zero holes MUST be HTTP 200 `{ batch_id, job_ids: [], total: 0, status: "done" }` with no worker. Non-empty MUST be HTTP 202 with `total` equal to created-or-reused job ids. A second enqueue of the same four-key while `queued`/`running` MUST return the same `job_id`. Two different `engine_ref` values MUST be two jobs. GET `/v1/admin/bench/batches/active` MUST return the newest incomplete batch or HTTP 404. GET `/v1/admin/bench/batches/{batch_id}` MUST return `{ batch_id, total, queued, running, done, failed, pct, eta_max_seconds }` where `pct` is `100 * (done+failed) / total` (100 if total=0) and `eta_max_seconds` follows the freeze formula (`SEARCH_SECONDS` caps, `n = max(1, running)`, remaining running time, queued FIFO round-robin). Unknown batch MUST be HTTP 404. Non-admin MUST be HTTP 403.
+
+#### Scenario: Gaps enqueue one job per hole
+- **WHEN** an admin posts bench run `scope` `gaps` with stubbed `run_bench`
+- **THEN** the response has a `batch_id` and `job_ids` length equal to the number of holes
+
+#### Scenario: Four-key dedup reuses the same job
+- **WHEN** an admin posts the same `(category, dataset_id, search_effort, engine_ref)` twice while the first job is still `queued`
+- **THEN** both responses share one `job_id`
+
+#### Scenario: Two engine refs are two jobs
+- **WHEN** holes exist for two `engine_ref` values of the same jeu and effort
+- **THEN** the batch contains two distinct jobs for those refs
+
+#### Scenario: GET batch reports pct and eta
+- **WHEN** an admin gets `/v1/admin/bench/batches/{batch_id}` for a queued batch
+- **THEN** the response is HTTP 200 with `pct` and integer `eta_max_seconds` ≥ 0
+
+#### Scenario: GET versions lists registre refs
+- **WHEN** an admin gets `/v1/admin/bench/versions`
+- **THEN** `engine_refs` starts with `"core-0"`, `"core-1"`, `"core-2"`, `"core-3"`
+
+#### Scenario: Non-admin cannot read batches
+- **WHEN** a company session with `admin` false gets `/v1/admin/bench/batches/active`
+- **THEN** the response is HTTP 403 French
+
+### Requirement: Admin historique note, view, and impersonate
+`GET /v1/admin/generates` SHALL always include `restaurant_id` (`string | null`) and `score_global` (`float | null`). A generate 200 / Maximal `done` MUST persist those fields (`score_global` = the generated slot’s `score.global`, else null). `GET /v1/admin/restaurants/{restaurant_id}/cycles` and `/context` SHALL return the same JSON as the company GET routes for that restaurant. Unknown company MUST be HTTP 404 `Restaurant introuvable.` `POST /v1/admin/impersonate` `{ restaurant_id }` SHALL return HTTP 200 `{ url, expires_at }` with an absolute `/impersonate/{opaque}` URL (TTL 15 minutes). `POST /v1/auth/impersonate` SHALL be public, exchange the opaque once for a company session like login (`me.admin` = target `is_admin`), and MUST NOT invalidate other sessions. A second consume or expired token MUST be HTTP 401 `Lien expiré ou déjà utilisé.` Non-admin on admin routes MUST be HTTP 403 `Action réservée à l’admin.` Missing session MUST be 401. Without `DATABASE_URL` MUST be 503. SPA SHALL serve `/impersonate/{token}` and `/admin/planning/{restaurant_id}` as `index.html`.
+
+#### Scenario: Generate log exposes restaurant_id and score_global
+- **WHEN** an admin generates a salle `minimal` cycle then lists generates
+- **THEN** the newest entry has that restaurant id and the slot’s `score.global`
+
+#### Scenario: Admin cycles equal company cycles
+- **WHEN** an admin gets `/v1/admin/restaurants/{id}/cycles` for a restaurant that has published cycles
+- **THEN** the 200 body equals that restaurant’s company `GET /v1/cycles`
+
+#### Scenario: Impersonate is one-shot
+- **WHEN** an admin mints a link and a client consumes the opaque twice
+- **THEN** the first consume is 200 company session and the second is HTTP 401 `Lien expiré ou déjà utilisé.` while the admin session remains valid
+
+### Requirement: Admin can delete a bench dataset and tombstone catalogue games
+`DELETE /v1/admin/bench/datasets/{category}/{dataset_id}` SHALL require a Bearer admin session and MUST return HTTP 204. An imported game (`category` `imported` with a stored row) MUST drop that row and every `bench_runs` / `bench_jobs` row for the couple. A catalogue game MUST insert `bench_tombstones` and drop runs/jobs without deleting disk files; a second DELETE MUST be HTTP 204. Unknown pair MUST be HTTP 404 `Jeu introuvable.` `GET /versions`, `GET /datasets`, export, `scope=all`, `scope=category`, and `scope=gaps` MUST omit tombstones. Non-admin MUST be HTTP 403 `Action réservée à l’admin.` Missing session MUST be 401. Without `DATABASE_URL` MUST be 503.
+
+#### Scenario: Delete imported game removes it from versions
+- **WHEN** an admin imports a restaurant then DELETEs that dataset
+- **THEN** the dataset is absent from `GET /v1/admin/bench/versions` and no runs or jobs remain for that id
+
+#### Scenario: Catalogue tombstone hides halles
+- **WHEN** an admin DELETEs `tight` / `halles`
+- **THEN** halles is absent from `/versions`, `data/bench/tight/halles` still exists, a second DELETE is 204, and `scope=gaps` does not enqueue halles
+
+### Requirement: Bench run and export accept an origin filter
+`origin` SHALL be optional and MUST be `"catalogue"` or `"imported"` when present. Absent, JSON `null`, or `""` MUST mean no origin filter. Any other value MUST be HTTP 400 `Champs invalides.` `POST /v1/admin/bench/run` MAY include `origin` and MUST filter `scope=all`, `scope=category`, and `scope=gaps` (`catalogue` = not imported, `imported` = imported listings only). `scope=dataset` MUST ignore `origin`. `GET /v1/admin/bench/export` MAY take query `origin` for `below_manuel` and `bank`; `scope=dataset` MUST ignore origin. SPA MUST serve `/admin/bench/manuels` as `index.html`. `GET /versions` MUST stay unfiltered. Non-admin MUST stay HTTP 403 `Action réservée à l’admin.`
+
+#### Scenario: Catalogue all skips imported jobs
+- **WHEN** an admin has imported a restaurant and posts `scope=all` with `origin=catalogue`
+- **THEN** none of the queued jobs have `category=imported`
+
+#### Scenario: Unknown origin is 400
+- **WHEN** an admin posts or exports with `origin=nope`
+- **THEN** the response is HTTP 400 `Champs invalides.`

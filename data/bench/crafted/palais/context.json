@@ -1,0 +1,112 @@
+{
+  "id": "palais",
+  "category": "crafted",
+  "name": "Palais-Royal",
+  "team": "salle",
+  "challenge_fr": "Oracle : lundi fermé, week-end ouvert.",
+  "hours": {
+    "mode": "services",
+    "services": [
+      "midday",
+      "evening"
+    ],
+    "closed_weekdays": [
+      "monday"
+    ]
+  },
+  "roles": [
+    {
+      "name": "SERVEUR",
+      "level": 2,
+      "team": "salle"
+    }
+  ],
+  "types": [
+    {
+      "id": "midi",
+      "name": "Midi",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 720,
+          "post_levels": [
+            2
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir",
+      "name": "Soir",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            2
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1380,
+          "remaining_post_levels": []
+        }
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "ada",
+      "name": "Ada",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "ben",
+      "name": "Benoît",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "cam",
+      "name": "Camille",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "die",
+      "name": "Diego",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    }
+  ]
+}

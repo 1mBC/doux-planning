@@ -18,9 +18,17 @@ Register `kind: company` crée déjà une `companies` vide. `GET /v1/context` do
 ```
 GET   /v1/context   Bearer company → 200 Context
 PATCH /v1/context   Bearer company → 200 Context
+POST  /v1/context/seed-example   Bearer company → 200 Context
+GET   /v1/context/export         Bearer company → 200 ConfigExport
+POST  /v1/context/import         Bearer company → 200 Context
 ```
 
-`PATCH` : clés **optionnelles**. Chaque clé fournie **remplace** cette section. Clés absentes inchangées. Corps vide = no-op 200.
+Export / import config : **`contracts/domain/export-config.md`** (gagne). Pas de generate. Smash import = même violence que seed.
+
+`POST /v1/context/seed-example` : pas de body. Wrappe Core `seed_example_context`. Écrase le contexte persisté (fiches liées **incluses**). Vide `published_cycles` / `live_sandboxes` / `linked_employee_ids`. 200 = même `Context` que GET. **Hors slice Core** (Infra).
+
+`PATCH` : clés **optionnelles**. Chaque clé fournie **remplace** cette section. Clés absentes inchangées. Corps vide = no-op 200.  
+`week_labels` n’est pas une clé PATCH (dérivé).
 
 ## Body 200 — `Context`
 
@@ -34,11 +42,13 @@ PATCH /v1/context   Bearer company → 200 Context
   "employees": [],
   "types": [],
   "typical_week": { "salle": null, "cuisine": null },
-  "ready": { "salle": false, "cuisine": false }
+  "ready": { "salle": false, "cuisine": false },
+  "week_labels": "ab"
 }
 ```
 
-`ready.*` = `team_ready` Core, jamais un bool inventé côté HTTP.
+`ready.*` = `team_ready` Core, jamais un bool inventé côté HTTP.  
+`week_labels` = `week_label_scheme` Core (`"ab"` | `"parity"`) — lecture seule, tout le resto. Ignoré en PATCH.
 
 ### `ladders.<team>`
 
@@ -52,16 +62,25 @@ PATCH /v1/context   Bearer company → 200 Context
   "id", "name", "team": "salle"|"cuisine",
   "role": { "name", "level", "team" },
   "contractual_hours_per_week",
-  "min_shift_hours",          // défaut 4 si omis à la création
-  "unavailabilities": [{ "weekday"?, "every_morning", "every_evening", "service_id"? }],
-  "wellbeing": ["two_consecutive_rest_days", ...],
+  "min_shift_hours": { "morning"?: number, "midday"?: number, "evening"?: number },
+                              // GET : une clé par service offert, défaut 4
+                              // `contracts/domain/min-shift-per-service.md` (gagne)
+  "unavailabilities": [{ "weekday", "service_id" }],
+  "wellbeing": {
+    "consecutive_rest": false,
+    "weekend_rest_day": false,
+    "weekend": null,
+    "max_services": {},
+    "max_coupures_per_week": null
+  },
   "invite_token"
 }
 ```
 
 `invite_token` : généré par Core à la création de fiche, renvoyé au patron (QR). Ne pas l’accepter en PATCH pour **changer** un token (rotate = `POST /v1/staff/{id}/invite-token`).  
 PATCH `employees` = liste **complète** (remplace). Les ids nouveaux : Core crée le token. Ids existants : garder le token déjà persisté.  
-Une fiche déjà liée (`linked_employee_ids`) ne peut pas changer d’`id` ; la retirer de la liste alors qu’elle est liée → 409 `Cette fiche a déjà un compte.`
+Une fiche déjà liée (`linked_employee_ids`) ne peut pas changer d’`id` ; la retirer de la liste alors qu’elle est liée → 409 `Cette fiche a déjà un compte.`  
+**Supprimer volontairement** (liée ou non) : `DELETE /v1/staff/{id}` — `contracts/domain/delete-employee.md` (gagne). Compte plateforme conservé.
 
 Après PATCH fiches : `GET /v1/invites/{company_code}` liste les **non liées** (name, role string, team) comme le freeze auth.
 
@@ -85,7 +104,7 @@ PATCH `typical_week` remplace l’objet `{ salle, cuisine }` si la clé est envo
 
 ## PATCH body
 
-Même clés que `Context`, toutes optionnelles, **sauf** `legal_context_id`, `company_code`, `ready`, `invite_token` (sur une fiche) : ignorées ou 400 si on tente de les forcer.
+Même clés que `Context`, toutes optionnelles, **sauf** `legal_context_id`, `company_code`, `ready`, `week_labels`, `invite_token` (sur une fiche) : ignorées ou 400 si on tente de les forcer.
 
 `name` : string (peut rester `""`).
 
@@ -107,10 +126,15 @@ Même clés que `Context`, toutes optionnelles, **sauf** `legal_context_id`, `co
 Ne pas écrire `example_snapshots` ni `data/examples/saint-cloud.json`. Ne pas réutiliser la ligne `restaurants` Saint-Cloud.  
 Restart process → même `GET /v1/context`. Auth + invites restent justes.
 
+`staff_fiches.wellbeing` JSONB **objet** : inclut `weekend_rest_day` (bool). Clé absente au parse → `false`. Pas de nouvelle colonne / Alembic.  
+**Lecture** (GET / generate / me/planning) : vieux JSON Railway **coercé** puis réécrit — `contracts/domain/coerce-railway.md`.  
+**Écriture** (PATCH / import) : liste de clés / `at_least_one_weekend_rest_day` / `every_*` → 400 `Champs invalides.`
+
 ## UI (wizard)
 
-Route `/context` (session company). Ordre : rôles → fiches → services entreprise → types → semaine type. Salle / cuisine indépendantes. `ready` affiché, pas de generate. PATCH listes = remplacement complet (renvoyer l’autre équipe). Exemple sans session inchangé.
+Route `/context` (session company). Ordre, purge service, vagues : **`contracts/domain/wizard-ui.md`** (gagne).  
+Salle / cuisine indépendantes. `ready` affiché, pas de generate. PATCH listes = remplacement complet (renvoyer l’autre équipe). Exemple sans session inchangé.
 
 ## Hors tranche
 
-Generate, jobs, publish, lock sandbox, `GET /v1/me/shifts`, seed Saint-Cloud live, CORS sauf proxy cassé.
+Generate, jobs, publish, lock sandbox, boutons UI export/import, CORS sauf proxy cassé.

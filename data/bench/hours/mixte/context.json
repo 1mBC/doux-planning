@@ -1,0 +1,135 @@
+{
+  "id": "mixte",
+  "category": "hours",
+  "name": "Contrats Mixtes",
+  "team": "salle",
+  "challenge_fr": "Trois régimes : 8 h, 24 h et 39 h sur la même salle.",
+  "hours": {
+    "mode": "services",
+    "services": [
+      "midday",
+      "evening"
+    ],
+    "closed_weekdays": [
+      "sunday"
+    ]
+  },
+  "roles": [
+    {
+      "name": "RESPONSABLE",
+      "level": 3,
+      "team": "salle"
+    },
+    {
+      "name": "SERVEUR",
+      "level": 2,
+      "team": "salle"
+    },
+    {
+      "name": "EQUIPIER",
+      "level": 1,
+      "team": "salle"
+    }
+  ],
+  "types": [
+    {
+      "id": "midi",
+      "name": "Midi",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 720,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir",
+      "name": "Soir",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            2,
+            1
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1380,
+          "remaining_post_levels": []
+        }
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "huit",
+      "name": "Hugo",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 8
+    },
+    {
+      "id": "vingt",
+      "name": "Violette",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 24
+    },
+    {
+      "id": "plein",
+      "name": "Paul",
+      "role": {
+        "name": "RESPONSABLE",
+        "level": 3,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 39
+    },
+    {
+      "id": "mi",
+      "name": "Mia",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 24
+    },
+    {
+      "id": "petit",
+      "name": "Pia",
+      "role": {
+        "name": "EQUIPIER",
+        "level": 1,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 8
+    }
+  ]
+}

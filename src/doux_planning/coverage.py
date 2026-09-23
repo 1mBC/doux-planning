@@ -95,8 +95,17 @@ def derive_post_windows(structure: ServiceStructure) -> tuple[PostWindow, ...]:
                 else:
                     finished.append(PostWindow(level=level, start_minutes=start, end_minutes=time_minutes))
             live = new_live
+    last_event = events[-1][0] if events else 0
+    first_departure = min((wave.time_minutes for wave in structure.departures), default=last_event)
+    leftover_end = max(last_event, first_departure)
     for level, start in live:
-        finished.append(PostWindow(level=level, start_minutes=start, end_minutes=start))
+        finished.append(
+            PostWindow(
+                level=level,
+                start_minutes=start,
+                end_minutes=max(start, leftover_end),
+            )
+        )
     return tuple(finished)
 
 

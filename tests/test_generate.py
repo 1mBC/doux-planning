@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import os
 import secrets
+import threading
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm.attributes import flag_modified
 
 from doux_planning.api.app import app
-from doux_planning.api.db import reset_engine
+from doux_planning.api.db import BenchJob, Company, GenerateJob, reset_engine, session_scope
 from doux_planning.types import WEEKDAYS
 
 
@@ -45,6 +49,48 @@ def _open_week(type_id: str | None) -> list[dict]:
         }
         for day in WEEKDAYS
     ]
+
+
+def _slot(team_blob: dict | None, effort: str | None = None) -> dict:
+    assert team_blob is not None
+    if "versions" in team_blob:
+        key = effort or team_blob["latest"]
+        cycle = team_blob["versions"][key]
+        assert cycle is not None
+        return cycle
+    return team_blob
+
+
+def _assert_live_recap(cycle: dict) -> None:
+    assert cycle["stats"]["assignments"] == len(cycle["assignments"])
+    assert cycle["legal_rows"]
+    assert cycle["legal_cols"]
+    assert cycle["wish_cols"]
+    assert cycle["wish_rows"]
+    wish_keys = {col["key"] for col in cycle["wish_cols"]}
+    assert "we1j" not in wish_keys
+    assert "weA" not in wish_keys
+    assert "weB" not in wish_keys
+    score = cycle["score"]
+    axes = {"couverture", "legal", "contrat", "wellbeing", "roles"}
+    assert set(score["notes"]) == axes
+    assert "resumes" not in score
+    assert "warnings" not in cycle
+    assert isinstance(cycle["facts"], list)
+    assert "global" in score
+    assert score["weights"] == {
+        "couverture": 3.0,
+        "legal": 3.0,
+        "contrat": 2.0,
+        "wellbeing": 1.5,
+        "roles": 0.5,
+    }
+    for row in list(cycle["legal_rows"]) + list(cycle["wish_rows"]):
+        for cell in row["cells"].values():
+            if cell is None:
+                continue
+            assert "kind" in cell and "payload" in cell
+            assert "text" not in cell
 
 
 def _salle_patch(fiche_id: str, name: str = "Chez Test") -> dict:
@@ -96,6 +142,15 @@ def test_generate_without_database_is_503(monkeypatch):
     )
     assert generate.status_code == 503
     assert generate.json()["detail"] == "Base indisponible."
+    job = client.get("/v1/generate/jobs/x", headers=headers)
+    assert job.status_code == 503
+    assert job.json()["detail"] == "Base indisponible."
+    maximal = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "maximal"},
+    )
+    assert maximal.status_code == 503
     example = client.get("/v1/examples/saint-cloud")
     assert example.status_code == 200
     assert example.json()["planning"]["stats"]["assignments"] == 92
@@ -113,6 +168,7 @@ def test_generate_persist_cycles_auth_and_example():
     )
     assert registered.status_code == 201
     token = registered.json()["token"]
+    restaurant_id = registered.json()["me"]["restaurant_id"]
     headers = _bearer(token)
 
     empty = client.get("/v1/cycles", headers=headers)
@@ -137,8 +193,16 @@ def test_generate_persist_cycles_auth_and_example():
     assert body["search_effort"] == "minimal"
     salle = body["published"]["salle"]
     assert salle is not None
-    assert salle["assignments"]
-    assert all(shift["team"] == "salle" for shift in salle["assignments"])
+    assert salle["latest"] == "minimal"
+    assert salle["versions"]["optimized"] is None
+    assert salle["versions"]["maximal"] is None
+    cycle = _slot(salle, "minimal")
+    assert cycle["assignments"]
+    assert cycle["search_effort"] == "minimal"
+    assert cycle["generated_at"]
+    assert isinstance(cycle["duration_seconds"], (int, float))
+    assert cycle["duration_seconds"] >= 0
+    assert all(shift["team"] == "salle" for shift in cycle["assignments"])
     assert all(
         set(shift)
         >= {
@@ -152,11 +216,15 @@ def test_generate_persist_cycles_auth_and_example():
             "post_level",
             "duration_hours",
         }
-        for shift in salle["assignments"]
+        for shift in cycle["assignments"]
     )
     assert "legal_rows" not in body
     assert "stats" not in body
+    _assert_live_recap(cycle)
     assert body["published"]["cuisine"] is None
+    listed = client.get("/v1/cycles", headers=headers)
+    assert listed.status_code == 200
+    _assert_live_recap(_slot(listed.json()["published"]["salle"], "minimal"))
 
     with patch("doux_planning.context.generate_cycle") as solve:
         cuisine = client.post(
@@ -169,7 +237,7 @@ def test_generate_persist_cycles_auth_and_example():
     solve.assert_not_called()
     after_conflict = client.get("/v1/cycles", headers=headers)
     assert after_conflict.status_code == 200
-    assert after_conflict.json()["published"]["salle"]["assignments"]
+    assert _slot(after_conflict.json()["published"]["salle"], "minimal")["assignments"]
     assert after_conflict.json()["published"]["cuisine"] is None
 
     second = client.post(
@@ -178,8 +246,10 @@ def test_generate_persist_cycles_auth_and_example():
         json={"team": "salle", "search_effort": "minimal"},
     )
     assert second.status_code == 200
-    assert second.json()["published"]["salle"]["assignments"]
-    assert all(shift["team"] == "salle" for shift in second.json()["published"]["salle"]["assignments"])
+    second_cycle = _slot(second.json()["published"]["salle"], "minimal")
+    assert second_cycle["assignments"]
+    assert all(shift["team"] == "salle" for shift in second_cycle["assignments"])
+    _assert_live_recap(second_cycle)
     assert second.json()["published"]["cuisine"] is None
 
     published = second.json()["published"]
@@ -187,6 +257,115 @@ def test_generate_persist_cycles_auth_and_example():
     again = client.get("/v1/cycles", headers=headers)
     assert again.status_code == 200
     assert again.json() == {"published": published}
+
+    with session_scope() as session:
+        company = session.get(Company, restaurant_id)
+        assert company is not None
+        salle_blob = company.published_cycles["salle"]
+        minimal = salle_blob["versions"]["minimal"]
+        company.published_cycles = {
+            "salle": {
+                "assignments": minimal["assignments"],
+                "warnings": [
+                    {
+                        "severity": "souhait",
+                        "code": "contract_hours",
+                        "message": "Emma : contrat",
+                        "employee_id": fiche_id,
+                        "day_index": None,
+                    }
+                ],
+            },
+            "cuisine": None,
+        }
+        flag_modified(company, "published_cycles")
+    reset_engine()
+    hydrated = client.get("/v1/cycles", headers=headers)
+    assert hydrated.status_code == 200
+    assert hydrated.json()["published"]["cuisine"] is None
+    coerced = hydrated.json()["published"]["salle"]
+    assert coerced["latest"] == "optimized"
+    assert coerced["versions"]["minimal"] is None
+    _assert_live_recap(_slot(coerced, "optimized"))
+    assert _slot(coerced, "optimized")["assignments"] == _slot(published["salle"], "minimal")["assignments"]
+
+    with session_scope() as session:
+        company = session.get(Company, restaurant_id)
+        assert company is not None
+        pack = company.published_cycles["salle"]
+        slot = dict(pack["versions"]["optimized"])
+        slot.pop("score", None)
+        company.published_cycles = {
+            "salle": {
+                "versions": {"minimal": None, "optimized": slot, "maximal": None},
+                "latest": "optimized",
+            },
+            "cuisine": None,
+        }
+        flag_modified(company, "published_cycles")
+    reset_engine()
+    without_score = client.get("/v1/cycles", headers=headers)
+    assert without_score.status_code == 200
+    _assert_live_recap(_slot(without_score.json()["published"]["salle"], "optimized"))
+
+    with session_scope() as session:
+        company = session.get(Company, restaurant_id)
+        assert company is not None
+        pack = company.published_cycles["salle"]
+        slot = dict(pack["versions"]["optimized"])
+        slot.pop("facts", None)
+        slot["warnings"] = [
+            {
+                "severity": "souhait",
+                "code": "contract_hours",
+                "message": "Emma : contrat",
+                "employee_id": fiche_id,
+                "day_index": None,
+            }
+        ]
+        score = dict(slot["score"])
+        score["resumes"] = {
+            "couverture": "ancien",
+            "legal": "ancien",
+            "contrat": "ancien",
+            "wellbeing": "ancien",
+            "roles": "ancien",
+        }
+        slot["score"] = score
+        slot["legal_rows"] = [
+            {
+                "name": row["name"],
+                "employee_id": row["employee_id"],
+                "cells": {
+                    key: None if cell is None else {"ok": cell["ok"], "text": "ancien"}
+                    for key, cell in row["cells"].items()
+                },
+            }
+            for row in slot["legal_rows"]
+        ]
+        slot["wish_rows"] = [
+            {
+                "name": row["name"],
+                "employee_id": row["employee_id"],
+                "cells": {
+                    key: None if cell is None else {"ok": cell["ok"], "text": "ancien"}
+                    for key, cell in row["cells"].items()
+                },
+            }
+            for row in slot["wish_rows"]
+        ]
+        company.published_cycles = {
+            "salle": {
+                "versions": {"minimal": None, "optimized": slot, "maximal": None},
+                "latest": "optimized",
+            },
+            "cuisine": None,
+        }
+        flag_modified(company, "published_cycles")
+    reset_engine()
+    without_resumes = client.get("/v1/cycles", headers=headers)
+    assert without_resumes.status_code == 200
+    _assert_live_recap(_slot(without_resumes.json()["published"]["salle"], "optimized"))
 
     invalid = client.post("/v1/generate", headers=headers, json={"team": "bar", "search_effort": "minimal"})
     assert invalid.status_code == 400
@@ -218,6 +397,12 @@ def test_generate_persist_cycles_auth_and_example():
     example = client.get("/v1/examples/saint-cloud")
     assert example.status_code == 200
     assert example.json()["planning"]["stats"]["assignments"] == 92
+    example_facts = example.json()["planning"]["facts"]
+    assert (
+        len([item for item in example_facts if item["polarity"] == "miss" and item["kind"] != "role_gap"])
+        == 17
+    )
+    assert "warnings" not in example.json()["planning"]
     with_session = client.get("/v1/examples/saint-cloud", headers=headers)
     assert with_session.status_code == 200
     assert with_session.json()["planning"]["stats"]["assignments"] == 92
@@ -231,3 +416,467 @@ def test_generate_persist_cycles_auth_and_example():
     assert client.get("/v1/me", headers=_bearer(login_token)).status_code == 200
     assert client.post("/v1/auth/logout", headers=_bearer(login_token)).status_code == 204
     assert client.get("/v1/me", headers=_bearer(login_token)).status_code == 401
+
+
+def _stub_generate_team(state, team, search, engine_ref=None):
+    from doux_planning.context import TeamNotReady, expand_typical_week, team_ready
+    from doux_planning.engine import EngineResult, PlanningDraft
+    from doux_planning.planning import PublishedCycle
+    from doux_planning.staff import default_legal_rules
+
+    if not team_ready(state, team):
+        raise TeamNotReady(team)
+    draft = PlanningDraft(
+        employees=tuple(person for person in state.employees if person.team == team),
+        structures=tuple(item for item in expand_typical_week(state) if item.team == team),
+        hours=state.hours,
+        legal_rules=default_legal_rules(),
+        search_effort=search,
+    )
+    result = EngineResult(assignments=(), warnings=())
+    state.published_cycles[team] = PublishedCycle(id=team.value, draft=draft.with_assignments(()), result=result)
+    return state
+
+
+def _count_rows(model, **filters) -> int:
+    from sqlalchemy import func, select
+
+    with session_scope() as session:
+        stmt = select(func.count()).select_from(model)
+        for key, value in filters.items():
+            stmt = stmt.where(getattr(model, key) == value)
+        return int(session.scalar(stmt) or 0)
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_generate_maximal_job_tick_stub_and_auth(capsys):
+    from doux_planning.api.db import GenerateJob, GenerateLog
+    from doux_planning.api.worker import tick_generate_job
+
+    client = _client()
+    _clear_active_generate_jobs()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"job-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    token = registered.json()["token"]
+    restaurant_id = registered.json()["me"]["restaurant_id"]
+    headers = _bearer(token)
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id))
+    assert patched.status_code == 200
+    assert patched.json()["ready"]["salle"] is True
+    company_code = patched.json()["company_code"]
+
+    logs_before = _count_rows(GenerateLog)
+    minimal = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "minimal"},
+    )
+    assert minimal.status_code == 200
+    assert _slot(minimal.json()["published"]["salle"], "minimal")["assignments"]
+    assert _count_rows(GenerateLog) == logs_before + 1
+
+    with patch("doux_planning.api.generate.generate_team") as solve:
+        maximal = client.post(
+            "/v1/generate",
+            headers=headers,
+            json={"team": "salle", "search_effort": "maximal"},
+        )
+    assert maximal.status_code == 202
+    solve.assert_not_called()
+    queued = maximal.json()
+    assert queued["team"] == "salle"
+    assert queued["search_effort"] == "maximal"
+    assert queued["status"] == "queued"
+    assert queued["estimated_seconds"] == 600
+    assert "published" not in queued
+    job_id = queued["job_id"]
+    assert job_id
+
+    polled = client.get(f"/v1/generate/jobs/{job_id}", headers=headers)
+    assert polled.status_code == 200
+    assert polled.json()["status"] == "queued"
+    assert polled.json()["estimated_seconds"] == 600
+    assert "published" not in polled.json()
+
+    again = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "maximal"},
+    )
+    assert again.status_code == 409
+    assert again.json()["detail"] == "Un calcul maximal est déjà en cours."
+    assert _count_rows(GenerateJob, restaurant_id=restaurant_id) == 1
+
+    cuisine = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "cuisine", "search_effort": "maximal"},
+    )
+    assert cuisine.status_code == 409
+    assert cuisine.json()["detail"] == "Cette équipe n'est pas prête à calculer."
+    assert _count_rows(GenerateJob, restaurant_id=restaurant_id, team="cuisine") == 0
+
+    logs_before_tick = _count_rows(GenerateLog)
+    processed = tick_generate_job(generate_team_fn=_stub_generate_team)
+    logged = capsys.readouterr().out
+    assert "generate start" in logged
+    assert "status=done" in logged
+    assert processed == job_id
+    done = client.get(f"/v1/generate/jobs/{job_id}", headers=headers)
+    assert done.status_code == 200
+    assert done.json()["status"] == "done"
+    assert done.json()["published"]["salle"] is not None
+    assert done.json()["published"]["salle"]["latest"] == "maximal"
+    assert "assignments" in _slot(done.json()["published"]["salle"], "maximal")
+    assert _slot(done.json()["published"]["salle"], "maximal")["duration_seconds"] >= 0
+    assert done.json()["published"]["cuisine"] is None
+    assert _count_rows(GenerateLog) == logs_before_tick + 1
+
+    employee = client.post(
+        "/v1/auth/register",
+        json={
+            "kind": "employee",
+            "email": f"emma-{secrets.token_hex(4)}@example.com",
+            "password": "password1",
+            "company_code": company_code,
+            "employee_id": fiche_id,
+        },
+    )
+    assert employee.status_code == 201
+    emp = _bearer(employee.json()["token"])
+    assert client.get(f"/v1/generate/jobs/{job_id}", headers=emp).status_code == 403
+    assert (
+        client.post("/v1/generate", headers=emp, json={"team": "salle", "search_effort": "maximal"}).status_code
+        == 403
+    )
+
+    other = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"other-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert other.status_code == 201
+    foreign = client.get(f"/v1/generate/jobs/{job_id}", headers=_bearer(other.json()["token"]))
+    assert foreign.status_code == 404
+    missing = client.get("/v1/generate/jobs/inconnu", headers=headers)
+    assert missing.status_code == 404
+    assert client.get("/v1/generate/jobs/inconnu").status_code == 401
+
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_generate_versions_slots_me_planning_and_enter():
+    from doux_planning.api.db import Company, session_scope
+    from doux_planning.context import generate_team
+    from doux_planning.types import SearchEffort
+
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"ver-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    headers = _bearer(registered.json()["token"])
+    restaurant_id = registered.json()["me"]["restaurant_id"]
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id))
+    assert patched.status_code == 200
+    company_code = patched.json()["company_code"]
+
+    first = client.post("/v1/generate", headers=headers, json={"team": "salle", "search_effort": "minimal"})
+    assert first.status_code == 200
+    minimal_cycle = _slot(first.json()["published"]["salle"], "minimal")
+    assert first.json()["published"]["salle"]["latest"] == "minimal"
+
+    def _as_minimal(state, team, search, engine_ref=None):
+        return generate_team(state, team, SearchEffort.MINIMAL, engine_ref=engine_ref)
+
+    with patch("doux_planning.api.generate.generate_team", side_effect=_as_minimal):
+        second = client.post(
+            "/v1/generate",
+            headers=headers,
+            json={"team": "salle", "search_effort": "optimized"},
+        )
+    assert second.status_code == 200
+    salle = second.json()["published"]["salle"]
+    assert salle["latest"] == "optimized"
+    assert _slot(salle, "minimal")["assignments"] == minimal_cycle["assignments"]
+    assert _slot(salle, "minimal")["generated_at"] == minimal_cycle["generated_at"]
+    optimized_cycle = _slot(salle, "optimized")
+    assert optimized_cycle["search_effort"] == "optimized"
+    assert optimized_cycle["generated_at"]
+    assert optimized_cycle["generated_at"] != minimal_cycle["generated_at"]
+    assert isinstance(optimized_cycle["duration_seconds"], (int, float))
+    assert optimized_cycle["duration_seconds"] >= 0
+    assert salle["versions"]["maximal"] is None
+
+    employee = client.post(
+        "/v1/auth/register",
+        json={
+            "kind": "employee",
+            "email": f"emma-{secrets.token_hex(4)}@example.com",
+            "password": "password1",
+            "company_code": company_code,
+            "employee_id": fiche_id,
+        },
+    )
+    assert employee.status_code == 201
+    planning = client.get("/v1/me/planning", headers=_bearer(employee.json()["token"]))
+    assert planning.status_code == 200
+    assert planning.json()["assignments"] == optimized_cycle["assignments"]
+
+    entered_latest = client.post("/v1/live/sandbox/salle/enter", headers=headers)
+    assert entered_latest.status_code == 200
+    assert entered_latest.json()["planning"]["assignments"] == optimized_cycle["assignments"]
+
+    entered_min = client.post(
+        "/v1/live/sandbox/salle/enter",
+        headers=headers,
+        json={"search_effort": "minimal"},
+    )
+    assert entered_min.status_code == 200
+    assert entered_min.json()["planning"]["assignments"] == minimal_cycle["assignments"]
+
+    published = client.post("/v1/live/sandbox/salle/publish", headers=headers)
+    assert published.status_code == 200
+    after = published.json()["published"]["salle"]
+    assert after["latest"] == "optimized"
+    assert _slot(after, "optimized")["assignments"] == optimized_cycle["assignments"]
+    assert _slot(after, "optimized")["generated_at"] == optimized_cycle["generated_at"]
+    assert _slot(after, "optimized")["duration_seconds"] == optimized_cycle["duration_seconds"]
+    assert _slot(after, "minimal")["generated_at"] == minimal_cycle["generated_at"]
+
+    with session_scope() as session:
+        company = session.get(Company, restaurant_id)
+        assert company is not None
+        flat = _slot(first.json()["published"]["salle"], "minimal")
+        company.published_cycles = {
+            "salle": {
+                "assignments": flat["assignments"],
+                "warnings": [
+                    {
+                        "severity": "souhait",
+                        "code": "contract_hours",
+                        "message": "Emma : contrat",
+                        "employee_id": fiche_id,
+                        "day_index": None,
+                    }
+                ],
+            },
+            "cuisine": None,
+        }
+        flag_modified(company, "published_cycles")
+    coerced = client.get("/v1/cycles", headers=headers)
+    assert coerced.status_code == 200
+    assert coerced.json()["published"]["salle"]["latest"] == "optimized"
+    assert "assignments" not in coerced.json()["published"]["salle"]
+    assert _slot(coerced.json()["published"]["salle"], "optimized")["assignments"] == flat["assignments"]
+    assert "duration_seconds" not in _slot(coerced.json()["published"]["salle"], "optimized")
+
+    example = client.get("/v1/examples/saint-cloud")
+    assert example.status_code == 200
+    assert example.json()["planning"]["stats"]["assignments"] == 92
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_worker_requeues_stale_running_and_logs_progress(capsys, monkeypatch):
+    import time
+    from datetime import datetime, timezone
+
+    from doux_planning.api.db import GenerateJob
+    from doux_planning.api.worker import reclaim_stale_running_jobs, tick_generate_job
+
+    client = _client()
+    _clear_active_generate_jobs()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"stale-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    restaurant_id = registered.json()["me"]["restaurant_id"]
+    job_id = f"stale-{secrets.token_hex(4)}"
+    with session_scope() as session:
+        session.add(
+            GenerateJob(
+                id=job_id,
+                restaurant_id=restaurant_id,
+                team="salle",
+                search_effort="maximal",
+                status="running",
+                estimated_seconds=600,
+                error=None,
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+    assert reclaim_stale_running_jobs() == 1
+    with session_scope() as session:
+        row = session.get(GenerateJob, job_id)
+        assert row is not None
+        assert row.status == "queued"
+    logged = capsys.readouterr()
+    assert "job requeued" in logged.out
+    assert "stale_running" in logged.out
+
+    monkeypatch.setattr("doux_planning.api.worker.PROGRESS_EVERY_S", 0.05)
+
+    def slow_generate(state, team, search, engine_ref=None):
+        time.sleep(0.18)
+        return _stub_generate_team(state, team, search, engine_ref=engine_ref)
+
+    token = registered.json()["token"]
+    headers = _bearer(token)
+    fiche_id = f"emma-{secrets.token_hex(4)}"
+    patched = client.patch("/v1/context", headers=headers, json=_salle_patch(fiche_id))
+    assert patched.status_code == 200
+    processed = tick_generate_job(generate_team_fn=_stub_generate_team)
+    assert processed == job_id
+    maximal = client.post(
+        "/v1/generate",
+        headers=headers,
+        json={"team": "salle", "search_effort": "maximal"},
+    )
+    assert maximal.status_code == 202
+    capsys.readouterr()
+    tick_generate_job(generate_team_fn=slow_generate)
+    progress = capsys.readouterr().out
+    assert "generate start" in progress
+    assert "generate progress" in progress
+    assert "generate end" in progress
+
+
+def _clear_active_generate_jobs() -> None:
+    with session_scope() as session:
+        for job in session.scalars(select(GenerateJob).where(GenerateJob.status.in_(("queued", "running")))):
+            job.status = "failed"
+            job.error = "test cleanup"
+
+
+def _insert_generate_job(
+    restaurant_id: str, *, status: str, heartbeat_at, job_id: str | None = None, team: str = "salle"
+) -> str:
+    job_id = job_id or f"hb-{secrets.token_hex(4)}"
+    with session_scope() as session:
+        session.add(
+            GenerateJob(
+                id=job_id,
+                restaurant_id=restaurant_id,
+                team=team,
+                search_effort="maximal",
+                status=status,
+                estimated_seconds=600,
+                error=None,
+                created_at=datetime.now(timezone.utc),
+                heartbeat_at=heartbeat_at,
+            )
+        )
+    return job_id
+
+
+def _insert_bench_job(*, status: str, heartbeat_at=None, effort: str = "maximal") -> str:
+    job_id = secrets.token_urlsafe(12)
+    with session_scope() as session:
+        session.add(
+            BenchJob(
+                id=job_id,
+                category="tight",
+                dataset_id=f"para-{secrets.token_hex(4)}",
+                search_effort=effort,
+                status=status,
+                error=None,
+                run_id=None,
+                created_at=datetime.now(timezone.utc),
+                heartbeat_at=heartbeat_at,
+                engine_ref="core-3",
+                batch_id=None,
+                started_at=None,
+            )
+        )
+    return job_id
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_worker_queue_reclaim_stale_only_and_parallel_ticks():
+    from doux_planning.api.worker import (
+        reclaim_stale_bench_jobs,
+        reclaim_stale_jobs,
+        reclaim_stale_running_jobs,
+        tick_bench_job,
+    )
+    from tests.test_bench import _stub_run_bench
+
+    client = _client()
+    registered = client.post(
+        "/v1/auth/register",
+        json={"kind": "company", "email": f"queue-{secrets.token_hex(4)}@example.com", "password": "password1"},
+    )
+    assert registered.status_code == 201
+    restaurant_id = registered.json()["me"]["restaurant_id"]
+    _clear_active_generate_jobs()
+    with session_scope() as session:
+        for job in session.scalars(select(BenchJob).where(BenchJob.status.in_(("queued", "running")))):
+            job.status = "failed"
+            job.error = "test cleanup"
+    fresh_id = _insert_generate_job(
+        restaurant_id,
+        status="running",
+        heartbeat_at=datetime.now(timezone.utc),
+    )
+    assert reclaim_stale_running_jobs() == 0
+    with session_scope() as session:
+        fresh = session.get(GenerateJob, fresh_id)
+        assert fresh is not None
+        assert fresh.status == "running"
+        fresh.status = "done"
+
+    stale_id = _insert_generate_job(
+        restaurant_id,
+        status="running",
+        heartbeat_at=datetime.now(timezone.utc) - timedelta(seconds=181),
+        team="cuisine",
+    )
+    assert reclaim_stale_running_jobs() == 1
+    with session_scope() as session:
+        stale = session.get(GenerateJob, stale_id)
+        assert stale is not None
+        assert stale.status == "queued"
+
+    start_fresh = _insert_generate_job(
+        restaurant_id,
+        status="running",
+        heartbeat_at=datetime.now(timezone.utc),
+    )
+    bench_fresh = _insert_bench_job(status="running", heartbeat_at=datetime.now(timezone.utc))
+    assert reclaim_stale_jobs() == 0
+    with session_scope() as session:
+        assert session.get(GenerateJob, start_fresh).status == "running"
+        assert session.get(BenchJob, bench_fresh).status == "running"
+
+    old_bench = _insert_bench_job(
+        status="running",
+        heartbeat_at=datetime.now(timezone.utc) - timedelta(seconds=200),
+    )
+    assert reclaim_stale_bench_jobs() == 1
+    with session_scope() as session:
+        assert session.get(BenchJob, old_bench).status == "queued"
+        session.get(BenchJob, old_bench).status = "failed"
+
+    first = _insert_bench_job(status="queued")
+    second = _insert_bench_job(status="queued")
+    claimed: list[str | None] = []
+
+    def _tick() -> None:
+        claimed.append(tick_bench_job(run_bench_fn=_stub_run_bench))
+
+    workers = [threading.Thread(target=_tick) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+    assert None not in claimed
+    assert set(claimed) == {first, second}

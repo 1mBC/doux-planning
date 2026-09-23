@@ -14,11 +14,26 @@ export type RoleLadder = {
   substitution_explained: true;
 };
 
+export type WeekLabels = "ab" | "parity";
+export type WeekendChoice = "every_two" | "even" | "odd";
+
 export type Unavailability = {
-  weekday?: string;
-  every_morning: boolean;
-  every_evening: boolean;
-  service_id?: string;
+  weekday: string;
+  service_id: string;
+};
+
+export type MaxServices = {
+  morning?: number;
+  midday?: number;
+  evening?: number;
+};
+
+export type Wellbeing = {
+  consecutive_rest: boolean;
+  weekend_rest_day: boolean;
+  weekend: WeekendChoice | null;
+  max_services: MaxServices;
+  max_coupures_per_week: number | null;
 };
 
 export type ContextRole = {
@@ -33,9 +48,9 @@ export type ContextEmployee = {
   team: TeamId;
   role: ContextRole;
   contractual_hours_per_week: number;
-  min_shift_hours: number;
+  min_shift_hours: Record<string, number>;
   unavailabilities: Unavailability[];
-  wellbeing: string[];
+  wellbeing: Wellbeing;
   invite_token: string;
 };
 
@@ -75,6 +90,7 @@ export type RestaurantContext = {
   types: ServiceType[];
   typical_week: { salle: TypicalWeekCell[] | null; cuisine: TypicalWeekCell[] | null };
   ready: { salle: boolean; cuisine: boolean };
+  week_labels: WeekLabels;
 };
 
 export type ContextPatch = {
@@ -86,31 +102,94 @@ export type ContextPatch = {
   typical_week?: RestaurantContext["typical_week"];
 };
 
-export const WELLBEING_KEYS = [
-  "two_consecutive_rest_days",
-  "weekend_off_every_two_weeks",
-  "at_least_one_weekend_rest_day",
-  "no_evening_service",
-  "no_morning_service",
-  "max_two_coupures_per_week",
-  "max_three_coupures_per_week",
-] as const;
+export type ConfigEmployee = Omit<ContextEmployee, "invite_token">;
 
-export const WELLBEING_FR: Record<(typeof WELLBEING_KEYS)[number], string> = {
-  two_consecutive_rest_days: "Deux repos consécutifs en semaine",
-  weekend_off_every_two_weeks: "Un week-end sur deux",
-  at_least_one_weekend_rest_day: "Au moins un jour de repos le week-end",
-  no_evening_service: "Pas de service du soir",
-  no_morning_service: "Pas de service du matin",
-  max_two_coupures_per_week: "Au plus deux coupures / semaine",
-  max_three_coupures_per_week: "Au plus trois coupures / semaine",
+export type RestaurantConfigExport = {
+  export_version: 1;
+  name: string;
+  services: ContextServiceId[];
+  ladders: RestaurantContext["ladders"];
+  employees: ConfigEmployee[];
+  types: ServiceType[];
+  typical_week: RestaurantContext["typical_week"];
 };
+
+export function emptyWellbeing(): Wellbeing {
+  return {
+    consecutive_rest: false,
+    weekend_rest_day: false,
+    weekend: null,
+    max_services: {},
+    max_coupures_per_week: null,
+  };
+}
 
 export const CONTEXT_SERVICES: { id: ContextServiceId; label: string }[] = [
   { id: "morning", label: "Petit-déjeuner" },
   { id: "midday", label: "Déjeuner" },
   { id: "evening", label: "Dîner" },
 ];
+
+export const DEFAULT_MIN_SHIFT_HOURS = 4;
+
+export function defaultMinShiftHours(services: ContextServiceId[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of CONTEXT_SERVICES) {
+    if (services.includes(item.id)) {
+      out[item.id] = DEFAULT_MIN_SHIFT_HOURS;
+    }
+  }
+  return out;
+}
+
+export function minShiftHoursValue(map: Record<string, number>, serviceId: string): number {
+  const raw = map[serviceId];
+  return typeof raw === "number" && raw > 0 ? raw : DEFAULT_MIN_SHIFT_HOURS;
+}
+
+function pruneMinShiftHours(map: Record<string, number>, offered: Set<ContextServiceId>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of CONTEXT_SERVICES) {
+    if (offered.has(item.id) && map[item.id] !== undefined) {
+      out[item.id] = map[item.id];
+    }
+  }
+  return out;
+}
+
+function parseMinShiftHours(value: unknown, path: string, offered: ContextServiceId[]): Record<string, number> {
+  if (typeof value === "number") {
+    if (Number.isNaN(value) || value <= 0) {
+      throw new PayloadError(`clé invalide : ${path}`);
+    }
+    if (value === DEFAULT_MIN_SHIFT_HOURS) {
+      return {};
+    }
+    const out: Record<string, number> = {};
+    for (const id of offered) {
+      out[id] = value;
+    }
+    return out;
+  }
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  const out: Record<string, number> = {};
+  for (const key of Object.keys(value)) {
+    if (key !== "morning" && key !== "midday" && key !== "evening") {
+      throw new PayloadError(`clé invalide : ${path}.${key}`);
+    }
+    const raw = value[key];
+    if (raw === undefined) {
+      continue;
+    }
+    if (typeof raw !== "number" || Number.isNaN(raw) || raw <= 0) {
+      throw new PayloadError(`clé invalide : ${path}.${key}`);
+    }
+    out[key] = raw;
+  }
+  return pruneMinShiftHours(out, new Set(offered));
+}
 
 function parseTeam(value: unknown, path: string): TeamId {
   if (value === "salle" || value === "cuisine") {
@@ -153,30 +232,112 @@ function parseLadder(value: unknown, path: string): RoleLadder | null {
   };
 }
 
-function parseUnavailability(value: unknown, path: string): Unavailability {
+export function parseUnavailability(value: unknown, path: string): Unavailability {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
   }
-  if (typeof value.every_morning !== "boolean" || typeof value.every_evening !== "boolean") {
+  if ("every_morning" in value || "every_evening" in value) {
     throw new PayloadError(`clé invalide : ${path}`);
   }
-  const row: Unavailability = {
-    every_morning: value.every_morning,
-    every_evening: value.every_evening,
+  return {
+    weekday: requireString(value, "weekday", path),
+    service_id: requireString(value, "service_id", path),
   };
-  if ("weekday" in value && value.weekday !== undefined && value.weekday !== null) {
-    if (typeof value.weekday !== "string") {
-      throw new PayloadError(`clé invalide : ${path}.weekday`);
-    }
-    row.weekday = value.weekday;
+}
+
+function parseWeekend(value: unknown, path: string): WeekendChoice | null {
+  if (value === null) {
+    return null;
   }
-  if ("service_id" in value && value.service_id !== undefined && value.service_id !== null) {
-    if (typeof value.service_id !== "string") {
-      throw new PayloadError(`clé invalide : ${path}.service_id`);
-    }
-    row.service_id = value.service_id;
+  if (value === "every_two" || value === "even" || value === "odd") {
+    return value;
   }
-  return row;
+  throw new PayloadError(`clé invalide : ${path}`);
+}
+
+function parseMaxServices(value: unknown, path: string): MaxServices {
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  const out: MaxServices = {};
+  for (const id of ["morning", "midday", "evening"] as const) {
+    if (!(id in value) || value[id] === undefined) {
+      continue;
+    }
+    const raw = value[id];
+    if (typeof raw !== "number" || Number.isNaN(raw)) {
+      throw new PayloadError(`clé invalide : ${path}.${id}`);
+    }
+    out[id] = raw;
+  }
+  return out;
+}
+
+export function parseWellbeing(value: unknown, path: string): Wellbeing {
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  if ("at_least_one_weekend_rest_day" in value) {
+    throw new PayloadError(`clé invalide : ${path}.at_least_one_weekend_rest_day`);
+  }
+  if (typeof value.consecutive_rest !== "boolean") {
+    throw new PayloadError(`clé absente ou invalide : ${path}.consecutive_rest`);
+  }
+  if (typeof value.weekend_rest_day !== "boolean") {
+    throw new PayloadError(`clé absente ou invalide : ${path}.weekend_rest_day`);
+  }
+  if (!("weekend" in value)) {
+    throw new PayloadError(`clé absente : ${path}.weekend`);
+  }
+  if (!("max_coupures_per_week" in value)) {
+    throw new PayloadError(`clé absente : ${path}.max_coupures_per_week`);
+  }
+  const coupures = value.max_coupures_per_week;
+  if (coupures !== null && (typeof coupures !== "number" || Number.isNaN(coupures))) {
+    throw new PayloadError(`clé invalide : ${path}.max_coupures_per_week`);
+  }
+  return {
+    consecutive_rest: value.consecutive_rest,
+    weekend_rest_day: value.weekend_rest_day,
+    weekend: parseWeekend(value.weekend, `${path}.weekend`),
+    max_services: parseMaxServices(requireRecord(value, "max_services", path), `${path}.max_services`),
+    max_coupures_per_week: coupures,
+  };
+}
+
+export function purgeRemovedServices(
+  ctx: RestaurantContext,
+  nextServices: ContextServiceId[],
+): Pick<RestaurantContext, "employees" | "types" | "typical_week"> {
+  const offered = new Set(nextServices);
+  return {
+    employees: ctx.employees.map((person) => {
+      const max_services: MaxServices = {};
+      for (const id of ["morning", "midday", "evening"] as const) {
+        if (offered.has(id) && person.wellbeing.max_services[id] !== undefined) {
+          max_services[id] = person.wellbeing.max_services[id];
+        }
+      }
+      return {
+        ...person,
+        min_shift_hours: pruneMinShiftHours(person.min_shift_hours, offered),
+        unavailabilities: person.unavailabilities.filter((slot) => offered.has(slot.service_id as ContextServiceId)),
+        wellbeing: { ...person.wellbeing, max_services },
+      };
+    }),
+    types: ctx.types.filter((item) => offered.has(item.service_id)),
+    typical_week: {
+      salle: ctx.typical_week.salle && ctx.typical_week.salle.filter((cell) => offered.has(cell.service_id)),
+      cuisine: ctx.typical_week.cuisine && ctx.typical_week.cuisine.filter((cell) => offered.has(cell.service_id)),
+    },
+  };
+}
+
+function parseWeekLabels(value: unknown, path: string): WeekLabels {
+  if (value === "ab" || value === "parity") {
+    return value;
+  }
+  throw new PayloadError(`week_labels inattendu : ${path}`);
 }
 
 function parseContextRole(value: unknown, path: string): ContextRole {
@@ -190,9 +351,12 @@ function parseContextRole(value: unknown, path: string): ContextRole {
   };
 }
 
-function parseEmployee(value: unknown, path: string): ContextEmployee {
+function parseEmployeeFields(value: unknown, path: string, offered: ContextServiceId[]): ConfigEmployee {
   if (!isRecord(value)) {
     throw new PayloadError(`objet attendu : ${path}`);
+  }
+  if (!("min_shift_hours" in value)) {
+    throw new PayloadError(`clé absente : ${path}.min_shift_hours`);
   }
   return {
     id: requireString(value, "id", path),
@@ -200,16 +364,20 @@ function parseEmployee(value: unknown, path: string): ContextEmployee {
     team: parseTeam(value.team, `${path}.team`),
     role: parseContextRole(requireRecord(value, "role", path), `${path}.role`),
     contractual_hours_per_week: requireNumber(value, "contractual_hours_per_week", path),
-    min_shift_hours: requireNumber(value, "min_shift_hours", path),
+    min_shift_hours: parseMinShiftHours(value.min_shift_hours, `${path}.min_shift_hours`, offered),
     unavailabilities: requireArray(value, "unavailabilities", path).map((item, i) =>
       parseUnavailability(item, `${path}.unavailabilities[${i}]`),
     ),
-    wellbeing: requireArray(value, "wellbeing", path).map((item, i) => {
-      if (typeof item !== "string") {
-        throw new PayloadError(`clé invalide : ${path}.wellbeing[${i}]`);
-      }
-      return item;
-    }),
+    wellbeing: parseWellbeing(requireRecord(value, "wellbeing", path), `${path}.wellbeing`),
+  };
+}
+
+function parseEmployee(value: unknown, path: string, offered: ContextServiceId[]): ContextEmployee {
+  if (!isRecord(value)) {
+    throw new PayloadError(`objet attendu : ${path}`);
+  }
+  return {
+    ...parseEmployeeFields(value, path, offered),
     invite_token: requireString(value, "invite_token", path),
   };
 }
@@ -301,22 +469,28 @@ export function parseRestaurantContext(value: unknown): RestaurantContext {
   if (!("salle" in typical) || !("cuisine" in typical)) {
     throw new PayloadError("clé absente : context.typical_week");
   }
+  const services = requireArray(value, "services", "context").map((item, i) =>
+    parseServiceId(item, `context.services[${i}]`),
+  );
   return {
     name: requireString(value, "name", "context"),
     legal_context_id: requireString(value, "legal_context_id", "context"),
     company_code: requireString(value, "company_code", "context"),
-    services: requireArray(value, "services", "context").map((item, i) => parseServiceId(item, `context.services[${i}]`)),
+    services,
     ladders: {
       salle: parseLadder(ladders.salle, "context.ladders.salle"),
       cuisine: parseLadder(ladders.cuisine, "context.ladders.cuisine"),
     },
-    employees: requireArray(value, "employees", "context").map((item, i) => parseEmployee(item, `context.employees[${i}]`)),
+    employees: requireArray(value, "employees", "context").map((item, i) =>
+      parseEmployee(item, `context.employees[${i}]`, services),
+    ),
     types: requireArray(value, "types", "context").map((item, i) => parseType(item, `context.types[${i}]`)),
     typical_week: {
       salle: parseWeek(typical.salle, "context.typical_week.salle"),
       cuisine: parseWeek(typical.cuisine, "context.typical_week.cuisine"),
     },
     ready: { salle: ready.salle, cuisine: ready.cuisine },
+    week_labels: parseWeekLabels(value.week_labels, "context.week_labels"),
   };
 }
 
@@ -331,6 +505,84 @@ export async function patchContext(body: ContextPatch): Promise<RestaurantContex
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }, true),
+  );
+}
+
+export async function seedExampleContext(): Promise<RestaurantContext> {
+  return parseRestaurantContext(await sendAuth("/v1/context/seed-example", { method: "POST" }, true));
+}
+
+export async function deleteStaff(id: string): Promise<RestaurantContext> {
+  const encoded = encodeURIComponent(id);
+  return parseRestaurantContext(await sendAuth(`/v1/staff/${encoded}`, { method: "DELETE" }, true));
+}
+
+export function parseConfigExport(value: unknown): RestaurantConfigExport {
+  if (!isRecord(value)) {
+    throw new PayloadError("réponse export invalide");
+  }
+  if (value.export_version !== 1) {
+    throw new PayloadError("export_version invalide");
+  }
+  const ladders = requireRecord(value, "ladders", "export");
+  const typical = requireRecord(value, "typical_week", "export");
+  if (!("salle" in typical) || !("cuisine" in typical)) {
+    throw new PayloadError("clé absente : export.typical_week");
+  }
+  const services = requireArray(value, "services", "export").map((item, i) =>
+    parseServiceId(item, `export.services[${i}]`),
+  );
+  return {
+    export_version: 1,
+    name: requireString(value, "name", "export"),
+    services,
+    ladders: {
+      salle: parseLadder(ladders.salle, "export.ladders.salle"),
+      cuisine: parseLadder(ladders.cuisine, "export.ladders.cuisine"),
+    },
+    employees: requireArray(value, "employees", "export").map((item, i) =>
+      parseEmployeeFields(item, `export.employees[${i}]`, services),
+    ),
+    types: requireArray(value, "types", "export").map((item, i) => parseType(item, `export.types[${i}]`)),
+    typical_week: {
+      salle: parseWeek(typical.salle, "export.typical_week.salle"),
+      cuisine: parseWeek(typical.cuisine, "export.typical_week.cuisine"),
+    },
+  };
+}
+
+export function configExportFilename(name: string): string {
+  const trimmed = name.trim();
+  return trimmed ? `${trimmed}-config.json` : "config-resto.json";
+}
+
+export function downloadConfigExport(payload: RestaurantConfigExport): void {
+  const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = configExportFilename(payload.name);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportRestaurantConfig(): Promise<RestaurantConfigExport> {
+  return parseConfigExport(await sendAuth("/v1/context/export", { method: "GET" }, true));
+}
+
+export async function importRestaurantConfig(body: RestaurantConfigExport): Promise<RestaurantContext> {
+  return parseRestaurantContext(
+    await sendAuth(
+      "/v1/context/import",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      true,
+    ),
   );
 }
 

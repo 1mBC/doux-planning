@@ -25,5 +25,15 @@ services:
       db:
         condition: service_healthy
 
+  worker:
+    build: .
+    command: ["python", "-u", "-m", "doux_planning.api.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://doux:doux@db:5432/doux_planning
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:

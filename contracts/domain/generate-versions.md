@@ -1,0 +1,64 @@
+# Versions de cycle (3 efforts) + horodatage
+
+Freeze **Infra**. UI 3 rangées / stepper / types = brief UI ensuite.  
+**Pas** de Core : `SEARCH_CALENDAR_LIMITS` / `SEARCH_SECONDS` **inchangés** (16 / 320 / `None`+600 s). Maximal = **tous** les calendriers de repos trouvables dans 600 s, puis keep-best. 1 s si peu de calendriers ≠ régression.
+
+**4ᵉ slot `manuel`** : `contracts/domain/manual-planning.md` **gagne** (clé, latest, enter vide, `generated_at` au publish).
+
+## Forme persistée (`published_cycles`)
+
+Plus un seul cycle par équipe. Par équipe :
+
+```
+{
+  versions: {
+    minimal:  Cycle | null,
+    optimized: Cycle | null,
+    maximal:  Cycle | null,
+    manuel:   Cycle | null
+  },
+  latest: "minimal"|"optimized"|"maximal"|"manuel"|null
+}
+```
+
+`Cycle` = assignments + **`facts`** + recap (`stats`, legal/wish, `score` sans resumes — `contracts/domain/score.md` + `score-facts.md`) **plus** `generated_at` ISO (UTC) + `search_effort` + `duration_seconds` (float, temps du solve ; absent sur les vieux slots) + **`engine_ref`** (moteur qui a tourné ; absent sur les vieux slots). **Plus de `warnings[]`.** Vieux JSONB : hydrate Core → `facts`.  
+`latest` = effort du `generated_at` le plus récent (égalité : **manuel** > maximal > optimized > minimal).
+
+Maximal : **tous** les calendriers de repos trouvables **et remplis** dans `SEARCH_SECONDS` (600 s wall-clock, keep-best au fil de l’eau). Ce n’est **pas** 600 s d’énumération SAT puis un fill illimité.
+
+Équipe jamais calculée ni publiée à la main : `versions` tout `null`, `latest` null.
+
+### Coerce lecture (vieux JSONB)
+
+Ancien `{ assignments, warnings, … }` **sans** `versions` → `versions.optimized = cycle`, `generated_at` absent, `latest: "optimized"`, **`manuel: null`**. Blob à 3 clés compute → ajouter `manuel: null`. GET n’émet plus l’ancien plat. Pas d’Alembic (JSONB).
+
+## HTTP
+
+`POST /v1/generate` écrit **seulement** `versions[effort]` **compute** (`minimal|optimized|maximal`) + recalcule `latest`. Slot `manuel` et l’autre équipe **intacts**.  
+Solve = `generate_team(..., engine_ref=live_engine_ref)` (`admin.md`). Body POST **sans** `engine_ref`.  
+200 / job `done` : `published` = **les deux** équipes au nouveau format.
+
+Ligne d’indications UI (company `/planning`, sous la rangée actions) : date + heure `generated_at` (Europe/Paris) **puis** ` · ` **puis** `engine_ref` (`core-5`). Vieux slot sans `engine_ref` : date seule (pas de ` · `). Absent `generated_at` → tiret. Durée = **autre** ligne, inchangée.
+
+`GET /v1/cycles` = ce `published`.
+
+`GET /v1/me/planning` : cycle = `versions[latest]` (rien si `latest` null). Salarié **sans** sélecteur.
+
+Sandbox live : `enter` body/query `search_effort` (défaut `latest`). Slot **compute** vide → 409 `Aucun cycle publié pour cette équipe.` Slot **`manuel` vide** → seed grille vide (`manual-planning.md`), pas 409.  
+`publish` d’un **calcul** : réécrit **ce** slot, `generated_at` **inchangé**. `publish` **manuel** : `generated_at` = maintenant (`manual-planning.md`).
+
+## Worker logs (stdout + stderr Railway)
+
+Une ligne claire, horodatée ISO, **flush immédiat** (`PYTHONUNBUFFERED=1`) :
+
+- process start (`pid`, `rss_mb`)
+- jobs `running` orphelins → `queued` (`job requeued reason=stale_running`) — crash / OOM
+- job pris (`job_id`, team, restaurant_id)
+- generate start / **progress ~10 s** (`elapsed_s`, `calendars` remplis, `rss_mb`) / end (durée s, statut done|failed, calendars, rss)
+- `error` si failed
+
+Côté **web** (uvicorn) : POST maximal 202 (`job_id`) ; GET job `done`/`failed`.
+
+## Hors freeze
+
+UI effort / types (landé). Archive / sync.

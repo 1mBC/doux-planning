@@ -228,31 +228,35 @@ def _assert_saint_cloud_contract(body: dict) -> None:
         "calendars",
         "seconds",
         "assignments",
-        "warnings",
+        "facts",
         "stats",
         "legal_rows",
         "wish_cols",
         "wish_rows",
     ):
         assert key in planning
+    assert "warnings" not in planning
     assert planning["search_effort"] == "optimized"
     assert planning["stats"] == {
         "assignments": 92,
         "empty": 0,
         "interdit": 0,
-        "below_role": 43,
+        "below_role": 46,
         "hours": {
             "assigned": 416.0,
             "contracted": 494.0,
             "percent": 84,
         },
         "wellbeing": {
-            "held": 21,
-            "total": 21,
+            "held": 10,
+            "total": 12,
         },
     }
     assert len(planning["assignments"]) == 92
-    assert len(planning["warnings"]) == 14
+    evaluate_misses = [
+        item for item in planning["facts"] if item["polarity"] == "miss" and item["kind"] != "role_gap"
+    ]
+    assert len(evaluate_misses) == 13
     theo = next(
         item
         for item in planning["assignments"]
@@ -262,7 +266,22 @@ def _assert_saint_cloud_contract(body: dict) -> None:
     assert theo["end_minutes"] == 960
     assert theo["duration_hours"] == 5.0
     diane = next(row for row in planning["wish_rows"] if row["employee_id"] == "diane")
-    assert diane["cells"]["contrat"] == {"ok": False, "text": "30h · 29h / 39h"}
+    assert diane["cells"]["contrat"] == {
+        "ok": False,
+        "kind": "contract_hours",
+        "payload": {"hours_week_0": 30, "hours_week_7": 29, "contracted": 39},
+    }
+    assert {col["key"] for col in planning["wish_cols"]}.isdisjoint({"we1j", "weA", "weB", "soirs", "repos2", "coupures"})
+    assert "resumes" not in planning["score"]
+    assert "message" not in str(planning["facts"])
+    for row in planning["legal_rows"] + planning["wish_rows"]:
+        for cell in row["cells"].values():
+            if cell is None:
+                continue
+            assert "text" not in cell
+            assert "kind" in cell and "payload" in cell
+    assert any(item["kind"] == "contract_hours" and item["polarity"] == "miss" for item in evaluate_misses)
+    assert any(item["kind"] == "consecutive_rest_days" and item["polarity"] == "miss" for item in evaluate_misses)
 
 
 def test_saint_cloud_example_separates_france_legal():

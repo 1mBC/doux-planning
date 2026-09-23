@@ -6,7 +6,7 @@ from doux_planning.structures import (
     ServiceStructure,
     brasserie_template,
 )
-from doux_planning.types import ServiceName, Team, WellbeingPreference
+from doux_planning.types import ServiceName, Team
 
 
 def cuisine_ladder() -> RoleLadder:

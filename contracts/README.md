@@ -21,7 +21,72 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 8 — contexte onboarding | `http/v1-context.md` | close (signaux Core → Infra → UI) |
 | 9 — generate / cycles | `http/v1-generate.md` | close (signaux Core → Infra → UI) |
 | 10 — sandbox live | `http/v1-live-sandbox.md` | close (signaux Core → Infra → UI) |
-| 11 — grille employé | `http/v1-me-planning.md` ; brief `ui-employee-board.md` | UI salarié (Infra HTTP fait) |
+| 11 — grille employé | `http/v1-me-planning.md` | close (signaux Core → Infra → UI) |
+| 12 — recette Railway | `deploy/railway.md` ; brief `infra-deploy-railway.md` | Infra (auto-deploy `master`) |
+| 13 — bien-être / indispos | `domain/wellbeing.md` | **landed** `11dc586` |
+| 14 — seed exemple | `domain/example-seed.md` | **landed** `295bc9f` |
+| 15 — repos we + wizard | `domain/wellbeing.md`, `domain/wizard-ui.md` | **landed** `6c75004` |
+| 16 — recaps + types | `domain/cycle-recaps.md` | **landed** `f5aa402` |
+| 17 — alertes + polish | `domain/cycle-recaps.md`, `domain/wizard-ui.md` ; briefs `core-richer-alerts.md`, `infra-richer-alerts.md`, `ui-richer-alerts.md` | **landed** `f5e2e67` (UI v0.16.0) |
+| 18 — warn-fr | `domain/cycle-recaps.md` ; briefs `core-warn-fr.md`, `infra-warn-fr.md` | **landed** `3e910dc` |
+| 19 — exemple-snapshot | `domain/exemple-snapshot.md` ; briefs `core-exemple-snapshot.md`, `infra-exemple-snapshot.md`, `ui-exemple-snapshot.md` | **landed** `7e4547a` (UI v0.17.0) |
+| 20 — UI polish | `domain/wizard-ui.md` ; brief `ui-polish.md` | **landed** `15869b5` (UI v0.18.0) |
+| 21 — export-config | `domain/export-config.md` ; briefs `infra-export-config.md`, `ui-export-config.md` | **landed** `9216c44` (UI v0.19.0) |
+| 22 — export-planning | `domain/export-planning.md` ; brief `ui-export-planning.md` | **landed** `a3af6be` (UI v0.20.0) |
+| 23 — admin | `domain/admin.md` ; briefs `infra-admin.md`, `ui-admin.md` | **landed** `db8d9e1` (UI v0.21.0) |
+| 24 — coerce-railway | `domain/coerce-railway.md` ; brief `infra-coerce-railway.md` | **landed** `e5b13a3` |
+| 25 — generate-jobs + polish UI | `domain/generate-jobs.md`, `http/v1-generate.md`, `domain/export-planning.md`, `domain/wizard-ui.md` ; briefs `infra-generate-jobs.md`, `ui-planning-polish.md` | **landed** `71b6bfa` (UI v0.22.0) |
+| 26 — versions + chrome | `domain/generate-versions.md` ; briefs `infra-generate-versions.md`, `ui-planning-chrome.md` | **landed** `2ef7548` (UI v0.23.0) |
+| 27 — admin recap + wizard polish | `domain/admin.md`, `domain/generate-versions.md`, `domain/wizard-ui.md` ; briefs `infra-admin-recap.md`, `ui-wizard-polish.md` | **landed** `881876e` (UI v0.24.0) |
+| 28 — notes /10 | `domain/score.md` ; briefs `core-score.md`, `infra-score.md`, `ui-score.md` | **landed** `782b694` (UI v0.25.0) |
+| 29 — score chrome | `domain/score.md` ; briefs `core-score-chrome.md`, `infra-score-chrome.md`, `ui-score-chrome.md` | **landed** `a6f0baa` (UI v0.26.0) |
+| 30 — score gauges | `domain/score.md` ; briefs `core-score-gauges.md`, `ui-score-gauges.md` | **landed** `6ad338f` (UI v0.27.0) |
+| 31 — banc admin | `domain/bench.md` ; briefs `core-bench.md`, `infra-bench.md`, `ui-bench.md` ; `data/bench/` | **landed** `fa24a33` (UI v0.28.0) |
+| 32 — crafted + chrome banc | `domain/bench.md` ; briefs `core-bench-crafted.md`, `infra-bench-crafted.md`, `ui-bench-crafted.md` | **landed** `cad892b` (UI v0.29.0) |
+| 33 — score facts | `domain/score-facts.md` + patches score / recaps / snapshot / admin / export / generate / sandbox ; briefs `core-score-facts.md`, `infra-score-facts.md`, `ui-score-facts.md` | **landed** `dfe7810` (UI v0.30.0) |
+| 34 — banc recap + pack | `domain/bench.md`, `domain/score.md` ; briefs `core-bench-pack.md`, `infra-bench-pack.md`, `ui-bench-pack.md` | **landed** `0dfc765` (UI v0.31.0) |
+| 35 — score tables | `domain/score-facts.md`, `domain/score.md`, `domain/cycle-recaps.md` ; brief `ui-score-tables.md` | **landed** `5b21221` (UI v0.32.0) |
+| 36 — banc versions | `domain/bench.md` ; briefs `core-bench-versions.md`, `infra-bench-versions.md`, `ui-bench-versions.md` | **landed** `fc1f8cb` (UI v0.33.0) |
+| 37 — banc tableau versions | `domain/bench.md` ; brief `ui-bench-table-versions.md` | **landed** `84e0a9b` (UI v0.34.0) |
+| 38 — plafonds durs | `domain/wellbeing.md` ; brief `core-max-services-hard.md` | **landed** `e10a434` (Core `core-1`) |
+| 39 — fill fewest | `domain/wellbeing.md` ; brief `core-fill-fewest.md` | **landed** `72d9174` (Core `core-2`) |
+| 40 — banc élargi | `domain/bench.md` ; briefs `core-bench-widen.md`, `infra-bench-widen.md`, `ui-bench-widen.md` | **landed** `4c4a841` (UI v0.35.0) |
+| 41 — oracles + pile workers | `domain/bench.md`, `domain/worker-queue.md`, `domain/generate-jobs.md`, `deploy/railway.md` ; briefs `core-bench-oracles.md`, `infra-worker-queue.md`, `ui-bench-oracles.md` | **landed** `8423e56` (UI v0.36.0) |
+| 42 — seeds core-3 + banc deltas | `domain/engine-seeds.md`, `domain/bench.md` ; briefs `core-engine-seeds.md`, `ui-bench-deltas.md` | **landed** `5a3b983` (UI v0.37.0) |
+| 43 — banc recap + lancer | `domain/bench.md` ; brief `ui-bench-recap.md` | **landed** `f78ca84` (UI v0.38.0) |
+| 44 — banc engines + pack + trous | `domain/engines.md`, `domain/bench.md`, `domain/worker-queue.md` ; briefs `core-bench-engines.md`, `infra-bench-engines.md`, `ui-bench-engines.md` | **landed** `7ed7fc6` (UI v0.39.0) |
+| 45 — loader banc inline | `domain/bench.md` ; brief `ui-bench-loader.md` | **landed** `9841bcf` (UI v0.40.0) |
+| 46 — banc computes empilés | `domain/bench.md` ; brief `ui-bench-stack.md` | **landed** `f663b75` (UI v0.41.0) |
+| 47 — banc labels + wizard + H | `domain/bench.md`, `domain/wizard-ui.md` ; brief `ui-chrome.md` | **landed** `cde9da4` (UI v0.42.0) |
+| 48 — core-4 coupure si choix | `domain/engine-core-4.md`, `domain/engines.md` ; brief `core-4-coupure.md` | **landed** `f245ec9` |
+| 49 — stats banc + deltas ×10 | `domain/bench.md` ; brief `ui-bench-stats.md` | **landed** `158c36e` |
+| 50 — flèche hors bulle delta | `domain/bench.md` ; brief `ui-delta-bubble.md` | **landed** `e23700c` |
+| 51 — bulle delta sans boîte commune | `domain/bench.md` ; brief `ui-delta-layout.md` | **landed** `8fa5ab6` |
+| 52 — core-5 + core-6 | `domain/engine-core-5.md`, `engine-core-6.md`, `engines.md` ; brief `core-5-6.md` | **landed** `7b1e2c7` |
+| 53 — moteur client admin | `domain/admin.md`, `generate-versions.md`, `http/v1-generate.md` ; brief `infra-live-engine.md` | **landed** `d24f706` |
+| 54 — sélecteur + horodatage modèle | `domain/admin.md`, `generate-versions.md` ; brief `ui-live-engine.md` | **landed** `3aaa3f2` (UI v0.46.0) |
+| 55 — cp-0 + iter-0 | `domain/engine-cp-0.md`, `engine-iter-0.md`, `engines.md` ; brief `core-cp-iter.md` | **landed** `8a13747` |
+| 56 — banc meilleur par ligne | `domain/bench.md` ; brief `ui-bench-best-line.md` | **landed** `95d33e8` (UI v0.47.0) |
+| 57 — banc grid + stats hover | `domain/bench.md` ; brief `ui-bench-polish.md` | **landed** `86b3359` (UI v0.48.0) |
+| 58 — banc alignement fix | `domain/bench.md` ; brief `ui-bench-align-fix.md` | **landed** `e38abbb` (UI v0.48.1) |
+| 59 — core-2.1 repair empty | `domain/engine-core-2-1.md`, `engines.md` ; brief `core-2-1.md` | **landed** `bd57193` |
+| 60 — annuler batch banc | `domain/bench.md` ; briefs `infra-bench-cancel.md`, `ui-bench-cancel.md` | **landed** `93412fd` (UI v0.49.0) |
+| 61 — sélecteur moteur banc | `domain/bench.md` ; briefs `infra-bench-engine-select.md`, `ui-bench-engine-select.md` | **landed** `ca740c3` (UI v0.50.0) |
+| 62 — core-2.2 legal repair | `domain/engine-core-2-2.md` ; brief `core-2-2.md` | **superseded** by 63 |
+| 63 — lignée core-2.2 à 2.5 | `domain/engine-core-2-2.md` … `2-5.md`, `engines.md` ; brief `core-2-family.md` | **landed** `499c4d3` |
+| 64 — podiums stats banc | `domain/bench.md` ; brief `ui-bench-podiums.md` | **landed** `35c112a` (UI v0.51.0) |
+| 65 — mix-0 | `domain/engine-mix-0.md`, `engines.md` ; briefs `core-mix-0.md`, `infra-mix-0-eta.md` | **landed** `80b19d5` + Infra `96085ae` |
+| 66 — services types polish | `domain/wizard-ui.md` ; brief `ui-service-types-polish.md` | **landed** `214f929` (UI v0.52.0) |
+| 67 — delete salarié | `domain/delete-employee.md` ; briefs `core-delete-employee.md`, `infra-delete-employee.md`, `ui-delete-employee.md` | **landed** Core `d60e772` + Infra `7d8ff2f` + UI `f12f172` (v0.53.0) |
+| 68 — min créneau / service | `domain/min-shift-per-service.md` ; briefs `core-min-shift-per-service.md`, `infra-min-shift-per-service.md`, `ui-min-shift-per-service.md` | **landed** Core `885941e` + Infra `f37c816` + UI `3a60412` (v0.54.0) |
+| 69 — planning manuel | `domain/manual-planning.md` ; briefs `core-manual-planning.md`, `infra-manual-planning.md`, `ui-manual-planning.md` | **landed** Core `a08c7ea` + Infra `81bd9f2` + UI `b14e2ff` (v0.55.0) |
+| 70 — historique note / voir / lien | `domain/admin-historique.md` ; briefs `infra-admin-historique.md`, `ui-admin-historique.md` | **landed** Infra `3a2ad05` + UI `0cdaed0` (v0.56.0) |
+| 71 — import resto → banc | `domain/bench-import.md` ; briefs `core-bench-import.md`, `infra-bench-import.md`, `ui-bench-import.md` | **landed** Core `396a415` + Infra `9c9802a` + UI `9784a2d` (v0.57.0) |
+| 72 — ranger le banc | `domain/bench-chrome.md` ; briefs `infra-bench-chrome.md`, `ui-bench-chrome.md` | **landed** Infra `006cc24` + UI `921d5db` (v0.58.0) |
+| 73 — repasse UI admin | `domain/admin-ui-pass.md` ; briefs `infra-admin-ui-pass.md`, `ui-admin-ui-pass.md` | **landed** Infra `df343ab` + UI `0d787f0` (v0.59.0) |
+| 74 — export jeu + versions origin | `domain/bench-export-speed.md` ; briefs `infra-bench-export-speed.md`, `ui-bench-export-speed.md` | **landed** Infra `73e5dca` + UI `cf90828` (v0.60.0) |
+| 75 — leftover + 11 h wrap + every_two au moins un | `domain/coverage-rest-weekend.md`, `wellbeing.md`, `score-facts.md` ; OpenSpec `changes/coverage-rest-weekend/` ; briefs `core-coverage-rest-weekend.md`, `ui-coverage-rest-weekend.md` | **landed** Core `8502a5e` + UI `50b7f29` (v0.61.0) |
+| 76 — note banc = evaluate live | `domain/bench-score-live.md` + patch `bench.md` ; OpenSpec `changes/bench-score-live/` ; brief `core-bench-score-live.md` | **landed** Core `0208f7f` |
 
 ## Ownership git (ne pas croiser)
 
@@ -33,4 +98,8 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | `openspec/changes/build-planning-api/` + `src/doux_planning/api/` + Compose / migrations | Infra |
 | `openspec/changes/build-planning-ui/` + `web/` | UI |
 
-Interdit à tous : `/opsx-archive`, `/opsx-sync`, commit / push / PR sauf demande du facteur.
+Interdit : `/opsx-archive`, `/opsx-sync`.
+
+**Spécialistes (Core / Infra / UI)** : commit + push **leur** branche. Interdit de merger, de pusher `master`, ou de lander — même si le freeze est vert.
+
+**Orchestrateur seulement** : le restaurateur teste **uniquement** sur Railway, qui déploie `master`. Land Core → Infra → UI (`--no-ff`) et **push `master`** dès que la livraison est conforme au freeze. Ne pas demander une validation chat avant merge. Un écart vu sur Railway = nouveau change.

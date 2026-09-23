@@ -8,8 +8,9 @@ export type AccountKind = "company" | "employee";
 export type Me = {
   kind: AccountKind;
   email: string;
-  restaurant_id: string;
+  restaurant_id: string | null;
   employee_id: string | null;
+  admin: boolean;
 };
 
 export type AuthSession = {
@@ -87,7 +88,7 @@ function parseKind(value: unknown, path: string): AccountKind {
   throw new PayloadError(`kind inattendu : ${path}`);
 }
 
-function parseNullableEmployeeId(value: unknown, path: string): string | null {
+function parseNullableId(value: unknown, path: string): string | null {
   if (value === null) {
     return null;
   }
@@ -104,12 +105,47 @@ export function parseMe(value: unknown): Me {
   if (!("employee_id" in value)) {
     throw new PayloadError("clé absente : me.employee_id");
   }
+  if (!("restaurant_id" in value)) {
+    throw new PayloadError("clé absente : me.restaurant_id");
+  }
+  const kind = parseKind(value.kind, "me.kind");
+  if (kind === "company" && typeof value.admin !== "boolean") {
+    throw new PayloadError("clé absente ou invalide : me.admin");
+  }
+  const restaurant_id = parseNullableId(value.restaurant_id, "me.restaurant_id");
+  const employee_id = parseNullableId(value.employee_id, "me.employee_id");
+  if (kind === "company" && restaurant_id === null) {
+    throw new PayloadError("clé invalide : me.restaurant_id");
+  }
+  if (kind === "employee") {
+    const affiliated = restaurant_id !== null && employee_id !== null;
+    const unaffiliated = restaurant_id === null && employee_id === null;
+    if (!affiliated && !unaffiliated) {
+      throw new PayloadError("clé invalide : me.restaurant_id / me.employee_id");
+    }
+  }
   return {
-    kind: parseKind(value.kind, "me.kind"),
+    kind,
     email: requireString(value, "email", "me"),
-    restaurant_id: requireString(value, "restaurant_id", "me"),
-    employee_id: parseNullableEmployeeId(value.employee_id, "me.employee_id"),
+    restaurant_id,
+    employee_id,
+    admin: kind === "company" ? value.admin === true : false,
   };
+}
+
+export function isEmployeeAffiliated(me: Me): boolean {
+  return me.kind === "employee" && me.employee_id !== null;
+}
+
+export function canOpenPlanning(me: Me | null): boolean {
+  return me != null && (me.kind === "company" || isEmployeeAffiliated(me));
+}
+
+export function homePath(me: Me): string {
+  if (me.kind === "company") {
+    return "/context";
+  }
+  return isEmployeeAffiliated(me) ? "/planning" : "/";
 }
 
 export function parseAuthSession(value: unknown): AuthSession {
@@ -190,6 +226,22 @@ export async function loadMe(): Promise<Me> {
   return parseMe(await sendAuth("/v1/me", { method: "GET" }, true));
 }
 
+export async function consumeImpersonate(token: string): Promise<Me> {
+  return persistSession(
+    parseAuthSession(
+      await sendAuth(
+        "/v1/auth/impersonate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        },
+        false,
+      ),
+    ),
+  );
+}
+
 export async function logout(): Promise<void> {
   try {
     await sendAuth("/v1/auth/logout", { method: "POST" }, true);
@@ -201,6 +253,20 @@ export async function logout(): Promise<void> {
 export async function loadInvites(companyCode: string): Promise<InvitePreview> {
   const encoded = encodeURIComponent(companyCode);
   return parseInvitePreview(await sendAuth(`/v1/invites/${encoded}`, { method: "GET" }, false));
+}
+
+export async function linkEmployee(companyCode: string, employeeId: string): Promise<Me> {
+  return parseMe(
+    await sendAuth(
+      "/v1/auth/link",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_code: companyCode, employee_id: employeeId }),
+      },
+      true,
+    ),
+  );
 }
 
 export function kindLabel(kind: AccountKind): string {

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
+
+from types import MappingProxyType
 
 from doux_planning.types import (
     DEFAULT_MIN_SHIFT_HOURS,
@@ -11,14 +14,79 @@ from doux_planning.types import (
     MAX_WEEKLY_HOURS,
     MIN_REST_BETWEEN_DAYS_HOURS,
     REST_DAYS_PER_WEEK,
+    ServiceName,
     Team,
-    WellbeingPreference,
+    WEEKDAYS,
+    WeekendChoice,
     weekday_index,
+)
+
+COMPANY_SERVICE_IDS = frozenset(
+    {ServiceName.MORNING.value, ServiceName.MIDDAY.value, ServiceName.EVENING.value}
+)
+REMOVED_WELLBEING_KEYS = frozenset(
+    {
+        "at_least_one_weekend_rest_day",
+        "no_evening_service",
+        "no_morning_service",
+        "max_two_coupures_per_week",
+        "max_three_coupures_per_week",
+        "two_consecutive_rest_days",
+        "weekend_off_every_two_weeks",
+    }
 )
 
 
 class TeamMismatchError(ValueError):
     pass
+
+
+def coerce_min_shift_hours(
+    value: object,
+    service_ids: Sequence[str] | None = None,
+) -> MappingProxyType[str, float]:
+    if value is None:
+        return MappingProxyType({})
+    if isinstance(value, bool):
+        raise ValueError("min_shift_hours must be > 0")
+    if isinstance(value, (int, float)):
+        hours = float(value)
+        if hours <= 0:
+            raise ValueError("min_shift_hours must be > 0")
+        if hours == DEFAULT_MIN_SHIFT_HOURS:
+            return MappingProxyType({})
+        ids = _company_service_ids(service_ids)
+        return MappingProxyType({service_id: hours for service_id in ids})
+    if isinstance(value, Mapping):
+        hours_by_service: dict[str, float] = {}
+        for key, raw_hours in value.items():
+            service_id = str(key)
+            if service_id not in COMPANY_SERVICE_IDS:
+                raise ValueError(f"Unknown min_shift_hours key: {service_id}")
+            if isinstance(raw_hours, bool) or not isinstance(raw_hours, (int, float)):
+                raise ValueError("min_shift_hours must be > 0")
+            hours = float(raw_hours)
+            if hours <= 0:
+                raise ValueError("min_shift_hours must be > 0")
+            hours_by_service[service_id] = hours
+        return MappingProxyType(hours_by_service)
+    raise ValueError("min_shift_hours must be > 0")
+
+
+def _company_service_ids(service_ids: Sequence[str] | None) -> tuple[str, ...]:
+    source: Sequence[str] = tuple(COMPANY_SERVICE_IDS) if service_ids is None else service_ids
+    seen: list[str] = []
+    for service_id in source:
+        if service_id in COMPANY_SERVICE_IDS and service_id not in seen:
+            seen.append(service_id)
+    return tuple(seen)
+
+
+def min_shift_for(employee: Employee, service_id: str) -> float:
+    hours = employee.min_shift_hours.get(service_id)
+    if hours is None:
+        return DEFAULT_MIN_SHIFT_HOURS
+    return float(hours)
 
 
 class SubstitutionExplanationRequired(ValueError):
@@ -60,28 +128,44 @@ class RoleLadder:
 
 
 @dataclass(frozen=True)
+class Wellbeing:
+    consecutive_rest: bool = False
+    weekend_rest_day: bool = False
+    weekend: WeekendChoice | None = None
+    max_services: MappingProxyType[str, int] = field(default_factory=lambda: MappingProxyType({}))
+    max_coupures_per_week: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.weekend is not None and not isinstance(self.weekend, WeekendChoice):
+            object.__setattr__(self, "weekend", WeekendChoice(self.weekend))
+        caps: dict[str, int] = {}
+        for service_id, limit in dict(self.max_services).items():
+            if service_id not in COMPANY_SERVICE_IDS:
+                raise ValueError(f"Unknown max_services key: {service_id}")
+            if int(limit) < 0:
+                raise ValueError("max_services limits must be >= 0")
+            caps[service_id] = int(limit)
+        object.__setattr__(self, "max_services", MappingProxyType(caps))
+        if self.max_coupures_per_week is not None and self.max_coupures_per_week < 0:
+            raise ValueError("max_coupures_per_week must be >= 0")
+
+
+@dataclass(frozen=True)
 class Unavailability:
-    """Restaurateur-stated unavailability pattern."""
+    """Restaurateur-stated unavailability: one weekday × one company service."""
 
-    weekday: str | None = None
-    every_morning: bool = False
-    every_evening: bool = False
-    service_id: str | None = None
+    weekday: str
+    service_id: str
 
-    def blocks(self, weekday: str, service_id: str, is_morning: bool, is_evening: bool) -> bool:
-        if self.weekday and weekday_index(self.weekday) != weekday_index(weekday):
-            return False
-        if self.service_id and self.service_id != service_id:
-            return False
-        if self.every_morning and not is_morning:
-            return False
-        if self.every_evening and not is_evening:
-            return False
-        if self.weekday is None and not self.every_morning and not self.every_evening and not self.service_id:
-            return False
-        if self.weekday and not self.every_morning and not self.every_evening and not self.service_id:
-            return True
-        return True
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "weekday", self.weekday.lower())
+        if self.weekday not in WEEKDAYS:
+            raise ValueError(f"Unknown weekday: {self.weekday}")
+        if self.service_id not in COMPANY_SERVICE_IDS:
+            raise ValueError(f"Unknown company service: {self.service_id}")
+
+    def blocks(self, weekday: str, service_id: str) -> bool:
+        return weekday_index(self.weekday) == weekday_index(weekday) and self.service_id == service_id
 
 
 @dataclass(frozen=True)
@@ -92,11 +176,9 @@ class Employee:
     team: Team
     contractual_hours_per_week: float
     unavailabilities: tuple[Unavailability, ...] = ()
-    wellbeing: frozenset[WellbeingPreference] = field(default_factory=frozenset)
+    wellbeing: Wellbeing = field(default_factory=Wellbeing)
     forced_off_days: frozenset[int] = field(default_factory=frozenset)
-    max_evenings_per_week: int | None = None
-    max_mornings_per_week: int | None = None
-    min_shift_hours: float = DEFAULT_MIN_SHIFT_HOURS
+    min_shift_hours: Mapping[str, float] = field(default_factory=dict)
     invite_token: str = field(default_factory=lambda: secrets.token_urlsafe(16))
 
     def __post_init__(self) -> None:
@@ -104,9 +186,7 @@ class Employee:
             raise TeamMismatchError(
                 f"Employee {self.name} team {self.team.value} does not match role team {self.role.team.value}"
             )
-        if self.min_shift_hours <= 0:
-            raise ValueError("min_shift_hours must be > 0")
-        object.__setattr__(self, "wellbeing", frozenset(self.wellbeing))
+        object.__setattr__(self, "min_shift_hours", coerce_min_shift_hours(self.min_shift_hours))
         object.__setattr__(self, "forced_off_days", frozenset(self.forced_off_days))
         if not self.invite_token or self.invite_token == self.id:
             token = secrets.token_urlsafe(16)
@@ -121,8 +201,8 @@ class Employee:
     def with_unavailability(self, pattern: Unavailability) -> Employee:
         return replace(self, unavailabilities=self.unavailabilities + (pattern,))
 
-    def with_wellbeing(self, preference: WellbeingPreference) -> Employee:
-        return replace(self, wellbeing=self.wellbeing | {preference})
+    def with_wellbeing(self, wellbeing: Wellbeing) -> Employee:
+        return replace(self, wellbeing=wellbeing)
 
 
 @dataclass(frozen=True)

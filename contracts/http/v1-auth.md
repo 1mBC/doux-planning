@@ -1,7 +1,7 @@
 # Auth + rattachement employé
 
 Freeze HTTP pour inscription / login / QR / session.  
-Un compte = une entreprise. Un restaurateur par entreprise (un `kind: company` crée **une nouvelle** entreprise, pas un second patron sur Saint-Cloud). Email unique **global**. Pas de mot de passe oublié en v1.
+Un compte restaurateur = une entreprise. Un compte **salarié** (email + mot de passe) survit sans resto : `contracts/domain/delete-employee.md`. Email unique **global**. Pas de mot de passe oublié en v1.
 
 `GET /v1/examples/saint-cloud` reste **public**, sans session, dual-read inchangé (`contracts/http/v1-examples.md`).  
 Les routes `/v1/sandbox/*` restent **publiques** dans cette tranche (l’UI auth n’est pas livrée). Ne pas les verrouiller ici.
@@ -27,12 +27,14 @@ Les vieilles routes OpenSpec `/v1/auth/restaurateur/*` et `/v1/auth/employee/*` 
 Corps session (register + login) :
 
 ```
-{ "token": "<opaque>", "me": { "kind": "company"|"employee", "email": "...", "restaurant_id": "...", "employee_id": null|"..." } }
+{ "token": "<opaque>", "me": { "kind": "company"|"employee", "email": "...", "restaurant_id": string|null, "employee_id": null|"...", "admin": false } }
 ```
 
 `GET /v1/me` = l’objet `me` (sans `token`).  
-`kind: company` → `employee_id` est `null`.  
-`kind: employee` → `employee_id` = id de fiche.
+`kind: company` → `employee_id` est `null`, `restaurant_id` string.  
+`kind: employee` affilié → les deux strings.  
+`kind: employee` **sans affiliation** → `restaurant_id` **et** `employee_id` `null` (login OK).  
+`admin` : bool (**promote** `ADMIN_EMAIL`, `contracts/domain/admin.md`). Jamais `kind: "admin"`.
 
 ## Routes
 
@@ -41,7 +43,10 @@ POST /v1/auth/register          → 201 { token, me }
 POST /v1/auth/login             → 200 { token, me }
 POST /v1/auth/logout            → 204   (Bearer)
 GET  /v1/me                     → 200 me (Bearer)
+POST /v1/auth/link              → 200 me (Bearer employee, voir delete-employee.md)
+POST /v1/auth/impersonate       → 200 { token, me }  (public, file 70 `admin-historique.md` **gagne**)
 GET  /v1/invites/{company_code} → 200 { restaurant_name, employees: [{ id, name, role, team }] }
+DELETE /v1/staff/{id}           → 200 Context (Bearer company, voir delete-employee.md)
 POST /v1/staff/{id}/invite-token → 200 { employee_id, employee_token }  (Bearer company)
 ```
 
@@ -76,6 +81,10 @@ Bearer. 204. Jeton invalidé. Second logout / jeton inconnu → 401.
 
 Bearer. 200 = `me`. Sans / mauvais jeton → 401.
 
+### `POST /v1/auth/impersonate`
+
+Public. Body `{ "token": "<opaque>" }`. Échange un lien admin (TTL 15 min, one-shot) contre une session company. Détail : `contracts/domain/admin-historique.md`. 401 `Lien expiré ou déjà utilisé.`
+
 ### `GET /v1/invites/{company_code}`
 
 Public. 200 : `restaurant_name` (souvent `""`), `employees` = fiches **non** dans `linked_employee_ids` seulement.  
@@ -98,6 +107,7 @@ Même forme que le sandbox : `{ "detail": "<français>" }`.
 | `InvalidInviteCode` / jeton inconnu | 400 | `Code entreprise ou jeton invalide.` |
 | Email ou mot de passe faux | 401 | `Email ou mot de passe incorrect.` |
 | Session absente / invalide / déjà logout | 401 | `Session invalide.` |
+| Lien impersonate inconnu / expiré / déjà utilisé | 401 | `Lien expiré ou déjà utilisé.` |
 | Employé sur route restaurateur | 403 | `Action réservée au restaurateur.` |
 | Email déjà pris | 409 | `Cet email est déjà utilisé.` |
 | Fiche déjà liée | 409 | `Cette fiche a déjà un compte.` |

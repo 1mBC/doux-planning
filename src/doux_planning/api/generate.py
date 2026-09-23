@@ -1,20 +1,296 @@
 from __future__ import annotations
 
+import secrets
+import sys
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
+from fastapi.responses import JSONResponse
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
-from doux_planning.api.auth import DETAIL_INVALID_FIELDS, require_company_restaurant_id, require_database
+from doux_planning.api.auth import (
+    DETAIL_INVALID_FIELDS,
+    DETAIL_RESTAURANT_MISSING,
+    require_admin,
+    require_company_restaurant_id,
+    require_database,
+)
 from doux_planning.api.context import _load_company, _state_from_rows
-from doux_planning.api.db import Company, session_scope
-from doux_planning.context import TeamNotReady, generate_team
-from doux_planning.planning import PublishedCycle
+from doux_planning.api.db import Company, GenerateJob, GenerateLog, LiveEngine, RestaurateurAccount, session_scope
+from doux_planning.bench import engine_ref as bench_version
+from doux_planning.context import CycleRecap, RecapCell, TeamNotReady, cycle_recap, generate_team, team_ready
+from doux_planning.engines.registry import list_engine_refs
+from doux_planning.planning import PublishedCycle, RestaurantState
 from doux_planning.types import SearchEffort, Team
+from doux_planning.warnings import FACT_AXIS, ScoreFact, score_fact_from_warning
 
 DETAIL_NOT_READY = "Cette équipe n'est pas prête à calculer."
+DETAIL_JOB_RUNNING = "Un calcul maximal est déjà en cours."
+DETAIL_JOB_MISSING = "Calcul introuvable."
+DETAIL_UNKNOWN_ENGINE = "Moteur inconnu."
+DETAIL_STALE_STAFF = "Un salarié du cycle n'est plus dans l'équipe."
 TEAMS = ("salle", "cuisine")
 EFFORTS = ("minimal", "optimized", "maximal")
+SLOT_KEYS = ("minimal", "optimized", "maximal", "manuel")
+ACTIVE_JOB_STATUSES = ("queued", "running")
+RECAP_KEYS = ("facts", "stats", "legal_cols", "legal_rows", "wish_cols", "wish_rows", "score")
+SCORE_AXES = ("couverture", "legal", "contrat", "wellbeing", "roles")
+MAXIMAL_ESTIMATED_SECONDS = 600
+EFFORT_RANK = {"minimal": 1, "optimized": 2, "maximal": 3, "manuel": 4}
+LIVE_ENGINE_ROW_ID = 1
+
+
+class StaleGenerateStaff(Exception):
+    def __init__(self, detail: str = DETAIL_STALE_STAFF) -> None:
+        super().__init__(detail)
+        self.detail = detail
+
+
+def iso_log(event: str, **fields: Any) -> None:
+    stamp = datetime.now(timezone.utc).isoformat()
+    extras = " ".join(f"{key}={value}" for key, value in fields.items() if value is not None)
+    line = f"{stamp} {event}" + (f" {extras}" if extras else "")
+    print(line, flush=True)
+    print(line, file=sys.stderr, flush=True)
+
+
+def _get_stored_engine_ref() -> str | None:
+    with session_scope() as db:
+        row = db.get(LiveEngine, LIVE_ENGINE_ROW_ID)
+        if row is None:
+            return None
+        return row.engine_ref
+
+
+def get_effective_engine_ref() -> str:
+    stored = _get_stored_engine_ref()
+    version = bench_version()
+    if stored is None:
+        return version
+    if stored not in list_engine_refs():
+        return version
+    return stored
+
+
+def get_live_engine(authorization: str | None) -> dict[str, Any]:
+    require_admin(authorization)
+    effective = get_effective_engine_ref()
+    refs = list(list_engine_refs())
+    return {"engine_ref": effective, "engine_refs": refs}
+
+
+def put_live_engine(authorization: str | None, body: dict[str, Any]) -> dict[str, Any]:
+    require_admin(authorization)
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail=DETAIL_UNKNOWN_ENGINE)
+    new_ref = body.get("engine_ref")
+    if not isinstance(new_ref, str) or not new_ref:
+        raise HTTPException(status_code=400, detail=DETAIL_UNKNOWN_ENGINE)
+    refs = list_engine_refs()
+    if new_ref not in refs:
+        raise HTTPException(status_code=400, detail=DETAIL_UNKNOWN_ENGINE)
+    with session_scope() as db:
+        row = db.get(LiveEngine, LIVE_ENGINE_ROW_ID)
+        if row is None:
+            db.add(LiveEngine(id=LIVE_ENGINE_ROW_ID, engine_ref=new_ref))
+        else:
+            row.engine_ref = new_ref
+    return {"engine_ref": new_ref, "engine_refs": list(refs)}
+
+
+def _empty_versions() -> dict[str, Any]:
+    return {
+        "versions": {key: None for key in SLOT_KEYS},
+        "latest": None,
+    }
+
+
+def compute_latest(versions: dict[str, Any]) -> str | None:
+    best: tuple[str, int, str] | None = None
+    for effort in SLOT_KEYS:
+        cycle = versions.get(effort)
+        if not cycle:
+            continue
+        stamp = str(cycle.get("generated_at") or "")
+        candidate = (stamp, EFFORT_RANK[effort], effort)
+        if best is None or candidate > best:
+            best = candidate
+    return best[2] if best else None
+
+
+def _typed_cells(blob: dict[str, Any]) -> bool:
+    for key in ("legal_rows", "wish_rows"):
+        for row in blob.get(key) or []:
+            if not isinstance(row, dict):
+                return False
+            for cell in (row.get("cells") or {}).values():
+                if cell is None:
+                    continue
+                if not isinstance(cell, dict) or "kind" not in cell or "payload" not in cell or "text" in cell:
+                    return False
+    return True
+
+
+def _has_recap(blob: Any) -> bool:
+    if not (isinstance(blob, dict) and all(key in blob for key in RECAP_KEYS)):
+        return False
+    score = blob.get("score")
+    if not isinstance(score, dict) or "resumes" in score:
+        return False
+    if "warnings" in blob:
+        return False
+    return _typed_cells(blob)
+
+
+def _ensure_cycle_recap(state: RestaurantState, team: Team, cycle: dict[str, Any]) -> dict[str, Any]:
+    if _has_recap(cycle):
+        return cycle
+    from doux_planning.api.live_sandbox import _published_from_json
+
+    state.published_cycles[team] = _published_from_json(state, team, cycle)
+    filled = _team_cycle_json(state, team)
+    if filled is None:
+        return cycle
+    if "generated_at" in cycle:
+        filled["generated_at"] = cycle["generated_at"]
+    if "search_effort" in cycle:
+        filled["search_effort"] = cycle["search_effort"]
+    if "duration_seconds" in cycle:
+        filled["duration_seconds"] = cycle["duration_seconds"]
+    return filled
+
+
+def normalize_team_published(
+    blob: Any,
+    state: RestaurantState | None = None,
+    team: Team | None = None,
+) -> tuple[dict[str, Any] | None, bool]:
+    if blob is None:
+        return None, False
+    if isinstance(blob, dict) and "versions" in blob:
+        raw_versions = blob.get("versions") or {}
+        out = _empty_versions()
+        dirty = set(raw_versions) != set(SLOT_KEYS) or "latest" not in blob
+        for effort in SLOT_KEYS:
+            cycle = raw_versions.get(effort)
+            if cycle is None:
+                continue
+            if state is not None and team is not None and not _has_recap(cycle):
+                cycle = _ensure_cycle_recap(state, team, cycle)
+                dirty = True
+            out["versions"][effort] = cycle
+        latest = blob.get("latest")
+        if latest not in SLOT_KEYS:
+            latest = compute_latest(out["versions"])
+            dirty = True
+        out["latest"] = latest
+        return out, dirty
+    if isinstance(blob, dict) and "assignments" in blob:
+        cycle = dict(blob)
+        if state is not None and team is not None and not _has_recap(cycle):
+            cycle = _ensure_cycle_recap(state, team, cycle)
+        cycle.pop("generated_at", None)
+        cycle["search_effort"] = "optimized"
+        pack = _empty_versions()
+        pack["versions"]["optimized"] = cycle
+        pack["latest"] = "optimized"
+        return pack, True
+    return None, False
+
+
+def put_generated_slot(
+    stored_blob: Any,
+    effort: str,
+    cycle: dict[str, Any],
+    generated_at: str,
+    duration_seconds: float,
+    state: RestaurantState | None = None,
+    team: Team | None = None,
+    engine_ref: str | None = None,
+) -> dict[str, Any]:
+    pack, _ = normalize_team_published(stored_blob, state, team)
+    if pack is None:
+        pack = _empty_versions()
+    slot = dict(cycle)
+    slot["generated_at"] = generated_at
+    slot["search_effort"] = effort
+    slot["duration_seconds"] = duration_seconds
+    if engine_ref is not None:
+        slot["engine_ref"] = engine_ref
+    pack["versions"][effort] = slot
+    pack["latest"] = compute_latest(pack["versions"])
+    return pack
+
+
+def put_manuel_slot(
+    stored_blob: Any,
+    cycle: dict[str, Any],
+    generated_at: str,
+    state: RestaurantState | None = None,
+    team: Team | None = None,
+) -> dict[str, Any]:
+    pack, _ = normalize_team_published(stored_blob, state, team)
+    if pack is None:
+        pack = _empty_versions()
+    slot = dict(cycle)
+    slot["generated_at"] = generated_at
+    slot["search_effort"] = "manuel"
+    slot.pop("duration_seconds", None)
+    slot.pop("engine_ref", None)
+    pack["versions"]["manuel"] = slot
+    pack["latest"] = compute_latest(pack["versions"])
+    return pack
+
+
+def overwrite_slot_keep_generated_at(
+    stored_blob: Any,
+    effort: str,
+    cycle: dict[str, Any],
+    state: RestaurantState | None = None,
+    team: Team | None = None,
+) -> dict[str, Any]:
+    pack, _ = normalize_team_published(stored_blob, state, team)
+    if pack is None:
+        pack = _empty_versions()
+    previous = pack["versions"].get(effort) or {}
+    slot = dict(cycle)
+    if "generated_at" in previous:
+        slot["generated_at"] = previous["generated_at"]
+    else:
+        slot.pop("generated_at", None)
+    if "duration_seconds" in previous:
+        slot["duration_seconds"] = previous["duration_seconds"]
+    else:
+        slot.pop("duration_seconds", None)
+    slot["search_effort"] = effort
+    pack["versions"][effort] = slot
+    others = [item for item in SLOT_KEYS if item != effort and pack["versions"].get(item)]
+    if not others:
+        pack["latest"] = effort
+    return pack
+
+
+def latest_cycle_blob(pack: dict[str, Any] | None) -> dict[str, Any] | None:
+    if pack is None or pack.get("latest") not in SLOT_KEYS:
+        return None
+    return pack["versions"].get(pack["latest"])
+
+
+def normalize_published(
+    stored: dict[str, Any],
+    state: RestaurantState | None = None,
+) -> tuple[dict[str, Any], bool]:
+    dirty = False
+    published = {"salle": None, "cuisine": None}
+    for key, team in (("salle", Team.SALLE), ("cuisine", Team.CUISINE)):
+        pack, changed = normalize_team_published(stored.get(key), state, team)
+        published[key] = pack
+        dirty = dirty or changed
+    return published, dirty
 
 
 def _empty_published() -> dict[str, Any]:
@@ -40,24 +316,93 @@ def _shift_json(shift: Any) -> dict[str, Any]:
     }
 
 
-def _warning_json(warning: Any) -> dict[str, Any]:
+def _fact_json(item: Any) -> dict[str, Any]:
+    fact = item if isinstance(item, ScoreFact) else score_fact_from_warning(item)
     return {
-        "severity": warning.severity.value,
-        "code": warning.code,
-        "message": warning.message,
-        "employee_id": warning.employee_id,
-        "day_index": warning.day_index,
+        "axis": fact.axis,
+        "kind": fact.kind,
+        "polarity": fact.polarity,
+        "severity": None if fact.severity is None else fact.severity.value,
+        "employee_id": fact.employee_id,
+        "day_index": fact.day_index,
+        "payload": dict(fact.payload),
     }
 
 
-def _cycle_json(published: PublishedCycle | None) -> dict[str, Any] | None:
+def _cell_json(cell: RecapCell | None) -> dict[str, Any] | None:
+    if cell is None:
+        return None
+    return {"ok": cell.ok, "kind": cell.kind, "payload": dict(cell.payload)}
+
+
+def _row_json(row: Any) -> dict[str, Any]:
+    return {
+        "name": row.name,
+        "employee_id": row.employee_id,
+        "cells": {key: _cell_json(value) for key, value in row.cells.items()},
+    }
+
+
+def _score_axes_json(axes: Any) -> dict[str, Any]:
+    return {key: getattr(axes, key) for key in SCORE_AXES}
+
+
+def _cycle_score_json(score: Any) -> dict[str, Any]:
+    return {
+        "notes": _score_axes_json(score.notes),
+        "global": score.global_score,
+        "weights": dict(score.weights),
+    }
+
+
+def _cycle_recap_json(recap: CycleRecap) -> dict[str, Any]:
+    return {
+        "facts": [_fact_json(item) for item in recap.facts],
+        "score": _cycle_score_json(recap.score),
+        "stats": {
+            "assignments": recap.stats.assignments,
+            "empty": recap.stats.empty,
+            "interdit": recap.stats.interdit,
+            "below_role": recap.stats.below_role,
+            "hours": {
+                "assigned": recap.stats.hours.assigned,
+                "contracted": recap.stats.hours.contracted,
+                "percent": recap.stats.hours.percent,
+            },
+            "wellbeing": {
+                "held": recap.stats.wellbeing.held,
+                "total": recap.stats.wellbeing.total,
+            },
+        },
+        "legal_cols": [{"id": col.id, "label_fr": col.label_fr} for col in recap.legal_cols],
+        "legal_rows": [_row_json(row) for row in recap.legal_rows],
+        "wish_cols": [{"key": col.key, "label": col.label} for col in recap.wish_cols],
+        "wish_rows": [_row_json(row) for row in recap.wish_rows],
+    }
+
+
+def _cycle_json(published: PublishedCycle | None, recap: CycleRecap | None = None) -> dict[str, Any] | None:
     if published is None:
         return None
     result = published.result
-    return {
+    body: dict[str, Any] = {
         "assignments": [_shift_json(shift) for shift in result.assignments],
-        "warnings": [_warning_json(warning) for warning in result.warnings],
     }
+    if recap is not None:
+        body.update(_cycle_recap_json(recap))
+    return body
+
+
+def _team_cycle_json(state: RestaurantState, team: Team) -> dict[str, Any] | None:
+    published = state.published_cycles.get(team)
+    if published is None:
+        return None
+    return _cycle_json(published, cycle_recap(state, team))
+
+
+def _blob_with_recap(state: RestaurantState, team: Team, blob: Any) -> dict[str, Any] | None:
+    pack, _ = normalize_team_published(blob, state, team)
+    return pack
 
 
 def _parse_generate(body: dict[str, Any]) -> tuple[Team, SearchEffort]:
@@ -84,25 +429,357 @@ def _persist_published(restaurant_id: str, published: dict[str, Any]) -> None:
 def get_cycles(authorization: str | None) -> dict[str, Any]:
     require_database()
     restaurant_id = require_company_restaurant_id(authorization)
-    company, _fiches = _load_company(restaurant_id)
-    return {"published": _stored_published(company.published_cycles)}
+    return cycles_for_restaurant(restaurant_id)
 
 
-def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, Any]:
+def cycles_for_restaurant(restaurant_id: str) -> dict[str, Any]:
+    company, fiches = _load_company(restaurant_id)
+    stored = _stored_published(company.published_cycles)
+    state = None
+    if any(blob is not None for blob in stored.values()):
+        state = _state_from_rows(company, fiches)
+    published, dirty = normalize_published(stored, state)
+    if dirty:
+        _persist_published(restaurant_id, published)
+    return {"published": published}
+
+
+def get_admin_cycles(authorization: str | None, restaurant_id: str) -> dict[str, Any]:
+    require_admin(authorization)
+    with session_scope() as db:
+        if db.get(Company, restaurant_id) is None:
+            raise HTTPException(status_code=404, detail=DETAIL_RESTAURANT_MISSING)
+    return cycles_for_restaurant(restaurant_id)
+
+
+def _published_after_generate(
+    state: RestaurantState,
+    team: Team,
+    stored: dict[str, Any],
+    effort: str,
+    generated_at: str,
+    duration_seconds: float,
+    engine_ref: str | None = None,
+) -> dict[str, Any]:
+    cycle = _team_cycle_json(state, team)
+    published: dict[str, Any] = {}
+    for key, other in (("salle", Team.SALLE), ("cuisine", Team.CUISINE)):
+        if other == team:
+            published[key] = put_generated_slot(
+                stored.get(key),
+                effort,
+                cycle or {},
+                generated_at,
+                duration_seconds,
+                state,
+                team,
+                engine_ref,
+            )
+        else:
+            pack, _ = normalize_team_published(stored.get(key), state, other)
+            published[key] = pack
+    return published
+
+
+def _enqueue_maximal(restaurant_id: str, team: Team) -> str:
+    job_id = secrets.token_urlsafe(12)
+    try:
+        with session_scope() as db:
+            existing = db.scalars(
+                select(GenerateJob).where(
+                    GenerateJob.restaurant_id == restaurant_id,
+                    GenerateJob.team == team.value,
+                    GenerateJob.status.in_(ACTIVE_JOB_STATUSES),
+                )
+            ).first()
+            if existing is not None:
+                raise HTTPException(status_code=409, detail=DETAIL_JOB_RUNNING)
+            db.add(
+                GenerateJob(
+                    id=job_id,
+                    restaurant_id=restaurant_id,
+                    team=team.value,
+                    search_effort=SearchEffort.MAXIMAL.value,
+                    status="queued",
+                    estimated_seconds=MAXIMAL_ESTIMATED_SECONDS,
+                    error=None,
+                    created_at=datetime.now(timezone.utc),
+                )
+            )
+    except IntegrityError as exc:
+        raise HTTPException(status_code=409, detail=DETAIL_JOB_RUNNING) from exc
+    return job_id
+
+
+def _job_payload(job: GenerateJob, published: dict[str, Any] | None = None) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "job_id": job.id,
+        "team": job.team,
+        "search_effort": job.search_effort,
+        "status": job.status,
+        "estimated_seconds": job.estimated_seconds,
+    }
+    if job.status == "failed" and job.error:
+        body["error"] = job.error
+    if job.status == "done" and published is not None:
+        body["published"] = published
+    return body
+
+
+def get_generate_job(authorization: str | None, job_id: str) -> dict[str, Any]:
+    require_database()
+    restaurant_id = require_company_restaurant_id(authorization)
+    with session_scope() as db:
+        job = db.get(GenerateJob, job_id)
+        if job is None or job.restaurant_id != restaurant_id:
+            raise HTTPException(status_code=404, detail=DETAIL_JOB_MISSING)
+        status = job.status
+        payload = _job_payload(job)
+    if status in ("done", "failed"):
+        iso_log("generate job", job_id=job_id, status=status)
+    if status == "done":
+        company, fiches = _load_company(restaurant_id)
+        stored = _stored_published(company.published_cycles)
+        state = _state_from_rows(company, fiches) if any(stored.values()) else None
+        published, dirty = normalize_published(stored, state)
+        if dirty:
+            _persist_published(restaurant_id, published)
+        payload["published"] = published
+    return payload
+
+
+def post_generate(authorization: str | None, body: dict[str, Any]) -> dict[str, Any] | JSONResponse:
     require_database()
     restaurant_id = require_company_restaurant_id(authorization)
     team, search = _parse_generate(body)
     company, fiches = _load_company(restaurant_id)
     stored = _stored_published(company.published_cycles)
     state = _state_from_rows(company, fiches)
+    if search == SearchEffort.MAXIMAL:
+        if not team_ready(state, team):
+            raise HTTPException(status_code=409, detail=DETAIL_NOT_READY)
+        job_id = _enqueue_maximal(restaurant_id, team)
+        iso_log("generate 202", job_id=job_id, team=team.value)
+        return JSONResponse(
+            status_code=202,
+            content={
+                "job_id": job_id,
+                "team": team.value,
+                "search_effort": SearchEffort.MAXIMAL.value,
+                "status": "queued",
+                "estimated_seconds": MAXIMAL_ESTIMATED_SECONDS,
+            },
+        )
+    effective_ref = get_effective_engine_ref()
+    started = time.perf_counter()
     try:
-        generate_team(state, team, search)
+        generate_team(state, team, search, engine_ref=effective_ref)
     except TeamNotReady as exc:
         raise HTTPException(status_code=409, detail=DETAIL_NOT_READY) from exc
-    stored[team.value] = _cycle_json(state.published_cycles[team])
-    _persist_published(restaurant_id, stored)
+    duration_seconds = max(0.0, time.perf_counter() - started)
+    generated_at = datetime.now(timezone.utc).isoformat()
+    published = _published_after_generate(state, team, stored, search.value, generated_at, duration_seconds, effective_ref)
+    _persist_published(restaurant_id, published)
+    slot = ((published[team.value] or {}).get("versions") or {}).get(search.value) or {}
+    _log_generate(
+        restaurant_id,
+        restaurant_name=company.name or "",
+        team=team.value,
+        search_effort=search.value,
+        duration_seconds=duration_seconds,
+        engine_ref=effective_ref,
+        facts=list(slot.get("facts") or []),
+        employees=state.employees,
+        score_global=_score_global_of_slot(slot),
+    )
     return {
         "team": team.value,
         "search_effort": search.value,
-        "published": stored,
+        "published": published,
     }
+
+
+def persist_maximal_result(
+    restaurant_id: str,
+    team: Team,
+    *,
+    generate_fn: Any = generate_team,
+) -> dict[str, Any]:
+    company, fiches = _load_company(restaurant_id)
+    stored = _stored_published(company.published_cycles)
+    state = _state_from_rows(company, fiches)
+    effective_ref = get_effective_engine_ref()
+    started = time.perf_counter()
+    generate_fn(state, team, SearchEffort.MAXIMAL, engine_ref=effective_ref)
+    keep_ids = {person.id for person in state.employees}
+    published_cycle = state.published_cycles.get(team)
+    result = getattr(published_cycle, "result", None)
+    assignments = getattr(result, "assignments", ()) or ()
+    if any(getattr(shift, "employee_id", None) not in keep_ids for shift in assignments):
+        raise StaleGenerateStaff()
+    duration_seconds = max(0.0, time.perf_counter() - started)
+    generated_at = datetime.now(timezone.utc).isoformat()
+    published = _published_after_generate(
+        state,
+        team,
+        stored,
+        SearchEffort.MAXIMAL.value,
+        generated_at,
+        duration_seconds,
+        effective_ref,
+    )
+    _persist_published(restaurant_id, published)
+    slot = ((published[team.value] or {}).get("versions") or {}).get(SearchEffort.MAXIMAL.value) or {}
+    _log_generate(
+        restaurant_id,
+        restaurant_name=company.name or "",
+        team=team.value,
+        search_effort=SearchEffort.MAXIMAL.value,
+        duration_seconds=duration_seconds,
+        engine_ref=effective_ref,
+        facts=list(slot.get("facts") or []),
+        employees=state.employees,
+        score_global=_score_global_of_slot(slot),
+    )
+    return published
+
+
+def _employee_name_at_log(employees: Any, employee_id: str | None) -> str | None:
+    if not employee_id:
+        return None
+    for person in employees or []:
+        if getattr(person, "id", None) == employee_id:
+            return getattr(person, "name", None)
+    return None
+
+
+def _evaluate_miss_facts(facts: list[Any], employees: Any) -> list[dict[str, Any]]:
+    logged: list[dict[str, Any]] = []
+    for item in facts:
+        if not isinstance(item, dict):
+            item = _fact_json(item)
+        if item.get("polarity") != "miss" or item.get("kind") == "role_gap":
+            continue
+        logged.append(
+            {
+                "axis": item.get("axis"),
+                "kind": item.get("kind"),
+                "polarity": "miss",
+                "severity": item.get("severity"),
+                "employee_id": item.get("employee_id"),
+                "day_index": item.get("day_index"),
+                "payload": dict(item.get("payload") or {}),
+                "employee_name": _employee_name_at_log(employees, item.get("employee_id")),
+            }
+        )
+    return logged
+
+
+def _facts_from_log_items(raw: list[Any] | None) -> list[dict[str, Any]]:
+    facts: list[dict[str, Any]] = []
+    for item in raw or []:
+        if not isinstance(item, dict):
+            continue
+        payload = item.get("payload")
+        has_payload = isinstance(payload, dict)
+        if has_payload and item.get("kind"):
+            fact = {
+                "axis": item.get("axis") or FACT_AXIS.get(item.get("kind"), "couverture"),
+                "kind": item.get("kind"),
+                "polarity": item.get("polarity") or "miss",
+                "severity": item.get("severity"),
+                "employee_id": item.get("employee_id"),
+                "day_index": item.get("day_index"),
+                "payload": dict(payload),
+            }
+            if "employee_name" in item:
+                fact["employee_name"] = item.get("employee_name")
+            facts.append(fact)
+            continue
+        kind = item.get("kind") or item.get("code")
+        fact = {
+            "axis": FACT_AXIS.get(kind, "couverture") if kind else "couverture",
+            "kind": kind,
+            "polarity": "miss",
+            "severity": item.get("severity"),
+            "employee_id": item.get("employee_id"),
+            "day_index": item.get("day_index"),
+            "payload": {},
+        }
+        if "employee_name" in item:
+            fact["employee_name"] = item.get("employee_name")
+        if item.get("message") is not None:
+            fact["message"] = item["message"]
+        facts.append(fact)
+    return facts
+
+
+def _score_global_of_slot(slot: Any) -> float | None:
+    if not isinstance(slot, dict):
+        return None
+    score = slot.get("score")
+    if not isinstance(score, dict):
+        return None
+    value = score.get("global")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _log_generate(
+    restaurant_id: str,
+    *,
+    restaurant_name: str,
+    team: str,
+    search_effort: str,
+    duration_seconds: float,
+    engine_ref: str,
+    facts: list[Any],
+    employees: Any,
+    score_global: float | None = None,
+) -> None:
+    with session_scope() as db:
+        account = db.scalars(
+            select(RestaurateurAccount).where(RestaurateurAccount.restaurant_id == restaurant_id)
+        ).first()
+        if account is None:
+            return
+        db.add(
+            GenerateLog(
+                id=secrets.token_urlsafe(12),
+                created_at=datetime.now(timezone.utc),
+                email=account.email,
+                restaurant_name=restaurant_name,
+                team=team,
+                search_effort=search_effort,
+                duration_seconds=duration_seconds,
+                engine_ref=engine_ref,
+                restaurant_id=restaurant_id,
+                score_global=score_global,
+                warnings=_evaluate_miss_facts(facts, employees),
+            )
+        )
+
+
+def list_generate_logs(authorization: str | None) -> dict[str, Any]:
+    require_admin(authorization)
+    with session_scope() as db:
+        rows = db.scalars(select(GenerateLog).order_by(GenerateLog.created_at.desc(), GenerateLog.id.desc())).all()
+        return {
+            "entries": [
+                {
+                    "id": row.id,
+                    "created_at": row.created_at.isoformat(),
+                    "email": row.email,
+                    "restaurant_name": row.restaurant_name,
+                    "team": row.team,
+                    "search_effort": row.search_effort,
+                    "duration_seconds": row.duration_seconds,
+                    "engine_ref": row.engine_ref,
+                    "facts": _facts_from_log_items(row.warnings),
+                    "restaurant_id": row.restaurant_id,
+                    "score_global": row.score_global,
+                }
+                for row in rows
+            ]
+        }

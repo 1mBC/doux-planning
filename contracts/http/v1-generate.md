@@ -1,20 +1,22 @@
 # Generate live par équipe
 
 Freeze HTTP. Wrappe `generate_team` (`contracts/domain/team-generate.md`).  
+Jobs Maximal = `contracts/domain/generate-jobs.md`.  
+**4 slots** (3 computes + `manuel`) + `generated_at` = `contracts/domain/generate-versions.md` ; le cran manuel = `contracts/domain/manual-planning.md` (**gagne**).  
 Bearer **company**. Pas d’id resto dans le path.  
 `kind: employee` → 403 `Action réservée au restaurateur.`  
 Sans Bearer → 401 `Session invalide.`  
 Sans `DATABASE_URL` → 503 `Base indisponible.`
 
-Exemple public + sandbox joujou **inchangés**. Pas de jobs / worker / `SKIP LOCKED` dans cette tranche. Sync : `POST` appelle `generate_team` et rend le cycle persisté. Tests = **`minimal`** seulement.
-
-Pas de `legal_rows` / `wish_rows` / `stats` moteur recréés côté HTTP. Assignments + warnings du `EngineResult` seulement.
+Exemple public + sandbox joujou **inchangés**. **Pas** de Core `engine.py`.  
+`minimal` / `optimized` : 200 sync. `maximal` : 202 + worker. Tests sync = `minimal` ; job = tick stub.
 
 ## Routes
 
 ```
-POST /v1/generate     Bearer company → 200 GenerateResult
-GET  /v1/cycles       Bearer company → 200 Cycles
+POST /v1/generate                  Bearer company → 200 GenerateResult | 202 GenerateJob
+GET  /v1/generate/jobs/{job_id}    Bearer company → 200 GenerateJob
+GET  /v1/cycles                    Bearer company → 200 Cycles
 ```
 
 ### `POST /v1/generate`
@@ -23,39 +25,53 @@ GET  /v1/cycles       Bearer company → 200 Cycles
 { "team": "salle"|"cuisine", "search_effort": "minimal"|"optimized"|"maximal" }
 ```
 
-`search_effort` omis → `optimized`.  
-`TeamNotReady` → 409 `Cette équipe n'est pas prête à calculer.` (aucun solve).  
-Team / effort invalide → 400 `Champs invalides.`
+Omis → `optimized` (200). `TeamNotReady` → 409. Effort / team invalide → 400. **`manuel` n’est pas un generate** → 400 `Champs invalides.`  
+`maximal` déjà queued/running cette team → 409 `Un calcul maximal est déjà en cours.`
 
-200 = `GenerateResult` :
+200 :
 
 ```
 {
   "team": "salle",
   "search_effort": "minimal",
   "published": {
-    "salle": { "assignments": [Shift], "warnings": [Warning] },
+    "salle": {
+      "versions": {
+        "minimal": { assignments, facts, stats, legal_*, wish_*, score, generated_at, search_effort, duration_seconds, engine_ref },
+        "optimized": null,
+        "maximal": null,
+        "manuel": null
+      },
+      "latest": "minimal"
+    },
     "cuisine": null
   }
 }
 ```
 
-`Shift` / `Warning` = mêmes clés que l’exemple / sandbox (`employee_id`, `day_index`, `weekday`, `service_id`, `team`, `start_minutes`, `end_minutes`, `post_level`, `duration_hours` ; `severity`, `code`, `message`, `employee_id`, `day_index`).  
-Assignments du cycle salle = `team: "salle"` seulement. L’autre clé reste le cycle déjà persisté (ou `null`).
+Équipe sans aucun calcul : `null` (pas d’objet versions vide obligatoire — ou objet tout-null + `latest` null ; **un** des deux, Infra choisit et GET/POST **identiques**). Préférer l’objet `{ versions: {4× null}, latest: null }` dès le premier generate / publish de l’autre équipe.
+
+`maximal` → 202 `{ job_id, team, search_effort, status: queued, estimated_seconds: 600 }` (pas de `published`).
+
+### `GET /v1/generate/jobs/{job_id}`
+
+Comme aujourd’hui. `published` ssi `done` = **nouveau** format versions.
 
 ### `GET /v1/cycles`
 
-Même objet `published` (sans `team` / `search_effort` du dernier POST). Resto jamais généré : `{ "published": { "salle": null, "cuisine": null } }`.
+Même `published` (deux équipes, versions). Jamais généré : `{ "published": { "salle": null, "cuisine": null } }`.
 
 ## Persist
 
-JSONB (ou tables) sur l’entreprise live — **pas** `example_snapshots`, pas `data/examples/saint-cloud.json`.  
-`reset_engine` / restart → même `GET /v1/cycles`. Regenerer une équipe remplace seulement cette clé.
+JSONB `published_cycles` : 4 slots + `latest`. Coerce ancien plat → `versions.optimized` + `manuel: null`. Coerce 3 clés → `manuel: null`.  
+Generate écrit **un** slot + `generated_at` + `search_effort` + `duration_seconds` + `engine_ref` + `latest`.  
+`engine_ref` = le moteur **réellement** lancé (`live_engine_ref` admin, `admin.md`) — **pas** dans le body POST (le client ne choisit pas).  
+Worker logs stdout : `generate-versions.md`. `generate_logs` : `admin.md`.
 
-## UI (cette tranche)
+## UI
 
-Route `/planning` (company). **Calculer** si `ready[team]` ; POST `search_effort: "minimal"`. Grille = `published[team]` + fiches context. Pas d’édition sandbox live. Exemple sans session inchangé.
+Sélecteur d’effort **sans** solve ; (Re)Calculer POST. Détail = brief UI.
 
 ## Hors tranche
 
-Worker, jobs, sandbox live, publish semaine, `/me/shifts`, CORS sauf proxy cassé.
+`/me/shifts`, mail / push, Core limites de recherche.

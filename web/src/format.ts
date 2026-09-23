@@ -5,10 +5,64 @@ import type {
   LegalContext,
   LegalRow,
   LegalRule,
-  WarningItem,
+  ScoreFact,
 } from "./types";
+import { factSeverityLabel, factTitle } from "./scoreFacts";
 
 export const DAYS_FR = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+export const DAYS_FR_SHORT = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
+
+export type WeekLabelScheme = "ab" | "parity";
+
+export function weekSheetTitle(scheme: WeekLabelScheme, weekOffset: 0 | 7): string {
+  if (scheme === "parity") {
+    return weekOffset === 0 ? "Semaine paire" : "Semaine impaire";
+  }
+  return weekOffset === 0 ? "Semaine A" : "Semaine B";
+}
+
+export function weekLabelPair(scheme: WeekLabelScheme): string {
+  return scheme === "parity" ? "Paire / Impaire" : "A / B";
+}
+
+export function formatSolveDuration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
+    return "—";
+  }
+  if (seconds < 60) {
+    const rounded = seconds < 10 ? Math.round(seconds * 10) / 10 : Math.round(seconds);
+    return `${String(rounded).replace(".", ",")}s`;
+  }
+  return `${Math.round(seconds / 60)} min`;
+}
+
+export function warningWhen(dayIndex: number | null | undefined): string {
+  if (dayIndex === null || dayIndex === undefined || !Number.isFinite(dayIndex)) {
+    return "—";
+  }
+  const day = DAYS_FR[(((dayIndex % 7) + 7) % 7)];
+  const week = dayIndex >= 7 ? "semaine B" : "semaine A";
+  return `${day} · ${week}`;
+}
+
+export function formatGeneratedAt(iso: string | undefined): string {
+  if (!iso) {
+    return "—";
+  }
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) {
+    return "—";
+  }
+  return at.toLocaleString("fr-FR", {
+    timeZone: "Europe/Paris",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
 
 export const WEEKDAYS_EN = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 
@@ -80,15 +134,10 @@ export function effortLabel(effort: string): string {
   return EFFORT_FR[effort] ?? effort;
 }
 
-export const SEVERITY_FR: Record<WarningItem["severity"], string> = {
+export const SEVERITY_FR: Record<NonNullable<ScoreFact["severity"]>, string> = {
   interdit: "Interdit",
   couverture: "Couverture",
   souhait: "Souhait",
-};
-
-const CODE_TITLE_FR: Record<string, string> = {
-  empty_post: "Poste vide",
-  contract_hours: "Heures de contrat",
 };
 
 export const GESTURE_CHOICE_FR: { id: Gesture; label: string }[] = [
@@ -103,6 +152,13 @@ export const GESTURE_HISTORY_FR: Record<Gesture, string> = {
   swap: "Échange",
   fill: "Créneau posé",
 };
+
+export function formatCycleNote(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  return value.toFixed(1).replace(".", ",");
+}
 
 export function formatScoreValue(value: number): string {
   if (Number.isInteger(value)) {
@@ -134,8 +190,12 @@ export function formatContractPercents(
   return `(${formatScoreValue(before)} % → ${formatScoreValue(after)} %)`;
 }
 
-export function warningTitle(code: string): string | undefined {
-  return CODE_TITLE_FR[code];
+export function warningTitle(kind: string): string {
+  return factTitle(kind);
+}
+
+export function warningSeverityLabel(warning: Pick<ScoreFact, "kind" | "severity" | "polarity">): string {
+  return factSeverityLabel(warning);
 }
 
 export function assignmentKey(employeeId: string, dayIndex: number, serviceId: string): string {

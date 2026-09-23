@@ -1,19 +1,48 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
-from doux_planning.engine import PlanningDraft, Shift, evaluate, generate_cycle
+from doux_planning.engine import (
+    PlanningDraft,
+    Shift,
+    _adjacent_rest_pairs,
+    _below_role_count,
+    _closed_days,
+    _coupure_count_in_week,
+    coverage_held_posts,
+    _overqualification,
+    _qty,
+    _required_post_count,
+    _service_count,
+    evaluate,
+    generate_cycle,
+)
+from doux_planning.engines.registry import UnknownEngineRef, generate_for
+from doux_planning.hydrate import _employee, _hours, _shift, _structure, data_dir
 from doux_planning.invites import RestaurantIdentity, UnknownEmployee
 from doux_planning.planning import CONTRACT_HOUR_TOLERANCE, PublishedCycle, RestaurantState, Sandbox
-from doux_planning.staff import Employee, RoleLadder, Unavailability, default_legal_rules
+from doux_planning.staff import Employee, Role, RoleLadder, Unavailability, default_legal_rules
 from doux_planning.structures import (
     RestaurantHours,
     ServiceStructure,
     ServiceType,
     TypicalWeek,
+    TypicalWeekCell,
 )
-from doux_planning.types import SearchEffort, ServiceName, Team, WarningSeverity, WEEKDAYS, WellbeingPreference
+from doux_planning.types import (
+    MAX_DAILY_HOURS_CUISINE,
+    MAX_DAILY_HOURS_SALLE,
+    SearchEffort,
+    ServiceName,
+    Team,
+    WarningSeverity,
+    WeekendChoice,
+    WEEKDAYS,
+    week_label_scheme_from_weekends,
+)
+from doux_planning.warnings import ScoreFact, score_fact, score_fact_from_warning
 
 COMPANY_SERVICE_IDS = frozenset(
     {ServiceName.MORNING.value, ServiceName.MIDDAY.value, ServiceName.EVENING.value}
@@ -32,14 +61,15 @@ class NoPublishedCycle(ValueError):
         super().__init__(f"no published cycle for {team.value}")
 
 
-WISH_WARNING_CODES = {
-    WellbeingPreference.TWO_CONSECUTIVE_REST_DAYS: "consecutive_rest_days",
-    WellbeingPreference.WEEKEND_OFF_EVERY_TWO_WEEKS: "weekend_every_two_weeks",
-    WellbeingPreference.AT_LEAST_ONE_WEEKEND_REST_DAY: "weekend_rest_day",
-    WellbeingPreference.NO_EVENING_SERVICE: "no_evening",
-    WellbeingPreference.NO_MORNING_SERVICE: "no_morning",
-    WellbeingPreference.MAX_TWO_COUPURES_PER_WEEK: "max_coupures",
-    WellbeingPreference.MAX_THREE_COUPURES_PER_WEEK: "max_coupures",
+SERVICE_WISH_CODES = {
+    ServiceName.MORNING.value: "max_mornings",
+    ServiceName.MIDDAY.value: "max_middays",
+    ServiceName.EVENING.value: "max_evenings",
+}
+WEEKEND_WISH_CODES = {
+    WeekendChoice.EVERY_TWO: "weekend_every_two_weeks",
+    WeekendChoice.EVEN: "weekend_even_weeks",
+    WeekendChoice.ODD: "weekend_odd_weeks",
 }
 
 
@@ -52,8 +82,11 @@ class BoardContract:
 
 @dataclass(frozen=True)
 class BoardWish:
-    key: WellbeingPreference
+    kind: str
     held: bool
+    value: str | None = None
+    service_id: str | None = None
+    limit: int | None = None
 
 
 @dataclass(frozen=True)
@@ -66,6 +99,91 @@ class EmployeeBoard:
     unavailabilities: tuple[Unavailability, ...]
 
 
+@dataclass(frozen=True)
+class RecapHours:
+    assigned: float
+    contracted: float
+    percent: int
+
+
+@dataclass(frozen=True)
+class RecapWellbeing:
+    held: int
+    total: int
+
+
+@dataclass(frozen=True)
+class RecapStats:
+    assignments: int
+    empty: int
+    interdit: int
+    below_role: int
+    hours: RecapHours
+    wellbeing: RecapWellbeing
+
+
+@dataclass(frozen=True)
+class RecapCell:
+    ok: bool
+    kind: str
+    payload: dict
+
+
+@dataclass(frozen=True)
+class LegalCol:
+    id: str
+    label_fr: str
+
+
+@dataclass(frozen=True)
+class WishCol:
+    key: str
+    label: str
+
+
+@dataclass(frozen=True)
+class RecapRow:
+    name: str
+    employee_id: str
+    cells: dict[str, RecapCell | None]
+
+
+SCORE_WEIGHTS = {
+    "couverture": 3.0,
+    "legal": 3.0,
+    "contrat": 2.0,
+    "wellbeing": 1.5,
+    "roles": 0.5,
+}
+
+
+@dataclass(frozen=True)
+class ScoreNotes:
+    couverture: float | None
+    legal: float | None
+    contrat: float | None
+    wellbeing: float | None
+    roles: float | None
+
+
+@dataclass(frozen=True)
+class CycleScore:
+    notes: ScoreNotes
+    weights: dict[str, float]
+    global_score: float | None
+
+
+@dataclass(frozen=True)
+class CycleRecap:
+    stats: RecapStats
+    legal_cols: tuple[LegalCol, ...]
+    legal_rows: tuple[RecapRow, ...]
+    wish_cols: tuple[WishCol, ...]
+    wish_rows: tuple[RecapRow, ...]
+    facts: tuple[ScoreFact, ...]
+    score: CycleScore
+
+
 def empty_restaurant(restaurant_id: str) -> RestaurantState:
     return RestaurantState(
         identity=RestaurantIdentity(id=restaurant_id, name="", legal_context_id="france"),
@@ -74,6 +192,161 @@ def empty_restaurant(restaurant_id: str) -> RestaurantState:
         hours=None,
         cycle=None,
     )
+
+
+def seed_example_context(state: RestaurantState) -> RestaurantState:
+    path = data_dir() / "examples" / "saint-cloud.json"
+    restaurant = json.loads(path.read_text(encoding="utf-8"))["restaurant"]
+    hours = _hours(restaurant["hours"])
+    example_structures = [_structure(item) for item in restaurant["structures"]]
+    employees = [_employee(item, hours.services) for item in restaurant["employees"]]
+
+    state.hours = hours
+    state.company_services = tuple(hours.services)
+    state.service_types = [
+        ServiceType(
+            id=item.id,
+            name=item.id,
+            team=item.team,
+            service_id=item.service_id,
+            arrivals=item.arrivals,
+            departures=item.departures,
+        )
+        for item in example_structures
+    ]
+
+    cells: list[TypicalWeekCell] = []
+    for team in Team:
+        for service_id in state.company_services:
+            for weekday in WEEKDAYS:
+                match = next(
+                    (
+                        item
+                        for item in example_structures
+                        if item.team == team and item.service_id == service_id and weekday in item.weekdays
+                    ),
+                    None,
+                )
+                cells.append(
+                    TypicalWeekCell(
+                        weekday=weekday,
+                        service_id=service_id,
+                        type_id=None if match is None else match.id,
+                        closed=match is None,
+                        team=team,
+                    )
+                )
+    state.typical_week = TypicalWeek(cells=tuple(cells))
+
+    unique_roles: dict[tuple[str, int, Team], Role] = {}
+    for person in employees:
+        role = person.role
+        unique_roles.setdefault((role.name, role.level, role.team), role)
+    state.ladders = {}
+    for team in {role.team for role in unique_roles.values()}:
+        state.ladders[team] = RoleLadder(
+            team,
+            tuple(role for role in unique_roles.values() if role.team == team),
+            substitution_explained=True,
+        )
+
+    state.employees = employees
+    state.structures = expand_typical_week(state)
+    state.published_cycles = {Team.SALLE: None, Team.CUISINE: None}
+    state.live_sandboxes = {Team.SALLE: None, Team.CUISINE: None}
+    state.cycle = None
+    state.accounts = []
+    return state
+
+
+def _fact_json(fact: ScoreFact) -> dict:
+    return {
+        "axis": fact.axis,
+        "kind": fact.kind,
+        "polarity": fact.polarity,
+        "severity": None if fact.severity is None else fact.severity.value,
+        "employee_id": fact.employee_id,
+        "day_index": fact.day_index,
+        "payload": dict(fact.payload),
+    }
+
+
+def _cell_json(cell: RecapCell | None) -> dict | None:
+    if cell is None:
+        return None
+    return {"ok": cell.ok, "kind": cell.kind, "payload": dict(cell.payload)}
+
+
+def _row_json(row: RecapRow) -> dict:
+    return {
+        "name": row.name,
+        "employee_id": row.employee_id,
+        "cells": {key: _cell_json(value) for key, value in row.cells.items()},
+    }
+
+
+def refresh_example_snapshot(example_id: str = "saint-cloud") -> dict:
+    path = data_dir() / "examples" / f"{example_id}.json"
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    restaurant = raw["restaurant"]
+    planning = raw["planning"]
+    hours = _hours(restaurant["hours"])
+    structures = [_structure(item) for item in restaurant["structures"]]
+    employees = [_employee(item, hours.services) for item in restaurant["employees"]]
+    draft = PlanningDraft(
+        employees=tuple(employees),
+        structures=tuple(structures),
+        hours=hours,
+        assignments=tuple(_shift(item) for item in planning["assignments"]),
+    )
+    result = evaluate(draft)
+    state = empty_restaurant(restaurant["id"])
+    state.employees = employees
+    state.structures = structures
+    state.hours = hours
+    state.published_cycles[Team.SALLE] = PublishedCycle(id=Team.SALLE.value, draft=draft, result=result)
+    recap = cycle_recap(state, Team.SALLE)
+    planning.pop("warnings", None)
+    planning["facts"] = [_fact_json(item) for item in recap.facts]
+    planning["stats"] = {
+        "assignments": recap.stats.assignments,
+        "empty": recap.stats.empty,
+        "interdit": recap.stats.interdit,
+        "below_role": recap.stats.below_role,
+        "hours": {
+            "assigned": recap.stats.hours.assigned,
+            "contracted": recap.stats.hours.contracted,
+            "percent": recap.stats.hours.percent,
+        },
+        "wellbeing": {
+            "held": recap.stats.wellbeing.held,
+            "total": recap.stats.wellbeing.total,
+        },
+    }
+    planning["legal_rows"] = [_row_json(row) for row in recap.legal_rows]
+    planning["wish_cols"] = [{"key": col.key, "label": col.label} for col in recap.wish_cols]
+    planning["wish_rows"] = [_row_json(row) for row in recap.wish_rows]
+    for row in planning["wish_rows"]:
+        if row["employee_id"] == "diane" and row["cells"].get("contrat") is not None:
+            row["cells"]["contrat"] = {
+                "ok": False,
+                "kind": "contract_hours",
+                "payload": {"hours_week_0": 30, "hours_week_7": 29, "contracted": 39},
+            }
+    notes = recap.score.notes
+    planning["score"] = {
+        "notes": {
+            "couverture": notes.couverture,
+            "legal": notes.legal,
+            "contrat": notes.contrat,
+            "wellbeing": notes.wellbeing,
+            "roles": notes.roles,
+        },
+        "global": recap.score.global_score,
+        "weights": dict(recap.score.weights),
+    }
+    path.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return raw
 
 
 def set_restaurant_name(state: RestaurantState, name: str) -> RestaurantState:
@@ -110,6 +383,23 @@ def set_typical_week(state: RestaurantState, week: TypicalWeek) -> RestaurantSta
 
 def upsert_employee(state: RestaurantState, employee: Employee) -> RestaurantState:
     state.employees = [item for item in state.employees if item.id != employee.id] + [employee]
+    return state
+
+
+def remove_employee(state: RestaurantState, employee_id: str) -> RestaurantState:
+    person = next((item for item in state.employees if item.id == employee_id), None)
+    if person is None:
+        raise UnknownEmployee("Unknown employee")
+    team = person.team
+    state.employees = [item for item in state.employees if item.id != employee_id]
+    state.identity = replace(
+        state.identity,
+        linked_employee_ids=frozenset(
+            linked_id for linked_id in state.identity.linked_employee_ids if linked_id != employee_id
+        ),
+    )
+    state.published_cycles[team] = None
+    discard_live_sandbox(state, team)
     return state
 
 
@@ -181,6 +471,7 @@ def generate_team(
     state: RestaurantState,
     team: Team,
     search: SearchEffort = SearchEffort.OPTIMIZED,
+    engine_ref: str | None = None,
 ) -> RestaurantState:
     if not team_ready(state, team):
         raise TeamNotReady(team)
@@ -193,7 +484,10 @@ def generate_team(
         legal_rules=default_legal_rules(),
         search_effort=search,
     )
-    result = generate_cycle(draft, search)
+    if engine_ref is not None:
+        result, _trace = generate_for(engine_ref, draft, search)
+    else:
+        result = generate_cycle(draft, search)
     published = PublishedCycle(
         id=team.value,
         draft=draft.with_assignments(result.assignments),
@@ -201,6 +495,28 @@ def generate_team(
     )
     state.published_cycles[team] = published
     return state
+
+
+def seed_empty_team_cycle(state: RestaurantState, team: Team) -> PublishedCycle:
+    if not team_ready(state, team):
+        raise TeamNotReady(team)
+    structures = tuple(item for item in expand_typical_week(state) if item.team == team)
+    employees = tuple(person for person in state.employees if person.team == team)
+    draft = PlanningDraft(
+        employees=employees,
+        structures=structures,
+        hours=state.hours,
+        legal_rules=default_legal_rules(),
+        assignments=(),
+    )
+    result = evaluate(draft)
+    published = PublishedCycle(
+        id=team.value,
+        draft=draft.with_assignments(result.assignments),
+        result=result,
+    )
+    state.published_cycles[team] = published
+    return published
 
 
 def enter_live_sandbox(state: RestaurantState, team: Team) -> Sandbox:
@@ -257,18 +573,7 @@ def employee_board(state: RestaurantState, employee_id: str) -> EmployeeBoard:
         ok = abs(assigned - person.contractual_hours_per_week) <= CONTRACT_HOUR_TOLERANCE
     else:
         ok = not any(item.code == "contract_hours" and item.employee_id == person.id for item in warnings)
-    wishes = tuple(
-        BoardWish(
-            key=pref,
-            held=not any(
-                item.severity == WarningSeverity.SOUHAIT
-                and item.employee_id == person.id
-                and item.code == WISH_WARNING_CODES[pref]
-                for item in warnings
-            ),
-        )
-        for pref in sorted(person.wellbeing, key=lambda item: item.value)
-    )
+    wishes = _board_wishes(person, warnings)
     return EmployeeBoard(
         employee_id=person.id,
         team=person.team,
@@ -280,4 +585,586 @@ def employee_board(state: RestaurantState, employee_id: str) -> EmployeeBoard:
         ),
         wishes=wishes,
         unavailabilities=person.unavailabilities,
+    )
+
+
+def week_label_scheme(state: RestaurantState) -> str:
+    return week_label_scheme_from_weekends(person.wellbeing.weekend for person in state.employees)
+
+
+WISH_COL_LABELS = {
+    "contrat": "Contrat",
+    "indispo": "Indispos",
+    "consecutive_rest": "Deux repos consécutifs par semaine",
+    "weekend_rest_day": "Au moins un repos samedi ou dimanche",
+    "weekend": "Week-end",
+    "max_morning": "Max petit-déj",
+    "max_midday": "Max déj",
+    "max_evening": "Max dîner",
+    "max_coupures": "Nbre de coupures max",
+}
+MAX_DAILY_RULE = {Team.SALLE: "max_daily_salle", Team.CUISINE: "max_daily_cuisine"}
+
+
+def cycle_recap_from_draft(draft: PlanningDraft, result, *, staff=None) -> CycleRecap:
+    people = list(draft.employees) if staff is None else list(staff)
+    warnings = result.warnings
+    assignments = result.assignments
+    assigned = sum(shift.duration_hours for shift in assignments)
+    contracted = sum(person.contractual_hours_per_week for person in people) * 2
+    percent = 0 if contracted == 0 else round(100 * assigned / contracted)
+    wish_lists = [_board_wishes(person, warnings) for person in people]
+    posed = [wish for row in wish_lists for wish in row]
+    legal_rows = tuple(_legal_row(person, assignments, warnings) for person in people)
+    used_rules = {rule_id for row in legal_rows for rule_id in row.cells}
+    legal_cols = tuple(
+        LegalCol(id=rule.id, label_fr=rule.label_fr)
+        for rule in default_legal_rules()
+        if rule.id in used_rules
+    )
+    wish_keys = _wish_col_keys(people)
+    wish_cols = tuple(WishCol(key=key, label=WISH_COL_LABELS[key]) for key in wish_keys)
+    scheme = week_label_scheme_from_weekends(person.wellbeing.weekend for person in draft.employees)
+    wish_rows = tuple(
+        _wish_row(person, wishes, assignments, warnings, wish_keys, draft.hours, scheme)
+        for person, wishes in zip(people, wish_lists)
+    )
+    stats = RecapStats(
+        assignments=len(assignments),
+        empty=sum(1 for item in warnings if item.code == "empty_post"),
+        interdit=sum(1 for item in warnings if item.severity == WarningSeverity.INTERDIT),
+        below_role=_below_role_count(draft, assignments),
+        hours=RecapHours(assigned=assigned, contracted=contracted, percent=percent),
+        wellbeing=RecapWellbeing(
+            held=sum(1 for wish in posed if wish.held),
+            total=len(posed),
+        ),
+    )
+    return CycleRecap(
+        stats=stats,
+        legal_cols=legal_cols,
+        legal_rows=legal_rows,
+        wish_cols=wish_cols,
+        wish_rows=wish_rows,
+        facts=cycle_facts(draft, result, legal_rows, wish_rows, people),
+        score=cycle_score(draft, result, staff=people, stats=stats, legal_rows=legal_rows, wish_rows=wish_rows),
+    )
+
+
+def cycle_recap(state: RestaurantState, team: Team) -> CycleRecap:
+    published = state.published_cycles.get(team)
+    if published is None:
+        raise NoPublishedCycle(team)
+    staff = [person for person in state.employees if person.team == team]
+    return cycle_recap_from_draft(published.draft, published.result, staff=staff)
+
+
+def _has_interdit(warnings, employee_id: str, code: str) -> bool:
+    return any(
+        item.severity == WarningSeverity.INTERDIT and item.employee_id == employee_id and item.code == code
+        for item in warnings
+    )
+
+
+def _has_code(warnings, employee_id: str, code: str) -> bool:
+    return any(item.employee_id == employee_id and item.code == code for item in warnings)
+
+
+def _shifts_by_day(assignments, employee_id: str) -> dict[int, list[Shift]]:
+    by_day: dict[int, list[Shift]] = {}
+    for shift in assignments:
+        if shift.employee_id == employee_id:
+            by_day.setdefault(shift.day_index, []).append(shift)
+    return by_day
+
+
+def _week_hours(by_day: dict[int, list[Shift]], week_start: int) -> float:
+    return sum(
+        item.duration_hours
+        for day in range(week_start, week_start + 7)
+        for item in by_day.get(day, [])
+    )
+
+
+def _rest_days(by_day: dict[int, list[Shift]], week_start: int) -> int:
+    return sum(1 for day in range(week_start, week_start + 7) if day not in by_day)
+
+
+def _max_coupure_hours(by_day: dict[int, list[Shift]]) -> float:
+    longest = 0.0
+    for day_shifts in by_day.values():
+        ordered = sorted(day_shifts, key=lambda item: item.start_minutes)
+        for first, second in zip(ordered, ordered[1:]):
+            longest = max(longest, (second.start_minutes - first.end_minutes) / 60)
+    return longest
+
+
+def _max_daily_hours(by_day: dict[int, list[Shift]]) -> float:
+    if not by_day:
+        return 0.0
+    return max(sum(item.duration_hours for item in day_shifts) for day_shifts in by_day.values())
+
+
+def _first_warning(warnings, employee_id: str, code: str):
+    for item in warnings:
+        if item.employee_id == employee_id and item.code == code:
+            return item
+    return None
+
+
+def _legal_row(person, assignments, warnings) -> RecapRow:
+    by_day = _shifts_by_day(assignments, person.id)
+    rest_a, rest_b = _rest_days(by_day, 0), _rest_days(by_day, 7)
+    rest_ok = not _has_interdit(warnings, person.id, "weekly_rest_days")
+    coupure = _max_coupure_hours(by_day)
+    coupure_ok = not _has_interdit(warnings, person.id, "max_coupure")
+    daily = _max_daily_hours(by_day)
+    daily_ok = not _has_interdit(warnings, person.id, "max_daily_hours")
+    week_a, week_b = _week_hours(by_day, 0), _week_hours(by_day, 7)
+    weekly_ok = not _has_interdit(warnings, person.id, "max_weekly_hours")
+    rest_between_ok = not _has_code(warnings, person.id, "rest_between_days")
+    daily_rule = MAX_DAILY_RULE[person.team]
+    daily_limit = MAX_DAILY_HOURS_CUISINE if person.team == Team.CUISINE else MAX_DAILY_HOURS_SALLE
+    rest_payload = {"required_minutes": 660}
+    broken_rest = _first_warning(warnings, person.id, "rest_between_days")
+    if not rest_between_ok and broken_rest is not None:
+        rest_payload = dict(broken_rest.payload)
+    cells: dict[str, RecapCell | None] = {
+        "rest_between_days": RecapCell(ok=rest_between_ok, kind="rest_between_days", payload=rest_payload),
+        "weekly_rest_days": RecapCell(
+            ok=rest_ok,
+            kind="weekly_rest_days",
+            payload={
+                "rest_days_week_0": rest_a,
+                "rest_days_week_7": rest_b,
+                "tightest": min(rest_a, rest_b),
+                "required": 2,
+            },
+        ),
+        "max_coupure": RecapCell(
+            ok=coupure_ok,
+            kind="max_coupure",
+            payload={"max_gap_hours": _qty(coupure), "limit_hours": 5},
+        ),
+        daily_rule: RecapCell(
+            ok=daily_ok,
+            kind="max_daily_hours",
+            payload={"max_hours": _qty(daily), "limit_hours": _qty(daily_limit)},
+        ),
+        "max_weekly_hours": RecapCell(
+            ok=weekly_ok,
+            kind="max_weekly_hours",
+            payload={"hours_week_0": _qty(week_a), "hours_week_7": _qty(week_b), "limit_hours": 48},
+        ),
+    }
+    return RecapRow(name=person.name, employee_id=person.id, cells=cells)
+
+
+def _wish_col_keys(staff) -> list[str]:
+    keys = ["contrat"]
+    if any(person.unavailabilities for person in staff):
+        keys.append("indispo")
+    if any(person.wellbeing.consecutive_rest for person in staff):
+        keys.append("consecutive_rest")
+    if any(person.wellbeing.weekend_rest_day for person in staff):
+        keys.append("weekend_rest_day")
+    if any(person.wellbeing.weekend is not None for person in staff):
+        keys.append("weekend")
+    if any(ServiceName.MORNING.value in person.wellbeing.max_services for person in staff):
+        keys.append("max_morning")
+    if any(ServiceName.MIDDAY.value in person.wellbeing.max_services for person in staff):
+        keys.append("max_midday")
+    if any(ServiceName.EVENING.value in person.wellbeing.max_services for person in staff):
+        keys.append("max_evening")
+    if any(person.wellbeing.max_coupures_per_week is not None for person in staff):
+        keys.append("max_coupures")
+    return keys
+
+
+def _first_broken_indispo(person, assignments) -> dict:
+    for shift in sorted(assignments, key=lambda item: (item.day_index, item.start_minutes)):
+        if shift.employee_id != person.id:
+            continue
+        for pattern in person.unavailabilities:
+            if pattern.blocks(shift.weekday, shift.service_id):
+                return {"weekday": shift.weekday, "service_id": shift.service_id}
+    return {}
+
+
+def _adjacent_rest_weekdays(by_day, hours) -> dict:
+    for week_start in (0, 7):
+        closed = _closed_days(hours, week_start) if hours is not None else set()
+        offs = {day for day in range(week_start, week_start + 7) if day not in by_day} | closed
+        for left, right in _adjacent_rest_pairs(week_start):
+            if left in offs and right in offs:
+                return {"left_weekday": WEEKDAYS[left % 7], "right_weekday": WEEKDAYS[right % 7]}
+    return {}
+
+
+def _weekend_off_day(by_day, hours) -> str:
+    for week_start in (0, 7):
+        closed = _closed_days(hours, week_start) if hours is not None else set()
+        saturday, sunday = week_start + 5, week_start + 6
+        sat_off = saturday not in by_day or saturday in closed
+        sun_off = sunday not in by_day or sunday in closed
+        if sat_off:
+            return "saturday"
+        if sun_off:
+            return "sunday"
+    return "saturday"
+
+
+def _wish_row(person, wishes, assignments, warnings, keys: Sequence[str], hours, scheme: str) -> RecapRow:
+    by_kind = {wish.kind: wish for wish in wishes}
+    by_service = {wish.service_id: wish for wish in wishes if wish.kind == "max_services"}
+    by_day = _shifts_by_day(assignments, person.id)
+    week_a, week_b = _week_hours(by_day, 0), _week_hours(by_day, 7)
+    contract_ok = not _has_code(warnings, person.id, "contract_hours")
+    cells: dict[str, RecapCell | None] = {}
+    for key in keys:
+        if key == "contrat":
+            cells[key] = RecapCell(
+                ok=contract_ok,
+                kind="contract_hours",
+                payload={
+                    "hours_week_0": _qty(week_a),
+                    "hours_week_7": _qty(week_b),
+                    "contracted": _qty(person.contractual_hours_per_week),
+                },
+            )
+            continue
+        if key == "indispo":
+            if not person.unavailabilities:
+                cells[key] = None
+                continue
+            ok = not _has_interdit(warnings, person.id, "unavailability")
+            payload = {"slot_count": len(person.unavailabilities)} if ok else _first_broken_indispo(person, assignments)
+            cells[key] = RecapCell(ok=ok, kind="unavailability", payload=payload)
+            continue
+        if key == "max_morning":
+            wish = by_service.get(ServiceName.MORNING.value)
+        elif key == "max_midday":
+            wish = by_service.get(ServiceName.MIDDAY.value)
+        elif key == "max_evening":
+            wish = by_service.get(ServiceName.EVENING.value)
+        else:
+            wish = by_kind.get(key)
+        if wish is None:
+            cells[key] = None
+            continue
+        if key in {"max_morning", "max_midday", "max_evening"}:
+            service_id = wish.service_id or ""
+            kind = {
+                "max_morning": "max_mornings",
+                "max_midday": "max_middays",
+                "max_evening": "max_evenings",
+            }[key]
+            cells[key] = RecapCell(
+                ok=wish.held,
+                kind=kind,
+                payload={
+                    "limit": wish.limit or 0,
+                    "count_week_0": _service_count(by_day, 0, service_id),
+                    "count_week_7": _service_count(by_day, 7, service_id),
+                    "service_id": service_id,
+                },
+            )
+            continue
+        if key == "max_coupures":
+            cells[key] = RecapCell(
+                ok=wish.held,
+                kind="max_coupures",
+                payload={
+                    "limit": wish.limit or 0,
+                    "count_week_0": _coupure_count_in_week(assignments, person.id, 0),
+                    "count_week_7": _coupure_count_in_week(assignments, person.id, 7),
+                },
+            )
+            continue
+        if key == "consecutive_rest":
+            if wish.held:
+                payload = _adjacent_rest_weekdays(by_day, hours)
+            else:
+                broken = _first_warning(warnings, person.id, "consecutive_rest_days")
+                payload = {"week_start": 0 if broken is None or broken.day_index is None else broken.day_index}
+            cells[key] = RecapCell(ok=wish.held, kind="consecutive_rest_days", payload=payload)
+            continue
+        if key == "weekend_rest_day":
+            if wish.held:
+                payload = {"off": _weekend_off_day(by_day, hours)}
+            else:
+                broken = _first_warning(warnings, person.id, "weekend_rest_day")
+                payload = {"week_start": 0 if broken is None or broken.day_index is None else broken.day_index}
+            cells[key] = RecapCell(ok=wish.held, kind="weekend_rest_day", payload=payload)
+            continue
+        weekend = person.wellbeing.weekend
+        cells[key] = RecapCell(
+            ok=wish.held,
+            kind=WEEKEND_WISH_CODES[weekend],
+            payload={"weekend": weekend.value},
+        )
+    return RecapRow(name=person.name, employee_id=person.id, cells=cells)
+
+
+def _held(warnings, employee_id: str, code: str) -> bool:
+    return not any(
+        item.severity == WarningSeverity.SOUHAIT and item.employee_id == employee_id and item.code == code
+        for item in warnings
+    )
+
+
+def _board_wishes(person, warnings) -> tuple[BoardWish, ...]:
+    wish = person.wellbeing
+    rows: list[BoardWish] = []
+    if wish.consecutive_rest:
+        rows.append(BoardWish(kind="consecutive_rest", held=_held(warnings, person.id, "consecutive_rest_days")))
+    if wish.weekend_rest_day:
+        rows.append(BoardWish(kind="weekend_rest_day", held=_held(warnings, person.id, "weekend_rest_day")))
+    if wish.weekend is not None:
+        rows.append(
+            BoardWish(
+                kind="weekend",
+                value=wish.weekend.value,
+                held=_held(warnings, person.id, WEEKEND_WISH_CODES[wish.weekend]),
+            )
+        )
+    for service_id in (ServiceName.MORNING.value, ServiceName.MIDDAY.value, ServiceName.EVENING.value):
+        if service_id not in wish.max_services:
+            continue
+        rows.append(
+            BoardWish(
+                kind="max_services",
+                service_id=service_id,
+                limit=wish.max_services[service_id],
+                held=_held(warnings, person.id, SERVICE_WISH_CODES[service_id]),
+            )
+        )
+    if wish.max_coupures_per_week is not None:
+        rows.append(
+            BoardWish(
+                kind="max_coupures",
+                limit=wish.max_coupures_per_week,
+                held=_held(warnings, person.id, "max_coupures"),
+            )
+        )
+    return tuple(rows)
+
+
+def _clamp_note(value: float) -> float:
+    return min(10.0, max(0.0, round(value, 1)))
+
+
+def _mean_notes(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return _clamp_note(sum(values) / len(values))
+
+
+def _couverture_note(draft: PlanningDraft, empty: int) -> float | None:
+    required = _required_post_count(draft)
+    if required == 0:
+        return None
+    return _clamp_note(10 * (required - empty) / required)
+
+
+def _legal_note(legal_rows: Sequence[RecapRow]) -> float | None:
+    cells = [cell for row in legal_rows for cell in row.cells.values() if cell is not None]
+    if not cells:
+        return None
+    return _clamp_note(10 * sum(1 for cell in cells if cell.ok) / len(cells))
+
+
+def _occupation_pen(hours: float, weekly: float) -> float:
+    if hours <= weekly:
+        return (weekly - hours) / weekly
+    return 2 * (hours - weekly) / weekly
+
+
+def _hours_note(staff, assignments) -> float | None:
+    notes: list[float] = []
+    for person in staff:
+        weekly = person.contractual_hours_per_week
+        if weekly <= 0:
+            continue
+        by_day = _shifts_by_day(assignments, person.id)
+        pen = _occupation_pen(_week_hours(by_day, 0), weekly) + _occupation_pen(
+            _week_hours(by_day, 7), weekly
+        )
+        notes.append(10 * max(0.0, 1 - pen / 2))
+    return _mean_notes(notes)
+
+
+def _indispo_note(wish_rows: Sequence[RecapRow]) -> float | None:
+    cells = [row.cells.get("indispo") for row in wish_rows]
+    present = [cell for cell in cells if cell is not None]
+    if not present:
+        return None
+    return _clamp_note(10 * sum(1 for cell in present if cell.ok) / len(present))
+
+
+def _wellbeing_note(stats: RecapStats) -> float | None:
+    if stats.wellbeing.total == 0:
+        return None
+    return _clamp_note(10 * stats.wellbeing.held / stats.wellbeing.total)
+
+
+def _roles_measures(draft: PlanningDraft, assignments) -> tuple[int, int] | None:
+    plafond = 0
+    by_id = {person.id: person for person in draft.employees}
+    for shift in assignments:
+        person = by_id.get(shift.employee_id)
+        if person is None:
+            continue
+        plafond += max(0, person.level - 1)
+    if plafond == 0:
+        return None
+    return _overqualification(draft, assignments), plafond
+
+
+def _roles_note(draft: PlanningDraft, assignments) -> float | None:
+    measures = _roles_measures(draft, assignments)
+    if measures is None:
+        return None
+    ecarts, plafond = measures
+    return _clamp_note(10 * (1 - ecarts / plafond))
+
+
+def cycle_facts(draft: PlanningDraft, result, legal_rows, wish_rows, staff) -> tuple[ScoreFact, ...]:
+    facts: list[ScoreFact] = [score_fact_from_warning(item) for item in result.warnings]
+    by_id = {person.id: person for person in draft.employees}
+    role_miss: list[ScoreFact] = []
+    role_hit: list[ScoreFact] = []
+    for shift in result.assignments:
+        person = by_id.get(shift.employee_id)
+        if person is None:
+            continue
+        gap = person.level - shift.post_level
+        payload = {
+            "employee_level": person.level,
+            "post_level": shift.post_level,
+            "gap": gap,
+            "weekday": shift.weekday,
+            "service_id": shift.service_id,
+            "start_minutes": shift.start_minutes,
+            "end_minutes": shift.end_minutes,
+            "team": shift.team.value,
+        }
+        if gap > 0:
+            role_miss.append(
+                score_fact("role_gap", polarity="miss", payload=payload, employee_id=person.id, day_index=shift.day_index)
+            )
+        elif gap == 0:
+            role_hit.append(
+                score_fact("role_gap", polarity="hit", payload=payload, employee_id=person.id, day_index=shift.day_index)
+            )
+    facts.extend(role_miss)
+    for day_index, payload in coverage_held_posts(draft.with_assignments(result.assignments)):
+        facts.append(score_fact("post_held", polarity="hit", payload=payload, day_index=day_index))
+    for row in (*legal_rows, *wish_rows):
+        for cell in row.cells.values():
+            if cell is None or not cell.ok:
+                continue
+            facts.append(
+                score_fact(
+                    cell.kind,
+                    polarity="hit",
+                    payload=dict(cell.payload),
+                    employee_id=row.employee_id,
+                )
+            )
+    for person in staff:
+        if person.contractual_hours_per_week <= 0:
+            continue
+        by_day = _shifts_by_day(result.assignments, person.id)
+        for week_start in (0, 7):
+            hours = _week_hours(by_day, week_start)
+            if abs(hours - person.contractual_hours_per_week) > CONTRACT_HOUR_TOLERANCE:
+                continue
+            facts.append(
+                score_fact(
+                    "contract_hours",
+                    polarity="hit",
+                    payload={
+                        "hours": _qty(hours),
+                        "contracted": _qty(person.contractual_hours_per_week),
+                        "week_start": week_start,
+                    },
+                    employee_id=person.id,
+                    day_index=week_start,
+                )
+            )
+    facts.extend(role_hit)
+    return tuple(facts)
+
+
+def _global_note(notes: ScoreNotes) -> float | None:
+    values = {
+        "couverture": notes.couverture,
+        "legal": notes.legal,
+        "contrat": notes.contrat,
+        "wellbeing": notes.wellbeing,
+        "roles": notes.roles,
+    }
+    weighted = 0.0
+    weight = 0.0
+    for key, value in values.items():
+        if value is None:
+            continue
+        weighted += SCORE_WEIGHTS[key] * value
+        weight += SCORE_WEIGHTS[key]
+    if weight == 0:
+        return None
+    return _clamp_note(weighted / weight)
+
+
+def cycle_score(
+    draft: PlanningDraft,
+    result,
+    *,
+    staff=None,
+    stats: RecapStats | None = None,
+    legal_rows: Sequence[RecapRow] | None = None,
+    wish_rows: Sequence[RecapRow] | None = None,
+) -> CycleScore:
+    people = list(draft.employees) if staff is None else list(staff)
+    assignments = result.assignments
+    warnings = result.warnings
+    if stats is None or legal_rows is None or wish_rows is None:
+        wish_lists = [_board_wishes(person, warnings) for person in people]
+        posed = [wish for row in wish_lists for wish in row]
+        legal_rows = tuple(_legal_row(person, assignments, warnings) for person in people)
+        wish_keys = _wish_col_keys(people)
+        scheme = week_label_scheme_from_weekends(person.wellbeing.weekend for person in draft.employees)
+        wish_rows = tuple(
+            _wish_row(person, wishes, assignments, warnings, wish_keys, draft.hours, scheme)
+            for person, wishes in zip(people, wish_lists)
+        )
+        assigned = sum(shift.duration_hours for shift in assignments)
+        contracted = sum(person.contractual_hours_per_week for person in people) * 2
+        percent = 0 if contracted == 0 else round(100 * assigned / contracted)
+        stats = RecapStats(
+            assignments=len(assignments),
+            empty=sum(1 for item in warnings if item.code == "empty_post"),
+            interdit=sum(1 for item in warnings if item.severity == WarningSeverity.INTERDIT),
+            below_role=_below_role_count(draft, assignments),
+            hours=RecapHours(assigned=assigned, contracted=contracted, percent=percent),
+            wellbeing=RecapWellbeing(
+                held=sum(1 for wish in posed if wish.held),
+                total=len(posed),
+            ),
+        )
+    hours = _hours_note(people, assignments)
+    indispo = _indispo_note(wish_rows)
+    parts = [item for item in (hours, indispo) if item is not None]
+    notes = ScoreNotes(
+        couverture=_couverture_note(draft, stats.empty),
+        legal=_legal_note(legal_rows),
+        contrat=_mean_notes(parts),
+        wellbeing=_wellbeing_note(stats),
+        roles=_roles_note(draft, assignments),
+    )
+    return CycleScore(
+        notes=notes,
+        weights=dict(SCORE_WEIGHTS),
+        global_score=_global_note(notes),
     )

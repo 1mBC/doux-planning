@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -18,6 +19,7 @@ from doux_planning.api.db import (
     AuthSession,
     Company,
     EmployeeAccountRow,
+    ImpersonateToken,
     RestaurateurAccount,
     StaffFiche,
     database_url,
@@ -33,22 +35,28 @@ from doux_planning.invites import (
     redeem_invite,
     rotate_employee_invite_token,
 )
-from doux_planning.staff import Employee, Role
+from doux_planning.staff import Employee, Role, coerce_min_shift_hours
 from doux_planning.types import Team
 
 PASSWORD_HASHER = PasswordHasher()
 SESSION_TTL = timedelta(days=30)
+IMPERSONATE_TTL = timedelta(minutes=15)
 MIN_PASSWORD_LENGTH = 8
 DETAIL_INVALID_FIELDS = "Champs invalides."
 DETAIL_INVALID_INVITE = "Code entreprise ou jeton invalide."
 DETAIL_BAD_CREDENTIALS = "Email ou mot de passe incorrect."
 DETAIL_SESSION = "Session invalide."
 DETAIL_FORBIDDEN = "Action réservée au restaurateur."
+DETAIL_ADMIN = "Action réservée à l’admin."
 DETAIL_EMPLOYEE_ONLY = "Action réservée au salarié."
 DETAIL_EMAIL_TAKEN = "Cet email est déjà utilisé."
 DETAIL_FICHE_LINKED = "Cette fiche a déjà un compte."
 DETAIL_COMPANY_MISSING = "Entreprise introuvable."
+DETAIL_RESTAURANT_MISSING = "Restaurant introuvable."
+DETAIL_IMPERSONATE = "Lien expiré ou déjà utilisé."
 DETAIL_FICHE_MISSING = "Fiche introuvable."
+DETAIL_UNAFFILIATED = "Vous n'êtes rattaché à aucun restaurant."
+DETAIL_ALREADY_AFFILIATED = "Vous êtes déjà rattaché à un restaurant."
 DETAIL_DB = "Base indisponible."
 
 
@@ -109,16 +117,19 @@ def _load_session(db: Session, token: str) -> AuthSession:
     return row
 
 
-def _me_payload(*, kind: str, email: str, restaurant_id: str, employee_id: str | None) -> dict[str, Any]:
+def _me_payload(
+    *, kind: str, email: str, restaurant_id: str | None, employee_id: str | None, admin: bool = False
+) -> dict[str, Any]:
     return {
         "kind": kind,
         "email": email,
         "restaurant_id": restaurant_id,
         "employee_id": employee_id,
+        "admin": bool(admin) if kind == "company" else False,
     }
 
 
-def _issue_session(db: Session, *, kind: str, account_id: str, restaurant_id: str) -> str:
+def _issue_session(db: Session, *, kind: str, account_id: str, restaurant_id: str | None) -> str:
     token = secrets.token_urlsafe(32)
     db.add(
         AuthSession(
@@ -132,34 +143,21 @@ def _issue_session(db: Session, *, kind: str, account_id: str, restaurant_id: st
     return token
 
 
-def _fiche_to_employee(row: StaffFiche) -> Employee:
-    from doux_planning.staff import Unavailability
-    from doux_planning.types import DEFAULT_MIN_SHIFT_HOURS, WellbeingPreference
+def _fiche_to_employee(row: StaffFiche, company_services: list[str] | None = None) -> Employee:
+    from doux_planning.api.wellbeing_codec import coerce_unavailabilities, coerce_wellbeing
 
     team = Team(row.team)
     role = Role(name=row.role, level=getattr(row, "role_level", 1) or 1, team=team)
-    unavailabilities = tuple(
-        Unavailability(
-            weekday=item.get("weekday"),
-            every_morning=bool(item.get("every_morning")),
-            every_evening=bool(item.get("every_evening")),
-            service_id=item.get("service_id"),
-        )
-        for item in (row.unavailabilities or [])
-        if isinstance(item, dict)
-    )
-    wellbeing = frozenset(
-        WellbeingPreference(value) for value in (row.wellbeing or []) if isinstance(value, str)
-    )
+    services = list(company_services or [])
     return Employee(
         id=row.id,
         name=row.name,
         role=role,
         team=team,
         contractual_hours_per_week=getattr(row, "contractual_hours_per_week", None) or 35,
-        unavailabilities=unavailabilities,
-        wellbeing=wellbeing,
-        min_shift_hours=getattr(row, "min_shift_hours", None) or DEFAULT_MIN_SHIFT_HOURS,
+        unavailabilities=tuple(coerce_unavailabilities(row.unavailabilities, services)),
+        wellbeing=coerce_wellbeing(row.wellbeing),
+        min_shift_hours=coerce_min_shift_hours(getattr(row, "min_shift_hours", None), services or None),
         invite_token=row.invite_token,
     )
 
@@ -175,6 +173,33 @@ def _identity_from_company(company: Company) -> RestaurantIdentity:
     )
 
 
+def promote_admin_email() -> None:
+    raw = os.environ.get("ADMIN_EMAIL")
+    if not raw or not str(raw).strip():
+        return
+    if not database_url():
+        return
+    email = str(raw).strip().lower()
+    with session_scope() as db:
+        account = db.scalars(select(RestaurateurAccount).where(RestaurateurAccount.email == email)).first()
+        if account is None:
+            return
+        account.is_admin = True
+
+
+def require_admin(authorization: str | None) -> str:
+    require_database()
+    token = _bearer_token(authorization)
+    with session_scope() as db:
+        session = _load_session(db, token)
+        if session.kind != "company":
+            raise HTTPException(status_code=403, detail=DETAIL_ADMIN)
+        account = db.get(RestaurateurAccount, session.account_id)
+        if account is None or not account.is_admin:
+            raise HTTPException(status_code=403, detail=DETAIL_ADMIN)
+        return session.restaurant_id
+
+
 def require_company_restaurant_id(authorization: str | None) -> str:
     require_database()
     token = _bearer_token(authorization)
@@ -185,7 +210,7 @@ def require_company_restaurant_id(authorization: str | None) -> str:
         return session.restaurant_id
 
 
-def require_employee_session(authorization: str | None) -> tuple[str, str]:
+def require_employee_account(authorization: str | None) -> EmployeeAccountRow:
     require_database()
     token = _bearer_token(authorization)
     with session_scope() as db:
@@ -195,7 +220,15 @@ def require_employee_session(authorization: str | None) -> tuple[str, str]:
         account = db.get(EmployeeAccountRow, session.account_id)
         if account is None:
             raise HTTPException(status_code=401, detail=DETAIL_SESSION)
-        return session.restaurant_id, account.employee_id
+        db.expunge(account)
+        return account
+
+
+def require_employee_session(authorization: str | None) -> tuple[str, str]:
+    account = require_employee_account(authorization)
+    if account.restaurant_id is None or account.employee_id is None:
+        raise HTTPException(status_code=409, detail=DETAIL_UNAFFILIATED)
+    return account.restaurant_id, account.employee_id
 
 
 def _claim_email(db: Session, email: str) -> None:
@@ -211,6 +244,18 @@ def _map_invite_error(exc: Exception) -> HTTPException:
         return HTTPException(status_code=409, detail=DETAIL_FICHE_LINKED)
     if isinstance(exc, UnknownEmployee):
         return HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    raise exc
+
+
+def _map_link_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, (InvalidInviteCode, UnknownInviteToken, InviteTargetMismatch)):
+        return HTTPException(status_code=400, detail=DETAIL_INVALID_INVITE)
+    if isinstance(exc, InviteAlreadyRedeemed):
+        return HTTPException(status_code=409, detail=DETAIL_FICHE_LINKED)
+    if isinstance(exc, UnknownEmployee):
+        return HTTPException(status_code=404, detail=DETAIL_FICHE_MISSING)
     if isinstance(exc, ValueError):
         return HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
     raise exc
@@ -291,7 +336,7 @@ def _register_employee(
             if company is None:
                 raise InvalidInviteCode("Invalid invite code")
             fiches = list(db.scalars(select(StaffFiche).where(StaffFiche.company_id == company.id)))
-            employees = tuple(_fiche_to_employee(row) for row in fiches)
+            employees = tuple(_fiche_to_employee(row, company.services) for row in fiches)
             account, updated = redeem_invite(
                 _identity_from_company(company),
                 employees,
@@ -356,6 +401,7 @@ def login(body: dict[str, Any]) -> dict[str, Any]:
             email=account.email,
             restaurant_id=account.restaurant_id,
             employee_id=employee_id,
+            admin=bool(getattr(account, "is_admin", False)) if restaurateur is not None else False,
         )
     return {"token": token, "me": me}
 
@@ -384,6 +430,7 @@ def me(authorization: str | None) -> dict[str, Any]:
                 email=account.email,
                 restaurant_id=session.restaurant_id,
                 employee_id=None,
+                admin=account.is_admin,
             )
         account = db.get(EmployeeAccountRow, session.account_id)
         if account is None:
@@ -391,7 +438,7 @@ def me(authorization: str | None) -> dict[str, Any]:
         return _me_payload(
             kind="employee",
             email=account.email,
-            restaurant_id=session.restaurant_id,
+            restaurant_id=account.restaurant_id,
             employee_id=account.employee_id,
         )
 
@@ -419,9 +466,144 @@ def rotate_invite_token(employee_id: str, authorization: str | None) -> dict[str
         session = _load_session(db, token)
         if session.kind != "company":
             raise HTTPException(status_code=403, detail=DETAIL_FORBIDDEN)
-        fiche = db.get(StaffFiche, employee_id)
-        if fiche is None or fiche.company_id != session.restaurant_id:
+        fiche = db.get(StaffFiche, (session.restaurant_id, employee_id))
+        if fiche is None:
             raise HTTPException(status_code=404, detail=DETAIL_FICHE_MISSING)
-        rotated = rotate_employee_invite_token(_fiche_to_employee(fiche))
+        company = db.get(Company, session.restaurant_id)
+        services = company.services if company is not None else []
+        rotated = rotate_employee_invite_token(_fiche_to_employee(fiche, services))
         fiche.invite_token = rotated.invite_token
         return {"employee_id": fiche.id, "employee_token": rotated.invite_token}
+
+
+def link_account(body: dict[str, Any], authorization: str | None) -> dict[str, Any]:
+    require_database()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    token = _bearer_token(authorization)
+    try:
+        with session_scope() as db:
+            session = _load_session(db, token)
+            if session.kind != "employee":
+                raise HTTPException(status_code=403, detail=DETAIL_EMPLOYEE_ONLY)
+            account = db.get(EmployeeAccountRow, session.account_id)
+            if account is None:
+                raise HTTPException(status_code=401, detail=DETAIL_SESSION)
+            if account.employee_id is not None or account.restaurant_id is not None:
+                raise HTTPException(status_code=409, detail=DETAIL_ALREADY_AFFILIATED)
+            company_code = _as_optional_str(body, "company_code")
+            employee_id = _as_optional_str(body, "employee_id")
+            if not company_code or not employee_id:
+                raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+            company = db.scalars(select(Company).where(Company.invite_code == company_code)).first()
+            if company is None:
+                raise InvalidInviteCode("Invalid invite code")
+            fiches = list(db.scalars(select(StaffFiche).where(StaffFiche.company_id == company.id)))
+            employees = tuple(_fiche_to_employee(row, company.services) for row in fiches)
+            linked, updated = redeem_invite(
+                _identity_from_company(company),
+                employees,
+                company_code,
+                account.id,
+                employee_id=employee_id,
+                employee_token=None,
+            )
+            company.linked_employee_ids = sorted(updated.linked_employee_ids)
+            flag_modified(company, "linked_employee_ids")
+            account.restaurant_id = linked.restaurant_id
+            account.employee_id = linked.employee_id
+            session.restaurant_id = linked.restaurant_id
+            return _me_payload(
+                kind="employee",
+                email=account.email,
+                restaurant_id=account.restaurant_id,
+                employee_id=account.employee_id,
+            )
+    except HTTPException:
+        raise
+    except (
+        InvalidInviteCode,
+        UnknownInviteToken,
+        InviteAlreadyRedeemed,
+        InviteTargetMismatch,
+        UnknownEmployee,
+        ValueError,
+    ) as exc:
+        raise _map_link_error(exc) from exc
+    except IntegrityError as exc:
+        raise HTTPException(status_code=409, detail=DETAIL_FICHE_LINKED) from exc
+
+
+def _absolute_origin(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto")
+    host = request.headers.get("x-forwarded-host")
+    if proto and host:
+        return f"{proto}://{host}".rstrip("/")
+    return str(request.base_url).rstrip("/")
+
+
+def mint_impersonate(authorization: str | None, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    require_admin(authorization)
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    restaurant_id = body.get("restaurant_id")
+    if not isinstance(restaurant_id, str) or not restaurant_id.strip():
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    restaurant_id = restaurant_id.strip()
+    opaque = secrets.token_urlsafe(32)
+    expires_at = _now() + IMPERSONATE_TTL
+    with session_scope() as db:
+        company = db.get(Company, restaurant_id)
+        account = db.scalars(
+            select(RestaurateurAccount).where(RestaurateurAccount.restaurant_id == restaurant_id)
+        ).first()
+        if company is None or account is None:
+            raise HTTPException(status_code=404, detail=DETAIL_RESTAURANT_MISSING)
+        db.add(
+            ImpersonateToken(
+                token_hash=_hash_token(opaque),
+                account_id=account.id,
+                restaurant_id=restaurant_id,
+                expires_at=expires_at,
+                consumed_at=None,
+                created_at=_now(),
+            )
+        )
+    return {
+        "url": f"{_absolute_origin(request)}/impersonate/{opaque}",
+        "expires_at": expires_at.isoformat(),
+    }
+
+
+def consume_impersonate(body: dict[str, Any]) -> dict[str, Any]:
+    require_database()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    token = body.get("token")
+    if not isinstance(token, str) or not token.strip():
+        raise HTTPException(status_code=400, detail=DETAIL_INVALID_FIELDS)
+    token_hash = _hash_token(token.strip())
+    with session_scope() as db:
+        row = db.get(ImpersonateToken, token_hash)
+        if row is None:
+            raise HTTPException(status_code=401, detail=DETAIL_IMPERSONATE)
+        expires = row.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if row.consumed_at is not None or expires <= _now():
+            raise HTTPException(status_code=401, detail=DETAIL_IMPERSONATE)
+        account = db.get(RestaurateurAccount, row.account_id)
+        if account is None:
+            raise HTTPException(status_code=401, detail=DETAIL_IMPERSONATE)
+        row.consumed_at = _now()
+        session_token = _issue_session(
+            db, kind="company", account_id=account.id, restaurant_id=row.restaurant_id
+        )
+        me = _me_payload(
+            kind="company",
+            email=account.email,
+            restaurant_id=row.restaurant_id,
+            employee_id=None,
+            admin=bool(account.is_admin),
+        )
+    return {"token": session_token, "me": me}

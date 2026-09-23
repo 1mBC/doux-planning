@@ -90,3 +90,59 @@ def test_stretch_extends_end_then_start():
     stretched = stretch_to_min_shift(hole, 4.0, structure)
     assert stretched.start_minutes == 19 * 60 + 30
     assert stretched.end_minutes == 23 * 60 + 30
+
+
+def _garde_manger_midday() -> ServiceStructure:
+    return ServiceStructure(
+        id="salle-midday",
+        team=Team.SALLE,
+        service_id=ServiceName.MIDDAY.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(
+            ArrivalWave(10 * 60, (1,)),
+            ArrivalWave(10 * 60 + 30, (3,)),
+            ArrivalWave(11 * 60 + 30, (2,)),
+        ),
+        departures=(
+            DepartureWave(15 * 60 + 30, (1, 3)),
+            DepartureWave(16 * 60, (3,)),
+        ),
+    )
+
+
+def test_leftover_chef_stays_until_last_wave_not_zero_duration():
+    structure = _garde_manger_midday()
+    windows = list(derive_post_windows(structure))
+    by_level = {(item.level, item.start_minutes, item.end_minutes) for item in windows}
+    assert (2, 11 * 60 + 30, 15 * 60 + 30) in by_level
+    assert (1, 10 * 60, 16 * 60) in by_level
+    assert (3, 10 * 60 + 30, 16 * 60) in by_level
+    leftover = next(item for item in windows if item.level == 3)
+    stretched = stretch_to_min_shift(leftover, 4.0, structure)
+    assert stretched.start_minutes == 10 * 60 + 30
+    assert stretched.end_minutes == 16 * 60
+    by_start = {item.start_minutes: item.post_levels for item in derive_slices(structure)}
+    assert 3 in by_start[10 * 60 + 30]
+    assert 3 in by_start[15 * 60 + 30]
+
+
+def test_leftover_evening_chef_stays_until_last_departure():
+    structure = ServiceStructure(
+        id="salle-evening",
+        team=Team.SALLE,
+        service_id=ServiceName.EVENING.value,
+        weekdays=frozenset({"monday"}),
+        arrivals=(
+            ArrivalWave(18 * 60, (2,)),
+            ArrivalWave(19 * 60, (3,)),
+            ArrivalWave(19 * 60 + 30, (1,)),
+        ),
+        departures=(
+            DepartureWave(23 * 60, (1, 3)),
+            DepartureWave(24 * 60, (3,)),
+        ),
+    )
+    chef = [item for item in derive_post_windows(structure) if item.level == 3]
+    assert len(chef) == 1
+    assert chef[0].start_minutes == 19 * 60
+    assert chef[0].end_minutes == 24 * 60

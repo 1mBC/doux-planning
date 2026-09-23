@@ -1,0 +1,89 @@
+{
+  "id": "campus",
+  "category": "wishes",
+  "name": "Café Campus",
+  "team": "salle",
+  "challenge_fr": "Couverture facile (6 fiches, 4 postes) mais indispos croisées, repos consécutifs, we impair, max 2 dîners.",
+  "hours": {
+    "mode": "services",
+    "services": ["midday", "evening"],
+    "closed_weekdays": ["sunday"]
+  },
+  "roles": [
+    { "name": "RESPONSABLE", "level": 3, "team": "salle" },
+    { "name": "SERVEUR", "level": 2, "team": "salle" },
+    { "name": "EQUIPIER", "level": 1, "team": "salle" }
+  ],
+  "types": [
+    {
+      "id": "midi",
+      "name": "Midi",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [{ "time_minutes": 720, "post_levels": [2, 1] }],
+      "departures": [{ "time_minutes": 960, "remaining_post_levels": [] }]
+    },
+    {
+      "id": "soir",
+      "name": "Soir",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [{ "time_minutes": 1140, "post_levels": [2, 1] }],
+      "departures": [{ "time_minutes": 1380, "remaining_post_levels": [] }]
+    }
+  ],
+  "employees": [
+    {
+      "id": "adele",
+      "name": "Adèle",
+      "role": { "name": "RESPONSABLE", "level": 3, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 35,
+      "wellbeing": { "consecutive_rest": true, "weekend_rest_day": true }
+    },
+    {
+      "id": "bruno",
+      "name": "Bruno",
+      "role": { "name": "SERVEUR", "level": 2, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 35,
+      "wellbeing": { "weekend": "odd", "max_services": { "evening": 2 } }
+    },
+    {
+      "id": "chloe",
+      "name": "Chloé",
+      "role": { "name": "EQUIPIER", "level": 1, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 28,
+      "unavailabilities": [
+        { "weekday": "monday", "service_id": "midday" },
+        { "weekday": "monday", "service_id": "evening" }
+      ],
+      "wellbeing": { "max_services": { "evening": 2 } }
+    },
+    {
+      "id": "dylan",
+      "name": "Dylan",
+      "role": { "name": "EQUIPIER", "level": 1, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 28,
+      "unavailabilities": [{ "weekday": "friday", "service_id": "evening" }]
+    },
+    {
+      "id": "eva",
+      "name": "Eva",
+      "role": { "name": "SERVEUR", "level": 2, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 20,
+      "wellbeing": { "weekend": "every_two" }
+    },
+    {
+      "id": "farid",
+      "name": "Farid",
+      "role": { "name": "EQUIPIER", "level": 1, "team": "salle" },
+      "team": "salle",
+      "contractual_hours_per_week": 35,
+      "wellbeing": { "consecutive_rest": true }
+    }
+  ]
+}

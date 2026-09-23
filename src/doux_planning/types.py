@@ -21,14 +21,10 @@ class WarningSeverity(str, Enum):
     SOUHAIT = "souhait"
 
 
-class WellbeingPreference(str, Enum):
-    TWO_CONSECUTIVE_REST_DAYS = "two_consecutive_rest_days"
-    WEEKEND_OFF_EVERY_TWO_WEEKS = "weekend_off_every_two_weeks"
-    AT_LEAST_ONE_WEEKEND_REST_DAY = "at_least_one_weekend_rest_day"
-    NO_EVENING_SERVICE = "no_evening_service"
-    NO_MORNING_SERVICE = "no_morning_service"
-    MAX_TWO_COUPURES_PER_WEEK = "max_two_coupures_per_week"
-    MAX_THREE_COUPURES_PER_WEEK = "max_three_coupures_per_week"
+class WeekendChoice(str, Enum):
+    EVERY_TWO = "every_two"
+    EVEN = "even"
+    ODD = "odd"
 
 
 class SearchEffort(str, Enum):
@@ -40,6 +36,20 @@ class SearchEffort(str, Enum):
 
 
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+WEEKDAY_FR = {
+    "monday": "lundi",
+    "tuesday": "mardi",
+    "wednesday": "mercredi",
+    "thursday": "jeudi",
+    "friday": "vendredi",
+    "saturday": "samedi",
+    "sunday": "dimanche",
+}
+SERVICE_FR = {
+    ServiceName.MORNING.value: "petit-déjeuner",
+    ServiceName.MIDDAY.value: "déjeuner",
+    ServiceName.EVENING.value: "dîner",
+}
 QUANTUM_MINUTES = 15
 CYCLE_DAYS = 14
 MIN_REST_BETWEEN_DAYS_HOURS = 11
@@ -49,6 +59,39 @@ MAX_DAILY_HOURS_CUISINE = 11.0
 MAX_DAILY_HOURS_SALLE = 11.5
 MAX_WEEKLY_HOURS = 48.0
 DEFAULT_MIN_SHIFT_HOURS = 4.0
+
+
+def week_label_scheme_from_weekends(weekends) -> str:
+    for weekend in weekends:
+        value = weekend.value if isinstance(weekend, WeekendChoice) else weekend
+        if value in {WeekendChoice.EVEN.value, WeekendChoice.ODD.value}:
+            return "parity"
+    return "ab"
+
+
+def week_label_for_day(day_index: int, scheme: str) -> str:
+    first, second = ("Paire", "Impaire") if scheme == "parity" else ("A", "B")
+    return first if day_index < 7 else second
+
+
+def hours_label(value: float) -> str:
+    minutes = int(round(value * 60))
+    hours, mins = divmod(minutes, 60)
+    if mins == 0:
+        return f"{hours}h"
+    if mins == 30:
+        return f"{hours}h30"
+    return f"{hours}h{mins:02d}"
+
+
+def format_clock(minutes: int) -> str:
+    total = ((minutes % 1440) + 1440) % 1440
+    hours = total // 60
+    mins = total % 60
+    hour_label = "00h" if hours == 0 else f"{hours}h"
+    if mins == 0:
+        return hour_label
+    return f"{hours}h{mins:02d}"
 
 
 def weekday_index(name: str) -> int:

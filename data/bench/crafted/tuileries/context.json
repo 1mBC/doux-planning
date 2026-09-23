@@ -1,0 +1,232 @@
+{
+  "id": "tuileries",
+  "category": "crafted",
+  "name": "Les Tuileries",
+  "team": "salle",
+  "challenge_fr": "Oracle : samedi fermé, dimanche ouvert, deux types midi.",
+  "hours": {
+    "mode": "services",
+    "services": [
+      "midday",
+      "evening"
+    ],
+    "closed_weekdays": [
+      "saturday"
+    ]
+  },
+  "roles": [
+    {
+      "name": "SERVEUR",
+      "level": 2,
+      "team": "salle"
+    }
+  ],
+  "types": [
+    {
+      "id": "midi-sem",
+      "name": "Midi semaine",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 720,
+          "post_levels": [
+            2
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "midi-dim",
+      "name": "Midi dimanche",
+      "team": "salle",
+      "service_id": "midday",
+      "arrivals": [
+        {
+          "time_minutes": 660,
+          "post_levels": [
+            2
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 960,
+          "remaining_post_levels": []
+        }
+      ]
+    },
+    {
+      "id": "soir",
+      "name": "Soir",
+      "team": "salle",
+      "service_id": "evening",
+      "arrivals": [
+        {
+          "time_minutes": 1140,
+          "post_levels": [
+            2
+          ]
+        }
+      ],
+      "departures": [
+        {
+          "time_minutes": 1380,
+          "remaining_post_levels": []
+        }
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "ada",
+      "name": "Ada",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "ben",
+      "name": "Benoît",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 13.0
+    },
+    {
+      "id": "cam",
+      "name": "Camille",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    },
+    {
+      "id": "die",
+      "name": "Diego",
+      "role": {
+        "name": "SERVEUR",
+        "level": 2,
+        "team": "salle"
+      },
+      "team": "salle",
+      "contractual_hours_per_week": 12.0
+    }
+  ],
+  "typical_week": [
+    {
+      "weekday": "monday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "monday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "tuesday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "tuesday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "wednesday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "wednesday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "thursday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "thursday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "friday",
+      "service_id": "midday",
+      "type_id": "midi-sem",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "friday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "saturday",
+      "service_id": "midday",
+      "type_id": null,
+      "closed": true,
+      "team": "salle"
+    },
+    {
+      "weekday": "saturday",
+      "service_id": "evening",
+      "type_id": null,
+      "closed": true,
+      "team": "salle"
+    },
+    {
+      "weekday": "sunday",
+      "service_id": "midday",
+      "type_id": "midi-dim",
+      "closed": false,
+      "team": "salle"
+    },
+    {
+      "weekday": "sunday",
+      "service_id": "evening",
+      "type_id": "soir",
+      "closed": false,
+      "team": "salle"
+    }
+  ]
+}

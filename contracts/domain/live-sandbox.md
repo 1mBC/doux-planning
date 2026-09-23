@@ -16,11 +16,11 @@ discard_live_sandbox(state, team) -> None
 publish_live_sandbox(state, team) -> RestaurantState
 ```
 
-- `published_cycles[team]` absent → `NoPublishedCycle`. Pas d’enter.
+- `published_cycles[team]` absent → `NoPublishedCycle`. Pas d’enter. **Manuel** : Infra appelle d’abord `seed_empty_team_cycle` (`contracts/domain/manual-planning.md`, gagne) puis enter. Ce fichier ne change pas la signature d’enter.
 - Enter : brouillon = draft + result du cycle publié. Ré-enter = même brouillon (historique conservé).
 - `live_sandboxes[team]` indépendant de l’autre équipe et de `state.sandbox` Saint-Cloud.
 - Discard : jette le brouillon de **cette** équipe ; le publié reste. Ré-enter = publié intact.
-- Publish : `published_cycles[team] =` draft courant (assignments + warnings). Pas de semaines / reconciliation. L’autre cycle intact.
+- Publish : `published_cycles[team] =` draft courant (assignments + facts, `score-facts.md`). Pas de semaines / reconciliation. L’autre cycle intact.
 - Preview / apply / undo : opèrent sur `live_sandboxes[team]` (passer `team` ou router le store). Saint-Cloud continue d’utiliser `state.sandbox`.
 
 ## Tests

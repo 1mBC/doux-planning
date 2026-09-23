@@ -130,7 +130,7 @@ def test_warning_delta_keeps_contract_hours_identity_and_adds_interdit():
         Warning(
             WarningSeverity.SOUHAIT,
             "contract_hours",
-            "DIANE has 30.0h vs 39.0h contract",
+            {"hours": 30, "contracted": 39, "week_start": 0},
             employee_id="diane",
             day_index=0,
         ),
@@ -139,21 +139,28 @@ def test_warning_delta_keeps_contract_hours_identity_and_adds_interdit():
         Warning(
             WarningSeverity.SOUHAIT,
             "contract_hours",
-            "DIANE has 31.0h vs 39.0h contract",
+            {"hours": 31, "contracted": 39, "week_start": 0},
             employee_id="diane",
             day_index=0,
         ),
         Warning(
             WarningSeverity.INTERDIT,
             "rest_between_days",
-            "DIANE rest too short",
+            {
+                "day_index_b": 2,
+                "end_minutes": 23 * 60,
+                "start_minutes_b": 8 * 60,
+                "rest_minutes": 9 * 60,
+                "required_minutes": 660,
+            },
             employee_id="diane",
             day_index=1,
         ),
     )
     delta = warning_delta(current, trial)
     assert len(delta.unchanged) == 1
-    assert delta.unchanged[0].message == "DIANE has 31.0h vs 39.0h contract"
+    assert delta.unchanged[0].payload == {"hours": 31, "contracted": 39, "week_start": 0}
+    assert not hasattr(delta.unchanged[0], "message")
     assert [item.code for item in delta.added] == ["rest_between_days"]
     assert delta.removed == ()
     assert all(item.code != "rest_between_days" for item in delta.unchanged)
@@ -232,6 +239,35 @@ def test_retune_one_step_plus_fifteen_and_rejects_identity_or_short():
         store.preview_retune("resto-1", theo, 12 * 60, 12 * 60 + 225)
 
 
+def test_preview_fill_and_retune_use_per_service_min_shift():
+    lucie = _salle("LUCIE", 3, min_shift={"evening": 3})
+    store = _store((), extra=(lucie,))
+    evening_slot = FillSlot(
+        employee_id="lucie",
+        day_index=0,
+        weekday="monday",
+        service_id=ServiceName.EVENING.value,
+        team=Team.SALLE,
+    )
+    proposals = store.preview_fill("resto-1", evening_slot, 18 * 60, 21 * 60)
+    assert proposals
+    assert {item.employee_id for item in proposals} == {"lucie"}
+    midday_slot = FillSlot(
+        employee_id="lucie",
+        day_index=0,
+        weekday="monday",
+        service_id=ServiceName.MIDDAY.value,
+        team=Team.SALLE,
+    )
+    with pytest.raises(ValueError, match="min_shift_hours"):
+        store.preview_fill("resto-1", midday_slot, 10 * 60, 13 * 60)
+    evening_shift = _shift("lucie", 0, 18 * 60, 22 * 60, 3, ServiceName.EVENING.value)
+    evening_store = _store((evening_shift,), extra=(lucie,))
+    evening_store.preview_retune("resto-1", evening_shift, 18 * 60, 21 * 60)
+    with pytest.raises(ValueError, match="min_shift_hours"):
+        evening_store.preview_retune("resto-1", evening_shift, 18 * 60, 20 * 60)
+
+
 def test_replace_omits_holder_and_empty_slot_still_skips_occupant():
     diane = _shift("diane", 0, 11 * 60, 15 * 60, 1)
     store = _store((diane,))
@@ -270,13 +306,13 @@ def test_occupied_rank_prefers_one_interdit_over_interdit_plus_souhait():
     current = EngineResult(assignments=(), warnings=())
     only_interdit = EngineResult(
         assignments=(),
-        warnings=(Warning(WarningSeverity.INTERDIT, "unavailability", "blocked", "alex", 0),),
+        warnings=(Warning(WarningSeverity.INTERDIT, "unavailability", {"weekday": "monday", "service_id": "midday"}, "alex", 0),),
     )
     interdit_and_wish = EngineResult(
         assignments=(),
         warnings=(
-            Warning(WarningSeverity.INTERDIT, "unavailability", "blocked", "blair", 0),
-            Warning(WarningSeverity.SOUHAIT, "max_coupures", "too many", "blair", 0),
+            Warning(WarningSeverity.INTERDIT, "unavailability", {"weekday": "monday", "service_id": "midday"}, "blair", 0),
+            Warning(WarningSeverity.SOUHAIT, "max_coupures", {"count": 3, "limit": 1, "week_start": 0}, "blair", 0),
         ),
     )
     assert occupied_sort_key(draft, current, only_interdit) < occupied_sort_key(
@@ -489,6 +525,8 @@ def test_sandbox_enter_get_and_reuse():
     assert body["restaurant"]["name"] == "Saint-Cloud"
     assert {person["id"] for person in body["restaurant"]["employees"]}
     assert body["planning"]["assignments"]
+    assert "facts" in body["planning"]
+    assert "warnings" not in body["planning"]
     assert "legal_rows" not in body["planning"]
     assert "stats" not in body["planning"]
     first = body["planning"]["assignments"][0]
@@ -542,6 +580,10 @@ def test_sandbox_preview_does_not_mutate_and_commit_undo():
         "coverage_removed",
         "role_fit",
     }
+    for key in ("new_interdits", "broken_wishes", "coverage_added", "coverage_removed"):
+        for fact in item["impact"][key]:
+            assert "message" not in fact
+            assert "kind" in fact and "payload" in fact and "polarity" in fact
     assert set(item["current_score"]) == set(before["score"])
     after_preview = client.get("/v1/sandbox").json()
     assert after_preview["planning"]["assignments"] == before["planning"]["assignments"]

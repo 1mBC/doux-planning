@@ -10,9 +10,9 @@
 
 ## 3. First useful screen
 
-- [x] 3.1 Show `planning.stats` counters (`assignments`, `empty`, `interdit`, `below_role`, `hours.percent` as « Heures vs contrat », `wellbeing.held` / `wellbeing.total` as « Souhaits bien-être ») and verify they equal the payload (92 / 0 / 0 / 43 / 84 % / 21 / 21) without displaying assigned/contracted, `stats.souhait`, or a semaines-à-l’heure ratio
+- [x] 3.1 Show `planning.stats` counters (`assignments`, `empty`, `interdit`, `below_role`, `hours.percent` as « Heures vs contrat », `wellbeing.held` / `wellbeing.total` as « Souhaits bien-être ») and verify they equal the payload (92 / 0 / 0 / 47 / 84 % / 10 / 12) without displaying assigned/contracted, `stats.souhait`, or a semaines-à-l’heure ratio
 - [x] 3.2 Render week A and week B paper grids (role groups, person + midi/soir, début/fin/H, empty = repos, post level in parentheses when below role) from `assignments` + `employees`; verify Théo midi lundi semaine A is 11h–16h 5h and that no assignment is invented
-- [x] 3.3 List every `planning.warnings` item (French severity label, engine `message` kept) and verify the list length equals `warnings.length` (14 on the current snapshot)
+- [x] 3.3 List every `planning.warnings` item (French severity label, engine `message` kept) and verify the list length equals `warnings.length` (17 on the current snapshot)
 - [x] 3.4 Render the legal table from `legal.rules` + `legal_rows` (omit rules with no cells) and the wish table from `wish_cols` + `wish_rows`; verify cuisine 11 h/j is absent and Diane contrat text is the payload’s `30h · 29h / 39h`
 
 ## 4. Product polish
@@ -55,3 +55,221 @@
 - [x] 9.2 Employee `/planning` (after login/register + chrome « Planning »): team grid, me highlight, muted colleagues, empty → « Pas encore publié », read-only contract / unavail / wishes panel; no Calculer / Mode édition / wizard
 - [x] 9.3 Company `/planning` / `/context` / live unchanged; `/exemple` joujou unchanged; remove later-planning sentence; bump `web/` to 0.11.0
 - [x] 9.4 Verify `npm run build`; employee with published salle fiche → team grid + color + panel; company `/planning` keeps Calculer; example 92 without session; `v0.11.0`
+
+## 10. Wellbeing wizard
+
+- [x] 10.1 Context types: wellbeing object, indispos `{ weekday, service_id }`, `week_labels`; drop `WELLBEING_KEYS` / `every_*`; employee wishes `{ kind, held, … }`
+- [x] 10.2 Tabs Rôles → Équipe → Souhaits bien-être → Services → Types → Semaine type; Équipe popup jour×service; Souhaits columns; wishes not a ready gate
+- [x] 10.3 Labels A/B vs Paire/Impaire on semaine type + company/employee grids; exemple stats from JSON (92 / 17 / 10/12 / 47); bump `web/` to 0.12.0
+- [x] 10.4 Verify `npm run build`; popup 2 jours × 1 service → 2 créneaux; radio we paire → `week_labels` parity; reload persists; employee reads new wishes; exemple 92; `v0.12.0`
+
+## 11. Seed example
+
+- [x] 11.1 `POST /v1/context/seed-example` Bearer, no body; 200 parsed as GET Context; `detail` on error
+- [x] 11.2 Company `/context` banner button **Intégrer l’exemple Saint-Cloud** (empty or filled) + one-sentence FR confirm; stay on `/context`; unlock salle tabs; no generate
+- [x] 11.3 No button on employee / exemple / planning / login; bump `web/` to 0.13.0
+- [x] 11.4 Verify `npm run build`; empty company → confirm → POST → Diane/Théo + semaine + salle ready; reload persists; second click overwrites; exemple 92; `v0.13.0`
+
+## 12. Weekend rest + Services-first types
+
+- [x] 12.1 Tabs Services → Rôles → Équipe → Souhaits → Services types → Semaine type; uncheck service → FR warning + purge both teams; non-offered invisible
+- [x] 12.2 `weekend_rest_day` required bool + checkbox beside we radio; max_services = offered only; employee `kind: weekend_rest_day` same label
+- [x] 12.3 Services types: offered-service subtabs, Ajouter un type, ladder pickers, bag + worst-case `remaining_post_levels`; bump `web/` to 0.14.0
+- [x] 12.4 Verify `npm run build`; Services first; uncheck PDJ after types → gone; repos we persists; 2 arrivées + 1 départ (freeze bags); employee reads wish; exemple 92; `v0.14.0`
+
+## 13. One-line types + live recaps
+
+- [x] 13.1 Services types: chronological one-line events, +/− per level, STAFF après, worst-case persist
+- [x] 13.2 Parse cycle `stats` / `legal_*` / `wish_*` (throw if missing); pastilles + 2 tables hors édition; hide in Mode édition; warning `message` as-is
+- [x] 13.3 `/exemple` snapshot unchanged; bump `web/` to 0.15.0
+- [x] 13.4 Verify `npm run build`; 2 arrivées + 1 départ on lines + STAFF + reload; Calculer recaps; edit hides them; 11 h clocks if present; exemple 92; `v0.15.0`
+
+## 14. Chrome polish (contrat, orange, invite)
+
+- [x] 14.1 Warning `contract_hours` → pastille Contrat ; cellules `ok: false` orange + gras ; titre **Souhaits bien-être** ; Calculer / Mode édition sous Salle · Cuisine
+- [x] 14.2 Types : horloge + ±15 collés, STAFF en en-tête seulement, N lisible ; rôles stepper ; plus de sous-texte we ; invite popup URL + QR
+- [x] 14.3 `/exemple` même chrome, snapshot inchangé ; bump `web/` to 0.16.0
+- [x] 14.4 Verify `npm run build` ; contrat / orange / titre / Calculer sous équipes ; types persistés ; rôles ; invite QR ; plus de jeton / sous-texte we ; exemple 92 ; `v0.16.0`
+
+## 15. Refreshed exemple snapshot (FR + wish live)
+
+- [x] 15.1 `/exemple` reads refreshed JSON as-is: pastilles 92 / 0 / 0 / 47 / 84 % / 10 / 12 ; 17 warnings FR ; `wish_cols` live (no `we1j` / `weA`) ; Diane `30h · 29h / 39h` orange ; Théo 11h–16h ; bump `web/` to 0.17.0
+- [x] 15.2 Verify `npm run build` ; `/exemple` sans session : 92, 17 alertes FR (« contrat », « pas deux repos »), 10/12, colonnes live, Diane orange, Théo 11h–16h ; `/planning` company inchangé hors parse ; `v0.17.0`
+
+## 16. Wizard polish (invite abs, types cards, we column)
+
+- [x] 16.1 Invite popup displays and copies the absolute URL ; types as cards (no `wave-table`) ; `weekend_rest_day` in its own column ; bump `web/` to 0.18.0
+- [x] 16.2 Verify `npm run build` ; invite `http`+origin + QR ; 2 arrivées + 1 départ en cartes, reload persisté ; case we dans sa colonne ; exemple 92 ; `v0.18.0`
+
+## 17. Export / import restaurant config
+
+- [x] 17.1 Company `/context` seed-row: **Exporter la config** GET `/v1/context/export` download JSON v1 ; **Importer une config** `.json` + confirm FR → POST `/v1/context/import` `adopt` ; `export_version === 1` ; bump `web/` to 0.19.0
+- [x] 17.2 Verify `npm run build` ; export v1 sans token ; import + confirm wizard remplacé + reload ; annuler confirm = no-op ; exemple 92 ; `v0.19.0`
+
+## 18. Export planning (JSON / CSV / XLSX / JPEG)
+
+- [x] 18.1 Company `/planning` menu **Exporter** (JSON / CSV / XLSX / JPEG) in `planning-actions` ; enabled iff published team and not editing ; client-side payload without tokens ; bump `web/` to 0.20.0
+- [x] 18.2 Verify `npm run build` ; salle published → JSON v1 `kind: planning` ; CSV/XLSX have name + grid ; JPEG has both weeks ; cuisine null off ; edit mode off ; exemple 92 ; `v0.20.0`
+
+## 19. Admin generate table
+
+- [x] 19.1 `parseMe` requires `admin` bool (employee → false) ; chrome **Admin** iff `me.admin` ; `/admin` fetches `{ entries }` or reserved message without GET ; day headers Paris + hover messages ; bump `web/` to 0.21.0
+- [x] 19.2 Verify `npm run build` ; admin link + 2 day headers + hover messages ; non-admin / employee 0 GET ; empty phrase ; exemple 92 ; `v0.21.0`
+
+## 20. Planning polish (steppers, types table, exports, three generate)
+
+- [x] 20.1 Compact stepper chrome everywhere (roles, types N/levels, overlay, ±15) ; types = one `<table>` per sheet (Type · Heure · N · Niveaux · STAFF minimal resultant) ; JPEG 2× + quality ≥ 0.95 ; XLSX 2 week sheets + dated title + one row per offered service ; three generate buttons (Minimal / Optimisé sync, Maximal 202 + poll, loader ≥ 1 s) ; bump `web/` to 0.22.0
+- [x] 20.2 Verify `npm run build` ; compact centered steppers on roles + types + overlay ; types table + Type + STAFF column ; company 3 buttons, Minimal recalc loader ≥ 1 s, Maximal 202 + poll → grid ; XLSX 2 sheets + dated title + service rows ; sharper JPEG ; exemple 92 ; admin unchanged ; `v0.22.0`
+
+## 21. Planning chrome (versions, steppers, types sans N)
+
+- [x] 21.1 Parse `published[team].versions` + `latest` + `generated_at` ; 3 chrome rows (team / effort select / white actions) ; Recalculer POST selected effort ; enter sandbox with that effort ; types drop N column (K = bag − keep) ; framed steppers ; bump `web/` to 0.23.0
+- [x] 21.2 Verify `npm run build` ; two generates (minimal then optimized) switch grid + distinct Paris timestamps ; Recalculer only from row 3 ; employee sees latest ; types without N ; framed steppers ; exemple 92 ; `v0.23.0`
+
+## 22. Admin recap + wizard polish
+
+- [x] 22.1 Admin Effort + Durée + hover cartes recap ; planning `duration_seconds` sous le timestamp ; rôles `<table>` + confirm delete ; copies wizard retirées ; invite `company_code` ; bump `web/` to 0.24.0
+- [x] 22.2 Verify `npm run build` ; admin hover riche + effort/durée ; planning durée ; rôles table + confirm ; copies disparues ; invite code ; exemple 92 ; `v0.24.0`
+
+## 23. Cycle score notes
+
+- [x] 23.1 Parse `score` (5 notes + globale) ; pastilles /10 on company `/planning` for the displayed slot ; null → tiret ; one FR decimal ; bump `web/` to 0.25.0
+- [x] 23.2 Verify `npm run build` ; notes visibles after Recalculer ; switching effort shows that slot’s notes ; exemple 92 ; `v0.25.0`
+
+## 24. Score chrome (Occupation, résumés)
+
+- [x] 24.1 Parse `resumes` (5 clés) ; Occupation /10 ; sous-ligne par axe ; HSL `hue = 12 × note` ; retirer `CycleStats` / `Stats` ; bump `web/` to 0.26.0
+- [x] 24.2 Verify `npm run build` ; planning + exemple : notes en premier, Occupation, résumés, plus d’anciennes cartes ; switch d’effort = notes + resumes du slot ; `v0.26.0`
+
+## 25. Score gauges (globale à gauche)
+
+- [x] 25.1 Globale à gauche + cadre contrasté ; jauge `note / 10` sur chaque pastille ; `resumes` en `pre-line` ; bump `web/` to 0.27.0
+- [x] 25.2 Verify `npm run build` ; planning + exemple : globale à gauche, jauges, Occupation `occupées` + indispos à la ligne, Rôles `affectés` / sous-rôle ; `v0.27.0`
+
+## 26. Admin bench
+
+- [x] 26.1 `/admin` lien Banc ; `/admin/bench` table + lancer ; `/admin/bench/{category}/{id}/{effort}` compare (2 grilles) ; bump `web/` to 0.28.0
+- [x] 26.2 Verify `npm run build` ; admin → Banc → 1 jeu minimal → ligne → clic compare ; `v0.28.0`
+
+## 27. Admin menu + Modèle / Manuel / Delta
+
+- [x] 27.1 Menu Historique des computes | Banc ; tableau sous-colonnes Modèle / Manuel / Delta ; compare Modèle puis Manuel ; bump `web/` to 0.29.0
+- [x] 27.2 Verify `npm run build` ; admin 2 liens ; banc 7 lignes + crafted ; compare Modèle / Manuel ; `v0.29.0`
+
+## 28. Score facts (dictionnaire + clic notes)
+
+- [x] 28.1 Parser `facts[]` + cellules `kind`/`payload` + `score` sans resumes ; dictionnaire FR ; pastilles cliquables miss puis hit ; alertes = misses evaluate ; overlay / admin / export / banc ; bump `web/` to 0.30.0
+- [x] 28.2 Verify `npm run build` ; `/exemple` 17 alertes dictionnaire, clic Occupation / Globale, Diane `30h · 29h / 39h`, Théo 11h–16h, notes /10 ; `/planning` pastilles du slot ; overlay sans `message` brut ; `/admin` hover facts ; `v0.30.0`
+
+## 29. Banc mêmes pastilles + export pack
+
+- [x] 29.1 Parser compare `model` / `manual` / `employees` ; `CycleScoreNotes` partout titre / note+jauge / totaux ; Exporter ce jeu + sous le Manuel ; bump `web/` to 0.31.0
+- [x] 29.2 Verify `npm run build` ; compare Occupation miss+hit des deux côtés ; pastille titre puis note+jauge ; export dataset `kind: bench-pack` ; `v0.31.0`
+
+## 30. Score tables Contrat + Légal & Contrat
+
+- [x] 30.1 Pastille Contrat / titres gras / totaux ; tableau 4 col clic + Alertes ; Légal & Contrat + Bien-être ; bump `web/` to 0.32.0
+- [x] 30.2 Verify `npm run build` ; `/exemple` Contrat 4 col, Alertes, Diane ⚠️ 30h · 29h / 39h, Bien-être sans contrat/indispo ; `/planning` idem ; `v0.32.0`
+
+## 31. Banc versions moteur
+
+- [x] 31.1 Menu Historique | Banc | Versions ; parser engine_ref ; matrice Maximal ; compare via GET runs/{id} ; bump web/ to 0.33.0
+- [x] 31.2 Verify npm run build ; menu 3 ; Banc moteur core-0 ; Versions colonne core-0 après Maximal ; clic compare ; v0.33.0
+
+## 32. Banc tableau toutes versions
+
+- [x] 32.1 Menu Historique | Banc ; tableau 3 efforts × Manuel + engine_refs ; redirect /versions ; bump web/ to 0.34.0
+- [x] 32.2 Verify npm run build ; menu 2 ; Banc Manuel+core-0 sous 3 computes ; clic core-0 Maximal compare ; /versions → Banc ; v0.34.0
+
+## 33. Banc 30 jeux
+
+- [x] 33.1 Tableau + lancer depuis l’API (pas 7 / 4 en dur) ; 30 lignes ordre API ; bump web/ to 0.35.0
+- [x] 33.2 Verify npm run build ; /admin/bench 30 lignes ; hours size overqual closed shapes ; lancer shapes OK ; v0.35.0
+
+## 34. Banc 50 jeux
+
+- [x] 34.1 Tableau + lancer depuis l’API (pas 30 / 7 / 6 en dur) ; 50 lignes dont 26 crafted ; bump web/ to 0.36.0
+- [x] 34.2 Verify npm run build ; /admin/bench 50 lignes ; 26 crafted ; lancer crafted Maximal enqueue OK ; v0.36.0
+
+## 35. Banc inversé + deltas colorés
+
+- [x] 35.1 Manuel une fois à gauche ; familles engine_ref × 3 computes ; cellules = delta coloré ; bump web/ to 0.37.0
+- [x] 35.2 Verify npm run build ; /admin/bench 1 Manuel + familles modèle ; deltas colorés ; barre v0.37.0 ; sous-titre core-3
+
+## 36. Banc recap + lancer 2 lignes
+
+- [x] 36.1 Recap vs modèle précédent ; lancer 2 lignes (all + dropdowns catégorie) ; bump web/ to 0.38.0
+- [x] 36.2 Verify npm run build ; recap si 2 refs ; lancer 2 lignes ; dropdown Maximal crafted enqueue ; v0.38.0
+
+## 37. Banc trous + loader + export bank
+
+- [x] 37.1 Compléter les trous ; loader % / eta_max ; export bank ; bump web/ to 0.39.0
+- [x] 37.2 Verify npm run build ; bouton trous ; overlay % + eta ; download bench-bank.json ; v0.39.0
+
+## 38. Banc loader inline sous Lancer
+
+- [x] 38.1 Loader % + eta sous le h2 Lancer ; plus de calc-overlay Banc ; tableau / recap / export cliquables ; bump web/ to 0.40.0
+- [x] 38.2 Verify npm run build ; /admin/bench batch actif : barre sous Lancer, pas de voile ; v0.40.0
+
+## 39. Banc computes empilés par modèle
+
+- [x] 39.1 Une colonne par engine_ref ; 3 deltas verticaux + libellé ; Lancer jeu en colonne ; bump web/ to 0.41.0
+- [x] 39.2 Verify npm run build ; /admin/bench 1 colonne core-3 / 3 lignes alignées Lancer ; v0.41.0
+
+## 40. Services types polish (ordre, Départ, cadran)
+
+- [x] 40.1 Sous-onglets types + colonnes semaine type = `CONTEXT_SERVICES.filter` (PDJ → déj → dîner) ; jamais `services.map` pour l’affichage ; persist `services[]` inchangé
+- [x] 40.2 Table types : **Départ** (plus Sortie) en cellule Type + thead « après départ » ; JSON `departures` intouché
+- [x] 40.3 Cadran overlay avant insert (11h00 / 16h00) ; clic heure = édition ; boutons + saisie 0–23 / 0–59 ; Valider off si invalide ; Escape / Annuler / backdrop = pas de ligne ; palier 1440 conservé ; ±15 inchangé
+- [x] 40.4 Réordre chrono après changement d’heure : anim ≥ 500 ms + fond focus ; `prefers-reduced-motion` snap + focus ; clés `a-${index}` / `d-${index}` ; pas d’anim ± niveaux ; pas de nouvelle dep
+- [x] 40.5 Bump `web/` to 0.52.0 (note FR : Services types : PDJ d’abord, Départ, cadran d’heure)
+- [x] 40.6 Verify `npm run build` ; `/context` services offerts dans un autre ordre → onglets types + colonnes semaine **PDJ puis déj puis dîner** ; ligne **Départ** ; ajouter arrivée → cadran → 8h07 ; ±15 qui croise → glisse ≥ 0,5 s + focus ; Escape d’ajout = pas de ligne ; barre **v0.52.0** ; `/exemple` inchangé
+
+## 41. Delete employee keep account
+
+- [x] 41.1 Équipe poubelle + confirm FR (fiche, indispos/souhaits, accès si compte, planning de **cette** équipe) ; persistée → `DELETE /v1/staff/{id}` puis GET context ; ligne locale → pas d’HTTP
+- [x] 41.2 `parseMe` `restaurant_id: string | null` ; `POST /v1/auth/link` ; salarié `employee_id == null` : écran code → `GET /v1/invites/{code}` → link ; **pas** `/planning` ; barre sans « Planning »
+- [x] 41.3 Bump `web/` to 0.53.0 (note FR : Supprimer un salarié ; compte conservé)
+- [x] 41.4 Verify `npm run build` ; `/context` Équipe poubelle + texte confirm ; salarié non affilié écran rattachement pas de grille ; barre **v0.53.0** ; `/exemple` inchangé ; IronBee E2E DELETE 200 seulement si l’API répond (sinon skip API)
+
+## 42. Min. créneau par service
+
+- [x] 42.1 Types : `min_shift_hours` = `Record<string, number>` sparse ; parser GET objet **ou** nombre (`4` → `{}` ; autre N → N sur chaque service offert) ; PATCH objet ; `purgeRemovedServices` retire la clé du service décoché
+- [x] 42.2 Équipe : un `Stepper` par service offert (`CONTEXT_SERVICES.filter`, PDJ → déj → dîner), `step={0.5}` `min={0.5}` défaut 4 ; plus l’input unique ; nouvelle fiche = 4 sur les offerts ; chrome des autres steppers inchangé
+- [x] 42.3 Bump `web/` to 0.54.0 (note FR : Min. créneau par service)
+- [x] 42.4 Verify `npm run build` ; `/context` Équipe steppers par service offert, ±0,5 ; barre **v0.54.0** ; `/exemple` inchangé ; persist API seulement si GET est déjà un objet (sinon skip API)
+
+## 43. Planning manuel (4ᵉ slot)
+
+- [x] 43.1 Parser GET `/v1/cycles` : 4ᵉ clé `versions.manuel` (absente → `null`) ; `latest` / `search_effort` de cycle MAY `manuel` ; `postGenerate` reste `SearchEffort` 3 valeurs ; `BENCH_EFFORTS` reste `["minimal","optimized","maximal"]` ; parsers banc rejettent `manuel`
+- [x] 43.2 `/planning` company rangée 2 : Minimal | Optimisé | Maximal | Manuel. Cran Manuel : pas (Re)Calculer ; `ready[team]` → Entrer en mode édition même slot null ; vide hors édition « Pas encore publié » ; `POST enter` `{ search_effort: "manuel" }` ; mêmes Overlay / Fill / undo / discard / publish. Computes inchangés. Timestamp manuel : `generated_at` Paris, pas de ` · engine_ref`, durée `—` si absente. `/exemple` inchangé
+- [x] 43.3 Bump `web/` to 0.55.0 (note FR : Planning manuel)
+- [x] 43.4 Verify `npm run build` ; 4 crans ; Manuel sans Recalculer ; ready → bouton édition ; barre **v0.55.0** ; banc 3 efforts ; overlay compute inchangé ; persist IronBee enter seulement si 200 (sinon skip + signal)
+
+## 44. Admin historique (note, voir, se connecter)
+
+- [x] 44.1 Parser `AdminGenerateEntry` : `restaurant_id` / `score_global` (null si absents) ; table `/admin` colonnes Note + Planning (Voir) ; clic droit email = POST impersonate + copie `url` + toast (jamais `window.open`) ; clic Voir → `/admin/planning/{id}`
+- [x] 44.2 `/admin/planning/{restaurant_id}` : `me.admin` ; GET admin cycles + context ; PublishedPlanning lecture seule (4 crans, recaps, export ; pas Recalculer, pas live) ; 404 → detail ; menu admin
+- [x] 44.3 `/impersonate/{token}` public (me null OK, avant Login) : POST `/v1/auth/impersonate` sans Bearer ; 200 → `sessionStorage` + `/planning` ; erreur → `detail`
+- [x] 44.4 Bump `web/` to 0.56.0 (note FR : Note, voir le planning, lien de connexion)
+- [x] 44.5 Verify `npm run build` ; barre **v0.56.0** ; `/admin` Note + Voir ; impersonate route ; banc inchangé (Défi / Lancer)
+
+## 45. Import resto vers le banc
+
+- [x] 45.1 Types + GET `/v1/admin/restaurants/{id}/import-preview` + POST `/v1/admin/bench/import` (4 bools explicites, `manual_score` / `comment` null si vides) ; parser `/versions` `origin` (`catalogue`|`imported`, absent → `catalogue`) + `comment` (absent → `null`)
+- [x] 45.2 `/admin` : clic droit nom resto + bouton **Au banc** à côté de Voir → popup (preview complet ?, 4 cases ON, note /10, commentaire, Annuler / Importer) ; resto null → toast introuvable ; clic droit email impersonate inchangé ; succès toast « Jeu importé. » + bouton `/admin/bench`
+- [x] 45.3 Bump `web/` to 0.57.0 (note FR : Import resto vers le banc)
+- [x] 45.4 Verify `npm run build` ; barre **v0.57.0** ; popup cases cochées ; Note / Voir / clic droit email intacts ; banc Défi + Lancer ; pas de `…` / filtre
+
+## 46. Banc chrome (menu jeu, filtre origine)
+
+- [x] 46.1 `/admin/bench` : exports globaux dans Lancer ; filtre Tous | IA | Manuels ; retirer Défi / Lancer ; cellule Jeu hover + menu `…` (3 lancers, exporter, supprimer confirm → DELETE `/versions`)
+- [x] 46.2 Bump `web/` to 0.58.0 (note FR : Menu jeu, filtre IA / manuels)
+- [x] 46.3 Verify `npm run build` ; barre **v0.58.0** ; tableau sans Défi/Lancer ; filtre Manuels masque catalogue ; Historique + Au banc intacts
+
+## 47. Admin UI pass (note encart, actions, deux bancs)
+
+- [x] 47.1 `/admin` : colonnes Heure, Email, **Actions**, Restaurant, Équipe, Effort, **Note**, Durée, Moteur ; plus Warnings / Planning / Voir / Au banc ; plus de clic droit email / restaurant ; Actions = `impersonate` | `exporter vers le banc` (disabled si `restaurant_id` null, jamais `window.open`) ; note = `.bench-cell` + `.bench-delta-bubble` teintée `noteHue`/`noteTint` (pas `deltaBackground`) ; clic note → `/admin/planning/{id}` ; hover **encart seulement** → `FactTip` ; toast import → `/admin/bench/manuels`
+- [x] 47.2 Nav **Historique des computes | Banc IA | Banc Manuels | Stats banc** ; `AdminNavCurrent` + `"bench-manuels"` ; `/admin/bench` = catalogue, `/admin/bench/manuels` = imported (matcher avant le fallback compare) ; plus de filtre Tous | IA | Manuels ; `h1` Banc IA / Banc Manuels ; lancer all/category/gaps + exports `below_manuel`/`bank` envoient `origin` ; Banc Manuels cache le lanceur par catégorie ; run/compare : aucun Banc `disabled`
+- [x] 47.3 Bump `web/` to 0.59.0 (note FR : Note colorée, actions, deux pages de banc)
+- [x] 47.4 Verify `npm run build` ; barre **v0.59.0** ; `/admin` Actions après Email, note cliquable, hover note only ; `/admin/bench` sans importés ; `/admin/bench/manuels` sans catalogue

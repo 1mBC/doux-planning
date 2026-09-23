@@ -16,7 +16,7 @@ from doux_planning.engine import (
     swap_shifts,
 )
 from doux_planning.invites import EmployeeAccount, RestaurantIdentity
-from doux_planning.staff import Employee, RoleLadder, Unavailability, default_legal_rules
+from doux_planning.staff import Employee, RoleLadder, Unavailability, default_legal_rules, min_shift_for
 from doux_planning.structures import (
     RestaurantHours,
     ServiceStructure,
@@ -144,7 +144,7 @@ def _fill_hours(
     else:
         start = validate_quantum(_clip_minutes(start_minutes))
         end = validate_quantum(_clip_minutes(end_minutes))
-    if start >= end or end - start < int(row.min_shift_hours * 60):
+    if start >= end or end - start < int(min_shift_for(row, slot.service_id) * 60):
         raise ValueError("Fill duration is below min_shift_hours")
     return start, end
 
@@ -455,7 +455,7 @@ class PlanningStore:
         if start == shift.start_minutes and end == shift.end_minutes:
             raise IdentityRetuneError("Retune times match the current shift")
         employee = sandbox.draft.employee(shift.employee_id)
-        min_minutes = int(employee.min_shift_hours * 60)
+        min_minutes = int(min_shift_for(employee, shift.service_id) * 60)
         if start >= end or end - start < min_minutes:
             raise ValueError("Retune duration is below min_shift_hours")
         trial_shift = replace(shift, start_minutes=start, end_minutes=end)
@@ -589,7 +589,7 @@ class PlanningStore:
                 continue
             if person.id in overlapping:
                 continue
-            if duration < int(person.min_shift_hours * 60):
+            if duration < int(min_shift_for(person, slot.service_id) * 60):
                 continue
             trial_shift = Shift(
                 employee_id=person.id,
@@ -799,7 +799,10 @@ def _replay_intents(cycle_draft: PlanningDraft, week: CalendarWeek) -> EngineRes
         extra = []
         for intent in week.intents:
             if intent.kind == "unavailability" and intent.employee_id == employee.id:
-                extra.append(Unavailability(weekday=intent.weekday))
+                extra.extend(
+                    Unavailability(weekday=intent.weekday, service_id=service_id)
+                    for service_id in ("morning", "midday", "evening")
+                )
         if extra:
             employees.append(replace(employee, unavailabilities=employee.unavailabilities + tuple(extra)))
         else:

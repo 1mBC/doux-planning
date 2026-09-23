@@ -29,8 +29,8 @@ Plus petit = meilleur. L’UI affiche avant → après, elle ne recalcule pas.
 
 ```
 {
-  "new_interdits": [ Warning… ],
-  "broken_wishes": [ Warning… ],
+  "new_interdits": [ ScoreFact… ],
+  "broken_wishes": [ ScoreFact… ],
   "contract": [
     {
       "employee_id": string,
@@ -41,8 +41,8 @@ Plus petit = meilleur. L’UI affiche avant → après, elle ne recalcule pas.
       "kind": "closer" | "farther" | "excess"
     }
   ],
-  "coverage_added": [ Warning… ],
-  "coverage_removed": [ Warning… ],
+  "coverage_added": [ ScoreFact… ],
+  "coverage_removed": [ ScoreFact… ],
   "role_fit": [
     {
       "current_gap": int,
@@ -54,7 +54,8 @@ Plus petit = meilleur. L’UI affiche avant → après, elle ne recalcule pas.
 ```
 
 `contract` = uniquement les personnes du geste.  
-`role_fit` : 0 ou 1 entrée. `gap` = `employee.level - post_level` (même terme que `_overqualification`) **sur le créneau cliqué seulement** (retune / replace / swap = le `shift` du preview, pas le partenaire). `better` si trial < current, `worse` si trial > current. **Omettre** si égal ou occupant manquant (retune même poste, swap de mêmes niveaux sur ce poste, fill d’une case vide). Pas de `delta.unchanged`. Ne pas renvoyer la liste brute `warnings` du trial 14 j. Pas de phrase UX dans le JSON.
+`role_fit` : 0 ou 1 entrée. `gap` = `employee.level - post_level` (même terme que `_overqualification`) **sur le créneau cliqué seulement** (retune / replace / swap = le `shift` du preview, pas le partenaire). `better` si trial < current, `worse` si trial > current. **Omettre** si égal ou occupant manquant (retune même poste, swap de mêmes niveaux sur ce poste, fill d’une case vide). Pas de `delta.unchanged`. Ne pas renvoyer la liste brute `facts` du trial 14 j. Pas de phrase UX / `message` dans le JSON.  
+`ScoreFact` = `contracts/domain/score-facts.md` (payload, pas `message`). `new_interdits` / `broken_wishes` / `coverage_*` = misses evaluate du delta (même cardinalité qu’aujourd’hui).
 
 ## Routes
 
@@ -148,7 +149,7 @@ Fill : `slot` + `employee_id` + `start_minutes` + `end_minutes` ; Infra rappelle
 }
 ```
 
-Pas de `delta`, pas de `warnings` (hors `impact.*`). Pas d’`assignments`.
+Pas de `delta`, pas de liste brute `facts` du trial 14 j. (hors `impact.*`). Pas d’`assignments`.
 
 ## État sandbox
 

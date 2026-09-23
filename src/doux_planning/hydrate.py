@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -9,9 +10,16 @@ from typing import Any
 from doux_planning.engine import PlanningDraft, Shift, evaluate
 from doux_planning.invites import RestaurantIdentity
 from doux_planning.planning import PlanningStore, PublishedCycle, RestaurantState
-from doux_planning.staff import Employee, Role, Unavailability
+from doux_planning.staff import (
+    REMOVED_WELLBEING_KEYS,
+    Employee,
+    Role,
+    Unavailability,
+    Wellbeing,
+    coerce_min_shift_hours,
+)
 from doux_planning.structures import ArrivalWave, DepartureWave, RestaurantHours, ServiceStructure
-from doux_planning.types import Team, WellbeingPreference
+from doux_planning.types import Team, WeekendChoice
 
 
 class ExampleNotFound(KeyError):
@@ -41,11 +49,13 @@ def load_delivered_cycle(example_id: str = "saint-cloud") -> DeliveredCycle:
     raw = json.loads(path.read_text(encoding="utf-8"))
     restaurant = raw["restaurant"]
     planning = raw["planning"]
+    hours = _hours(restaurant["hours"])
+    structures = tuple(_structure(item) for item in restaurant["structures"])
     return DeliveredCycle(
         restaurant_id=restaurant["id"],
-        employees=tuple(_employee(item) for item in restaurant["employees"]),
-        structures=tuple(_structure(item) for item in restaurant["structures"]),
-        hours=_hours(restaurant["hours"]),
+        employees=tuple(_employee(item, hours.services) for item in restaurant["employees"]),
+        structures=structures,
+        hours=hours,
         assignments=tuple(_shift(item) for item in planning["assignments"]),
     )
 
@@ -94,7 +104,7 @@ def _structure(raw: dict[str, Any]) -> ServiceStructure:
     )
 
 
-def _employee(raw: dict[str, Any]) -> Employee:
+def _employee(raw: dict[str, Any], service_ids: Sequence[str]) -> Employee:
     role = raw["role"]
     team = Team(raw["team"])
     return Employee(
@@ -104,21 +114,43 @@ def _employee(raw: dict[str, Any]) -> Employee:
         team=team,
         contractual_hours_per_week=raw["contractual_hours_per_week"],
         unavailabilities=tuple(_unavailability(item) for item in raw.get("unavailabilities") or ()),
-        wellbeing=frozenset(WellbeingPreference(item) for item in raw.get("wellbeing") or ()),
+        wellbeing=_wellbeing(raw),
         forced_off_days=frozenset(raw.get("forced_off_days") or ()),
-        max_evenings_per_week=raw.get("max_evenings_per_week"),
-        max_mornings_per_week=raw.get("max_mornings_per_week"),
-        min_shift_hours=raw.get("min_shift_hours", 4.0),
+        min_shift_hours=coerce_min_shift_hours(raw.get("min_shift_hours"), service_ids),
+    )
+
+
+def _wellbeing(raw: dict[str, Any]) -> Wellbeing:
+    if "max_evenings_per_week" in raw or "max_mornings_per_week" in raw:
+        raise ValueError("legacy max_evenings_per_week / max_mornings_per_week are not accepted")
+    payload = raw.get("wellbeing")
+    if payload is None:
+        return Wellbeing()
+    if isinstance(payload, list):
+        raise ValueError("legacy wellbeing keys are not accepted")
+    if not isinstance(payload, dict):
+        raise ValueError("wellbeing must be an object")
+    forbidden = REMOVED_WELLBEING_KEYS.intersection(payload)
+    if forbidden:
+        raise ValueError(f"legacy wellbeing keys are not accepted: {sorted(forbidden)}")
+    weekend = payload.get("weekend")
+    return Wellbeing(
+        consecutive_rest=bool(payload.get("consecutive_rest", False)),
+        weekend_rest_day=bool(payload.get("weekend_rest_day", False)),
+        weekend=None if weekend is None else WeekendChoice(weekend),
+        max_services=payload.get("max_services") or {},
+        max_coupures_per_week=payload.get("max_coupures_per_week"),
     )
 
 
 def _unavailability(raw: dict[str, Any]) -> Unavailability:
-    return Unavailability(
-        weekday=raw.get("weekday"),
-        every_morning=bool(raw.get("every_morning")),
-        every_evening=bool(raw.get("every_evening")),
-        service_id=raw.get("service_id"),
-    )
+    if raw.get("every_morning") or raw.get("every_evening"):
+        raise ValueError("legacy every_morning / every_evening are not accepted")
+    weekday = raw.get("weekday")
+    service_id = raw.get("service_id")
+    if not weekday or not service_id:
+        raise ValueError("unavailability requires weekday and service_id")
+    return Unavailability(weekday=weekday, service_id=service_id)
 
 
 def _shift(raw: dict[str, Any]) -> Shift:
