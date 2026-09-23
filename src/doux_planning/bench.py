@@ -87,10 +87,6 @@ def bench_dir() -> Path:
     return data_dir() / "bench"
 
 
-def engine_ref() -> str:
-    return (bench_dir() / "VERSION").read_text(encoding="utf-8").strip()
-
-
 def list_bench_datasets() -> list[BenchListing]:
     root = bench_dir()
     found: dict[tuple[str, str], BenchListing] = {}
@@ -140,7 +136,7 @@ def load_bench_dataset(category: str, dataset_id: str) -> BenchDataset:
 
 
 def _resolve_engine_ref(requested: str | None) -> str:
-    return requested if requested is not None else engine_ref()
+    return requested if requested is not None else list_engine_refs()[-1]
 
 
 def bench_dataset_from_json(

@@ -12,6 +12,7 @@ from doux_planning.context import (
     upsert_employee,
     upsert_service_type,
 )
+from doux_planning.engines.registry import generate_for, list_engine_refs
 from doux_planning.hydrate import hydrate_delivered_cycle
 from doux_planning.planning import PlanningStore
 from doux_planning.staff import Employee, Role, RoleLadder
@@ -81,7 +82,9 @@ def test_empty_restaurant_has_no_published_cycles():
 
 def test_generate_team_salle_minimal_leaves_cuisine_unpublished():
     state = _complete_salle(empty_restaurant("resto-new"))
-    generate_team(state, Team.SALLE, search=SearchEffort.MINIMAL)
+    with patch("doux_planning.context.generate_for", wraps=generate_for) as generate:
+        generate_team(state, Team.SALLE, search=SearchEffort.MINIMAL)
+    assert generate.call_args.args[0] == list_engine_refs()[-1]
     salle = state.published_cycles[Team.SALLE]
     assert salle is not None
     assert salle.result.assignments
@@ -92,11 +95,12 @@ def test_generate_team_salle_minimal_leaves_cuisine_unpublished():
 
 def test_generate_team_cuisine_not_ready_does_not_solve():
     state = _complete_salle(empty_restaurant("resto-new"))
-    with patch("doux_planning.context.generate_cycle") as solve:
+    with patch("doux_planning.context.generate_cycle") as solve, patch("doux_planning.context.generate_for") as frozen:
         with pytest.raises(TeamNotReady) as raised:
             generate_team(state, Team.CUISINE, search=SearchEffort.MINIMAL)
     assert raised.value.team is Team.CUISINE
     solve.assert_not_called()
+    frozen.assert_not_called()
     assert state.published_cycles[Team.SALLE] is None
     assert state.published_cycles[Team.CUISINE] is None
 

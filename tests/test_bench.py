@@ -18,7 +18,6 @@ from doux_planning.bench import (
     BenchOutcome,
     bench_dataset_from_json,
     bench_dir,
-    engine_ref as current_engine_ref,
     list_bench_datasets,
     list_engine_refs,
     load_bench_dataset,
@@ -114,7 +113,7 @@ def _salle_patch(fiche_id: str) -> dict:
 def _stub_run_bench(category, dataset_id, effort, engine_ref=None):
     notes = ScoreNotes(10.0, 10.0, 10.0, None, 10.0)
     score = CycleScore(notes=notes, weights=dict(SCORE_WEIGHTS), global_score=10.0)
-    ref = engine_ref if engine_ref is not None else current_engine_ref()
+    ref = engine_ref if engine_ref is not None else list_engine_refs()[-1]
     return BenchOutcome(
         category=category,
         id=dataset_id,
@@ -530,9 +529,9 @@ def test_run_bench_tight_halles_minimal_has_scores_and_deltas():
         fact.polarity == "hit" and fact.kind in {"post_held", "role_gap"}
         for fact in (*outcome.facts, *outcome.expected_facts)
     )
-    assert outcome.engine_ref == "core-5"
+    assert not (bench_dir() / "VERSION").is_file()
+    assert outcome.engine_ref == list_engine_refs()[-1]
     _assert_complete_trace(outcome.trace, frozen=False)
-    assert current_engine_ref() == "core-5"
 
 
 def test_run_bench_on_matches_run_bench_halles_minimal():
@@ -902,7 +901,7 @@ def test_run_bench_core25_clichy_optimized_fewer_empty():
 
 
 def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
-    outcome = run_bench("crafted", "atelier", SearchEffort.MINIMAL)
+    outcome = run_bench("crafted", "atelier", SearchEffort.MINIMAL, engine_ref="core-5")
     assert outcome.engine_ref == "core-5"
     saturday_evening_empties = [
         fact
@@ -916,7 +915,7 @@ def test_run_bench_atelier_minimal_fewer_saturday_evening_empties():
 
 
 def test_run_bench_marais_minimal_hard_max_evenings():
-    outcome = run_bench("crafted", "marais", SearchEffort.MINIMAL)
+    outcome = run_bench("crafted", "marais", SearchEffort.MINIMAL, engine_ref="core-5")
     assert outcome.engine_ref == "core-5"
     assert not any(fact.polarity == "miss" and fact.kind == "max_evenings" for fact in outcome.facts)
     assert not any(shift.employee_id == "e" and shift.service_id == "evening" for shift in outcome.assignments)
@@ -933,7 +932,7 @@ def test_run_bench_rivoli_minimal_expected_zero_interdit():
 
 def test_run_bench_campus_minimal_runs():
     outcome = run_bench("wishes", "campus", SearchEffort.MINIMAL)
-    assert outcome.engine_ref == "core-5"
+    assert outcome.engine_ref == list_engine_refs()[-1]
     assert outcome.search_effort == SearchEffort.MINIMAL
 
 
