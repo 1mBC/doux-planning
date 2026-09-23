@@ -16,7 +16,7 @@ HTTP et rows émettent `engine_ref` **et** `app_version` = **le même string** (
 
 Vieux runs `app_version = "0.27.0"` : à la **lecture** `engine_ref = "core-0"` (même moteur). On n’écrit plus `0.27.0`.
 
-Live resto (`POST /v1/generate`) = **`live_engine_ref`** admin (`admin.md`), défaut `VERSION`. Banc : moteurs **vendored** (`engines.md`) — on peut relancer `core-0`…`core-6` sans revert. Le picker **n’affecte pas** le banc (lancer habituel = `VERSION`).
+Live resto (`POST /v1/generate`) = **`live_engine_ref`** admin (`admin.md`), défaut `VERSION`. Banc : moteurs **vendored** (`engines.md`). File 77 (`bench-engine-choice.md` **gagne**) : le moteur courant du banc est le choix persisté, repli = dernier du registre. `VERSION` ne décide plus du banc.
 
 ## Catalogue (repo)
 
