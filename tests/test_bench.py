@@ -1094,12 +1094,12 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert halles_pack["context"]
     assert all("invite_token" not in person for person in halles_pack["context"]["employees"])
     assert halles_pack["manual"]["facts"]
-    assert halles_pack["efforts"][0]["search_effort"] == "minimal"
-    assert halles_pack["efforts"][0]["run_id"] == first["id"]
-    assert halles_pack["efforts"][0]["engine_ref"] == "core-3"
-    assert "trace" in halles_pack["efforts"][0]
-    assert "below_manuel" in halles_pack["efforts"][0]
-    assert halles_pack["efforts"][0]["model"]["facts"]
+    core3_effort = next(item for item in halles_pack["efforts"] if item["run_id"] == first["id"])
+    assert core3_effort["search_effort"] == "minimal"
+    assert core3_effort["engine_ref"] == "core-3"
+    assert "trace" in core3_effort
+    assert "below_manuel" in core3_effort
+    assert core3_effort["model"]["facts"]
 
     below = client.get("/v1/admin/bench/export", headers=headers, params={"scope": "below_manuel"})
     assert below.status_code == 200
@@ -1141,7 +1141,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     versions = client.get("/v1/admin/bench/versions", headers=headers)
     assert versions.status_code == 200
     assert versions.json()["engine_ref"] == "core-3"
-    assert versions.json()["engine_refs"][:4] == ["core-0", "core-1", "core-2", "core-3"]
+    assert versions.json()["engine_refs"][:4] == list(list_engine_refs())[:4]
     assert "core-3" in versions.json()["engine_refs"]
     assert "core-1" in versions.json()["engine_refs"]
     assert "0.27.0" not in versions.json()["engine_refs"]
@@ -1215,7 +1215,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     queued = client.post(
         "/v1/admin/bench/run",
         headers=headers,
-        json={"scope": "all", "search_effort": "maximal"},
+        json={"scope": "all", "search_effort": "maximal", "origin": "catalogue"},
     )
     assert queued.status_code == 202
     assert queued.json()["status"] == "queued"
@@ -1342,7 +1342,7 @@ def test_admin_bench_http_runs_jobs_compare_and_resto_generate(monkeypatch):
     assert forbidden_active.json()["detail"] == DETAIL_ADMIN
     versions_refs = client.get("/v1/admin/bench/versions", headers=headers)
     assert versions_refs.status_code == 200
-    assert versions_refs.json()["engine_refs"][:4] == ["core-0", "core-1", "core-2", "core-3"]
+    assert versions_refs.json()["engine_refs"][:4] == list(list_engine_refs())[:4]
     with session_scope() as db:
         for job in db.scalars(select(BenchJob).where(BenchJob.status.in_(("queued", "running")))):
             job.status = "failed"
@@ -1363,7 +1363,11 @@ def test_admin_bench_gaps_zero_holes_is_200(monkeypatch):
     token = registered.json()["token"]
     monkeypatch.setenv("ADMIN_EMAIL", email)
     promote_admin_email()
-    posted = client.post("/v1/admin/bench/run", headers=_bearer(token), json={"scope": "gaps"})
+    posted = client.post(
+        "/v1/admin/bench/run",
+        headers=_bearer(token),
+        json={"scope": "gaps", "origin": "catalogue"},
+    )
     assert posted.status_code == 200
     body = posted.json()
     assert body["batch_id"]

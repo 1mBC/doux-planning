@@ -112,6 +112,14 @@ def _insert_run(*, app_version: str, category: str, dataset_id: str, search_effo
     return run_id
 
 
+def _delete_runs(run_ids: list[str]) -> None:
+    with session_scope() as db:
+        for run_id in run_ids:
+            row = db.get(BenchRun, run_id)
+            if row is not None:
+                db.delete(row)
+
+
 def _fail_jobs(job_ids: list[str]) -> None:
     with session_scope() as db:
         for job_id in job_ids:
@@ -216,7 +224,7 @@ def test_put_bench_engine_admin_only_and_rejects_unknown(monkeypatch):
     client, headers = _admin(monkeypatch)
     registre = list(list_engine_refs())
     _set_row(BenchEngine, None, present=False)
-    _insert_run(
+    extra_id = _insert_run(
         app_version="legacy-extra",
         category="tight",
         dataset_id="halles",
@@ -274,6 +282,7 @@ def test_put_bench_engine_admin_only_and_rejects_unknown(monkeypatch):
     assert versions.json()["engine_refs"][: len(registre)] == registre
     assert "legacy-extra" in versions.json()["engine_refs"]
     assert versions.json()["engine_refs"].index("legacy-extra") >= len(registre)
+    _delete_runs([extra_id])
 
 
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
@@ -371,6 +380,7 @@ def test_bench_run_uses_resolver_or_explicit_engine(monkeypatch):
 def test_compare_and_below_manuel_follow_stored_bench_engine(monkeypatch):
     client, headers = _admin(monkeypatch)
     _set_row(BenchEngine, "core-2", present=True)
+    created: list[str] = []
     core2_id = _insert_run(
         app_version="core-2",
         category="tight",
@@ -379,6 +389,7 @@ def test_compare_and_below_manuel_follow_stored_bench_engine(monkeypatch):
         score_global=1.0,
         expected_global=8.0,
     )
+    created.append(core2_id)
     mix_halles = _insert_run(
         app_version="mix-0",
         category="tight",
@@ -387,6 +398,7 @@ def test_compare_and_below_manuel_follow_stored_bench_engine(monkeypatch):
         score_global=1.0,
         expected_global=8.0,
     )
+    created.append(mix_halles)
     mix_nocturne = _insert_run(
         app_version="mix-0",
         category="clock",
@@ -395,39 +407,43 @@ def test_compare_and_below_manuel_follow_stored_bench_engine(monkeypatch):
         score_global=1.0,
         expected_global=8.0,
     )
+    created.append(mix_nocturne)
 
-    compared = client.get("/v1/admin/bench/compare/tight/halles/minimal", headers=headers)
-    assert compared.status_code == 200
-    assert compared.json()["id"] == core2_id
-    assert compared.json()["engine_ref"] == "core-2"
+    try:
+        compared = client.get("/v1/admin/bench/compare/tight/halles/minimal", headers=headers)
+        assert compared.status_code == 200
+        assert compared.json()["id"] == core2_id
+        assert compared.json()["engine_ref"] == "core-2"
 
-    below = client.get("/v1/admin/bench/export", headers=headers, params={"scope": "below_manuel"})
-    assert below.status_code == 200
-    assert below.json()["engine_ref"] == below.json()["app_version"] == "core-2"
-    efforts = [effort for item in below.json()["datasets"] for effort in item["efforts"]]
-    assert all(item["engine_ref"] == "core-2" for item in efforts)
-    assert core2_id in {item["run_id"] for item in efforts}
-    assert mix_halles not in {item["run_id"] for item in efforts}
-    assert mix_nocturne not in {item["run_id"] for item in efforts}
+        below = client.get("/v1/admin/bench/export", headers=headers, params={"scope": "below_manuel"})
+        assert below.status_code == 200
+        assert below.json()["engine_ref"] == below.json()["app_version"] == "core-2"
+        efforts = [effort for item in below.json()["datasets"] for effort in item["efforts"]]
+        assert all(item["engine_ref"] == "core-2" for item in efforts)
+        assert core2_id in {item["run_id"] for item in efforts}
+        assert mix_halles not in {item["run_id"] for item in efforts}
+        assert mix_nocturne not in {item["run_id"] for item in efforts}
 
-    dataset = client.get(
-        "/v1/admin/bench/export",
-        headers=headers,
-        params={"scope": "dataset", "category": "tight", "dataset_id": "halles"},
-    )
-    assert dataset.status_code == 200
-    dataset_efforts = dataset.json()["datasets"][0]["efforts"]
-    dataset_refs = {item["engine_ref"] for item in dataset_efforts}
-    assert "core-2" in dataset_refs
-    assert "mix-0" in dataset_refs
-    assert {core2_id, mix_halles} <= {item["run_id"] for item in dataset_efforts}
+        dataset = client.get(
+            "/v1/admin/bench/export",
+            headers=headers,
+            params={"scope": "dataset", "category": "tight", "dataset_id": "halles"},
+        )
+        assert dataset.status_code == 200
+        dataset_efforts = dataset.json()["datasets"][0]["efforts"]
+        dataset_refs = {item["engine_ref"] for item in dataset_efforts}
+        assert "core-2" in dataset_refs
+        assert "mix-0" in dataset_refs
+        assert {core2_id, mix_halles} <= {item["run_id"] for item in dataset_efforts}
 
-    bank = client.get("/v1/admin/bench/export", headers=headers, params={"scope": "bank"})
-    assert bank.status_code == 200
-    halles = next(item for item in bank.json()["datasets"] if item["category"] == "tight" and item["id"] == "halles")
-    bank_refs = {item["engine_ref"] for item in halles["efforts"]}
-    assert "core-2" in bank_refs
-    assert "mix-0" in bank_refs
+        bank = client.get("/v1/admin/bench/export", headers=headers, params={"scope": "bank"})
+        assert bank.status_code == 200
+        halles = next(item for item in bank.json()["datasets"] if item["category"] == "tight" and item["id"] == "halles")
+        bank_refs = {item["engine_ref"] for item in halles["efforts"]}
+        assert "core-2" in bank_refs
+        assert "mix-0" in bank_refs
+    finally:
+        _delete_runs(created)
 
 
 def test_detail_constants_match_the_contract():
