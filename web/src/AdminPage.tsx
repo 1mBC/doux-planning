@@ -362,16 +362,21 @@ function EngineSelector({
   onUpdate: (next: LiveEngine) => void;
   disabled: boolean;
 }) {
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   async function handleChange(event: React.ChangeEvent<HTMLSelectElement>) {
     const next = event.target.value;
     if (next === liveEngine.engine_ref) {
       return;
     }
+    setSaveError(null);
     try {
       const updated = await putLiveEngine(next);
+      setSaveError(null);
       onUpdate(updated);
-    } catch {
+    } catch (err: unknown) {
       event.target.value = liveEngine.engine_ref;
+      setSaveError(err instanceof ApiHttpError ? err.detail : err instanceof Error ? err.message : "erreur inattendue");
     }
   }
 
@@ -393,6 +398,11 @@ function EngineSelector({
           </option>
         ))}
       </select>
+      {saveError ? (
+        <p className="error" role="alert">
+          {saveError}
+        </p>
+      ) : null}
     </section>
   );
 }
