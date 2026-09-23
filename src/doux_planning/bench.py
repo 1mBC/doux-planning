@@ -184,7 +184,9 @@ def run_bench_on(
     duration = time.perf_counter() - started
     if state.published_cycles != published_before:
         raise RuntimeError("run_bench must not write published_cycles")
-    recap = cycle_recap_from_draft(draft.with_assignments(result.assignments), result)
+    model_draft = draft.with_assignments(result.assignments)
+    scored = evaluate(model_draft)
+    recap = cycle_recap_from_draft(model_draft, scored)
     expected_draft = draft.with_assignments(dataset.expected)
     expected_result = evaluate(expected_draft)
     expected_recap = cycle_recap_from_draft(expected_draft, expected_result)
@@ -194,7 +196,7 @@ def run_bench_on(
         search_effort=effort,
         duration_seconds=duration,
         assignments=result.assignments,
-        warnings=result.warnings,
+        warnings=scored.warnings,
         facts=recap.facts,
         expected_facts=expected_recap.facts,
         score=recap.score,

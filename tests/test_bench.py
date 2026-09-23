@@ -29,8 +29,10 @@ from doux_planning.context import (
     SCORE_WEIGHTS,
     CycleScore,
     ScoreNotes,
+    cycle_recap_from_draft,
     cycle_score,
     empty_restaurant,
+    expand_typical_week,
     team_ready,
     upsert_employee,
 )
@@ -543,6 +545,28 @@ def test_run_bench_on_matches_run_bench_halles_minimal():
     assert len(memory.assignments) == len(disk.assignments)
     assert memory.score.global_score == disk.score.global_score
     assert memory.expected_score.global_score == disk.expected_score.global_score
+
+
+def _salle_draft(dataset, effort: SearchEffort) -> PlanningDraft:
+    structures = tuple(item for item in expand_typical_week(dataset.state) if item.team == Team.SALLE)
+    employees = tuple(person for person in dataset.state.employees if person.team == Team.SALLE)
+    return PlanningDraft(
+        employees=employees,
+        structures=structures,
+        hours=dataset.state.hours,
+        legal_rules=default_legal_rules(),
+        search_effort=effort,
+    )
+
+
+@pytest.mark.parametrize("ref", ["core-2", "mix-0"])
+def test_run_bench_on_score_matches_live_evaluate_of_assignments(ref):
+    dataset = load_bench_dataset("tight", "halles")
+    outcome = run_bench_on(dataset, SearchEffort.MINIMAL, engine_ref=ref)
+    model_draft = _salle_draft(dataset, SearchEffort.MINIMAL).with_assignments(outcome.assignments)
+    live = cycle_recap_from_draft(model_draft, evaluate(model_draft))
+    assert outcome.engine_ref == ref
+    assert outcome.score.global_score == live.score.global_score
 
 
 def test_bench_dataset_from_json_empty_assignments():

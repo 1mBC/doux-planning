@@ -2,8 +2,8 @@
 
 ## 1. Live recap on generated assignments
 
-- [ ] 1.1 `run_bench_on`: after `generate_for`, `evaluate(draft.with_assignments(result.assignments))` then `cycle_recap_from_draft`; `outcome.score` / `facts` / `warnings` from that recap; `assignments` stay generated; `engine_ref` stays requested
-- [ ] 1.2 Oracle path unchanged (already live `evaluate`). mix-0 picker unchanged. No `api/` / `web/` / leftover / vendored evaluate edits
+- [x] 1.1 `run_bench_on`: after `generate_for`, `evaluate(draft.with_assignments(result.assignments))` then `cycle_recap_from_draft`; `outcome.score` / `facts` / `warnings` from that recap; `assignments` stay generated; `engine_ref` stays requested
+- [x] 1.2 Oracle path unchanged (already live `evaluate`). mix-0 picker unchanged. No `api/` / `web/` / leftover / vendored evaluate edits
 
 ## 2. Tests
 
