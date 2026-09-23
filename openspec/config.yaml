@@ -2,11 +2,12 @@ schema: spec-driven
 
 context: |
   Domain: automated restaurant staff planning (doux-planning) for a single human-scale restaurant.
-  Product: 14-day cruise cycle, calendar instances with intents, sandbox (one target: cycle or week), exclusive posts with nearest-level descent, one constraint engine (generate / score / suggest / swap).
+  Product: 14-day cruise cycle, calendar instances with intents, one live sandbox per team (salle or cuisine), exclusive posts with nearest-level descent, one constraint engine with a code registry of frozen engines. Bench and restaurant each store an engine choice; if none is valid, the last registry name is used.
   Tech stack: Python 3.12, FastAPI, OR-Tools (CP-SAT), PostgreSQL, React + TypeScript (Vite), Docker Compose.
   API-first: web and a future cross-platform mobile app consume the same HTTP API. Do not put scoring rules in the UI.
   Language: product and restaurateur UX in French; OpenSpec requirements may stay in English SHALL form.
   Out of scope for v1: native stores, employee-authored constraints, notifications, extras filling, multi-restaurant groups, PHP shared hosting.
+  Reading OpenSpec: openspec/specs/ is the 2026-09-04 foundation. Later landed changes were archived without copying their deltas into those files. contracts/ wins on HTTP and domain shapes. openspec/README.md says how to read the tree. Do not treat a main-spec requirement as the current product when a contract disagrees.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

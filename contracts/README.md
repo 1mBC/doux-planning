@@ -89,6 +89,8 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 76 — note banc = evaluate live | `domain/bench-score-live.md` + patch `bench.md` ; OpenSpec `changes/bench-score-live/` ; brief `core-bench-score-live.md` | **landed** Core `0208f7f` |
 | 77 — choix moteur banc + client | `domain/bench-engine-choice.md` (gagne sur le moteur courant du banc et le repli client) ; OpenSpec `changes/bench-engine-choice/` | **ouvert** |
 
+Les chemins `openspec/changes/<nom>/` cités pour les tranches livrées sont maintenant `openspec/changes/archive/2026-09-23-<nom>/`. Le socle du 4 septembre reste `archive/2026-09-04-define-planning-core/`. Les specs dans `openspec/specs/` n'ont pas reçu ces deltas.
+
 ## Ownership git (ne pas croiser)
 
 | Zone | Owner |
