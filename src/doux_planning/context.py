@@ -17,9 +17,9 @@ from doux_planning.engine import (
     _required_post_count,
     _service_count,
     evaluate,
-    generate_cycle,
+    generate_cycle,  # tests patch this name; generate_team calls generate_for
 )
-from doux_planning.engines.registry import UnknownEngineRef, generate_for
+from doux_planning.engines.registry import UnknownEngineRef, generate_for, list_engine_refs
 from doux_planning.hydrate import _employee, _hours, _shift, _structure, data_dir
 from doux_planning.invites import RestaurantIdentity, UnknownEmployee
 from doux_planning.planning import CONTRACT_HOUR_TOLERANCE, PublishedCycle, RestaurantState, Sandbox
@@ -484,10 +484,8 @@ def generate_team(
         legal_rules=default_legal_rules(),
         search_effort=search,
     )
-    if engine_ref is not None:
-        result, _trace = generate_for(engine_ref, draft, search)
-    else:
-        result = generate_cycle(draft, search)
+    chosen = list_engine_refs()[-1] if engine_ref is None else engine_ref
+    result, _trace = generate_for(chosen, draft, search)
     published = PublishedCycle(
         id=team.value,
         draft=draft.with_assignments(result.assignments),
