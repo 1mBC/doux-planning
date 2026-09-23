@@ -84,10 +84,11 @@ Toujours renvoyé (jamais null sur un run neuf) :
 - `core-2` **n’appelle pas** les seeders (pas de locks).
 - `core-3` figé : pipe seeds `engine-seeds.md` (anti-coupure **toujours**).
 - `core-4` figé : fill `engine-core-4.md`.
-- `core-5` / omis : pipe seeds, fill `engine-core-5.md`, `trace.seeder` renseigné.
+- `core-5` explicite : pipe seeds, fill `engine-core-5.md`, `trace.seeder` renseigné.
+- Omis (`run_bench` / `generate_team`) : dernier de `list_engine_refs()` (aujourd'hui `mix-0`), pas le fill `core-5`.
 - `core-6` : pipe seeds, fill `engine-core-6.md`, `trace.seeder` renseigné.
 - Ref inconnue → `UnknownEngineRef`.
-- `engine_ref() == "core-5"`. 50 jeux. Keep-best inchangé.
+- Pas de `engine_ref()`. Pas de fichier `VERSION`. 50 jeux. Keep-best inchangé.
 
 ## Hors freeze
 
