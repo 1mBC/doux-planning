@@ -88,7 +88,7 @@ Ce dossier fige les **shapes HTTP** (routes, clés JSON, invariants). En cas de 
 | 75 — leftover + 11 h wrap + every_two au moins un | `domain/coverage-rest-weekend.md`, `wellbeing.md`, `score-facts.md` ; OpenSpec `changes/coverage-rest-weekend/` ; briefs `core-coverage-rest-weekend.md`, `ui-coverage-rest-weekend.md` | **landed** Core `8502a5e` + UI `50b7f29` (v0.61.0) |
 | 76 — note banc = evaluate live | `domain/bench-score-live.md` + patch `bench.md` ; OpenSpec `changes/bench-score-live/` ; brief `core-bench-score-live.md` | **landed** Core `0208f7f` |
 | 77 — choix moteur banc + client | `domain/bench-engine-choice.md` (gagne sur le moteur courant du banc et le repli client) ; OpenSpec archivé `2026-09-24-bench-engine-choice`, spec synchronisée | **landed** `b4dd011` (UI v0.62.0) |
-| 78 — moteur core-2.6 | `domain/engine-core-2-6.md` (gagne sur l’étirement pour ce moteur) ; OpenSpec `changes/core-2-6/` | **en cours** |
+| 78 — moteur core-2.6 | `domain/engine-core-2-6.md` (gagne sur l’étirement pour ce moteur) ; OpenSpec `changes/core-2-6/` | **landed** `22657f3` (UI v0.63.0) |
 
 Les chemins `openspec/changes/<nom>/` cités pour les tranches livrées sont maintenant `openspec/changes/archive/2026-09-23-<nom>/`. Le socle du 4 septembre reste `archive/2026-09-04-define-planning-core/`. Les specs dans `openspec/specs/` n'ont pas reçu ces deltas.
 
