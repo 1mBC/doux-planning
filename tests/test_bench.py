@@ -602,7 +602,7 @@ def test_bench_dataset_from_json_empty_assignments():
 
 def test_list_engine_refs_is_core_zero_through_mix():
     assert list_engine_refs() == (
-        "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5",
+        "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5", "core-2.6",
         "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0", "mix-0",
     )
 
@@ -647,14 +647,14 @@ def _assert_complete_trace(trace: SearchTrace, *, frozen: bool, custom: bool = F
 
 
 @pytest.mark.parametrize("ref", [
-    "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5",
+    "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5", "core-2.6",
     "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0", "mix-0",
 ])
 def test_run_bench_halles_minimal_trace_for_each_engine_ref(ref):
     outcome = run_bench("tight", "halles", SearchEffort.MINIMAL, engine_ref=ref)
     assert outcome.engine_ref == ref
     assert outcome.score is not None
-    frozen = ref in ("core-0", "core-1", "core-2")
+    frozen = ref in ("core-0", "core-1", "core-2", "core-2.6")
     custom = ref in ("core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5", "cp-0", "iter-0", "mix-0")
     _assert_complete_trace(outcome.trace, frozen=frozen, custom=custom)
     assert all(
