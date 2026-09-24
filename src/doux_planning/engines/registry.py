@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from doux_planning.engine import EngineResult, PlanningDraft, SearchTrace, _attempt_key, generate_cycle
 from doux_planning.engines import (
-    core_0, core_1, core_2, core_2_1, core_2_2, core_2_3, core_2_4, core_2_5,
+    core_0, core_1, core_2, core_2_1, core_2_2, core_2_3, core_2_4, core_2_5, core_2_6,
     core_3, core_4, core_6, cp_0, iter_0, mix_0,
 )
 from doux_planning.types import SearchEffort
 
 ENGINE_REFS = (
-    "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5",
+    "core-0", "core-1", "core-2", "core-2.1", "core-2.2", "core-2.3", "core-2.4", "core-2.5", "core-2.6",
     "core-3", "core-4", "core-5", "core-6", "cp-0", "iter-0", "mix-0",
 )
 _FROZEN = {
@@ -20,6 +20,7 @@ _FROZEN = {
     "core-2.3": core_2_3,
     "core-2.4": core_2_4,
     "core-2.5": core_2_5,
+    "core-2.6": core_2_6,
     "core-3": core_3,
     "core-4": core_4,
     "core-6": core_6,
