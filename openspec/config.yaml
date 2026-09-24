@@ -7,7 +7,7 @@ context: |
   API-first: web and a future cross-platform mobile app consume the same HTTP API. Do not put scoring rules in the UI.
   Language: product and restaurateur UX in French; OpenSpec requirements may stay in English SHALL form.
   Out of scope for v1: native stores, employee-authored constraints, notifications, extras filling, multi-restaurant groups, PHP shared hosting.
-  Reading OpenSpec: openspec/specs/ is the 2026-09-04 foundation. Later landed changes were archived without copying their deltas into those files. contracts/ wins on HTTP and domain shapes. openspec/README.md says how to read the tree. Do not treat a main-spec requirement as the current product when a contract disagrees.
+  Reading OpenSpec: openspec/specs/ holds the 2026-09-04 foundation plus any change archived with a spec sync. The 2026-09-23 archive was moved without that sync, so those four foundation specs can be stale. bench-engine-choice was synced on validation. contracts/ wins on HTTP and domain shapes. openspec/README.md says how to read the tree. Do not treat a foundation requirement as the current product when a contract disagrees.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
