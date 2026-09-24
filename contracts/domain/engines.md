@@ -19,6 +19,7 @@ src/doux_planning/engines/
   core_2_3.py    # titulaires jusqu’à 48 h
   core_2_4.py    # ouvreurs / fermeurs 11 h
   core_2_5.py    # réserves petits contrats
+  core_2_6.py    # week-ends, contrat, surplus, fenêtre exacte
   core_3.py
   core_4.py
   core_6.py      # seeds + recase rares (jamais live)
@@ -36,6 +37,7 @@ src/doux_planning/engines/
 | `core-2.3` | `engines/core_2_3.py` | titulaires 48 h (`engine-core-2-3.md`) |
 | `core-2.4` | `engines/core_2_4.py` | 11 h ouvreurs/fermeurs (`engine-core-2-4.md`) |
 | `core-2.5` | `engines/core_2_5.py` | réserves ≤ 8 h (`engine-core-2-5.md`) |
+| `core-2.6` | `engines/core_2_6.py` | week-ends, contrat, surplus, fenêtre exacte (`engine-core-2-6.md`) |
 | `core-3` | `engines/core_3.py` | `3167392bd974be8da70cb1a23274ed2675cc7ead` |
 | `core-4` | `engines/core_4.py` | `da1ef781ef572eb3eb30cde97060dd31788f79b5` |
 | `core-5` | `engine.py` **live** | registre, pas un fichier |
@@ -69,7 +71,7 @@ Toujours renvoyé (jamais null sur un run neuf) :
 }
 ```
 
-`core-0` / `core-1` / `core-2` : `seeder="empty"`, `seed_index=0`, `n_locks=0`, `calendars_by_seeder={ "empty": N }`, `seeds_infeasible=0`.  
+`core-0` / `core-1` / `core-2` / `core-2.6` : `seeder="empty"`, `seed_index=0`, `n_locks=0`, `calendars_by_seeder={ "empty": N }`, `seeds_infeasible=0`. `core-2.6` n’est pas dans `MIX0_EXPERTS`.  
 `core-2.1` : idem + `repairs` **nichés dans** `attempt_key` (historique).  
 `core-2.2` / `core-2.3` / `core-2.4` / `core-2.5` : `repairs` **à la racine** du trace. `SearchTrace.repairs` optionnel.  
 `mix-0` : `seeder="mix"` + `mix: { experts, picker, winner, runs }` (`engine-mix-0.md`). `SearchTrace.mix` optionnel.  
@@ -79,7 +81,7 @@ Toujours renvoyé (jamais null sur un run neuf) :
 
 ## Tests
 
-- `list_engine_refs() == ("core-0","core-1","core-2","core-2.1","core-2.2","core-2.3","core-2.4","core-2.5","core-3","core-4","core-5","core-6","cp-0","iter-0","mix-0")`.
+- `list_engine_refs() == ("core-0","core-1","core-2","core-2.1","core-2.2","core-2.3","core-2.4","core-2.5","core-2.6","core-3","core-4","core-5","core-6","cp-0","iter-0","mix-0")`.
 - `run_bench("tight","halles", minimal)` et `engine_ref="core-0"`…`"mix-0"` : 0 interdit expected, `trace` complète, `outcome.engine_ref` = demandé.
 - `core-2` **n’appelle pas** les seeders (pas de locks).
 - `core-3` figé : pipe seeds `engine-seeds.md` (anti-coupure **toujours**).
