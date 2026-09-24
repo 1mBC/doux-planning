@@ -15,7 +15,7 @@ min_shift_for(employee, service_id) -> float
 
 - Clé absente / service inconnu → **4**.
 - Valeur ≤ 0 → `ValueError` (comme aujourd’hui).
-- `stretch_to_min_shift` **intouché**. Tous les `_assigned_window` ( `engine.py` + `engines/*.py` qui l’appellent ) passent `min_shift_for(employee, structure.service_id)` au lieu du scalaire.
+- `stretch_to_min_shift` **intouché**. Tous les `_assigned_window` ( `engine.py` + `engines/*.py` qui l’appellent ) passent `min_shift_for(employee, structure.service_id)` au lieu du scalaire. Exception : `core-2.6` pose la fenêtre telle quelle, sans étirement (`engine-core-2-6.md` gagne pour ce moteur).
 - Sandbox Core (`preview_retune`, `preview_fill`, `_fill_hours`) : min = `min_shift_for` du `service_id` du créneau.
 - Hydrate / banc : un **nombre** N encore lu = toutes les clés à N (compat). `4` ou omis → map vide (donc 4 partout). Ne pas réécrire `data/examples/saint-cloud.json`.
 - `continuous` / chambres : hors freeze (pas de clé).
