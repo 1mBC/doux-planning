@@ -148,6 +148,22 @@ def test_infeasible_balance_keeps_even_lock():
     assert not _off_both(result.assignments, "even", (12, 13))
 
 
+def test_infeasible_balance_reenumerates_hard_calendars():
+    first = _person("A", "a", weekend=WeekendChoice.EVERY_TWO, forced_off=frozenset({12, 13}))
+    second = _person("B", "b", weekend=WeekendChoice.EVERY_TWO)
+    draft = _draft([first, second], [_posts("midi", WEEKDAYS, 10 * 60, 14 * 60, (1,))])
+    calendars = core_2_6._enumerate_rest_days(draft, SearchEffort.MINIMAL)
+    assert len(calendars) > 1
+    for off in calendars:
+        assert {12, 13} <= off["a"]
+        assert not ({5, 6} <= off["a"])
+    result = core_2_6.generate_cycle(draft, SearchEffort.MINIMAL)
+    worked = {shift.day_index for shift in result.assignments if shift.employee_id == "a"}
+    assert 5 in worked
+    assert 12 not in worked
+    assert 13 not in worked
+
+
 def test_no_weekend_wish_can_work_both():
     person = _person("Free", "free")
     draft = _draft(

@@ -1397,11 +1397,25 @@ def _enumerate_rest_days(
     """Covering rest calendars, bounded by search effort."""
     limit = SEARCH_CALENDAR_LIMITS[search]
     seconds = SEARCH_SECONDS[search]
-    hard, work, _unders = _build_rest_model(draft, hard_coverage=True)
-    collector = _collect_rest_solutions(hard, work, draft, limit=limit, seconds=seconds)
+    deadline = time.perf_counter() + seconds
+    hard, work, _unders = _build_rest_model(draft, hard_coverage=True, balance=True)
+    collector = _collect_rest_solutions(
+        hard, work, draft, limit=limit, seconds=seconds, deadline=deadline
+    )
     if collector.unique_count:
         return collector.patterns
-    return [_slack_or_fallback(draft, seconds)]
+    relaxed, relaxed_work, _unders = _build_rest_model(draft, hard_coverage=True, balance=False)
+    relaxed_collector = _collect_rest_solutions(
+        relaxed,
+        relaxed_work,
+        draft,
+        limit=limit,
+        seconds=max(0.01, deadline - time.perf_counter()),
+        deadline=deadline,
+    )
+    if relaxed_collector.unique_count:
+        return relaxed_collector.patterns
+    return [_slack_or_fallback(draft, max(0.01, deadline - time.perf_counter()), balance=False)]
 
 
 def _plan_rest_days(draft: PlanningDraft, seed: int = 0) -> dict[str, set[int]]:
@@ -1903,7 +1917,7 @@ def generate_cycle(draft: PlanningDraft, search: SearchEffort | None = None) -> 
             best_key = key
         SEARCH_PROGRESS["calendars"] = SEARCH_PROGRESS.get("calendars", 0) + 1
 
-    hard, work, _unders = _build_rest_model(draft, hard_coverage=True)
+    hard, work, _unders = _build_rest_model(draft, hard_coverage=True, balance=True)
     collector = _collect_rest_solutions(
         hard,
         work,
@@ -1915,7 +1929,19 @@ def generate_cycle(draft: PlanningDraft, search: SearchEffort | None = None) -> 
         store=False,
     )
     if collector.unique_count == 0:
-        consider(_slack_or_fallback(draft, max(0.01, deadline - time.perf_counter()), balance=False))
+        relaxed, relaxed_work, _unders = _build_rest_model(draft, hard_coverage=True, balance=False)
+        relaxed_collector = _collect_rest_solutions(
+            relaxed,
+            relaxed_work,
+            draft,
+            limit=limit,
+            seconds=max(0.01, deadline - time.perf_counter()),
+            deadline=deadline,
+            on_unique=consider,
+            store=False,
+        )
+        if relaxed_collector.unique_count == 0:
+            consider(_slack_or_fallback(draft, max(0.01, deadline - time.perf_counter()), balance=False))
     consider(_surplus_rest_days(draft))
     assert best is not None
     return best
